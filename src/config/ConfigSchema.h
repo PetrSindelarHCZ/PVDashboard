@@ -1,0 +1,41 @@
+#pragma once
+#include <Arduino.h>
+
+struct SystemConfig {
+    String hostname = "dashboard";
+    String timezone = "CET-1CEST,M3.5.0,M10.5.0/3";
+    String ntpServer = "pool.ntp.org";
+};
+
+struct WifiConfig {
+    String ssid = "VASE_WIFI";
+    String password = "VASE_HESLO";
+};
+
+struct DisplayConfig {
+    String defaultScreen = "home";
+    uint32_t fullRefreshIntervalMinutes = 1440; // 1x denně
+};
+
+struct GoodWeConfig {
+    bool enabled = false;
+    String host = "192.168.1.100";
+    uint16_t port = 8899;
+    uint32_t pollIntervalSeconds = 10;
+};
+
+struct AZRouterConfig {
+    bool enabled = false;
+    String host = "192.168.1.101";
+    uint16_t port = 80;
+    uint32_t pollIntervalSeconds = 10;
+};
+
+struct AppConfig {
+    uint8_t schemaVersion = 1;
+    SystemConfig system;
+    WifiConfig wifi;
+    DisplayConfig display;
+    GoodWeConfig goodwe;
+    AZRouterConfig azrouter;
+};
