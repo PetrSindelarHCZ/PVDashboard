@@ -13,5 +13,6 @@ public:
 
 private:
     bool _succeeded = false;
+    size_t _received = 0;
     String _error;
 };
