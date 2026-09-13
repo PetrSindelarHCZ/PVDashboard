@@ -6,8 +6,11 @@ void OtaManager::handleUpload(HTTPUpload& upload) {
         case UPLOAD_FILE_START:
             _succeeded = false;
             _error = "";
-            if (!Update.begin(upload.totalSize)) {
-                _error = Update.errorString();
+            {
+                const uint32_t totalSize = (upload.totalSize > 0) ? upload.totalSize : UPDATE_SIZE_UNKNOWN;
+                if (!Update.begin(totalSize)) {
+                    _error = Update.errorString();
+                }
             }
             break;
 
