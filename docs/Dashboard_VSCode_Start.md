@@ -1,7 +1,7 @@
 # Dashboard – startovní dokumentace pro VS Code / PlatformIO
 
-**Stav:** start implementace  
-**Datum:** 12. 9. 2026  
+**Stav:** základní integrace M0–M5 a webové OTA implementovány  
+**Datum:** 13. 9. 2026  
 **Cíl dokumentu:** převést dosavadní návrh domácího e-paper Dashboardu do praktického základu nového projektu ve VS Code a začít implementovat firmware samotného dashboardu.
 
 ---
@@ -21,7 +21,8 @@ V této etapě vzniká pouze firmware a webové rozhraní **Dashboardu**.
 - Více obrazovek dashboardu.
 - Přepínání obrazovek z telefonu přes lokální webové rozhraní.
 - Webová diagnostika.
-- Konfigurace oddělená od firmware.
+- Konfigurace oddělená od firmware (aktuálně NVS; Wi-Fi, GoodWe a AZRouter).
+- Wi-Fi recovery AP se scanem okolních sítí.
 - OTA aktualizace firmware přes web.
 - Připravená architektura pro GoodWe GW10K-ET a AZRouter.
 - Git repozitář od začátku projektu.
@@ -66,6 +67,8 @@ Známá omezení současné desky:
 - bez PSRAM,
 - Wi-Fi,
 - velikost firmware, webového UI, fontů, filesystemu a OTA partition je nutné sledovat.
+
+Aktuální výchozí ESP32 partition layout obsahuje dvě OTA partition `app0` a `app1`, každou o velikosti `0x140000` (1 310 720 B). Aktuální firmware má přibližně 1,14 MB, takže se do obou partition vejde; OTA lze implementovat bez okamžité změny layoutu.
 
 ESP32-S3 N16R8 zůstává možná budoucí náhrada, pokud současná deska začne být paměťově omezující.
 
@@ -697,9 +700,9 @@ Pokud Wi-Fi připojení selže:
 
 - dashboard se nesmí restartovat ve smyčce,
 - displej zobrazí stav `Wi-Fi unavailable`,
-- webová konfigurace musí mít v budoucnu recovery/AP režim.
+- webová konfigurace použije recovery/AP režim.
 
-AP provisioning lze implementovat až po funkčním základním firmware.
+AP provisioning je implementován: po neúspěšném připojení se vytvoří síť `Dashboard-Setup` na `192.168.4.1`; okolní sítě lze vyhledat nebo SSID zadat ručně.
 
 ---
 
@@ -746,7 +749,7 @@ První milestone může používat pouze full refresh. Je lepší nejprve stabil
 
 ## 18. Webový OTA update
 
-OTA je součást cílového základu, ale není první krok.
+OTA je implementováno přes `OtaManager` a webový upload firmware na `POST /api/update`. Formulář je dostupný na hlavní webové stránce. Zařízení se restartuje pouze po úspěšném ověření nahraného obrazu.
 
 Požadované budoucí chování:
 
@@ -844,6 +847,8 @@ Cíl:
 
 ### M3 – konfigurace
 
+**Stav: implementováno částečně.** Wi-Fi, GoodWe a AZRouter se ukládají do NVS; web umožňuje měnit hosty, porty, aktivaci a intervaly.
+
 Cíl:
 
 - filesystem,
@@ -854,6 +859,8 @@ Cíl:
 
 ### M4 – GoodWe
 
+**Stav: implementováno a ověřeno proti simulátoru.**
+
 Cíl:
 
 - read-only UDP client,
@@ -863,6 +870,8 @@ Cíl:
 
 ### M5 – AZRouter
 
+**Stav: implementováno a ověřeno proti simulátoru.**
+
 Cíl:
 
 - HTTP JSON client,
@@ -870,7 +879,7 @@ Cíl:
 - mapování do `DataModel`,
 - rozšíření SolarScreen.
 
-OTA následně jako další samostatný milestone.
+OTA je implementováno jako další samostatný milestone; zbývá ověřit upgrade platným firmware obrazem v provozu.
 
 ---
 

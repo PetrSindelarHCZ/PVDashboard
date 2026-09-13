@@ -5,23 +5,28 @@ Firmware domácího e-paper dashboardu pro **Waveshare ESP32 e-Paper Driver Boar
 ---
 
 ## Klíčové vlastnosti
-- **Modulární architektura:** Všechny hardwarové závislosti jsou izolovány v display vrstvě (`IDisplay`), aplikační logika a renderer obrazovek jsou nezávislé.
-- **Obrazovky (Screens):**
   - `home` – Hlavní souhrn (Venku, Energie/FVE, Uvnitř/čidla, předpověď a stav).
   - `solar` – Podrobný pohled na výrobu FVE, baterii, tok sítí, spotřebu domu a AZ Router (ohřev bojleru).
   - `pool` – Sledování bazénu (teploty, pH, chlor, stav filtrace/ohřevu).
   - `weather` – Předpověď počasí a výhled.
   - `diagnostics` – Systémová diagnostika ESP32, paměť RAM, Wi-Fi signál, stav spojení GoodWe UDP & AZ Router REST API.
-- **Mobile-first Web UI:** Lokální web server na portu 80 umožňující okamžité přepínání obrazovek z telefonu, ruční vyvolání obnovení displeje a diagnostiku bez nutnosti fyzických tlačítek.
-- **REST API:**
   - `GET /api/status`
   - `GET /api/screens`
   - `POST /api/screens/{id}/activate`
   - `POST /api/display/refresh`
   - `POST /api/display/full-refresh`
   - `POST /api/system/restart`
-- **Čas a NTP:** Automatická synchronizace času se zónou `Europe/Prague` a podporou letního času (DST).
 
+
+### Obnova Wi-Fi přes konfigurační AP
+
+Pokud se ESP32 po startu nepřipojí k uložené Wi-Fi do 8 sekund, vytvoří dočasnou síť:
+
+- SSID: `Dashboard-Setup`
+- Heslo: `dashboard`
+- Konfigurační stránka: `http://192.168.4.1/`
+
+Připoj se telefonem nebo počítačem k této síti. V části **Konfigurace Wi-Fi** použij **Vyhledat okolní Wi-Fi**, vyber nalezené SSID nebo ho zadej ručně, doplň heslo a ulož je. ESP32 údaje zapíše do paměti a restartuje se. Při běžném provozu se konfigurační AP nevysílá.
 ---
 
 ## Struktura projektu
