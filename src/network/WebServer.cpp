@@ -1,6 +1,215 @@
 #include "WebServer.h"
 #include <ArduinoJson.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include <Update.h>
+#include <mbedtls/sha256.h>
 #include "../../include/Version.h"
+
+namespace {
+    static const char* GITHUB_RELEASE_API_URL = "https://api.github.com/repos/PetrSindelarHCZ/PVDashboard/releases/latest";
+    static const char* GITHUB_FIRMWARE_ASSET_NAME = "firmware.bin";
+    static const char* GITHUB_MANIFEST_ASSET_NAME = "dashboard-manifest.json";
+
+    static bool compareVersions(const String& currentVersion, const String& candidateVersion) {
+        if (currentVersion == candidateVersion) {
+            return false;
+        }
+
+        int currentMajor = 0;
+        int currentMinor = 0;
+        int currentPatch = 0;
+        int candidateMajor = 0;
+        int candidateMinor = 0;
+        int candidatePatch = 0;
+
+        sscanf(currentVersion.c_str(), "%d.%d.%d", &currentMajor, &currentMinor, &currentPatch);
+        sscanf(candidateVersion.c_str(), "%d.%d.%d", &candidateMajor, &candidateMinor, &candidatePatch);
+
+        if (candidateMajor > currentMajor) return true;
+        if (candidateMajor < currentMajor) return false;
+        if (candidateMinor > currentMinor) return true;
+        if (candidateMinor < currentMinor) return false;
+        return candidatePatch > currentPatch;
+    }
+
+    static String sha256ToHex(const uint8_t* hash, size_t length) {
+        String out;
+        for (size_t i = 0; i < length; ++i) {
+            char hex[3];
+            snprintf(hex, sizeof(hex), "%02x", hash[i]);
+            out += hex;
+        }
+        return out;
+    }
+
+    static bool calculateSha256(const uint8_t* data, size_t length, String& result) {
+        mbedtls_sha256_context ctx;
+        uint8_t digest[32];
+        mbedtls_sha256_init(&ctx);
+        if (mbedtls_sha256_starts_ret(&ctx, 0) != 0) {
+            mbedtls_sha256_free(&ctx);
+            return false;
+        }
+        if (mbedtls_sha256_update_ret(&ctx, data, length) != 0) {
+            mbedtls_sha256_free(&ctx);
+            return false;
+        }
+        if (mbedtls_sha256_finish_ret(&ctx, digest) != 0) {
+            mbedtls_sha256_free(&ctx);
+            return false;
+        }
+        mbedtls_sha256_free(&ctx);
+        result = sha256ToHex(digest, sizeof(digest));
+        return true;
+    }
+
+    static bool httpGetString(const String& url, String& payload) {
+        WiFiClientSecure client;
+        client.setInsecure();
+        HTTPClient http;
+        if (!http.begin(client, url)) {
+            return false;
+        }
+        http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+        http.addHeader("Accept", "application/json");
+        http.addHeader("User-Agent", "ESP32-Dashboard-Updater");
+        int code = http.GET();
+        if (code != HTTP_CODE_OK) {
+            http.end();
+            return false;
+        }
+        payload = http.getString();
+        http.end();
+        return !payload.isEmpty();
+    }
+
+    static bool downloadFirmwareBinary(const String& url, const String& expectedSha256) {
+        WiFiClientSecure client;
+        client.setInsecure();
+        HTTPClient http;
+        if (!http.begin(client, url)) {
+            return false;
+        }
+        http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+        http.addHeader("Accept", "application/octet-stream");
+        http.addHeader("User-Agent", "ESP32-Dashboard-Updater");
+
+        int code = http.GET();
+        if (code != HTTP_CODE_OK) {
+            http.end();
+            return false;
+        }
+
+        size_t total = http.getSize();
+        if (!Update.begin(total > 0 ? total : UPDATE_SIZE_UNKNOWN)) {
+            http.end();
+            return false;
+        }
+
+        WiFiClient* stream = http.getStreamPtr();
+        uint8_t buffer[1024];
+        size_t received = 0;
+        String downloadedSha256;
+        uint8_t digestBuffer[32];
+        mbedtls_sha256_context ctx;
+        mbedtls_sha256_init(&ctx);
+        if (mbedtls_sha256_starts_ret(&ctx, 0) != 0) {
+            http.end();
+            Update.abort();
+            return false;
+        }
+
+        while (stream->available()) {
+            size_t len = stream->readBytes(reinterpret_cast<char*>(buffer), sizeof(buffer));
+            if (len == 0) {
+                break;
+            }
+            if (mbedtls_sha256_update_ret(&ctx, buffer, len) != 0) {
+                http.end();
+                Update.abort();
+                mbedtls_sha256_free(&ctx);
+                return false;
+            }
+            if (Update.write(buffer, len) != len) {
+                http.end();
+                Update.abort();
+                mbedtls_sha256_free(&ctx);
+                return false;
+            }
+            received += len;
+        }
+
+        if (mbedtls_sha256_finish_ret(&ctx, digestBuffer) != 0) {
+            http.end();
+            Update.abort();
+            mbedtls_sha256_free(&ctx);
+            return false;
+        }
+        mbedtls_sha256_free(&ctx);
+
+        http.end();
+
+        if (!Update.end()) {
+            return false;
+        }
+
+        if (!expectedSha256.isEmpty()) {
+            downloadedSha256 = sha256ToHex(digestBuffer, sizeof(digestBuffer));
+            if (downloadedSha256 != expectedSha256) {
+                Serial.printf("[OTA] GitHub SHA256 mismatch. expected=%s actual=%s\n", expectedSha256.c_str(), downloadedSha256.c_str());
+                return false;
+            }
+        }
+
+        return Update.isFinished() && received > 0;
+    }
+
+    static String buildGithubReleaseCheckJson(bool updateAvailable, const String& version, const String& downloadUrl, const String& sha256) {
+        JsonDocument doc;
+        doc["status"] = updateAvailable ? "update_available" : "up_to_date";
+        doc["current_version"] = FIRMWARE_VERSION;
+        doc["latest_version"] = version;
+        doc["download_url"] = downloadUrl;
+        doc["sha256"] = sha256;
+        String response;
+        serializeJson(doc, response);
+        return response;
+    }
+
+    static String findGitHubAssetDownloadUrl(const JsonArray& assets, const String& preferredName) {
+        for (const JsonVariant asset : assets) {
+            const char* name = asset["name"] | "";
+            const char* url = asset["browser_download_url"] | "";
+            if (name && url && (String(name) == preferredName || String(name).endsWith(preferredName))) {
+                return String(url);
+            }
+        }
+        if (!assets.isNull() && assets.size() > 0) {
+            const JsonVariant firstAsset = assets[0];
+            const char* url = firstAsset["browser_download_url"] | "";
+            if (url) {
+                return String(url);
+            }
+        }
+        return String();
+    }
+
+    static String findGitHubAssetSha256(const JsonArray& assets, const String& preferredName) {
+        for (const JsonVariant asset : assets) {
+            const char* name = asset["name"] | "";
+            const char* url = asset["browser_download_url"] | "";
+            if (name && url && (String(name) == preferredName + ".sha256" || String(name).endsWith(preferredName + ".sha256"))) {
+                String hash;
+                if (httpGetString(String(url), hash) && !hash.isEmpty()) {
+                    hash.trim();
+                    return hash;
+                }
+            }
+        }
+        return String();
+    }
+}
 
 // Mobile-first HTML rozhraní s velkými tlačítky pro ovládání z telefonu
 static const char INDEX_HTML[] PROGMEM = R"rawliteral(
@@ -400,6 +609,8 @@ void DashboardWebServer::setupRoutes() {
     _server.on("/api/wifi/config", HTTP_POST, [this]() { handleApiWifiConfig(); });
     _server.on("/api/wifi/scan", HTTP_GET, [this]() { handleApiWifiScan(); });
     _server.on("/api/config/sources", HTTP_POST, [this]() { handleApiSourceConfig(); });
+    _server.on("/api/update/check", HTTP_GET, [this]() { handleApiCheckForUpdate(); });
+    _server.on("/api/update/github", HTTP_POST, [this]() { handleApiGithubUpdate(); });
     _server.on("/api/update", HTTP_POST,
                 [this]() { handleApiUpdateComplete(); },
                 [this]() { handleApiUpdateUpload(); });
@@ -556,6 +767,62 @@ void DashboardWebServer::handleApiSourceConfig() {
     }
 
     _server.send(503, "application/json", "{\"status\":\"error\",\"message\":\"Source configuration unavailable\"}");
+}
+
+void DashboardWebServer::handleApiCheckForUpdate() {
+    String payload;
+    if (!httpGetString(String(GITHUB_RELEASE_API_URL), payload)) {
+        _server.send(200, "application/json", buildGithubReleaseCheckJson(false, FIRMWARE_VERSION, "", ""));
+        return;
+    }
+
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, payload);
+    if (err) {
+        _server.send(200, "application/json", buildGithubReleaseCheckJson(false, FIRMWARE_VERSION, "", ""));
+        return;
+    }
+
+    const char* tagName = doc["tag_name"] | "";
+    if (tagName[0] == '\0') {
+        _server.send(200, "application/json", buildGithubReleaseCheckJson(false, FIRMWARE_VERSION, "", ""));
+        return;
+    }
+
+    String latestVersion = String(tagName);
+    latestVersion.replace("v", "");
+
+    JsonArray assets = doc["assets"].as<JsonArray>();
+    String downloadUrl = findGitHubAssetDownloadUrl(assets, String(GITHUB_FIRMWARE_ASSET_NAME));
+    String sha256 = findGitHubAssetSha256(assets, String(GITHUB_FIRMWARE_ASSET_NAME));
+
+    if (downloadUrl.isEmpty()) {
+        _server.send(200, "application/json", buildGithubReleaseCheckJson(false, FIRMWARE_VERSION, "", ""));
+        return;
+    }
+
+    bool updateAvailable = compareVersions(FIRMWARE_VERSION, latestVersion);
+    _server.send(200, "application/json", buildGithubReleaseCheckJson(updateAvailable, latestVersion, downloadUrl, sha256));
+}
+
+void DashboardWebServer::handleApiGithubUpdate() {
+    String url = _server.hasArg("url") ? _server.arg("url") : "";
+    String sha256 = _server.hasArg("sha256") ? _server.arg("sha256") : "";
+    if (url.isEmpty()) {
+        _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Missing GitHub download URL\"}");
+        return;
+    }
+
+    if (!downloadFirmwareBinary(url, sha256)) {
+        Serial.println("[OTA] GitHub binary download failed");
+        _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Firmware download or validation failed\"}");
+        return;
+    }
+
+    Serial.println("[OTA] GitHub firmware installed, restarting...");
+    _server.send(200, "application/json", "{\"status\":\"ok\",\"message\":\"GitHub firmware updated; restarting\"}");
+    delay(500);
+    ESP.restart();
 }
 
 void DashboardWebServer::handleApiUpdateUpload() {

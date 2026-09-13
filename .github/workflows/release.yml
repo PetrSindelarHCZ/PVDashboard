@@ -1,0 +1,44 @@
+name: Release Firmware
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PlatformIO
+        run: python -m pip install --upgrade pip && pip install platformio
+
+      - name: Build firmware
+        run: pio run -e esp32dev
+
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp .pio/build/esp32dev/firmware.bin dist/firmware.bin
+          sha256sum dist/firmware.bin | awk '{print $1}' > dist/firmware.bin.sha256
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/firmware.bin
+            dist/firmware.bin.sha256
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

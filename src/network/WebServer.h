@@ -47,6 +47,8 @@ private:
     void handleApiWifiConfig();
     void handleApiWifiScan();
     void handleApiSourceConfig();
+    void handleApiCheckForUpdate();
+    void handleApiGithubUpdate();
     void handleApiUpdateUpload();
     void handleApiUpdateComplete();
 };
