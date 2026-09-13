@@ -65,6 +65,12 @@ void DiagnosticsScreen::render(IDisplay& display, const DataModel& dm) {
     display.printf("Status: %s", dm.solar.status.available ? "OK - Data dostupna" : "Pripraveno k napojeni");
     display.setCursor(440, 185);
     display.printf("Pocet chyb: %u", dm.solar.status.errorCount);
+    display.setCursor(440, 210);
+    if (dm.solar.status.lastSuccessMs == 0) {
+        display.print("Aktualizace: Nikdy");
+    } else {
+        display.printf("Aktualizace: pred %lu s", (unsigned long)((millis() - dm.solar.status.lastSuccessMs) / 1000));
+    }
 
     display.setFont(&FreeSansBold9pt7b);
     display.setCursor(425, 230);
@@ -74,6 +80,12 @@ void DiagnosticsScreen::render(IDisplay& display, const DataModel& dm) {
     display.printf("Status: %s", dm.azrouter.status.available ? "OK - Data dostupna" : "Pripraveno k napojeni");
     display.setCursor(440, 280);
     display.printf("Pocet chyb: %u", dm.azrouter.status.errorCount);
+    display.setCursor(440, 305);
+    if (dm.azrouter.status.lastSuccessMs == 0) {
+        display.print("Aktualizace: Nikdy");
+    } else {
+        display.printf("Aktualizace: pred %lu s", (unsigned long)((millis() - dm.azrouter.status.lastSuccessMs) / 1000));
+    }
 
     display.setFont(&FreeSansBold9pt7b);
     display.setCursor(425, 325);

@@ -46,7 +46,7 @@ void SolarScreen::render(IDisplay& display, const DataModel& dm) {
     display.setCursor(290, 185);
     display.printf("Tok: %+.0f W", dm.solar.batteryPowerW);
     display.setCursor(290, 210);
-    display.printf("Stav: %s", dm.solar.batteryPowerW > 0 ? "Nabijeni" : "Vybijeni");
+    display.printf("Stav: %s", dm.solar.batteryPowerW < 0 ? "Nabijeni" : (dm.solar.batteryPowerW > 0 ? "Vybijeni" : "Klid"));
 
     // Box 3: Distribuce / Síť (vpravo nahoře)
     display.drawRoundRect(535, 65, 250, 165, 6, 0);
@@ -56,13 +56,13 @@ void SolarScreen::render(IDisplay& display, const DataModel& dm) {
     display.drawLine(545, 98, 770, 98, 0);
     display.setFont(&FreeSansBold18pt7b);
     display.setCursor(550, 145);
-    if (dm.solar.gridPowerW <= 0) {
-        display.printf("+%.0f W", -dm.solar.gridPowerW);
+    if (dm.solar.gridPowerW >= 0) {
+        display.printf("+%.0f W", dm.solar.gridPowerW);
         display.setFont(&FreeSans9pt7b);
         display.setCursor(550, 185);
         display.print("Pretok do site");
     } else {
-        display.printf("-%.0f W", dm.solar.gridPowerW);
+        display.printf("-%.0f W", -dm.solar.gridPowerW);
         display.setFont(&FreeSans9pt7b);
         display.setCursor(550, 185);
         display.print("Nakup ze site");

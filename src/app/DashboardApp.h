@@ -13,6 +13,8 @@
 #include "../network/WifiManager.h"
 #include "../network/TimeService.h"
 #include "../network/WebServer.h"
+#include "../integrations/goodwe/GoodWeClient.h"
+#include "../integrations/azrouter/AZRouterClient.h"
 
 class DashboardApp {
 public:
@@ -39,10 +41,15 @@ private:
     TimeService _timeService;
     DashboardWebServer _webServer;
 
+    GoodWeClient _goodweClient;
+    AZRouterClient _azrouterClient;
+
     bool _pendingRefresh = false;
     bool _pendingFullRefresh = false;
-    unsigned long _lastDataSync = 0;
+    unsigned long _lastGoodweSync = 0;
+    unsigned long _lastAzrouterSync = 0;
     unsigned long _lastScreenRender = 0;
+    unsigned long _lastDisplayUpdate = 0;
 
     void registerScreens();
     void onScreenSwitchRequested(const String& screenId);

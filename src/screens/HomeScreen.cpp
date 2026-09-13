@@ -16,12 +16,21 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
 
     // Datum uprostřed
     display.setFont(&FreeSansBold9pt7b);
-    display.setCursor(320, 32);
+    display.setCursor(240, 32);
     display.print(dm.system.dateStr.length() > 0 ? dm.system.dateStr : "12. 9. 2026");
+
+    // Wi-Fi stav / IP adresa v záhlaví
+    display.setFont(&FreeSans9pt7b);
+    display.setCursor(440, 32);
+    if (dm.system.wifiConnected) {
+        display.printf("WiFi: %s (%d dBm)", dm.system.ipAddress.c_str(), dm.system.wifiRssi);
+    } else {
+        display.print("WiFi: Nepripojeno");
+    }
 
     // Čas vpravo (bez sekund)
     display.setFont(&FreeSansBold18pt7b);
-    display.setCursor(690, 35);
+    display.setCursor(700, 35);
     display.print(dm.system.timeStr);
 
     // Dělící vodorovná linka pod hlavičkou
@@ -80,16 +89,16 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
     display.setCursor(285, 220);
     display.printf("%.1f kW", dm.solar.houseConsumptionW / 1000.0f);
 
-    // Distribuce / Síť
+    // Distribuce / Síť (kladné = přetok do sítě, záporné = nákup)
     display.setFont(&FreeSans9pt7b);
     display.setCursor(285, 270);
     display.print("Sit (pretok/odber):");
     display.setFont(&FreeSansBold12pt7b);
     display.setCursor(285, 295);
-    if (dm.solar.gridPowerW <= 0) {
-        display.printf("+%.1f kW (pretok)", (-dm.solar.gridPowerW) / 1000.0f);
+    if (dm.solar.gridPowerW >= 0) {
+        display.printf("+%.1f kW (pretok)", dm.solar.gridPowerW / 1000.0f);
     } else {
-        display.printf("-%.1f kW (nakup)", dm.solar.gridPowerW / 1000.0f);
+        display.printf("-%.1f kW (nakup)", (-dm.solar.gridPowerW) / 1000.0f);
     }
 
     // Baterie
