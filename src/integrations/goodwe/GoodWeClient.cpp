@@ -1,4 +1,5 @@
 #include "GoodWeClient.h"
+#include "../../diagnostics/Performance.h"
 
 // Modbus RTU CRC16 (polynomial 0xA001, init 0xFFFF)
 uint16_t GoodWeClient::calculateCrc(const uint8_t* buffer, size_t length) {
@@ -50,6 +51,7 @@ void GoodWeClient::begin(const String& host, uint16_t port) {
 }
 
 bool GoodWeClient::update(SolarData& solarData) {
+    Performance::Scope timing(Performance::GoodWe);
     if (_host.isEmpty()) {
         solarData.status.recordError("No Host");
         return false;

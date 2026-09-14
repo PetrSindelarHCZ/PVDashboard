@@ -1,157 +1,89 @@
 #include "HomeScreen.h"
-#include <Fonts/FreeSansBold18pt7b.h>
-#include <Fonts/FreeSansBold12pt7b.h>
-#include <Fonts/FreeSansBold9pt7b.h>
-#include <Fonts/FreeSans9pt7b.h>
+#include "ScreenStyle.h"
 
 void HomeScreen::render(IDisplay& display, const DataModel& dm) {
-    // 1. Horní záhlaví (Header)
-    display.fillRect(0, 0, 800, 48, 1);
-    display.setTextColor(0);
-    
-    // Titulek vlevo
-    display.setFont(&FreeSansBold12pt7b);
-    display.setCursor(20, 32);
-    display.print("DOMOV");
+    ScreenStyle::drawHeader(display, "DOMOV", dm);
 
-    // Datum uprostřed
-    display.setFont(&FreeSansBold9pt7b);
-    display.setCursor(240, 32);
-    display.print(dm.system.dateStr.length() > 0 ? dm.system.dateStr : "12. 9. 2026");
-
-    // Wi-Fi stav / IP adresa v záhlaví
-    display.setFont(&FreeSans9pt7b);
-    display.setCursor(440, 32);
-    if (dm.system.wifiConnected) {
-        display.printf("WiFi: %s (%d dBm)", dm.system.ipAddress.c_str(), dm.system.wifiRssi);
-    } else {
-        display.print("WiFi: Nepripojeno");
-    }
-
-    // Čas vpravo (bez sekund)
-    display.setFont(&FreeSansBold18pt7b);
-    display.setCursor(700, 35);
-    display.print(dm.system.timeStr);
-
-    // Dělící vodorovná linka pod hlavičkou
-    display.drawLine(0, 48, 800, 48, 0);
-
-    // ==========================================
-    // 3 Hlavní sloupce (VENKU | ENERGIE | UVNITŘ)
-    // ==========================================
-    // Sloupec 1: x: 0 - 265
-    // Sloupec 2: x: 266 - 533
-    // Sloupec 3: x: 534 - 800
-    display.drawLine(266, 48, 266, 420, 0);
-    display.drawLine(534, 48, 534, 420, 0);
-
-    // --- Sloupec 1: VENKU ---
-    display.setFont(&FreeSansBold12pt7b);
-    display.setCursor(20, 80);
-    display.print("VENKU");
-
-    // Velká teplota
-    display.setFont(&FreeSansBold18pt7b);
-    display.setCursor(50, 160);
+    ScreenStyle::drawCard(display, 15, 65, 245, 345, "VENKU");
+    ScreenStyle::useMetric(display);
+    display.setCursor(30, 145);
     display.printf("%.1f C", dm.weather.outdoorTempC);
 
-    display.setFont(&FreeSans9pt7b);
-    display.setCursor(20, 220);
+    ScreenStyle::useBody(display);
+    display.setCursor(30, 185);
     display.printf("Vlhkost: %d %%", dm.weather.outdoorHumidityPercent);
+    display.setCursor(30, 235);
+    display.print("Dnesni rozsah");
 
-    display.drawLine(20, 250, 245, 250, 0);
-    display.setFont(&FreeSansBold9pt7b);
-    display.setCursor(20, 280);
-    display.print("Dnes");
-
-    display.setFont(&FreeSansBold12pt7b);
-    display.setCursor(50, 330);
+    ScreenStyle::useValue(display);
+    display.setCursor(30, 270);
     display.printf("%.0f / %.0f C", dm.weather.tempMaxTodayC, dm.weather.tempMinTodayC);
 
-    // --- Sloupec 2: ENERGIE ---
-    display.setFont(&FreeSansBold12pt7b);
-    display.setCursor(285, 80);
-    display.print("ENERGIE");
+    ScreenStyle::useBody(display);
+    display.setCursor(30, 325);
+    display.printf("Stav: %s", dm.weather.conditionText.c_str());
 
-    // Výroba FVE
-    display.setFont(&FreeSans9pt7b);
-    display.setCursor(285, 120);
-    display.print("Vyroba FVE:");
-    display.setFont(&FreeSansBold12pt7b);
-    display.setCursor(285, 145);
+    ScreenStyle::drawCard(display, 275, 65, 245, 345, "ENERGIE");
+    ScreenStyle::useBody(display);
+    display.setCursor(290, 125);
+    display.print("Vyroba FVE");
+    ScreenStyle::useValue(display);
+    display.setCursor(290, 150);
     display.printf("%.1f kW", dm.solar.productionPowerW / 1000.0f);
 
-    // Spotřeba domu
-    display.setFont(&FreeSans9pt7b);
-    display.setCursor(285, 195);
-    display.print("Spotreba domu:");
-    display.setFont(&FreeSansBold12pt7b);
-    display.setCursor(285, 220);
+    ScreenStyle::useBody(display);
+    display.setCursor(290, 195);
+    display.print("Spotreba domu");
+    ScreenStyle::useValue(display);
+    display.setCursor(290, 220);
     display.printf("%.1f kW", dm.solar.houseConsumptionW / 1000.0f);
 
-    // Distribuce / Síť (kladné = přetok do sítě, záporné = nákup)
-    display.setFont(&FreeSans9pt7b);
-    display.setCursor(285, 270);
-    display.print("Sit (pretok/odber):");
-    display.setFont(&FreeSansBold12pt7b);
-    display.setCursor(285, 295);
-    if (dm.solar.gridPowerW >= 0) {
-        display.printf("+%.1f kW (pretok)", dm.solar.gridPowerW / 1000.0f);
-    } else {
-        display.printf("-%.1f kW (nakup)", (-dm.solar.gridPowerW) / 1000.0f);
-    }
+    ScreenStyle::useBody(display);
+    display.setCursor(290, 265);
+    display.print("Distribuce");
+    ScreenStyle::useValue(display);
+    display.setCursor(290, 290);
+    display.printf("%+.1f kW", dm.solar.gridPowerW / 1000.0f);
 
-    // Baterie
-    display.setFont(&FreeSans9pt7b);
-    display.setCursor(285, 345);
-    display.print("Baterie:");
-    display.setFont(&FreeSansBold12pt7b);
-    display.setCursor(285, 370);
-    display.printf("%.0f %% (%.0f W)", dm.solar.batterySocPercent, dm.solar.batteryPowerW);
+    ScreenStyle::useBody(display);
+    display.setCursor(290, 335);
+    display.print("Baterie");
+    ScreenStyle::useValue(display);
+    display.setCursor(290, 360);
+    display.printf("%.0f %% (%+.0f W)", dm.solar.batterySocPercent, dm.solar.batteryPowerW);
 
-    // --- Sloupec 3: UVNITŘ ---
-    display.setFont(&FreeSansBold12pt7b);
-    display.setCursor(550, 80);
-    display.print("UVNITR");
-
-    display.setFont(&FreeSans9pt7b);
-    display.setCursor(550, 120);
-    display.print("Obyvak:");
-    display.setFont(&FreeSansBold12pt7b);
-    display.setCursor(550, 145);
+    ScreenStyle::drawCard(display, 535, 65, 250, 345, "UVNITR");
+    ScreenStyle::useBody(display);
+    display.setCursor(550, 125);
+    display.print("Obyvak");
+    ScreenStyle::useValue(display);
+    display.setCursor(550, 150);
     display.printf("%.1f C", dm.inside.livingRoomTempC);
 
-    display.setFont(&FreeSans9pt7b);
+    ScreenStyle::useBody(display);
     display.setCursor(550, 195);
-    display.print("Loznice:");
-    display.setFont(&FreeSansBold12pt7b);
+    display.print("Loznice");
+    ScreenStyle::useValue(display);
     display.setCursor(550, 220);
     display.printf("%.1f C", dm.inside.bedroomTempC);
 
-    display.setFont(&FreeSans9pt7b);
-    display.setCursor(550, 270);
-    display.print("CO2 v mistnosti:");
-    display.setFont(&FreeSansBold12pt7b);
-    display.setCursor(550, 295);
+    ScreenStyle::useBody(display);
+    display.setCursor(550, 265);
+    display.print("CO2 v mistnosti");
+    ScreenStyle::useValue(display);
+    display.setCursor(550, 290);
     display.printf("%d ppm", dm.inside.co2Ppm);
 
-    display.setFont(&FreeSans9pt7b);
-    display.setCursor(550, 345);
-    display.print("Bazen voda:");
-    display.setFont(&FreeSansBold12pt7b);
-    display.setCursor(550, 370);
+    ScreenStyle::useBody(display);
+    display.setCursor(550, 335);
+    display.print("Bazen");
+    ScreenStyle::useValue(display);
+    display.setCursor(550, 360);
     display.printf("%.1f C", dm.inside.poolTempC);
 
-    // ==========================================
-    // Spodní stavová lišta (Footer)
-    // ==========================================
-    display.drawLine(0, 420, 800, 420, 0);
-
-    display.setFont(&FreeSans9pt7b);
-    display.setCursor(20, 455);
-    display.printf("Predpoved: Ct 20 C | Pa 19 C | So 21 C");
-
-    display.setFont(&FreeSansBold9pt7b);
-    display.setCursor(560, 455);
-    display.printf("[OK] %s", dm.system.statusMessage.c_str());
+    String wifi = dm.system.wifiConnected
+        ? String("WiFi ") + dm.system.ipAddress + " (" + dm.system.wifiRssi + " dBm)"
+        : String("WiFi nepripojeno");
+    ScreenStyle::drawFooter(display, wifi,
+                            String("[OK] ") + dm.system.statusMessage);
 }

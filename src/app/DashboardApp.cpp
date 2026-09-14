@@ -1,4 +1,5 @@
 #include "DashboardApp.h"
+#include "../diagnostics/Performance.h"
 #include "../../include/AppConfig.h"
 #include "../../include/Version.h"
 
@@ -32,7 +33,7 @@ void DashboardApp::setup() {
         Serial.printf("[APP] Wi-Fi zmena stavu -> Connected: %d, IP: %s\n", connected, ip.c_str());
         _dataModel.system.wifiConnected = connected;
         _dataModel.system.ipAddress = ip;
-        _pendingRefresh = true;
+        requestAutomaticDisplayRefresh();
     });
 
     _wifiManager.begin(cfg.wifi.ssid, cfg.wifi.password, cfg.system.hostname);
@@ -95,21 +96,12 @@ void DashboardApp::setup() {
         _azrouterClient.begin(cfg.azrouter.host, cfg.azrouter.port);
     }
 
-    // 8. První vyčtení dat (pokud jsme na síti)
-    if (_wifiManager.isConnected()) {
-        if (cfg.goodwe.enabled) {
-            _goodweClient.update(_dataModel.solar);
-        }
-        if (cfg.azrouter.enabled) {
-            _azrouterClient.update(_dataModel.azrouter);
-        }
-    }
-    _dataModel.updateSystemMetrics();
-
-    // 9. Inicializovat displej a vykreslit výchozí obrazovku (již se správnými daty, IP a časem)
-    _displayManager.init();
-    _displayManager.renderScreen(_screenManager.getActiveScreen(), _dataModel, true);
-    _lastDisplayUpdate = millis();
+    // 8. První čtení dat a inicializace displeje proběhnou až v hlavní smyčce.
+    // Web server tak může začít odpovídat ještě před pomalými síťovými a e-paper operacemi.
+    _lastGoodweSync = millis();
+    _lastAzrouterSync = millis();
+    _displayInitNotBefore = millis() + 1500;
+    requestDisplayRefresh(true);
 
     Serial.println("[APP] Inicializace uspesne dokoncena.");
 }
@@ -122,24 +114,54 @@ void DashboardApp::registerScreens() {
     _screenManager.registerScreen(&_diagnosticsScreen);
 }
 
-void DashboardApp::onScreenSwitchRequested(const String& screenId) {
-    Serial.printf("[APP] Pozadavek z webu na prepnuti obrazovky: %s\n", screenId.c_str());
+void DashboardApp::requestDisplayRefresh(bool full, unsigned long delayMs) {
     _pendingRefresh = true;
-    _pendingFullRefresh = true; // Změna obrazovky provede Full Refresh pro dokonalý kontrast a eliminaci duchů
-}
+    _pendingFullRefresh = _pendingFullRefresh || full;
 
-void DashboardApp::onRefreshRequested(bool full) {
-    Serial.printf("[APP] Pozadavek z webu na refresh displeje (Full: %d)\n", full);
-    _pendingRefresh = true;
-    if (full) {
-        _pendingFullRefresh = true;
+    const unsigned long requestedAt = millis() + delayMs;
+    if (_displayRefreshNotBefore == 0 ||
+        static_cast<long>(requestedAt - _displayRefreshNotBefore) > 0) {
+        _displayRefreshNotBefore = requestedAt;
     }
 }
 
+void DashboardApp::requestAutomaticDisplayRefresh() {
+    unsigned long delayMs = 0;
+    if (_lastScreenRender != 0) {
+        const unsigned long elapsed = millis() - _lastScreenRender;
+        constexpr unsigned long CoalesceWindowMs = 5000;
+        if (elapsed < CoalesceWindowMs) {
+            delayMs = CoalesceWindowMs - elapsed;
+        }
+    }
+    requestDisplayRefresh(false, delayMs);
+}
+
+void DashboardApp::onScreenSwitchRequested(const String& screenId) {
+    Serial.printf("[APP][%lu ms] Pozadavek na prepnuti obrazovky: %s\n", millis(), screenId.c_str());
+    // Zmena celeho obsahu potrebuje plne vycisteni, aby se rozlozeni
+    // predchozi obrazovky nepropisovalo do nove.
+    requestDisplayRefresh(true, 100);
+}
+
+void DashboardApp::onRefreshRequested(bool full) {
+    Serial.printf("[APP][%lu ms] Pozadavek na refresh displeje (Full: %d)\n", millis(), full);
+    requestDisplayRefresh(full, 100);
+}
+
 void DashboardApp::loop() {
+    Performance::Scope loopTiming(Performance::Loop);
     _wifiManager.loop();
     _timeService.loop();
     _webServer.loop();
+
+    const bool displayInitDelayElapsed = static_cast<long>(millis() - _displayInitNotBefore) >= 0;
+    const bool displayInitFallbackElapsed = static_cast<long>(millis() - _displayInitNotBefore) >= 5000;
+    if (!_displayReady && displayInitDelayElapsed && (_timeService.isSynced() || displayInitFallbackElapsed)) {
+        _displayManager.init();
+        _displayReady = true;
+        _lastDisplayUpdate = millis();
+    }
 
     const String previousTimeStr = _dataModel.system.timeStr;
     const String previousDateStr = _dataModel.system.dateStr;
@@ -159,24 +181,26 @@ void DashboardApp::loop() {
         _dataModel.solar.status.recordError("WiFi unavailable");
         _dataModel.azrouter.status.recordError("WiFi unavailable");
         _dataModel.updateSystemMetrics();
-        _pendingRefresh = true;
-        _pendingFullRefresh = false;
+        requestAutomaticDisplayRefresh();
     }
 
     const bool timeChanged = previousTimeStr != _dataModel.system.timeStr ||
                              previousDateStr != _dataModel.system.dateStr ||
                              previousDayOfWeekStr != _dataModel.system.dayOfWeekStr;
     if (timeChanged) {
-        _pendingRefresh = true;
-        _pendingFullRefresh = false;
+        requestAutomaticDisplayRefresh();
     }
 
-    // Zpracování požadavku na překreslení obrazovky
-    if (_pendingRefresh) {
+    // Vykreslit az po aktualizaci casu. Pozadavky z tohoto pruchodu se slouci
+    // do jedine obnovy a pozadavek na plny refresh zustane plnym.
+    if (_displayReady && _pendingRefresh && static_cast<long>(millis() - _displayRefreshNotBefore) >= 0) {
+        const bool full = _pendingFullRefresh;
         _pendingRefresh = false;
-        _displayManager.renderScreen(_screenManager.getActiveScreen(), _dataModel, _pendingFullRefresh);
         _pendingFullRefresh = false;
+        _displayRefreshNotBefore = 0;
+        _displayManager.renderScreen(_screenManager.getActiveScreen(), _dataModel, full);
         _lastScreenRender = millis();
+        _lastDisplayUpdate = _lastScreenRender;
     }
 
     // Periodické čtení dat podle intervalu každého zdroje.
@@ -200,17 +224,16 @@ void DashboardApp::loop() {
 
         _dataModel.updateSystemMetrics();
         if (availabilityChanged) {
-            _pendingRefresh = true;
-            _pendingFullRefresh = false;
+            requestAutomaticDisplayRefresh();
         }
 
         // Periodický částečný refresh displeje každou minutu.
         if (now - _lastDisplayUpdate >= 60000UL) {
             _lastDisplayUpdate = now;
-            _pendingRefresh = true;
-            _pendingFullRefresh = false;
+            requestAutomaticDisplayRefresh();
         }
     }
 
     delay(20);
+    Performance::report();
 }

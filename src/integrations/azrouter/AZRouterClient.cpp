@@ -1,4 +1,5 @@
 #include "AZRouterClient.h"
+#include "../../diagnostics/Performance.h"
 
 AZRouterClient::AZRouterClient() {
 }
@@ -20,6 +21,7 @@ bool AZRouterClient::update(AZRouterData& azData) {
     // 1. Čtení /api/v1/power (výkon vytěžování a energie)
     {
         String url = "http://" + _host + ":" + String(_port) + "/api/v1/power";
+        Performance::Scope timing(Performance::AzPower);
         _http.begin(url);
         _http.setTimeout(1500);
 
@@ -84,6 +86,7 @@ bool AZRouterClient::update(AZRouterData& azData) {
     // 2. Čtení /api/v1/status (teplota zařízení)
     {
         String url = "http://" + _host + ":" + String(_port) + "/api/v1/status";
+        Performance::Scope timing(Performance::AzStatus);
         _http.begin(url);
         _http.setTimeout(1500);
 
@@ -107,6 +110,7 @@ bool AZRouterClient::update(AZRouterData& azData) {
     // 3. Čtení /api/v1/devices (teplota bojleru / čidla zařízení)
     {
         String url = "http://" + _host + ":" + String(_port) + "/api/v1/devices";
+        Performance::Scope timing(Performance::AzDevices);
         _http.begin(url);
         _http.setTimeout(1500);
 

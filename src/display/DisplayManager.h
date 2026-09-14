@@ -6,6 +6,8 @@
 
 class DisplayManager {
 public:
+    static constexpr uint8_t MaxConsecutivePartialRefreshes = 5;
+
     explicit DisplayManager(IDisplay& display);
 
     void init();
@@ -16,4 +18,5 @@ private:
     IDisplay& _display;
     unsigned long _lastFullRefreshMs = 0;
     bool _forceFullRefresh = true;
+    uint8_t _consecutivePartialRefreshes = 0;
 };

@@ -7,9 +7,12 @@ EpaperDisplay::EpaperDisplay(int8_t cs, int8_t dc, int8_t rst, int8_t busy, int8
 }
 
 void EpaperDisplay::init() {
+    Serial.printf("[DISPLAY] Piny CS=%d DC=%d RST=%d BUSY=%d SPI=%d/%d/%d\n",
+                  _cs, _dc, _rst, _busy, _sck, _miso, _mosi);
     SPI.begin(_sck, _miso, _mosi, _cs);
     _epd.init(115200);
     _epd.setRotation(0);
+    Serial.printf("[DISPLAY] Stav BUSY po init: %d\n", digitalRead(_busy));
 }
 
 void EpaperDisplay::clear(uint16_t color) {

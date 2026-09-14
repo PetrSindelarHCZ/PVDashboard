@@ -1,4 +1,5 @@
 #include "WebServer.h"
+#include "../diagnostics/Performance.h"
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
@@ -569,6 +570,8 @@ void DashboardWebServer::begin() {
 }
 
 void DashboardWebServer::loop() {
+    Performance::webTick();
+    Performance::Scope timing(Performance::WebService);
     _server.handleClient();
 }
 
@@ -621,6 +624,7 @@ void DashboardWebServer::handleRoot() {
 }
 
 void DashboardWebServer::handleApiStatus() {
+    Performance::Scope timing(Performance::StatusHandler);
     _dataModel.updateSystemMetrics();
     JsonDocument doc;
 
@@ -628,6 +632,18 @@ void DashboardWebServer::handleApiStatus() {
     doc["uptime"] = _dataModel.system.uptimeSeconds;
     doc["freeHeap"] = _dataModel.system.freeHeapBytes;
     doc["screen"] = _screenManager.getActiveScreenId();
+    JsonObject perf = doc["performance"].to<JsonObject>();
+    perf["uptimeMs"] = millis();
+    for (int i = 0; i < Performance::Count; ++i) {
+        const auto metric = static_cast<Performance::Metric>(i);
+        const auto& value = Performance::stats(metric);
+        JsonObject item = perf[Performance::name(metric)].to<JsonObject>();
+        item["count"] = value.count;
+        item["avgMs"] = value.count ? (double)value.totalMs / value.count : 0;
+        item["maxMs"] = value.maxMs;
+        item["lastMs"] = value.lastMs;
+        item["lastEndMs"] = value.lastEndMs;
+    }
 
     JsonObject wifiObj = doc["wifi"].to<JsonObject>();
     wifiObj["connected"] = _dataModel.system.wifiConnected;
@@ -681,6 +697,8 @@ void DashboardWebServer::handleApiScreens() {
 }
 
 void DashboardWebServer::handleApiActivateScreen(const String& screenId) {
+    Serial.printf("[WEB][%lu ms] Stisk tlacitka: prepnuti obrazovky na '%s'\n",
+                  millis(), screenId.c_str());
     if (_screenManager.activateScreen(screenId)) {
         _dataModel.system.currentScreenId = screenId;
         if (_screenCallback) {
@@ -693,6 +711,8 @@ void DashboardWebServer::handleApiActivateScreen(const String& screenId) {
 }
 
 void DashboardWebServer::handleApiRefresh(bool full) {
+    Serial.printf("[WEB][%lu ms] Stisk tlacitka: %s refresh\n",
+                  millis(), full ? "FULL" : "PARTIAL");
     if (_refreshCallback) {
         _refreshCallback(full);
     }

@@ -46,12 +46,17 @@ private:
 
     bool _pendingRefresh = false;
     bool _pendingFullRefresh = false;
+    bool _displayReady = false;
+    unsigned long _displayInitNotBefore = 0;
+    unsigned long _displayRefreshNotBefore = 0;
     unsigned long _lastGoodweSync = 0;
     unsigned long _lastAzrouterSync = 0;
     unsigned long _lastScreenRender = 0;
     unsigned long _lastDisplayUpdate = 0;
 
     void registerScreens();
+    void requestDisplayRefresh(bool full, unsigned long delayMs = 0);
+    void requestAutomaticDisplayRefresh();
     void onScreenSwitchRequested(const String& screenId);
     void onRefreshRequested(bool full);
 };
