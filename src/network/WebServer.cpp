@@ -652,15 +652,19 @@ void DashboardWebServer::handleApiStatus() {
 
     JsonObject gwObj = doc["goodwe"].to<JsonObject>();
     gwObj["available"] = _dataModel.solar.status.available;
-    gwObj["lastUpdateAgeSeconds"] = _dataModel.solar.status.lastSuccessMs == 0
-        ? serialized(NULL)
-        : serialized((millis() - _dataModel.solar.status.lastSuccessMs) / 1000);
+    if (_dataModel.solar.status.lastSuccessMs == 0) {
+        gwObj["lastUpdateAgeSeconds"] = nullptr;
+    } else {
+        gwObj["lastUpdateAgeSeconds"] = (millis() - _dataModel.solar.status.lastSuccessMs) / 1000;
+    }
 
     JsonObject azObj = doc["azrouter"].to<JsonObject>();
     azObj["available"] = _dataModel.azrouter.status.available;
-    azObj["lastUpdateAgeSeconds"] = _dataModel.azrouter.status.lastSuccessMs == 0
-        ? serialized(NULL)
-        : serialized((millis() - _dataModel.azrouter.status.lastSuccessMs) / 1000);
+    if (_dataModel.azrouter.status.lastSuccessMs == 0) {
+        azObj["lastUpdateAgeSeconds"] = nullptr;
+    } else {
+        azObj["lastUpdateAgeSeconds"] = (millis() - _dataModel.azrouter.status.lastSuccessMs) / 1000;
+    }
 
     JsonObject sourcesObj = doc["sources"].to<JsonObject>();
     JsonObject sourceGw = sourcesObj["goodwe"].to<JsonObject>();

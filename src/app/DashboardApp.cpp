@@ -3,6 +3,33 @@
 #include "../../include/AppConfig.h"
 #include "../../include/Version.h"
 
+namespace {
+constexpr uint32_t MinimumPollIntervalMs = 1000;
+constexpr uint32_t MaximumBackoffMs = 300000;
+constexpr uint8_t MaximumBackoffShift = 5;
+
+uint32_t pollDelayMs(uint32_t intervalSeconds, uint8_t failureStreak) {
+    uint64_t baseMs = static_cast<uint64_t>(intervalSeconds) * 1000ULL;
+    if (baseMs < MinimumPollIntervalMs) {
+        baseMs = MinimumPollIntervalMs;
+    }
+
+    const uint8_t shift = failureStreak < MaximumBackoffShift
+        ? failureStreak
+        : MaximumBackoffShift;
+    uint64_t delayMs = baseMs << shift;
+    const uint64_t maximumMs = baseMs > MaximumBackoffMs ? baseMs : MaximumBackoffMs;
+    if (delayMs > maximumMs) {
+        delayMs = maximumMs;
+    }
+    return static_cast<uint32_t>(delayMs);
+}
+
+uint8_t nextFailureStreak(uint8_t current) {
+    return current < MaximumBackoffShift ? current + 1 : MaximumBackoffShift;
+}
+}
+
 DashboardApp::DashboardApp()
     : _epaperDisplay(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY, EPD_SCK, EPD_MISO, EPD_MOSI),
       _displayManager(_epaperDisplay),
@@ -209,17 +236,33 @@ void DashboardApp::loop() {
         const auto& cfg = _configManager.get();
         bool availabilityChanged = false;
 
-        if (cfg.goodwe.enabled && now - _lastGoodweSync >= cfg.goodwe.pollIntervalSeconds * 1000UL) {
-            _lastGoodweSync = now;
-            bool wasAvailable = _dataModel.solar.status.available;
-            _goodweClient.update(_dataModel.solar);
+        const uint32_t goodweDelayMs = pollDelayMs(cfg.goodwe.pollIntervalSeconds, _goodweFailureStreak);
+        if (cfg.goodwe.enabled && now - _lastGoodweSync >= goodweDelayMs) {
+            const bool wasAvailable = _dataModel.solar.status.available;
+            const bool success = _goodweClient.update(_dataModel.solar);
+            _lastGoodweSync = millis();
+            _goodweFailureStreak = success ? 0 : nextFailureStreak(_goodweFailureStreak);
             availabilityChanged |= wasAvailable != _dataModel.solar.status.available;
+            if (!success) {
+                Serial.printf("[GOODWE] Další pokus za %lu ms (chyby v řadě: %u)\n",
+                              pollDelayMs(cfg.goodwe.pollIntervalSeconds, _goodweFailureStreak),
+                              _goodweFailureStreak);
+            }
         }
-        if (cfg.azrouter.enabled && now - _lastAzrouterSync >= cfg.azrouter.pollIntervalSeconds * 1000UL) {
-            _lastAzrouterSync = now;
-            bool wasAvailable = _dataModel.azrouter.status.available;
-            _azrouterClient.update(_dataModel.azrouter);
+
+        now = millis();
+        const uint32_t azrouterDelayMs = pollDelayMs(cfg.azrouter.pollIntervalSeconds, _azrouterFailureStreak);
+        if (cfg.azrouter.enabled && now - _lastAzrouterSync >= azrouterDelayMs) {
+            const bool wasAvailable = _dataModel.azrouter.status.available;
+            const bool success = _azrouterClient.update(_dataModel.azrouter);
+            _lastAzrouterSync = millis();
+            _azrouterFailureStreak = success ? 0 : nextFailureStreak(_azrouterFailureStreak);
             availabilityChanged |= wasAvailable != _dataModel.azrouter.status.available;
+            if (!success) {
+                Serial.printf("[AZROUTER] Další pokus za %lu ms (chyby v řadě: %u)\n",
+                              pollDelayMs(cfg.azrouter.pollIntervalSeconds, _azrouterFailureStreak),
+                              _azrouterFailureStreak);
+            }
         }
 
         _dataModel.updateSystemMetrics();

@@ -1,6 +1,11 @@
 #include "AZRouterClient.h"
 #include "../../diagnostics/Performance.h"
 
+namespace {
+constexpr int32_t ConnectTimeoutMs = 400;
+constexpr uint16_t ResponseTimeoutMs = 1000;
+}
+
 AZRouterClient::AZRouterClient() {
 }
 
@@ -16,132 +21,109 @@ bool AZRouterClient::update(AZRouterData& azData) {
         return false;
     }
 
-    bool powerSuccess = false;
+    auto getJson = [this](const char* path, JsonDocument& doc, Performance::Metric metric, String& errorMessage) {
+        const String url = "http://" + _host + ":" + String(_port) + path;
+        Performance::Scope timing(metric);
 
-    // 1. Čtení /api/v1/power (výkon vytěžování a energie)
-    {
-        String url = "http://" + _host + ":" + String(_port) + "/api/v1/power";
-        Performance::Scope timing(Performance::AzPower);
-        _http.begin(url);
-        _http.setTimeout(1500);
-
-        int httpCode = _http.GET();
-        if (httpCode == HTTP_CODE_OK) {
-            String payload = _http.getString();
-            JsonDocument doc;
-            DeserializationError error = deserializeJson(doc, payload);
-            if (!error) {
-                // Výkon vytěžování (output.power)
-                // id 3 = celkový výkon, id 0,1,2 = fáze L1, L2, L3
-                if (doc["output"]["power"].is<JsonArray>()) {
-                    float sumPower = 0.0f;
-                    float id3Power = 0.0f;
-                    bool hasId3 = false;
-
-                    for (JsonObject item : doc["output"]["power"].as<JsonArray>()) {
-                        int id = item["id"] | -1;
-                        float val = item["value"] | 0.0f;
-                        if (id == 3) {
-                            id3Power = val;
-                            hasId3 = true;
-                        } else if (id >= 0 && id <= 2) {
-                            sumPower += val;
-                        }
-                    }
-                    azData.routedPowerW = (hasId3 && id3Power > 0) ? id3Power : sumPower;
-                }
-
-                // Dnešní vytěžená energie (output.energy: index/id 4 = Saved Energy Today)
-                if (doc["output"]["energy"].is<JsonArray>()) {
-                    for (JsonObject item : doc["output"]["energy"].as<JsonArray>()) {
-                        int id = item["id"] | -1;
-                        if (id == 4) { // Dnes
-                            azData.routedEnergyTodayKWh = item["value"] | 0.0f;
-                        }
-                    }
-                }
-
-                // Měřený tok ze sítě na vstupu AZRouteru (input.power: fáze 0,1,2)
-                if (doc["input"]["power"].is<JsonArray>()) {
-                    float gridSum = 0.0f;
-                    for (JsonObject item : doc["input"]["power"].as<JsonArray>()) {
-                        int id = item["id"] | -1;
-                        if (id >= 0 && id <= 2) {
-                            gridSum += (item["value"] | 0.0f);
-                        }
-                    }
-                    azData.gridPowerW = gridSum;
-                }
-
-                powerSuccess = true;
-            } else {
-                azData.status.recordError("Power JSON Err");
-            }
-        } else {
-            azData.status.recordError("HTTP " + String(httpCode));
+        if (!_http.begin(url)) {
+            errorMessage = "HTTP begin failed";
+            return false;
         }
-        _http.end();
-    }
 
-    // 2. Čtení /api/v1/status (teplota zařízení)
-    {
-        String url = "http://" + _host + ":" + String(_port) + "/api/v1/status";
-        Performance::Scope timing(Performance::AzStatus);
-        _http.begin(url);
-        _http.setTimeout(1500);
-
-        int httpCode = _http.GET();
-        if (httpCode == HTTP_CODE_OK) {
-            String payload = _http.getString();
-            JsonDocument doc;
-            if (!deserializeJson(doc, payload)) {
-                if (doc["system"]["temperature"].is<float>()) {
-                    // Teplota zařízení / chladiče
-                    float temp = doc["system"]["temperature"].as<float>();
-                    if (azData.boilerTempC <= 0.0f) {
-                        azData.boilerTempC = temp;
-                    }
-                }
-            }
+        _http.setConnectTimeout(ConnectTimeoutMs);
+        _http.setTimeout(ResponseTimeoutMs);
+        const int httpCode = _http.GET();
+        if (httpCode != HTTP_CODE_OK) {
+            errorMessage = "HTTP " + String(httpCode);
+            _http.end();
+            return false;
         }
+
+        const DeserializationError jsonError = deserializeJson(doc, _http.getStream());
         _http.end();
-    }
-
-    // 3. Čtení /api/v1/devices (teplota bojleru / čidla zařízení)
-    {
-        String url = "http://" + _host + ":" + String(_port) + "/api/v1/devices";
-        Performance::Scope timing(Performance::AzDevices);
-        _http.begin(url);
-        _http.setTimeout(1500);
-
-        int httpCode = _http.GET();
-        if (httpCode == HTTP_CODE_OK) {
-            String payload = _http.getString();
-            JsonDocument doc;
-            if (!deserializeJson(doc, payload)) {
-                // Přijmout jak variantu s jedním objektem, tak pole
-                if (doc["power"]["temperature"].is<float>()) {
-                    float devTemp = doc["power"]["temperature"].as<float>();
-                    if (devTemp > 0.0f) {
-                        azData.boilerTempC = devTemp;
-                    }
-                }
-            }
+        if (jsonError) {
+            errorMessage = "JSON " + String(jsonError.c_str());
+            return false;
         }
-        _http.end();
-    }
-
-    if (powerSuccess) {
-        azData.lastUpdateMs = millis();
-        azData.status.recordSuccess();
-        Serial.printf("[AZROUTER] Vytěžování: %.0f W | Bojler: %.1f °C | Dnes: %.1f kWh | Síť AZ: %.0f W\n",
-                      azData.routedPowerW,
-                      azData.boilerTempC,
-                      azData.routedEnergyTodayKWh,
-                      azData.gridPowerW);
         return true;
+    };
+
+    // /power je hlavní endpoint. Když neodpoví, další dva požadavky by jen
+    // prodloužily blokování stejného nedostupného zařízení.
+    JsonDocument powerDoc;
+    String powerError;
+    if (!getJson("/api/v1/power", powerDoc, Performance::AzPower, powerError)) {
+        azData.status.recordError(powerError);
+        return false;
     }
 
-    return false;
-}
+    if (powerDoc["output"]["power"].is<JsonArray>()) {
+        float sumPower = 0.0f;
+        float id3Power = 0.0f;
+        bool hasId3 = false;
 
+        for (JsonObject item : powerDoc["output"]["power"].as<JsonArray>()) {
+            const int id = item["id"] | -1;
+            const float value = item["value"] | 0.0f;
+            if (id == 3) {
+                id3Power = value;
+                hasId3 = true;
+            } else if (id >= 0 && id <= 2) {
+                sumPower += value;
+            }
+        }
+        azData.routedPowerW = (hasId3 && id3Power > 0.0f) ? id3Power : sumPower;
+    }
+
+    if (powerDoc["output"]["energy"].is<JsonArray>()) {
+        for (JsonObject item : powerDoc["output"]["energy"].as<JsonArray>()) {
+            if ((item["id"] | -1) == 4) {
+                azData.routedEnergyTodayKWh = item["value"] | 0.0f;
+            }
+        }
+    }
+
+    if (powerDoc["input"]["power"].is<JsonArray>()) {
+        float gridSum = 0.0f;
+        for (JsonObject item : powerDoc["input"]["power"].as<JsonArray>()) {
+            const int id = item["id"] | -1;
+            if (id >= 0 && id <= 2) {
+                gridSum += (item["value"] | 0.0f);
+            }
+        }
+        azData.gridPowerW = gridSum;
+    }
+
+    // Doplňkové endpointy neovlivňují dostupnost hlavních výkonových dat.
+    JsonDocument statusDoc;
+    String optionalError;
+    if (getJson("/api/v1/status", statusDoc, Performance::AzStatus, optionalError)) {
+        if (statusDoc["system"]["temperature"].is<float>() && azData.boilerTempC <= 0.0f) {
+            azData.boilerTempC = statusDoc["system"]["temperature"].as<float>();
+        }
+    } else {
+        Serial.printf("[AZROUTER] Volitelný /status selhal: %s\n", optionalError.c_str());
+    }
+
+    JsonDocument devicesDoc;
+    optionalError = "";
+    if (getJson("/api/v1/devices", devicesDoc, Performance::AzDevices, optionalError)) {
+        if (devicesDoc["power"]["temperature"].is<float>()) {
+            const float deviceTemp = devicesDoc["power"]["temperature"].as<float>();
+            if (deviceTemp > 0.0f) {
+                azData.boilerTempC = deviceTemp;
+            }
+        }
+    } else {
+        Serial.printf("[AZROUTER] Volitelný /devices selhal: %s\n", optionalError.c_str());
+    }
+
+    azData.lastUpdateMs = millis();
+    azData.status.recordSuccess();
+    Serial.printf("[AZROUTER] Vytěžování: %.0f W | Bojler: %.1f °C | Dnes: %.1f kWh | Síť AZ: %.0f W\n",
+                  azData.routedPowerW,
+                  azData.boilerTempC,
+                  azData.routedEnergyTodayKWh,
+                  azData.gridPowerW);
+    return true;
+}

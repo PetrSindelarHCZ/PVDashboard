@@ -77,8 +77,8 @@ Výsledky měření z 14. 9. 2026 jsou historické snímky konkrétních testů:
 ## Známá omezení
 
 - Refresh displeje a čtení datových zdrojů běží synchronně v hlavní smyčce.
-  WebUI proto během e-paper operace nebo síťového timeoutu nemusí odpovídat.
-- AZRouter nemá samostatně nastavený connect timeout ani backoff po chybě.
+  WebUI proto během e-paper operace nebo jednotlivého síťového timeoutu nemusí
+  odpovídat; zdroje už používají kratší timeouty a omezený backoff.
 - WebUI může spustit další periodický statusový požadavek, i když předchozí běží.
 - OTA je implementované, ale celý upgrade a chybové scénáře ještě nejsou
   provozně ověřené.

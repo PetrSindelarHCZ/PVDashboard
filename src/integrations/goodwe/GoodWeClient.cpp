@@ -1,5 +1,11 @@
 #include "GoodWeClient.h"
 #include "../../diagnostics/Performance.h"
+#include <WiFi.h>
+
+namespace {
+constexpr int MaxAttempts = 2;
+constexpr uint32_t ResponseTimeoutMs = 700;
+}
 
 // Modbus RTU CRC16 (polynomial 0xA001, init 0xFFFF)
 uint16_t GoodWeClient::calculateCrc(const uint8_t* buffer, size_t length) {
@@ -47,6 +53,10 @@ void GoodWeClient::begin(const String& host, uint16_t port) {
     _host = host;
     _port = port;
     _udp.begin(0); // Lokální UDP port pro příjem
+    _remoteIpKnown = _remoteIp.fromString(_host);
+    if (!_remoteIpKnown) {
+        _remoteIpKnown = WiFi.hostByName(_host.c_str(), _remoteIp) == 1;
+    }
     Serial.printf("[GOODWE] Inicializován klient UDP %s:%u (Unit ID: 0xF7, Modbus RTU/UDP)\n", _host.c_str(), _port);
 }
 
@@ -64,8 +74,8 @@ bool GoodWeClient::update(SolarData& solarData) {
     int len = 0;
     bool success = false;
 
-    // Až 3 pokusy o přečtení (UDP paket se v síti může ztratit)
-    for (int attempt = 1; attempt <= 3; attempt++) {
+    // Dva krátké pokusy o přečtení omezí blokování při nedostupném měniči.
+    for (int attempt = 1; attempt <= MaxAttempts; attempt++) {
         while (_udp.parsePacket() > 0) {
             _udp.flush(); // Vyprázdnění případných starých dat
         }
@@ -78,13 +88,26 @@ bool GoodWeClient::update(SolarData& solarData) {
             continue;
         }
 
-        // Čekání na odpověď (max 1200 ms)
-        unsigned long start = millis();
+        const unsigned long start = millis();
         int packetSize = 0;
-        while (millis() - start < 1200) {
+        while (millis() - start < ResponseTimeoutMs) {
             packetSize = _udp.parsePacket();
-            if (packetSize > 0) break;
-            delay(15);
+            if (packetSize <= 0) {
+                delay(10);
+                continue;
+            }
+
+            const bool validPort = _udp.remotePort() == _port;
+            const bool validHost = !_remoteIpKnown || _udp.remoteIP() == _remoteIp;
+            if (validPort && validHost) {
+                break;
+            }
+
+            Serial.printf("[GOODWE] Ignoruji UDP paket od %s:%u\n",
+                          _udp.remoteIP().toString().c_str(),
+                          _udp.remotePort());
+            _udp.flush();
+            packetSize = 0;
         }
 
         if (packetSize >= 10) {
@@ -92,10 +115,13 @@ bool GoodWeClient::update(SolarData& solarData) {
             success = true;
             break;
         }
+        if (packetSize > 0) {
+            _udp.flush();
+        }
     }
 
     if (!success || len < 10) {
-        solarData.status.recordError("Timeout (3 attempts)");
+        solarData.status.recordError("Timeout (2 attempts)");
         return false;
     }
 

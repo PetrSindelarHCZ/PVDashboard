@@ -15,7 +15,8 @@ private:
     String _host;
     uint16_t _port = 8899;
     WiFiUDP _udp;
-    unsigned long _lastAttempt = 0;
+    IPAddress _remoteIp;
+    bool _remoteIpKnown = false;
 
     static uint16_t calculateCrc(const uint8_t* buffer, size_t length);
     static int16_t readInt16(const uint8_t* buffer, size_t offset);

@@ -51,6 +51,8 @@ private:
     unsigned long _displayRefreshNotBefore = 0;
     unsigned long _lastGoodweSync = 0;
     unsigned long _lastAzrouterSync = 0;
+    uint8_t _goodweFailureStreak = 0;
+    uint8_t _azrouterFailureStreak = 0;
     unsigned long _lastScreenRender = 0;
     unsigned long _lastDisplayUpdate = 0;
 

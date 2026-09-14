@@ -18,24 +18,33 @@ Výsledek: reprodukovatelný firmware a dokumentovaný výchozí stav.
 
 ### AZRouter
 
-- nastavit samostatný connect timeout,
-- po selhání /api/v1/power neprovádět další dva dotazy,
-- plánovat další pokus od dokončení předchozího,
-- přidat backoff s omezeným maximem,
-- po úspěchu obnovit běžný interval.
+- [x] nastavit samostatný connect timeout,
+- [x] po selhání /api/v1/power neprovádět další dva dotazy,
+- [x] plánovat další pokus od dokončení předchozího,
+- [x] přidat backoff s omezeným maximem,
+- [x] po úspěchu obnovit běžný interval.
 
 ### GoodWe
 
-- zkrátit blokování při nedostupnosti,
-- přidat backoff po celé neúspěšné sadě UDP pokusů,
-- zahazovat odpovědi z jiného hostu nebo portu,
-- zachovat poslední platná data a samostatně zobrazit jejich stáří.
+- [x] zkrátit blokování při nedostupnosti,
+- [x] přidat backoff po celé neúspěšné sadě UDP pokusů,
+- [x] zahazovat odpovědi z jiného hostu nebo portu,
+- [x] zachovat poslední platná data a samostatně zobrazit jejich stáří.
+
+Implementace je hotová. Online smoke test 14. 9. 2026 potvrdil GoodWe přibližně
+17 ms, AZ endpointy 35 až 39 ms a odezvu /api/status s mediánem 39 ms.
+
+Při současném výpadku obou zdrojů byly naměřeny stabilní limity 1 406 ms pro
+GoodWe a 407 ms pro AZRouter. Backoff po dalších chybách vzrostl z 40 na 80 s.
+Všech 55 požadavků /api/status uspělo; medián byl 40,6 ms, p95 125,9 ms a
+maximum 1 480,8 ms během pollingu zdrojů. Další maximum 1 797,4 ms způsobil
+souběžný partial refresh displeje.
 
 Akceptace:
 
-- výpadek obou zdrojů nezpůsobí dlouhé série timeoutů,
-- WebUI při výpadku běžně odpoví do 500 ms,
-- po návratu zdroje se komunikace automaticky obnoví.
+- [x] výpadek obou zdrojů nezpůsobí dlouhé série timeoutů,
+- [x] WebUI při výpadku běžně odpoví do 500 ms,
+- [ ] po návratu zdroje se komunikace automaticky obnoví.
 
 ## P2 — neblokující displej a WebUI
 

@@ -26,8 +26,9 @@ Mapované hodnoty:
 | gridPowerW | Active Power Meter, registr 35140 |
 | houseConsumptionW | Výpočet z toků, případně load_ptotal |
 
-Klient provede až tři pokusy, každý může čekat 1,2 sekundy. Při nedostupném
-zařízení proto blokuje hlavní smyčku přibližně 3,6 sekundy.
+Klient provede nejvýše dva pokusy po 700 ms a přijme pouze paket z
+nakonfigurovaného hostu a portu. Při nedostupném zařízení proto jeden polling
+blokuje hlavní smyčku nejvýše přibližně 1,4 sekundy.
 
 ## AZRouter
 
@@ -42,9 +43,10 @@ zařízení proto blokuje hlavní smyčku přibližně 3,6 sekundy.
 - /api/v1/devices:
   - power.temperature jako preferovaná teplota bojleru nebo zařízení.
 
-Za úspěch celé aktualizace se považuje platná odpověď /api/v1/power. Klient
-nyní provádí všechny tři dotazy i tehdy, když první selže. setTimeout(1500)
-omezuje čtení, ale connect timeout zatím není nastavený samostatně.
+Za úspěch celé aktualizace se považuje platná odpověď /api/v1/power. Connect
+timeout je 400 ms a timeout odpovědi 1 000 ms. Když hlavní endpoint selže,
+doplňkové dotazy /status a /devices se v daném cyklu neprovedou. Jejich samostatné
+selhání nezneplatní již přijatá výkonová data.
 
 ## Znaménka
 
@@ -70,3 +72,7 @@ Každý zdroj udržuje:
 Při chybě zůstávají poslední naměřené hodnoty v DataModel. UI proto musí spolu
 s hodnotou zobrazovat dostupnost nebo stáří dat, aby stará hodnota nepůsobila
 jako aktuální měření.
+
+Po neúspěchu plánovač zdvojnásobuje interval dalšího pokusu. Pro běžné krátké
+intervaly je strop pět minut; delší uživatelský interval se nikdy nezkrátí.
+Interval se měří od dokončení dotazu a první úspěch obnoví běžnou hodnotu.
