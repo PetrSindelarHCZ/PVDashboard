@@ -4,6 +4,7 @@
 #include "../data/DataModel.h"
 #include "../display/EpaperDisplay.h"
 #include "../display/DisplayManager.h"
+#include "../display/DisplayWorker.h"
 #include "../screens/ScreenManager.h"
 #include "../screens/HomeScreen.h"
 #include "../screens/SolarScreen.h"
@@ -29,6 +30,7 @@ private:
 
     EpaperDisplay _epaperDisplay;
     DisplayManager _displayManager;
+    DisplayWorker _displayWorker;
     ScreenManager _screenManager;
 
     HomeScreen _homeScreen;
@@ -46,7 +48,7 @@ private:
 
     bool _pendingRefresh = false;
     bool _pendingFullRefresh = false;
-    bool _displayReady = false;
+    bool _displayWorkerStarted = false;
     unsigned long _displayInitNotBefore = 0;
     unsigned long _displayRefreshNotBefore = 0;
     unsigned long _lastGoodweSync = 0;

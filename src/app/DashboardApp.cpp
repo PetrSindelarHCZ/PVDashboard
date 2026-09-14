@@ -33,6 +33,7 @@ uint8_t nextFailureStreak(uint8_t current) {
 DashboardApp::DashboardApp()
     : _epaperDisplay(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY, EPD_SCK, EPD_MISO, EPD_MOSI),
       _displayManager(_epaperDisplay),
+      _displayWorker(_displayManager),
     _webServer(80, _dataModel, _screenManager, _configManager.get()) {
 }
 
@@ -93,6 +94,10 @@ void DashboardApp::setup() {
 
     _webServer.onRefresh([this](bool full) {
         onRefreshRequested(full);
+    });
+
+    _webServer.onDisplayStatus([this]() {
+        return _displayWorker.getStatus();
     });
 
     _webServer.onWifiConfig([this](const String& ssid, const String& password) {
@@ -184,10 +189,17 @@ void DashboardApp::loop() {
 
     const bool displayInitDelayElapsed = static_cast<long>(millis() - _displayInitNotBefore) >= 0;
     const bool displayInitFallbackElapsed = static_cast<long>(millis() - _displayInitNotBefore) >= 5000;
-    if (!_displayReady && displayInitDelayElapsed && (_timeService.isSynced() || displayInitFallbackElapsed)) {
-        _displayManager.init();
-        _displayReady = true;
-        _lastDisplayUpdate = millis();
+    if (!_displayWorkerStarted && displayInitDelayElapsed && (_timeService.isSynced() || displayInitFallbackElapsed)) {
+        _displayWorkerStarted = _displayWorker.begin();
+        if (_displayWorkerStarted) {
+            _lastDisplayUpdate = millis();
+        }
+    }
+
+    const DisplayTaskStatus displayStatus = _displayWorker.getStatus();
+    if (displayStatus.lastCompletedMs != 0 && displayStatus.lastCompletedMs != _lastScreenRender) {
+        _lastScreenRender = displayStatus.lastCompletedMs;
+        _lastDisplayUpdate = displayStatus.lastCompletedMs;
     }
 
     const String previousTimeStr = _dataModel.system.timeStr;
@@ -218,16 +230,15 @@ void DashboardApp::loop() {
         requestAutomaticDisplayRefresh();
     }
 
-    // Vykreslit az po aktualizaci casu. Pozadavky z tohoto pruchodu se slouci
-    // do jedine obnovy a pozadavek na plny refresh zustane plnym.
-    if (_displayReady && _pendingRefresh && static_cast<long>(millis() - _displayRefreshNotBefore) >= 0) {
-        const bool full = _pendingFullRefresh;
-        _pendingRefresh = false;
-        _pendingFullRefresh = false;
-        _displayRefreshNotBefore = 0;
-        _displayManager.renderScreen(_screenManager.getActiveScreen(), _dataModel, full);
-        _lastScreenRender = millis();
-        _lastDisplayUpdate = _lastScreenRender;
+    // Po aktualizaci času předat konzistentní snímek workeru. Pokud už kreslí,
+    // worker ponechá ve frontě nejnovější data a zachová požadavek na full refresh.
+    if (displayStatus.ready && _pendingRefresh &&
+        static_cast<long>(millis() - _displayRefreshNotBefore) >= 0) {
+        if (_displayWorker.enqueue(_screenManager.getActiveScreen(), _dataModel, _pendingFullRefresh)) {
+            _pendingRefresh = false;
+            _pendingFullRefresh = false;
+            _displayRefreshNotBefore = 0;
+        }
     }
 
     // Periodické čtení dat podle intervalu každého zdroje.

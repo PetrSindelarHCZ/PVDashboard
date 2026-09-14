@@ -36,17 +36,18 @@ Současná hlavní smyčka postupně:
 
 1. obslouží Wi-Fi, NTP a jeden krok synchronního webového serveru,
 2. aktualizuje systémová data,
-3. případně provede celý e-paper refresh,
+3. předá připravený snímek dat display workeru,
 4. podle intervalů synchronně načte GoodWe a AZRouter,
 5. aktualizuje diagnostiku a čeká 20 ms.
 
-Toto uspořádání je jednoduché, ale refresh a timeouty zastaví obsluhu WebUI.
-Cílová změna je ponechat WebServer v hlavní smyčce a přesunout displej a později
-také síťové polling operace do řízených pracovních úloh.
+DisplayWorker je jediným vlastníkem DisplayManageru a e-paper ovladače. Požadavky
+ukládá do chráněného jednopolohového bufferu, slučuje změny a renderuje konzistentní
+kopii DataModel v samostatné FreeRTOS úloze. Síťové polling operace zatím zůstávají
+v hlavní smyčce a při timeoutu mohou krátce zdržet WebUI.
 
 ## Požadavky na souběh
 
-Při zavedení FreeRTOS úloh musí platit:
+Pro současnou FreeRTOS display úlohu platí:
 
 - displej obsluhuje právě jedna úloha,
 - před vykreslením vznikne konzistentní snímek DataModel,
@@ -55,7 +56,7 @@ Při zavedení FreeRTOS úloh musí platit:
 - plný požadavek nesmí být přepsán pozdějším částečným,
 - stav úlohy je dostupný přes /api/status.
 
-Doporučené stavy displeje jsou **idle**, **queued**, **rendering_partial**,
+Publikované stavy displeje jsou **stopped**, **initializing**, **idle**, **queued**, **rendering_partial**,
 **rendering_full** a **error**.
 
 ## Časování

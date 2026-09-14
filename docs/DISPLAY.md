@@ -55,7 +55,7 @@ Všechny obrazovky používají společný ScreenStyle:
 
 ## Známá omezení
 
-- Refresh blokuje hlavní aplikační smyčku a během něj WebUI nemusí odpovídat.
+- Refresh běží v samostatné FreeRTOS úloze; jeho stav a délka jsou dostupné přes /api/status.
 - DisplayConfig.fullRefreshIntervalMinutes není zapojené do rozhodování.
 - Počítadlo částečných obnov se po restartu neuchovává.
 - Lokální refresh pouze hodin nebo jednotlivých hodnot není implementovaný.

@@ -260,6 +260,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
             -webkit-tap-highlight-color: transparent;
         }
         .btn:active { transform: scale(0.98); }
+        .btn:disabled { opacity: 0.45; cursor: wait; transform: none; }
         .btn.active {
             background: #1e3a8a;
             border-color: var(--active-border);
@@ -296,19 +297,19 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         <div class="card">
             <div class="card-title">Aktivní obrazovka displeje</div>
             <div class="btn-group" id="screensList">
-                <button class="btn" onclick="activate('home')">🏠 Hlavní souhrn <span class="tag" id="tag-home"></span></button>
-                <button class="btn" onclick="activate('solar')">☀️ Fotovoltaika (FVE) <span class="tag" id="tag-solar"></span></button>
-                <button class="btn" onclick="activate('pool')">🏊 Bazén <span class="tag" id="tag-pool"></span></button>
-                <button class="btn" onclick="activate('weather')">🌤️ Počasí <span class="tag" id="tag-weather"></span></button>
-                <button class="btn" onclick="activate('diagnostics')">⚙️ Diagnostika <span class="tag" id="tag-diagnostics"></span></button>
+                <button class="btn" data-display-action onclick="activate('home')">🏠 Hlavní souhrn <span class="tag" id="tag-home"></span></button>
+                <button class="btn" data-display-action onclick="activate('solar')">☀️ Fotovoltaika (FVE) <span class="tag" id="tag-solar"></span></button>
+                <button class="btn" data-display-action onclick="activate('pool')">🏊 Bazén <span class="tag" id="tag-pool"></span></button>
+                <button class="btn" data-display-action onclick="activate('weather')">🌤️ Počasí <span class="tag" id="tag-weather"></span></button>
+                <button class="btn" data-display-action onclick="activate('diagnostics')">⚙️ Diagnostika <span class="tag" id="tag-diagnostics"></span></button>
             </div>
         </div>
 
         <div class="card">
             <div class="card-title">Ovládání displeje</div>
             <div class="btn-group">
-                <button class="btn btn-secondary" onclick="triggerRefresh(false)">🔄 Obnovit displej (Partial)</button>
-                <button class="btn btn-secondary" onclick="triggerRefresh(true)">✨ Plný refresh (Full)</button>
+                <button class="btn btn-secondary" data-display-action onclick="triggerRefresh(false)">🔄 Obnovit displej (Partial)</button>
+                <button class="btn btn-secondary" data-display-action onclick="triggerRefresh(true)">✨ Plný refresh (Full)</button>
             </div>
         </div>
 
@@ -318,6 +319,10 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 <div class="status-item">
                     <div class="status-label">Aktivní displej</div>
                     <div class="status-value ok" id="statScreen">-</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Stav překreslení</div>
+                    <div class="status-value" id="statDisplayState">-</div>
                 </div>
                 <div class="status-item">
                     <div class="status-label">Wi-Fi Signál</div>
@@ -409,12 +414,40 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         }
 
         let sourceConfigLoaded = false;
+        let statusRequestInFlight = false;
+        let displayCommandInFlight = false;
+        let displayBusy = false;
+
+        function setDisplayActionsDisabled() {
+            const disabled = displayCommandInFlight || displayBusy;
+            document.querySelectorAll('[data-display-action]').forEach(button => {
+                button.disabled = disabled;
+            });
+        }
+
+        function displayStateText(state) {
+            const labels = {
+                stopped: 'Zastaveno',
+                initializing: 'Inicializace',
+                idle: 'Připraven',
+                queued: 'Ve frontě',
+                rendering_partial: 'Částečný refresh',
+                rendering_full: 'Plný refresh',
+                error: 'Chyba'
+            };
+            return labels[state] || state || 'Neznámý';
+        }
 
         async function updateStatus() {
+            if (statusRequestInFlight) return;
+            statusRequestInFlight = true;
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 2500);
             try {
-                const res = await fetch('/api/status');
+                const res = await fetch('/api/status', { signal: controller.signal });
+                if (!res.ok) throw new Error('Status HTTP ' + res.status);
                 const data = await res.json();
-                
+
                 document.getElementById('fwVer').innerText = 'v' + data.firmware;
                 document.getElementById('statScreen').innerText = data.screen;
                 document.getElementById('statWifi').innerText = data.wifi.rssi + ' dBm';
@@ -423,6 +456,11 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 document.getElementById('statGoodweUpdate').innerText = formatDataAge(data.goodwe.lastUpdateAgeSeconds);
                 document.getElementById('statAzrouterUpdate').innerText = formatDataAge(data.azrouter.lastUpdateAgeSeconds);
                 document.getElementById('statHeap').innerText = Math.round(data.freeHeap / 1024) + ' KB';
+
+                const display = data.display || {};
+                document.getElementById('statDisplayState').innerText = displayStateText(display.state);
+                displayBusy = !['idle', 'stopped', 'error'].includes(display.state);
+                setDisplayActionsDisabled();
 
                 if (!sourceConfigLoaded && data.sources) {
                     const gw = data.sources.goodwe;
@@ -437,56 +475,62 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     document.getElementById('azEnabled').checked = az.enabled;
                     sourceConfigLoaded = true;
                 }
-                
+
                 const s = data.uptime;
                 const hrs = Math.floor(s / 3600);
                 const mins = Math.floor((s % 3600) / 60);
                 document.getElementById('statUptime').innerText = `${hrs}h ${mins}m ${s % 60}s`;
 
-                // Update active buttons
                 ['home', 'solar', 'pool', 'weather', 'diagnostics'].forEach(id => {
                     const el = document.querySelector(`button[onclick="activate('${id}')"]`);
-                    if (el) {
-                        if (id === data.screen) {
-                            el.classList.add('active');
-                        } else {
-                            el.classList.remove('active');
-                        }
-                    }
+                    if (el) el.classList.toggle('active', id === data.screen);
                 });
             } catch (e) {
-                console.error("Chyba cteni statusu:", e);
+                if (e.name !== 'AbortError') console.error('Chyba čtení statusu:', e);
+            } finally {
+                clearTimeout(timeout);
+                statusRequestInFlight = false;
             }
         }
-
         function formatDataAge(seconds) {
             return seconds === null ? 'Nikdy' : 'před ' + seconds + ' s';
         }
 
         async function activate(screenId) {
+            if (displayCommandInFlight || displayBusy) return;
+            displayCommandInFlight = true;
+            setDisplayActionsDisabled();
             try {
                 showToast('Přepínám na: ' + screenId);
                 const res = await fetch(`/api/screens/${screenId}/activate`, { method: 'POST' });
-                if (res.ok) {
-                    showToast('Obrazovka přepnuta');
-                    updateStatus();
-                }
+                if (!res.ok) throw new Error('Activate HTTP ' + res.status);
+                displayBusy = true;
+                showToast('Překreslení zařazeno');
             } catch (e) {
                 showToast('Chyba spojení');
+            } finally {
+                displayCommandInFlight = false;
+                setDisplayActionsDisabled();
             }
         }
 
         async function triggerRefresh(full) {
+            if (displayCommandInFlight || displayBusy) return;
+            displayCommandInFlight = true;
+            setDisplayActionsDisabled();
             try {
-                showToast(full ? 'Plný refresh spuštěn...' : 'Částečný refresh...');
                 const endpoint = full ? '/api/display/full-refresh' : '/api/display/refresh';
-                await fetch(endpoint, { method: 'POST' });
-                showToast('Displej aktualizován');
+                const response = await fetch(endpoint, { method: 'POST' });
+                if (!response.ok) throw new Error('Refresh HTTP ' + response.status);
+                displayBusy = true;
+                showToast(full ? 'Plný refresh zařazen' : 'Částečný refresh zařazen');
             } catch (e) {
                 showToast('Chyba refresh');
+            } finally {
+                displayCommandInFlight = false;
+                setDisplayActionsDisabled();
             }
         }
-
         function confirmRestart() {
             if (confirm("Opravdu chcete restartovat zařízení ESP32?")) {
                 fetch('/api/system/restart', { method: 'POST' });
@@ -583,6 +627,10 @@ void DashboardWebServer::onRefresh(RefreshCallback callback) {
     _refreshCallback = callback;
 }
 
+void DashboardWebServer::onDisplayStatus(DisplayStatusCallback callback) {
+    _displayStatusCallback = callback;
+}
+
 void DashboardWebServer::onWifiConfig(WifiConfigCallback callback) {
     _wifiConfigCallback = callback;
 }
@@ -632,11 +680,24 @@ void DashboardWebServer::handleApiStatus() {
     doc["uptime"] = _dataModel.system.uptimeSeconds;
     doc["freeHeap"] = _dataModel.system.freeHeapBytes;
     doc["screen"] = _screenManager.getActiveScreenId();
+
+    const DisplayTaskStatus displayStatus = _displayStatusCallback
+        ? _displayStatusCallback()
+        : DisplayTaskStatus{};
+    JsonObject displayObj = doc["display"].to<JsonObject>();
+    displayObj["state"] = displayTaskStateName(displayStatus.state);
+    displayObj["ready"] = displayStatus.ready;
+    displayObj["pending"] = displayStatus.pending;
+    displayObj["pendingFull"] = displayStatus.pendingFull;
+    displayObj["completedCount"] = displayStatus.completedCount;
+    displayObj["lastDurationMs"] = displayStatus.lastDurationMs;
+    displayObj["lastCompletedMs"] = displayStatus.lastCompletedMs;
+    displayObj["stackHighWaterWords"] = displayStatus.stackHighWaterWords;
     JsonObject perf = doc["performance"].to<JsonObject>();
     perf["uptimeMs"] = millis();
     for (int i = 0; i < Performance::Count; ++i) {
         const auto metric = static_cast<Performance::Metric>(i);
-        const auto& value = Performance::stats(metric);
+        const auto value = Performance::stats(metric);
         JsonObject item = perf[Performance::name(metric)].to<JsonObject>();
         item["count"] = value.count;
         item["avgMs"] = value.count ? (double)value.totalMs / value.count : 0;

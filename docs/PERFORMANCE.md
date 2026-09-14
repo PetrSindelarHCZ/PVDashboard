@@ -22,7 +22,7 @@ a obsluha webu tedy ve vlastní odpovědi obsahují předchozí měření.
 Sériový výstup `[PERF]` uvádí souhrn každých přibližně 30 sekund a operace
 dlouhé alespoň 500 ms. Časování má rozlišení 1 ms. Instrumentace, větší status
 a sériový výpis přidávají režii; měření slouží k hledání sekundových záseků.
-Statistiky nejsou připravené na současné zápisy z více úloh.
+Zápis a čtení statistik jsou chráněné pro souběh hlavní a display úlohy.
 
 Z kořene projektu (Python z PlatformIO má i pyserial):
 
@@ -45,3 +45,18 @@ přepínání obrazovek a refresh. Následně porovnat zdroje jednotlivě a vypn
 případně nedostupný zdroj. Skript sám konfiguraci ani obrazovku nemění.
 Při porovnávání kumulativních maxim zohlednit restart; pro konkrétní zásek
 korelovat UTC čas HTTP se sériovým logem a `lastEndMs` s `performance.uptimeMs`.
+
+## Ověření asynchronního displeje 14. 9. 2026
+
+Při explicitním full refreshi trvajícím 7 113 ms uspělo všech 70 požadavků
+`/api/status`. Z nich 42 zachytilo stav `rendering_full`; medián odezvy byl
+54,5 ms, p95 87,2 ms a maximum 142,8 ms.
+
+Při partial refreshi uspělo všech 35 požadavků a stav `rendering_partial` byl
+pozorovaný desetkrát. Maximum 1 835 ms nezpůsobil displej, ale souběžný polling
+obou simulovaně nedostupných zdrojů.
+
+Test fronty během partial refreshu zařadil změnu obrazovky a další partial
+požadavek. Fronta hlásila `pendingFull=true` a po dokončení prvního vykreslení
+provedla právě jeden full refresh nové obrazovky. Display task měl po renderu
+stack high-water mark 1 504 slov.

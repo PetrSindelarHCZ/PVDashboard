@@ -1,7 +1,7 @@
 #pragma once
 #include <Arduino.h>
 
-// Access only from the application loop (including synchronous web handlers).
+// Thread-safe recording and snapshots for the application and display tasks.
 namespace Performance {
 enum Metric { Loop, WebGap, WebService, StatusHandler, DisplayInit, DisplayFull,
               DisplayPartial, GoodWe, AzPower, AzStatus, AzDevices, Count };
@@ -13,7 +13,7 @@ struct Stats {
     uint32_t lastEndMs = 0;
 };
 const char* name(Metric metric);
-const Stats& stats(Metric metric);
+Stats stats(Metric metric);
 void record(Metric metric, uint32_t durationMs);
 void webTick();
 void report();

@@ -4,6 +4,7 @@
 #include <functional>
 #include "../config/ConfigSchema.h"
 #include "../data/DataModel.h"
+#include "../display/DisplayTaskStatus.h"
 #include "../screens/ScreenManager.h"
 #include "../update/OtaManager.h"
 
@@ -11,6 +12,7 @@ class DashboardWebServer {
 public:
     using ScreenChangeCallback = std::function<void(const String& screenId)>;
     using RefreshCallback = std::function<void(bool full)>;
+    using DisplayStatusCallback = std::function<DisplayTaskStatus()>;
     using WifiConfigCallback = std::function<void(const String& ssid, const String& password)>;
     using WifiScanCallback = std::function<String()>;
     using SourceConfigCallback = std::function<void(const GoodWeConfig& goodwe, const AZRouterConfig& azrouter)>;
@@ -21,6 +23,7 @@ public:
     void loop();
     void onScreenChange(ScreenChangeCallback callback);
     void onRefresh(RefreshCallback callback);
+    void onDisplayStatus(DisplayStatusCallback callback);
     void onWifiConfig(WifiConfigCallback callback);
     void onWifiScan(WifiScanCallback callback);
     void onSourceConfig(SourceConfigCallback callback);
@@ -32,6 +35,7 @@ private:
     const AppConfig& _config;
     ScreenChangeCallback _screenCallback;
     RefreshCallback _refreshCallback;
+    DisplayStatusCallback _displayStatusCallback;
     WifiConfigCallback _wifiConfigCallback;
     WifiScanCallback _wifiScanCallback;
     SourceConfigCallback _sourceConfigCallback;
