@@ -38,7 +38,7 @@ void OtaManager::handleUpload(HTTPUpload& upload) {
                 Serial.printf("[OTA] Upload end: finalChunk=%u, received=%u\n",
                               (unsigned int)upload.currentSize,
                               (unsigned int)_received);
-                _succeeded = Update.end();
+                _succeeded = Update.end(true);
                 if (!_succeeded) {
                     _error = Update.errorString();
                     Serial.printf("[OTA] Update.end failed: %s\n", _error.c_str());
