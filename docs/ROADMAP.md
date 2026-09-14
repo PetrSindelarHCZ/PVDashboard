@@ -5,7 +5,7 @@ až po odstranění blokování WebUI.
 
 ## P0 — uzavřít současný základ
 
-- [ ] dokončit vizuální kontrolu všech pěti obrazovek,
+- [x] dokončit vizuální kontrolu všech pěti obrazovek,
 - [x] provést krátký test částečných a plných refreshů,
 - [x] aktualizovat číslo verze,
 - [x] rozdělit současné změny do logických commitů,
@@ -43,8 +43,13 @@ Akceptace:
 
 - [x] výpadek obou zdrojů nezpůsobí dlouhé série timeoutů,
 - [x] WebUI při výpadku běžně odpoví do 500 ms,
-- [ ] po návratu zdroje se komunikace automaticky obnoví.
+- [x] po návratu zdroje se komunikace automaticky obnoví.
 
+Po řízeném zastavení společného lokálního simulátoru přešly oba zdroje
+do stavu nedostupné za 10,7 s. Po opětovném spuštění simulátoru se GoodWe
+i AZRouter obnovily automaticky bez změny konfigurace. Následné měření během
+12 s zaznamenalo dva GoodWe cykly a jeden AZRouter cyklus, což potvrzuje návrat
+k běžnému desetisekundovému intervalu.
 ## P2 — neblokující displej a WebUI
 
 - [x] zavést jednu FreeRTOS úlohu vlastnící displej,
@@ -105,11 +110,15 @@ Platí pro Domov, FVE, Bazén, Počasí a Diagnostiku.
 - [x] změny síly Wi-Fi zobrazovat při běžném překreslení, aby drobné kolísání
   RSSI nevyvolávalo další obnovy e-paperu,
 - [x] sestavit firmware a zkontrolovat jeho velikost,
-- [ ] vizuálně ověřit všech pět obrazovek: čitelnost ikon, odstupy od data
+- [x] vizuálně ověřit všech pět obrazovek: čitelnost ikon, odstupy od data
   a času, rozložení karet a odstranění zápatí,
-- [ ] ověřit zvýraznění aktivní ikony při přepínání přes WebUI,
-- [ ] ověřit indikátory při výpadku a obnovení Wi-Fi i jednotlivých integrací.
+- [x] ověřit zvýraznění aktivní ikony při přepínání přes WebUI,
+- [x] ověřit indikátory při výpadku a obnovení Wi-Fi i jednotlivých integrací.
 
+Ověření na zařízení 14. 9. 2026: všech pět obrazovek postupně dokončilo
+plný refresh se správným aktivním ID. Jednotlivé obnovy trvaly 7,06 až 7,09 s.
+Stavové indikátory reagovaly na řízený výpadek obou integrací a po automatickém
+zotavení zobrazily GoodWe i AZRouter znovu jako dostupné.
 Výsledek: jednotné záhlaví se stavem připojení, levé ikonové menu a větší
 prostor pro obsah bez zápatí.
 
