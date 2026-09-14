@@ -1,35 +1,121 @@
-# Fotovoltaický Dashboard & AZ Router Monitor (ESP32 + 7.5" e-Paper)
+# Specifikace PVDashboardu
 
-## 1. Cíl projektu
-Vytvořit nástěnný/stolní přehledový displej na bázi **ESP32** a **7.5" e-Paper (800x480)** pro vizualizaci energetických toků v reálném čase:
-- Výkon FVE panelů
-- Stav nabití (SoC) a výkon baterie
-- Výkon a stav AZ Routeru (vytěžování do bojleru / akumulační nádrže)
-- Spotřeba rodinného domu
-- Tok do/z distribuční sítě (přetoky vs. nákup)
+## Účel
 
----
+PVDashboard je samostatné lokální zařízení pro přehled energetických toků domu.
+Telefon nebo počítač slouží k ovládání a konfiguraci, nikoliv jako zdroj dat.
+Zařízení musí po startu fungovat bez připojeného vývojového počítače a výpadek
+jednoho datového zdroje nesmí zastavit WebUI ani ostatní funkce.
 
-## 2. Hardware
-- **Řídicí deska:** Waveshare ESP32 e-Paper Driver Board (ESP32-WROOM-32, WiFi, Bluetooth, SPI)
-- **Displej:** Waveshare 7.5" e-Paper (800x480 px, černobílý)
-- **Střídač (Invertor):** *(Doplňte model – např. GoodWe, Victron, Solax, Fronius, Growatt)*
-- **Regulátor přetoků:** AZ Router *(Doplňte verzi / typ rozhraní)*
+## Hardware
 
----
+- řídicí deska: Waveshare e-Paper ESP32 Driver Board, ESP32-WROOM-32,
+- displej: černobílý 7,5" e-paper, 800 × 480 px,
+- označení panelu: **DEPG0750BNU790F30HP**,
+- označení FPC: **FPC-8612**,
+- driver board: přepínač **B**, druhý přepínač **ON**,
+- firmware používá driver **GxEPD2_750_T7**,
+- GoodWe: GW10K-ET,
+- AZRouter: HTTP REST API.
 
-## 3. Komunikační rozhraní a získávání dat
-*(Doplňte dle reality, např. REST API, MQTT broker, Modbus TCP / RTU, Home Assistant integration):*
-- **Metoda vyčítání střídače:** 
-- **Metoda vyčítání AZ Routeru:** 
-- **MQTT Broker / Home Assistant IP:** 
-- **Frekvence čtení dat:** 
+Podrobnosti a ověřená refresh strategie jsou v [DISPLAY.md](DISPLAY.md).
 
----
+## Funkční rozsah
 
-## 4. Architektura softwaru
-- **Framework:** Arduino (PlatformIO)
-- **Knihovny:**
-  - `GxEPD2` – ovladač displeje s podporou celkového a částečného obnovení (partial refresh)
-  - `Adafruit-GFX` – grafické vykreslování
-  - `ArduinoJson` – parsování dat z API/MQTT
+### Energetika
+
+Dashboard načítá a zobrazuje:
+
+- aktuální výkon FVE,
+- dnešní výrobu,
+- spotřebu domu,
+- tok do nebo ze sítě,
+- stav a výkon baterie,
+- výkon přesměrovaný AZRouterem,
+- dnešní vytěženou energii,
+- teplotu bojleru, pokud ji AZRouter poskytne,
+- dostupnost a stáří dat obou zdrojů.
+
+### Obrazovky
+
+| ID | Stav | Obsah |
+| --- | --- | --- |
+| home | funkční | Souhrn domu, energie a demonstračních čidel |
+| solar | funkční | GoodWe, baterie, síť a AZRouter |
+| pool | demonstrační | Připravený layout, hodnoty nejsou z reálných čidel |
+| weather | demonstrační | Připravený layout, předpověď je pevně zadaná |
+| diagnostics | funkční | Firmware, uptime, heap, Wi-Fi a integrace |
+
+Všechny obrazovky používají společnou typografii, černé záhlaví a zápatí,
+datum a čas v záhlaví a jednotný vzhled karet.
+
+### WebUI
+
+WebUI musí umožnit:
+
+- zobrazit stav zařízení a stáří dat,
+- přepnout obrazovku,
+- vyvolat částečný nebo plný refresh,
+- změnit Wi-Fi a konfiguraci zdrojů,
+- restartovat zařízení,
+- provést ruční nebo GitHub OTA aktualizaci.
+
+Přijetí příkazu a fyzické dokončení refreshu jsou nyní dvě různé události,
+ale WebUI jejich stav zatím samostatně nezobrazuje.
+
+## Datové zdroje
+
+### GoodWe
+
+- transport: UDP,
+- výchozí port: 8899,
+- protokol: Modbus RTU rámec přes UDP,
+- unit ID: 0xF7,
+- dotaz: funkce 0x03, registry od 35100, počet 125,
+- validace: délka, unit ID, funkce a CRC16.
+
+Znaménka používaná v aktuálním modelu:
+
+- gridPowerW: kladné = přetok, záporné = odběr,
+- batteryPowerW: podle parseru kladné = vybíjení, záporné = nabíjení.
+
+### AZRouter
+
+- transport: HTTP,
+- výchozí port: 8081,
+- /api/v1/power: výkon, energie a tok sítě,
+- /api/v1/status: systémová teplota jako záložní hodnota,
+- /api/v1/devices: teplota připojeného zařízení nebo bojleru.
+
+Úspěch celého čtení se nyní řídí odpovědí /api/v1/power. Zbývající dva
+dotazy mohou selhat, aniž by byl zdroj označen jako nedostupný.
+
+## Konfigurace
+
+Konfigurace se ukládá do ESP32 NVS přes Preferences, namespace **dashboard**.
+Ukládají se Wi-Fi údaje a nastavení obou datových zdrojů. Po uložení se zařízení
+restartuje. schemaVersion je nyní pouze hodnota v paměti a není uložená ani
+migrovaná.
+
+DisplayConfig.fullRefreshIntervalMinutes je definované, ale současná refresh
+politika ho zatím nepoužívá.
+
+## Provozní požadavky
+
+- hesla a tokeny se nesmí objevit v běžném API ani logu,
+- nedostupný zdroj nesmí vytvářet souvislou smyčku opakovaných pokusů,
+- WebUI má odpovídat i během pomalého refreshu,
+- na panelu se nesmí dlouhodobě hromadit ghosting,
+- změna celé obrazovky používá čisticí plnou obnovu,
+- firmware musí zůstat menší než jedna OTA partition,
+- neúspěšná OTA aktualizace nesmí poškodit běžící firmware.
+
+## Kritéria nejbližší stabilní verze
+
+- oba zdroje lze samostatně vypnout a jejich výpadek nezablokuje WebUI,
+- běžná odpověď /api/status má při výpadku zdroje zůstat pod 500 ms,
+- přepnutí obrazovky zanechá čistý obraz bez duchů,
+- WebUI jednoznačně ukáže probíhající refresh,
+- konfigurace přežije restart,
+- OTA je ověřené platným i poškozeným souborem,
+- firmware projde alespoň 24hodinovým testem bez restartu a významného úbytku heapu.
