@@ -72,39 +72,39 @@ Platí pro Domov, FVE, Bazén, Počasí a Diagnostiku.
 
 ### Společné záhlaví
 
-- [ ] odstranit název obrazovky ze záhlaví,
-- [ ] vlevo zobrazit standardní Wi-Fi symbol s oblouky ve čtyřech úrovních
+- [x] odstranit název obrazovky ze záhlaví,
+- [x] vlevo zobrazit standardní Wi-Fi symbol s oblouky ve čtyřech úrovních
   podle RSSI; při odpojení použít přeškrtnutý symbol,
-- [ ] vedle Wi-Fi umístit stavové ikonky označené GW a AZ pro GoodWe a AZRouter,
-- [ ] dostupnost převzít z existujících výsledků komunikace a na černobílém
+- [x] vedle Wi-Fi umístit stavové ikonky označené GW a AZ pro GoodWe a AZRouter,
+- [x] dostupnost převzít z existujících výsledků komunikace a na černobílém
   panelu ji rozlišit fajfkou a křížkem; bez Wi-Fi označit oba zdroje jako nedostupné,
-- [ ] zachovat datum a čas vpravo.
+- [x] zachovat datum a čas vpravo.
 
 ### Levé postranní menu
 
-- [ ] pod záhlavím vytvořit společný levý pruh široký přibližně 60 px,
-- [ ] rovnoměrně rozmístit ikony obrazovek: domeček (Domov), solární panel
+- [x] pod záhlavím vytvořit společný levý pruh široký přibližně 60 px,
+- [x] rovnoměrně rozmístit ikony obrazovek: domeček (Domov), solární panel
   (FVE), vlnky (Bazén), slunce za mrakem (Počasí) a ozubené kolečko (Diagnostika),
-- [ ] aktivní obrazovku zvýraznit bílou ikonou na černém zaobleném pozadí;
+- [x] aktivní obrazovku zvýraznit bílou ikonou na černém zaobleném pozadí;
   ostatní ikony vykreslit černě na bílém,
-- [ ] menu používat jako přehled obrazovek a indikaci aktuálního výběru;
+- [x] menu používat jako přehled obrazovek a indikaci aktuálního výběru;
   přepínání zachovat přes stávající WebUI.
 
 ### Obsah a odstranění zápatí
 
-- [ ] odstranit spodní pruh na všech pěti obrazovkách,
-- [ ] uvolněných 50 px využít pro obsah a upravit výšky karet a rozestupy,
-- [ ] posunout obsahové karty doprava a přizpůsobit jejich šířky postrannímu menu,
-- [ ] IP adresu a číselné RSSI zobrazovat pouze na stavové obrazovce Diagnostika,
-- [ ] společné vykreslování soustředit do ScreenStyle.h a upravit volání
+- [x] odstranit spodní pruh na všech pěti obrazovkách,
+- [x] uvolněných 50 px využít pro obsah a upravit výšky karet a rozestupy,
+- [x] posunout obsahové karty doprava a přizpůsobit jejich šířky postrannímu menu,
+- [x] IP adresu a číselné RSSI zobrazovat pouze na stavové obrazovce Diagnostika,
+- [x] společné vykreslování soustředit do ScreenStyle.h a upravit volání
   ve všech pěti rendererech.
 
 ### Obnova a ověření
 
-- [ ] napojit indikátory na existující mechanismus obnovy displeje,
-- [ ] změny síly Wi-Fi zobrazovat při běžném překreslení, aby drobné kolísání
+- [x] napojit indikátory na existující mechanismus obnovy displeje,
+- [x] změny síly Wi-Fi zobrazovat při běžném překreslení, aby drobné kolísání
   RSSI nevyvolávalo další obnovy e-paperu,
-- [ ] sestavit firmware a zkontrolovat jeho velikost,
+- [x] sestavit firmware a zkontrolovat jeho velikost,
 - [ ] vizuálně ověřit všech pět obrazovek: čitelnost ikon, odstupy od data
   a času, rozložení karet a odstranění zápatí,
 - [ ] ověřit zvýraznění aktivní ikony při přepínání přes WebUI,

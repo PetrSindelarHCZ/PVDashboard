@@ -10,77 +10,148 @@
 namespace ScreenStyle {
 
 constexpr int16_t Width = 800;
+constexpr int16_t Height = 480;
 constexpr int16_t HeaderHeight = 48;
-constexpr int16_t FooterY = 430;
+constexpr int16_t SidebarWidth = 60;
+constexpr int16_t ContentLeft = 75;
+constexpr int16_t ContentRight = 785;
+constexpr int16_t ContentTop = 63;
+constexpr int16_t ContentBottom = 465;
 constexpr int16_t CardRadius = 6;
 
-inline void useTitle(IDisplay& display) {
-    display.setTextColor(0);
-    display.setFont(&FreeSansBold12pt7b);
+inline void useTitle(IDisplay& d) { d.setTextColor(0); d.setFont(&FreeSansBold12pt7b); }
+inline void useSectionTitle(IDisplay& d) { d.setTextColor(0); d.setFont(&FreeSansBold9pt7b); }
+inline void useMetric(IDisplay& d) { d.setTextColor(0); d.setFont(&FreeSansBold18pt7b); }
+inline void useValue(IDisplay& d) { d.setTextColor(0); d.setFont(&FreeSansBold12pt7b); }
+inline void useBody(IDisplay& d) { d.setTextColor(0); d.setFont(&FreeSans9pt7b); }
+inline void useStrongBody(IDisplay& d) { d.setTextColor(0); d.setFont(&FreeSansBold9pt7b); }
+
+inline void drawCheck(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
+    d.drawLine(x, y + 4, x + 4, y + 8, c); d.drawLine(x + 4, y + 8, x + 11, y, c);
+    d.drawLine(x, y + 5, x + 4, y + 9, c); d.drawLine(x + 4, y + 9, x + 11, y + 1, c);
 }
-
-inline void useSectionTitle(IDisplay& display) {
-    display.setTextColor(0);
-    display.setFont(&FreeSansBold9pt7b);
+inline void drawCross(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
+    d.drawLine(x, y, x + 9, y + 9, c); d.drawLine(x + 9, y, x, y + 9, c);
+    d.drawLine(x + 1, y, x + 9, y + 8, c); d.drawLine(x + 8, y, x, y + 8, c);
 }
-
-inline void useMetric(IDisplay& display) {
-    display.setTextColor(0);
-    display.setFont(&FreeSansBold18pt7b);
+inline uint8_t wifiLevel(const DataModel& dm) {
+    if (!dm.system.wifiConnected) return 0;
+    if (dm.system.wifiRssi >= -55) return 4;
+    if (dm.system.wifiRssi >= -67) return 3;
+    if (dm.system.wifiRssi >= -75) return 2;
+    return 1;
 }
-
-inline void useValue(IDisplay& display) {
-    display.setTextColor(0);
-    display.setFont(&FreeSansBold12pt7b);
-}
-
-inline void useBody(IDisplay& display) {
-    display.setTextColor(0);
-    display.setFont(&FreeSans9pt7b);
-}
-
-inline void useStrongBody(IDisplay& display) {
-    display.setTextColor(0);
-    display.setFont(&FreeSansBold9pt7b);
-}
-
-inline void drawHeader(IDisplay& display, const char* title, const DataModel& dm) {
-    display.fillRect(0, 0, Width, HeaderHeight, 0);
-    display.setTextColor(1);
-    display.setFont(&FreeSansBold12pt7b);
-    display.setCursor(20, 33);
-    display.print(title);
-
-    display.setFont(&FreeSansBold9pt7b);
-    display.setCursor(520, 32);
-    display.print(dm.system.dateStr);
-
-    display.setFont(&FreeSansBold18pt7b);
-    display.setCursor(690, 35);
-    display.print(dm.system.timeStr);
-}
-
-inline void drawCard(IDisplay& display, int16_t x, int16_t y, int16_t w, int16_t h,
-                     const char* title) {
-    display.drawRoundRect(x, y, w, h, CardRadius, 0);
-    useSectionTitle(display);
-    display.setCursor(x + 12, y + 27);
-    display.print(title);
-    display.drawLine(x + 10, y + 34, x + w - 10, y + 34, 0);
-}
-
-inline void drawFooter(IDisplay& display, const String& left, const String& right = "") {
-    display.fillRect(0, FooterY, Width, 480 - FooterY, 0);
-    display.setTextColor(1);
-    display.setFont(&FreeSans9pt7b);
-    display.setCursor(20, 462);
-    display.print(left);
-
-    if (right.length() > 0) {
-        display.setFont(&FreeSansBold9pt7b);
-        display.setCursor(560, 462);
-        display.print(right);
+inline void drawWifi(IDisplay& d, int16_t x, int16_t y, const DataModel& dm, uint16_t c) {
+    const uint8_t level = wifiLevel(dm);
+    d.fillCircle(x, y + 10, 2, c);
+    if (level >= 2) { d.drawLine(x - 5, y + 7, x, y + 3, c); d.drawLine(x, y + 3, x + 5, y + 7, c); }
+    if (level >= 3) { d.drawLine(x - 10, y + 3, x, y - 4, c); d.drawLine(x, y - 4, x + 10, y + 3, c); }
+    if (level >= 4) { d.drawLine(x - 15, y - 2, x, y - 12, c); d.drawLine(x, y - 12, x + 15, y - 2, c); }
+    if (!dm.system.wifiConnected) {
+        d.drawLine(x - 14, y - 11, x + 14, y + 12, c);
+        d.drawLine(x - 13, y - 12, x + 15, y + 11, c);
     }
+}
+inline void drawSourceStatus(IDisplay& d, int16_t x, const char* label, bool available) {
+    d.setTextColor(1); d.setFont(&FreeSansBold9pt7b); d.setCursor(x, 31); d.print(label);
+    if (available) drawCheck(d, x + 31, 18, 1); else drawCross(d, x + 32, 18, 1);
+}
+inline void drawHeader(IDisplay& d, const DataModel& dm) {
+    d.fillRect(0, 0, Width, HeaderHeight, 0);
+    drawWifi(d, 24, 25, dm, 1);
+    const bool online = dm.system.wifiConnected;
+    drawSourceStatus(d, 55, "GW", online && dm.solar.status.available);
+    drawSourceStatus(d, 110, "AZ", online && dm.azrouter.status.available);
+    d.setTextColor(1); d.setFont(&FreeSansBold9pt7b); d.setCursor(535, 31); d.print(dm.system.dateStr);
+    d.setFont(&FreeSansBold18pt7b); d.setCursor(690, 35); d.print(dm.system.timeStr);
+}
+inline void drawBoldLine(IDisplay& d, int16_t x0, int16_t y0, int16_t x1, int16_t y1,
+                         uint16_t c) {
+    d.drawLine(x0, y0, x1, y1, c);
+    if (abs(x1 - x0) >= abs(y1 - y0)) d.drawLine(x0, y0 + 1, x1, y1 + 1, c);
+    else d.drawLine(x0 + 1, y0, x1 + 1, y1, c);
+}
+
+inline void drawBoldRect(IDisplay& d, int16_t x, int16_t y, int16_t w, int16_t h, uint16_t c) {
+    d.drawRect(x, y, w, h, c);
+    d.drawRect(x + 1, y + 1, w - 2, h - 2, c);
+}
+
+inline void drawBoldCircle(IDisplay& d, int16_t x, int16_t y, int16_t r, uint16_t c) {
+    d.drawCircle(x, y, r, c);
+    d.drawCircle(x, y, r - 1, c);
+}
+
+inline void drawHomeIcon(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
+    drawBoldLine(d, x - 17, y - 2, x, y - 17, c);
+    drawBoldLine(d, x, y - 17, x + 17, y - 2, c);
+    drawBoldRect(d, x - 12, y - 2, 24, 18, c);
+    drawBoldRect(d, x - 4, y + 6, 8, 10, c);
+}
+
+inline void drawSolarIcon(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
+    drawBoldRect(d, x - 17, y - 13, 34, 22, c);
+    drawBoldLine(d, x - 6, y - 13, x - 6, y + 9, c);
+    drawBoldLine(d, x + 6, y - 13, x + 6, y + 9, c);
+    drawBoldLine(d, x - 17, y - 2, x + 17, y - 2, c);
+    drawBoldLine(d, x, y + 9, x, y + 15, c);
+    drawBoldLine(d, x - 11, y + 15, x + 11, y + 15, c);
+}
+
+inline void drawPoolIcon(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
+    for (int16_t row = -10; row <= 10; row += 10) {
+        drawBoldLine(d, x - 18, y + row, x - 11, y + row - 3, c);
+        drawBoldLine(d, x - 11, y + row - 3, x - 3, y + row, c);
+        drawBoldLine(d, x - 3, y + row, x + 5, y + row + 3, c);
+        drawBoldLine(d, x + 5, y + row + 3, x + 12, y + row, c);
+        drawBoldLine(d, x + 12, y + row, x + 18, y + row - 2, c);
+    }
+}
+
+inline void drawWeatherIcon(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
+    drawBoldCircle(d, x - 6, y - 7, 9, c);
+    drawBoldLine(d, x - 6, y - 21, x - 6, y - 16, c);
+    drawBoldLine(d, x - 20, y - 7, x - 15, y - 7, c);
+    drawBoldLine(d, x + 4, y - 17, x + 8, y - 21, c);
+    d.fillCircle(x + 1, y + 4, 8, c);
+    d.fillCircle(x + 11, y + 2, 10, c);
+    d.fillRect(x - 9, y + 4, 31, 11, c);
+}
+
+inline void drawGearIcon(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
+    drawBoldCircle(d, x, y, 12, c);
+    drawBoldCircle(d, x, y, 4, c);
+    drawBoldLine(d, x, y - 18, x, y - 12, c);
+    drawBoldLine(d, x, y + 12, x, y + 18, c);
+    drawBoldLine(d, x - 18, y, x - 12, y, c);
+    drawBoldLine(d, x + 12, y, x + 18, y, c);
+    drawBoldLine(d, x - 13, y - 13, x - 9, y - 9, c);
+    drawBoldLine(d, x + 9, y + 9, x + 13, y + 13, c);
+    drawBoldLine(d, x + 9, y - 9, x + 13, y - 13, c);
+    drawBoldLine(d, x - 13, y + 13, x - 9, y + 9, c);
+}
+inline void drawMenuItem(IDisplay& d, int16_t y, const char* id, const DataModel& dm, uint8_t icon) {
+    const bool active = dm.system.currentScreenId.equalsIgnoreCase(id);
+    if (active) d.fillRoundRect(6, y - 28, 48, 56, 7, 0);
+    const uint16_t c = active ? 1 : 0;
+    if (icon == 0) drawHomeIcon(d, 30, y, c);
+    else if (icon == 1) drawSolarIcon(d, 30, y, c);
+    else if (icon == 2) drawPoolIcon(d, 30, y, c);
+    else if (icon == 3) drawWeatherIcon(d, 30, y, c);
+    else drawGearIcon(d, 30, y, c);
+}
+inline void drawSidebar(IDisplay& d, const DataModel& dm) {
+    d.drawLine(SidebarWidth, HeaderHeight, SidebarWidth, Height - 1, 0);
+    drawMenuItem(d, 88, "home", dm, 0); drawMenuItem(d, 170, "solar", dm, 1);
+    drawMenuItem(d, 252, "pool", dm, 2); drawMenuItem(d, 334, "weather", dm, 3);
+    drawMenuItem(d, 416, "diagnostics", dm, 4);
+}
+inline void drawChrome(IDisplay& d, const DataModel& dm) { drawHeader(d, dm); drawSidebar(d, dm); }
+
+inline void drawCard(IDisplay& d, int16_t x, int16_t y, int16_t w, int16_t h, const char* title) {
+    d.drawRoundRect(x, y, w, h, CardRadius, 0);
+    useSectionTitle(d); d.setCursor(x + 12, y + 27); d.print(title);
+    d.drawLine(x + 10, y + 34, x + w - 10, y + 34, 0);
 }
 
 } // namespace ScreenStyle
