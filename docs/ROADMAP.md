@@ -124,10 +124,15 @@ prostor pro obsah bez zápatí.
 
 ## P4 — dokončit refresh politiku
 
-- zapojit fullRefreshIntervalMinutes nebo ho odstranit ze schématu,
-- rozhodovat podle času i počtu částečných obnov,
-- dlouhodobým testem určit bezpečný počet částečných obnov,
-- teprve potom vyhodnotit lokální refresh data/času.
+- [ ] odstranit nepoužívané fullRefreshIntervalMinutes ze schématu,
+- [x] nevynucovat plný refresh podle počtu částečných obnov,
+- [ ] dlouhodobě ověřit politiku: full při startu, přepnutí obrazovky a ručním
+  požadavku; ostatní obnovy partial,
+- [ ] teprve potom vyhodnotit lokální refresh data/času.
+
+Ověření na zařízení 14. 9. 2026: šest po sobě vyžádaných partial refreshů
+zvýšilo jejich čítač ze 4 na 10, zatímco čítač full refreshů zůstal na 1.
+Následné přepnutí z Domova na Solar provedlo full refresh a zvýšilo čítač na 2.
 
 Akceptace:
 

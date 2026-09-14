@@ -24,13 +24,8 @@ void DisplayManager::renderScreen(IScreen* screen, const DataModel& dataModel, b
         return;
     }
 
-    const bool partialLimitReached =
-        _consecutivePartialRefreshes >= MaxConsecutivePartialRefreshes;
-    bool full = forceFullRefresh || _forceFullRefresh || partialLimitReached;
-    if (partialLimitReached && !forceFullRefresh && !_forceFullRefresh) {
-        Serial.printf("[DISPLAY] Po %u castecnych obnovach vynucuji plnou obnovu.\n",
-                      MaxConsecutivePartialRefreshes);
-    }
+    const bool full = forceFullRefresh || _forceFullRefresh;
+
     Performance::Scope timing(full ? Performance::DisplayFull : Performance::DisplayPartial);
     const unsigned long renderStarted = millis();
     Serial.printf("[DISPLAY][%lu ms] Vykresluji obrazovku '%s' (Rezim: %s)...\n", millis(),
@@ -58,12 +53,7 @@ void DisplayManager::renderScreen(IScreen* screen, const DataModel& dataModel, b
     } while (_display.nextFrame());
 
     _forceFullRefresh = false;
-    if (full) {
-        _lastFullRefreshMs = millis();
-        _consecutivePartialRefreshes = 0;
-    } else {
-        ++_consecutivePartialRefreshes;
-    }
+
     _display.powerOff();
     Serial.printf("[DISPLAY][%lu ms] Vykresleni dokonceno za %lu ms.\n", millis(), millis() - renderStarted);
 }
