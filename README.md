@@ -4,9 +4,8 @@ Lokální domácí dashboard pro **Waveshare ESP32 e-Paper Driver Board** a čer
 7,5" panel 800 × 480 px. Firmware zobrazuje data z měniče GoodWe a AZRouteru,
 poskytuje mobilní WebUI, konfiguraci přes NVS, recovery Wi-Fi AP a OTA aktualizaci.
 
-Aktuální firmware: **0.1.3**. Pracovní strom obsahuje změny připravované pro další
-verzi, zejména diagnostiku výkonu, upravenou obnovu panelu a sjednocený vzhled
-obrazovek.
+Aktuální firmware: **0.1.4**. Obsahuje omezené timeouty a backoff datových zdrojů,
+asynchronní obsluhu e-paperu, diagnostiku výkonu a sjednocený vzhled obrazovek.
 
 ## Aktuální funkce
 

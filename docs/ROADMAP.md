@@ -1,16 +1,15 @@
 # Roadmapa
 
-Roadmapa navazuje na funkční prototyp 0.1.3 a na změny připravované v pracovním
-stromu. Prioritou je provozní stabilita; další datové zdroje a funkce následují
+Roadmapa navazuje na stabilizovaný základ verze 0.1.4. Prioritou je provozní stabilita; další datové zdroje a funkce následují
 až po odstranění blokování WebUI.
 
 ## P0 — uzavřít současný základ
 
-- dokončit vizuální kontrolu všech pěti obrazovek,
-- provést krátký test částečných a plných refreshů,
-- aktualizovat číslo verze,
-- rozdělit současné změny do logických commitů,
-- vytvořit nový známý funkční bod před architektonickými změnami.
+- [ ] dokončit vizuální kontrolu všech pěti obrazovek,
+- [x] provést krátký test částečných a plných refreshů,
+- [x] aktualizovat číslo verze,
+- [x] rozdělit současné změny do logických commitů,
+- [x] vytvořit nový známý funkční bod před změnami vzhledu.
 
 Výsledek: reprodukovatelný firmware a dokumentovaný výchozí stav.
 
@@ -48,21 +47,73 @@ Akceptace:
 
 ## P2 — neblokující displej a WebUI
 
-- zavést jednu FreeRTOS úlohu vlastnící displej,
-- posílat refresh požadavky frontou,
-- vytvořit konzistentní snímek DataModel pro renderer,
-- slučovat opakované požadavky a zachovat prioritu plného refreshu,
-- publikovat stav displeje v /api/status,
-- v WebUI rozlišit přijetí příkazu a dokončení fyzického refreshu,
-- zakázat souběžné updateStatus požadavky a přidat klientský timeout.
+- [x] zavést jednu FreeRTOS úlohu vlastnící displej,
+- [x] posílat refresh požadavky frontou,
+- [x] vytvořit konzistentní snímek DataModel pro renderer,
+- [x] slučovat opakované požadavky a zachovat prioritu plného refreshu,
+- [x] publikovat stav displeje v /api/status,
+- [x] v WebUI rozlišit přijetí příkazu a dokončení fyzického refreshu,
+- [x] zakázat souběžné updateStatus požadavky a přidat klientský timeout.
 
 Akceptace:
 
-- /api/status odpovídá i během 7,3sekundové plné obnovy,
-- tlačítka nejdou nechtěně spustit vícekrát,
-- WebUI zobrazí queued, rendering a dokončení.
+- [x] /api/status odpovídá i během 7,3sekundové plné obnovy,
+- [x] tlačítka nejdou nechtěně spustit vícekrát,
+- [x] WebUI zobrazí queued, rendering a dokončení.
 
-## P3 — dokončit refresh politiku
+Ověření na zařízení: během full refreshu trvajícího 7,1 s uspělo všech 70
+statusových požadavků; medián byl 54,5 ms, p95 87,2 ms a maximum 142,8 ms.
+Fronta během partial refreshu zachovala následný full požadavek a vykreslila
+nejnovější obrazovku. Rezerva zásobníku display tasku byla přibližně 6 kB.
+
+## P3 — Další krok — sjednocení UI e-paper obrazovek
+
+Platí pro Domov, FVE, Bazén, Počasí a Diagnostiku.
+
+### Společné záhlaví
+
+- [ ] odstranit název obrazovky ze záhlaví,
+- [ ] vlevo zobrazit standardní Wi-Fi symbol s oblouky ve čtyřech úrovních
+  podle RSSI; při odpojení použít přeškrtnutý symbol,
+- [ ] vedle Wi-Fi umístit stavové ikonky označené GW a AZ pro GoodWe a AZRouter,
+- [ ] dostupnost převzít z existujících výsledků komunikace a na černobílém
+  panelu ji rozlišit fajfkou a křížkem; bez Wi-Fi označit oba zdroje jako nedostupné,
+- [ ] zachovat datum a čas vpravo.
+
+### Levé postranní menu
+
+- [ ] pod záhlavím vytvořit společný levý pruh široký přibližně 60 px,
+- [ ] rovnoměrně rozmístit ikony obrazovek: domeček (Domov), solární panel
+  (FVE), vlnky (Bazén), slunce za mrakem (Počasí) a ozubené kolečko (Diagnostika),
+- [ ] aktivní obrazovku zvýraznit bílou ikonou na černém zaobleném pozadí;
+  ostatní ikony vykreslit černě na bílém,
+- [ ] menu používat jako přehled obrazovek a indikaci aktuálního výběru;
+  přepínání zachovat přes stávající WebUI.
+
+### Obsah a odstranění zápatí
+
+- [ ] odstranit spodní pruh na všech pěti obrazovkách,
+- [ ] uvolněných 50 px využít pro obsah a upravit výšky karet a rozestupy,
+- [ ] posunout obsahové karty doprava a přizpůsobit jejich šířky postrannímu menu,
+- [ ] IP adresu a číselné RSSI zobrazovat pouze na stavové obrazovce Diagnostika,
+- [ ] společné vykreslování soustředit do ScreenStyle.h a upravit volání
+  ve všech pěti rendererech.
+
+### Obnova a ověření
+
+- [ ] napojit indikátory na existující mechanismus obnovy displeje,
+- [ ] změny síly Wi-Fi zobrazovat při běžném překreslení, aby drobné kolísání
+  RSSI nevyvolávalo další obnovy e-paperu,
+- [ ] sestavit firmware a zkontrolovat jeho velikost,
+- [ ] vizuálně ověřit všech pět obrazovek: čitelnost ikon, odstupy od data
+  a času, rozložení karet a odstranění zápatí,
+- [ ] ověřit zvýraznění aktivní ikony při přepínání přes WebUI,
+- [ ] ověřit indikátory při výpadku a obnovení Wi-Fi i jednotlivých integrací.
+
+Výsledek: jednotné záhlaví se stavem připojení, levé ikonové menu a větší
+prostor pro obsah bez zápatí.
+
+## P4 — dokončit refresh politiku
 
 - zapojit fullRefreshIntervalMinutes nebo ho odstranit ze schématu,
 - rozhodovat podle času i počtu částečných obnov,
@@ -72,10 +123,10 @@ Akceptace:
 Akceptace:
 
 - po 24 hodinách není viditelný progresivní ghosting,
-- kontrast tmavého záhlaví a zápatí zůstává rovnoměrný,
+- kontrast tmavého záhlaví a zvýraznění aktivní ikony menu zůstává rovnoměrný,
 - přepnutí obrazovky vždy odstraní předchozí rozložení.
 
-## P4 — OTA a reprodukovatelné sestavení
+## P5 — OTA a reprodukovatelné sestavení
 
 - připnout verzi PlatformIO platformy a všech knihoven,
 - ověřit ruční OTA platným firmwarem,
@@ -90,7 +141,7 @@ Akceptace:
 - stejný commit sestaví stejné hlavní verze nástrojů a knihoven,
 - release obsahuje firmware, manifest a kontrolní součet.
 
-## P5 — reálná data dalších obrazovek
+## P6 — reálná data dalších obrazovek
 
 Rozhodnout, zda jsou další prioritou:
 
@@ -101,7 +152,7 @@ Rozhodnout, zda jsou další prioritou:
 Do té doby mají být demonstrační hodnoty v dokumentaci a WebUI jasně označené.
 Pevný text typu „Vše v pořádku“ nesmí působit jako reálně změřený stav.
 
-## P6 — testy a údržba
+## P7 — testy a údržba
 
 - host-side testy GoodWe CRC, délky rámce a mapování registrů,
 - testy variant a chybných JSON odpovědí AZRouteru,
@@ -114,6 +165,7 @@ Pevný text typu „Vše v pořádku“ nesmí působit jako reálně změřený
 1. P0: uzavřít současný vzhled a refresh strategii.
 2. P1: timeouty, fail-fast a backoff.
 3. P2: displej ve vlastní úloze a stav refreshu ve WebUI.
-4. P4: ověřit OTA a připnout toolchain.
-5. P3: 24hodinový test panelu a doladění refresh politiky.
-6. P5 a P6 podle zvolených dalších datových zdrojů.
+4. P3: Sjednotit UI: stavové záhlaví, levé ikonové menu a odstranění zápatí.
+5. P5: ověřit OTA a připnout toolchain.
+6. P4: 24hodinový test panelu a doladění refresh politiky.
+7. P6 a P7 podle zvolených dalších datových zdrojů.
