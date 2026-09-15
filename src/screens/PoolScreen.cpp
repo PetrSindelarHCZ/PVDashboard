@@ -18,7 +18,7 @@ void PoolScreen::render(IDisplay& display, const DataModel& dm) {
     display.printf("%.1f", dm.pool.ph);
     ScreenStyle::useBody(display);
     display.setCursor(261, 165);
-    display.print("Ideál: 7.0–7.4");
+    display.print("Ideál: 7.0-7.4");
 
     ScreenStyle::drawCard(display, 427, 63, 166, 132, "VOLNÝ CHLÓR");
     ScreenStyle::useMetric(display);
@@ -26,7 +26,7 @@ void PoolScreen::render(IDisplay& display, const DataModel& dm) {
     display.printf("%.1f", dm.pool.freeChlorineMgL);
     ScreenStyle::useBody(display);
     display.setCursor(437, 165);
-    display.print("mg/l | Ideál 0.3–1.0");
+    display.print("mg/l | Ideál 0.3-1.0");
 
     ScreenStyle::drawCard(display, 603, 63, 182, 132, "VZDUCH");
     ScreenStyle::useMetric(display);
@@ -58,7 +58,7 @@ void PoolScreen::render(IDisplay& display, const DataModel& dm) {
     ScreenStyle::drawCard(display, 535, 210, 250, 255, "INFORMACE - DEMO");
     ScreenStyle::useBody(display);
     display.setCursor(550, 290);
-    display.print("Objem: 32 m³");
+    display.print("Objem: 32 m3");
     display.setCursor(550, 335);
     display.print("Poslední údržba: 6. 9.");
     display.setCursor(550, 380);
