@@ -19,6 +19,18 @@ void DataModel::updateSystemMetrics() {
     system.uptimeSeconds = millis() / 1000;
     system.freeHeapBytes = ESP.getFreeHeap();
 
+    if (system.ntpSynced && system.timeStr.length() >= 5 &&
+        system.timeStr[0] >= '0' && system.timeStr[0] <= '9' &&
+        system.timeStr[1] >= '0' && system.timeStr[1] <= '9' &&
+        system.timeStr[3] >= '0' && system.timeStr[3] <= '9' &&
+        system.timeStr[4] >= '0' && system.timeStr[4] <= '9') {
+        const uint16_t hour = static_cast<uint16_t>((system.timeStr[0] - '0') * 10 + (system.timeStr[1] - '0'));
+        const uint16_t minute = static_cast<uint16_t>((system.timeStr[3] - '0') * 10 + (system.timeStr[4] - '0'));
+        if (hour < 24 && minute < 60) {
+            sampleSolarHistory(static_cast<uint16_t>(hour * 60 + minute));
+        }
+    }
+
     if (solar.status.available && azrouter.status.available) {
         system.statusMessage = "Vse v poradku";
     } else if (!solar.status.available && !azrouter.status.available) {
