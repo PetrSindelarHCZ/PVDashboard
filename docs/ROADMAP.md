@@ -173,6 +173,18 @@ Rozhodnout, zda jsou další prioritou:
 2. vnitřní teploty a CO2,
 3. bazénová čidla a technologie.
 
+- umožnit výběr meteorologického provideru v konfiguraci; jako výchozí použít
+  Open-Meteo a podporovat český ČHMÚ i MET Norway (yr.no),
+- u ČHMÚ využít veřejná JSON open data podle oblasti nebo předpovědního bodu;
+  ověřit formát, velikost a mapování dat do společného modelu počasí,
+- u MET Norway použít Locationforecast API, identifikační User-Agent, HTTPS a
+  cache podle hlaviček Expires/Last-Modified; respektovat limity provozu a
+  doplnit požadovanou atribuci,
+- přidat k obrazovce počasí podobrazovku s hodinovou předpovědí pro vybraný den,
+  pokud se vejde do dostupného prostoru, paměti a obnovovacího rozpočtu;
+  zahrnout předpověď větru a deště včetně množství srážek a pravděpodobnosti,
+- pro čtení vnitřní teploty, vlhkosti a tlaku použít senzor BME280.
+
 Do té doby mají být demonstrační hodnoty v dokumentaci a WebUI jasně označené.
 Pevný text typu „Vše v pořádku“ nesmí působit jako reálně změřený stav.
 
