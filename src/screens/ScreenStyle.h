@@ -1,11 +1,8 @@
 #pragma once
 
 #include "../display/IDisplay.h"
+#include "../display/DisplayFonts.h"
 #include "../data/DataModel.h"
-#include <Fonts/FreeSansBold18pt7b.h>
-#include <Fonts/FreeSansBold12pt7b.h>
-#include <Fonts/FreeSansBold9pt7b.h>
-#include <Fonts/FreeSans9pt7b.h>
 
 namespace ScreenStyle {
 
@@ -19,12 +16,12 @@ constexpr int16_t ContentTop = 63;
 constexpr int16_t ContentBottom = 465;
 constexpr int16_t CardRadius = 6;
 
-inline void useTitle(IDisplay& d) { d.setTextColor(0); d.setFont(&FreeSansBold12pt7b); }
-inline void useSectionTitle(IDisplay& d) { d.setTextColor(0); d.setFont(&FreeSansBold9pt7b); }
-inline void useMetric(IDisplay& d) { d.setTextColor(0); d.setFont(&FreeSansBold18pt7b); }
-inline void useValue(IDisplay& d) { d.setTextColor(0); d.setFont(&FreeSansBold12pt7b); }
-inline void useBody(IDisplay& d) { d.setTextColor(0); d.setFont(&FreeSans9pt7b); }
-inline void useStrongBody(IDisplay& d) { d.setTextColor(0); d.setFont(&FreeSansBold9pt7b); }
+inline void useTitle(IDisplay& d) { d.setTextColor(0); d.setUnicodeFont(DisplayFonts::title()); }
+inline void useSectionTitle(IDisplay& d) { d.setTextColor(0); d.setUnicodeFont(DisplayFonts::sectionTitle()); }
+inline void useMetric(IDisplay& d) { d.setTextColor(0); d.setUnicodeFont(DisplayFonts::metric()); }
+inline void useValue(IDisplay& d) { d.setTextColor(0); d.setUnicodeFont(DisplayFonts::value()); }
+inline void useBody(IDisplay& d) { d.setTextColor(0); d.setUnicodeFont(DisplayFonts::body()); }
+inline void useStrongBody(IDisplay& d) { d.setTextColor(0); d.setUnicodeFont(DisplayFonts::strongBody()); }
 
 inline void drawCheck(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
     d.drawLine(x, y + 4, x + 4, y + 8, c); d.drawLine(x + 4, y + 8, x + 11, y, c);
@@ -53,7 +50,7 @@ inline void drawWifi(IDisplay& d, int16_t x, int16_t y, const DataModel& dm, uin
     }
 }
 inline void drawSourceStatus(IDisplay& d, int16_t x, const char* label, bool available) {
-    d.setTextColor(1); d.setFont(&FreeSansBold9pt7b); d.setCursor(x, 31); d.print(label);
+    d.setTextColor(1); d.setUnicodeFont(DisplayFonts::strongBody()); d.setCursor(x, 31); d.print(label);
     if (available) drawCheck(d, x + 31, 18, 1); else drawCross(d, x + 32, 18, 1);
 }
 inline void drawHeader(IDisplay& d, const DataModel& dm) {
@@ -62,8 +59,8 @@ inline void drawHeader(IDisplay& d, const DataModel& dm) {
     const bool online = dm.system.wifiConnected;
     drawSourceStatus(d, 55, "GW", online && dm.solar.status.available);
     drawSourceStatus(d, 110, "AZ", online && dm.azrouter.status.available);
-    d.setTextColor(1); d.setFont(&FreeSansBold9pt7b); d.setCursor(535, 31); d.print(dm.system.dateStr);
-    d.setFont(&FreeSansBold18pt7b); d.setCursor(690, 35); d.print(dm.system.timeStr);
+    d.setTextColor(1); d.setUnicodeFont(DisplayFonts::strongBody()); d.setCursor(535, 31); d.print(dm.system.dateStr);
+    d.setUnicodeFont(DisplayFonts::metric()); d.setCursor(690, 35); d.print(dm.system.timeStr);
 }
 inline void drawBoldLine(IDisplay& d, int16_t x0, int16_t y0, int16_t x1, int16_t y1,
                          uint16_t c) {
