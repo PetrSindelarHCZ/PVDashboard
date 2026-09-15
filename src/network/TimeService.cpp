@@ -60,22 +60,24 @@ String TimeService::getDateStr() {
         const uint8_t month = static_cast<uint8_t>(timeinfo.tm_mon + 1);
         const char* nameday = CzechNamedays::get(day, month);
 
-        char buf[40];
+        char buf[48];
         if (nameday != nullptr && nameday[0] != '\0') {
-            snprintf(buf, sizeof(buf), "%s %d.%d. | %s",
+            snprintf(buf, sizeof(buf), "%s %d.%d.%04d | %s",
                      dayAbbreviations[timeinfo.tm_wday % 7],
                      timeinfo.tm_mday,
                      timeinfo.tm_mon + 1,
+                     timeinfo.tm_year + 1900,
                      nameday);
         } else {
-            snprintf(buf, sizeof(buf), "%s %d.%d.",
+            snprintf(buf, sizeof(buf), "%s %d.%d.%04d",
                      dayAbbreviations[timeinfo.tm_wday % 7],
                      timeinfo.tm_mday,
-                     timeinfo.tm_mon + 1);
+                     timeinfo.tm_mon + 1,
+                     timeinfo.tm_year + 1900);
         }
         return String(buf);
     }
-    return "-- --.--.---- | -- | ";
+    return "-- --.--.---- | --";
 }
 
 String TimeService::getDayOfWeekStr() {

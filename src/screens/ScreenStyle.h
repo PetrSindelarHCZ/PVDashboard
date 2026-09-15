@@ -73,7 +73,7 @@ inline void drawHeader(IDisplay& d, const DataModel& dm) {
 
     d.setTextColor(1);
     d.setFont(&FreeSansBold9pt7b);
-    d.setCursor(430, 31);
+    d.setCursor(400, 31);
     d.print(dm.system.dateStr);
 
     d.setFont(&FreeSansBold18pt7b);
