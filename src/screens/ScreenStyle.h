@@ -3,6 +3,7 @@
 #include "../display/IDisplay.h"
 #include "../display/DisplayFonts.h"
 #include "../display/assets/Icons.h"
+#include "../display/assets/LmarzenWeatherIcons.h"
 #include "../data/DataModel.h"
 #include <Fonts/FreeSansBold18pt7b.h>
 #include <Fonts/FreeSansBold9pt7b.h>
@@ -92,14 +93,16 @@ inline void drawWeatherSymbol(IDisplay& d, int16_t centerX, int16_t centerY,
                               uint8_t code,
                               IconAssets::WeatherSize size = IconAssets::WeatherSize::Medium40,
                               uint16_t color = 0) {
-    const IconAssets::Bitmap icon = IconAssets::weather(code, size);
-    if (icon.data == nullptr) return;
-    d.drawBitmap(centerX - icon.width / 2,
-                 centerY - icon.height / 2,
-                 icon.data,
-                 icon.width,
-                 icon.height,
-                 color);
+    (void)size; // First lmarzen iteration deliberately uses native 48x48 everywhere.
+    const uint8_t* bitmap = LmarzenWeatherIcons::bitmapForWmo(code);
+    if (bitmap == nullptr) return;
+    constexpr int16_t iconSize = LmarzenWeatherIcons::Size;
+    d.drawInvertedBitmap(centerX - iconSize / 2,
+                         centerY - iconSize / 2,
+                         bitmap,
+                         iconSize,
+                         iconSize,
+                         color);
 }
 
 inline void drawMenuItem(IDisplay& d, int16_t y, const char* id, const DataModel& dm,
