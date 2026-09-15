@@ -19,9 +19,13 @@ enum class SidebarIcon : uint8_t {
 };
 
 struct Bitmap {
-    const uint8_t* data = nullptr;
-    int16_t width = 0;
-    int16_t height = 0;
+    const uint8_t* data;
+    int16_t width;
+    int16_t height;
+
+    Bitmap() : data(nullptr), width(0), height(0) {}
+    Bitmap(const uint8_t* bitmapData, int16_t bitmapWidth, int16_t bitmapHeight)
+        : data(bitmapData), width(bitmapWidth), height(bitmapHeight) {}
 };
 
 Bitmap weather(uint8_t weatherCode, WeatherSize size);
