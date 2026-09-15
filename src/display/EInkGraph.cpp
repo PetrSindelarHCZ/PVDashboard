@@ -44,7 +44,8 @@ void EInkGraph::drawHorizontalGrid(uint8_t divisions, uint16_t color) const {
     for (uint8_t i = 1; i < divisions; ++i) {
         const int16_t y = _y + static_cast<int16_t>((static_cast<int32_t>(_h - 1) * i) / divisions);
         for (int16_t x = _x; x < _x + _w; x += 6) {
-            _display.drawLine(x, y, min<int16_t>(x + 2, _x + _w - 1), y, color);
+            const int16_t x2 = (x + 2 < _x + _w) ? x + 2 : _x + _w - 1;
+            _display.drawLine(x, y, x2, y, color);
         }
     }
 }
@@ -54,7 +55,8 @@ void EInkGraph::drawVerticalGrid(uint8_t divisions, uint16_t color) const {
     for (uint8_t i = 1; i < divisions; ++i) {
         const int16_t x = _x + static_cast<int16_t>((static_cast<int32_t>(_w - 1) * i) / divisions);
         for (int16_t y = _y; y < _y + _h; y += 6) {
-            _display.drawLine(x, y, x, min<int16_t>(y + 2, _y + _h - 1), color);
+            const int16_t y2 = (y + 2 < _y + _h) ? y + 2 : _y + _h - 1;
+            _display.drawLine(x, y, x, y2, color);
         }
     }
 }
@@ -86,14 +88,15 @@ void EInkGraph::drawBars(const EInkGraphPoint* points, size_t count,
     int16_t barWidth = 6;
     if (count > 1) {
         const int16_t dx = abs(mapX(points[1].x) - mapX(points[0].x));
-        barWidth = max<int16_t>(3, dx - 3);
+        barWidth = (dx - 3 > 3) ? dx - 3 : 3;
     }
 
     for (size_t i = 0; i < count; ++i) {
         const int16_t centerX = mapX(points[i].x);
         const int16_t valueY = mapY(points[i].y);
-        const int16_t top = min<int16_t>(valueY, baseY);
-        const int16_t height = max<int16_t>(1, abs(baseY - valueY));
+        const int16_t top = (valueY < baseY) ? valueY : baseY;
+        const int16_t delta = abs(baseY - valueY);
+        const int16_t height = delta > 1 ? delta : 1;
         const int16_t left = centerX - barWidth / 2;
 
         _display.drawRect(left, top, barWidth, height, color);
