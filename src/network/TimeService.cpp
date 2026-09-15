@@ -51,11 +51,21 @@ String TimeService::getDateStr() {
     time(&nowTime);
     struct tm timeinfo;
     if (localtime_r(&nowTime, &timeinfo) && _synced) {
+        // Header stays on the original ASCII GFX font path, therefore the
+        // two-letter Czech weekday abbreviations intentionally avoid accents.
+        static const char* dayAbbreviations[] = {
+            "Ne", "Po", "Ut", "St", "Ct", "Pa", "So"
+        };
+
         char buf[32];
-        snprintf(buf, sizeof(buf), "%d. %d. %d", timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
+        snprintf(buf, sizeof(buf), "%s %d. %d. %d",
+                 dayAbbreviations[timeinfo.tm_wday % 7],
+                 timeinfo.tm_mday,
+                 timeinfo.tm_mon + 1,
+                 timeinfo.tm_year + 1900);
         return String(buf);
     }
-    return "--.--.----";
+    return "-- --.--.----";
 }
 
 String TimeService::getDayOfWeekStr() {
