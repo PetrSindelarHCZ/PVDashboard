@@ -67,6 +67,11 @@ void EpaperDisplay::drawBitmap(int16_t x, int16_t y, const uint8_t* bitmap,
     _epd.drawBitmap(x, y, bitmap, w, h, mapColor(color));
 }
 
+void EpaperDisplay::drawInvertedBitmap(int16_t x, int16_t y, const uint8_t* bitmap,
+                                       int16_t w, int16_t h, uint16_t color) {
+    _epd.drawInvertedBitmap(x, y, bitmap, w, h, mapColor(color));
+}
+
 void EpaperDisplay::setFont(const GFXfont* f) {
     _useUnicodeFont = false;
     _epd.setFont(f);
