@@ -29,3 +29,31 @@ void DataModel::updateSystemMetrics() {
         system.statusMessage = "AZRouter nedostupny";
     }
 }
+
+void DataModel::sampleSolarHistory(uint16_t minuteOfDay) {
+    if (!solar.status.available || minuteOfDay >= 24U * 60U) return;
+
+    const uint16_t bucketMinute =
+        static_cast<uint16_t>((minuteOfDay / SolarHistoryIntervalMinutes) * SolarHistoryIntervalMinutes);
+
+    if (solar.historyCount > 0) {
+        SolarHistorySample& last = solar.history[solar.historyCount - 1];
+
+        // Clock wrapped to the next day: discard yesterday's volatile history.
+        if (bucketMinute < last.minuteOfDay) {
+            solar.historyCount = 0;
+        } else if (bucketMinute == last.minuteOfDay) {
+            // Keep the current 15-minute slot fresh without growing the buffer.
+            last.productionPowerW = solar.productionPowerW;
+            last.houseConsumptionW = solar.houseConsumptionW;
+            return;
+        }
+    }
+
+    if (solar.historyCount >= SolarHistorySampleCount) return;
+
+    SolarHistorySample& sample = solar.history[solar.historyCount++];
+    sample.minuteOfDay = bucketMinute;
+    sample.productionPowerW = solar.productionPowerW;
+    sample.houseConsumptionW = solar.houseConsumptionW;
+}
