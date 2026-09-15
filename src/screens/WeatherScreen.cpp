@@ -75,7 +75,8 @@ void WeatherScreen::render(IDisplay& display, const DataModel& dm) {
         display.setCursor(95, 270);
         display.print("a konfiguraci ve WebUI");
     } else {
-        ScreenStyle::drawWeatherSymbol(display, 300, 130, dm.weather.weatherCode);
+        ScreenStyle::drawWeatherSymbol(display, 300, 132, dm.weather.weatherCode,
+                                       IconAssets::WeatherSize::Large56);
 
         ScreenStyle::useMetric(display);
         display.setCursor(95, 145);
@@ -112,7 +113,8 @@ void WeatherScreen::render(IDisplay& display, const DataModel& dm) {
     for (uint8_t i = 0; i < dm.weather.dailyCount; ++i) {
         const DailyWeatherForecast& day = dm.weather.daily[i];
         const int16_t y = 125 + i * 83;
-        ScreenStyle::drawWeatherSymbol(display, 405, y + 24, day.weatherCode);
+        ScreenStyle::drawWeatherSymbol(display, 410, y + 22, day.weatherCode,
+                                       IconAssets::WeatherSize::Medium40);
 
         ScreenStyle::useStrongBody(display);
         display.setCursor(442, y);
@@ -194,9 +196,13 @@ void WeatherScreen::renderHourly(IDisplay& display, const DataModel& dm) {
         display.print("Pro tento den nejsou hodinová data.");
         return;
     }
-    if (maxTemp - minTemp < 1.0f) {
-        maxTemp += 0.5f;
-        minTemp -= 0.5f;
+
+    minTemp = floorf(minTemp - 1.0f);
+    maxTemp = ceilf(maxTemp + 1.0f);
+    if (maxTemp - minTemp < 4.0f) {
+        const float middle = (minTemp + maxTemp) * 0.5f;
+        minTemp = middle - 2.0f;
+        maxTemp = middle + 2.0f;
     }
 
     const int16_t panelX = 85;
@@ -204,51 +210,63 @@ void WeatherScreen::renderHourly(IDisplay& display, const DataModel& dm) {
     const int16_t panelW = 690;
     const int16_t panelH = 315;
     display.drawRoundRect(panelX, panelY, panelW, panelH, ScreenStyle::CardRadius, 0);
-    display.drawLine(panelX + 18, panelY + 190, panelX + panelW - 18, panelY + 190, 0);
 
-    const int16_t firstX = panelX + 35;
-    const int16_t lastX = panelX + panelW - 35;
+    const int16_t firstX = panelX + 38;
+    const int16_t lastX = panelX + panelW - 30;
     const int16_t axisW = lastX - firstX;
-    const int16_t graphTop = panelY + 208;
-    const int16_t graphBottom = panelY + 258;
+    const int16_t graphTop = panelY + 193;
+    const int16_t graphBottom = panelY + 267;
 
     EInkGraph graph(display, firstX, graphTop, axisW + 1, graphBottom - graphTop + 1);
     graph.setXRange(0.0f, 24.0f);
     graph.setYRange(minTemp, maxTemp);
-    graph.drawHorizontalGrid(2);
+    graph.drawHorizontalGrid(4);
     graph.drawVerticalGrid(4);
     graph.drawLineSeries(tempPoints, slotCount, true);
 
     ScreenStyle::useBody(display);
-    display.setCursor(firstX - 8, panelY + 187);
-    display.print("0");
-    display.setCursor(firstX + axisW / 4 - 10, panelY + 187);
-    display.print("6");
-    display.setCursor(firstX + axisW / 2 - 14, panelY + 187);
-    display.print("12");
-    display.setCursor(firstX + axisW * 3 / 4 - 14, panelY + 187);
-    display.print("18");
-    display.setCursor(lastX - 18, panelY + 187);
-    display.print("24h");
+    for (uint8_t grid = 0; grid <= 4; ++grid) {
+        const float value = maxTemp - ((maxTemp - minTemp) * grid / 4.0f);
+        const int16_t y = graph.mapY(value);
+        display.setCursor(panelX + 8, y + 5);
+        display.printf("%.0f°", value);
+    }
+
+    const uint8_t axisHours[] = {0, 6, 12, 18, 24};
+    for (uint8_t i = 0; i < 5; ++i) {
+        const int16_t x = graph.mapX(static_cast<float>(axisHours[i]));
+        display.setCursor(x - (axisHours[i] >= 10 ? 11 : 6), graphBottom + 24);
+        if (axisHours[i] == 24) display.print("24h");
+        else display.printf("%u", axisHours[i]);
+    }
 
     for (uint8_t slot = 0; slot < slotCount; ++slot) {
         const HourlyWeatherForecast& hour = *slots[slot];
         const int16_t x = graph.mapX(static_cast<float>(hourOfDay(hour, date)));
 
         ScreenStyle::useBody(display);
-        display.setCursor(x - 21, panelY + 29);
+        display.setCursor(x - 18, panelY + 28);
         display.print(hourOfDay(hour, date) == 24 ? "24:00" : hour.time);
-        ScreenStyle::drawWeatherSymbol(display, x, panelY + 75, hour.weatherCode);
+
+        ScreenStyle::drawWeatherSymbol(display, x, panelY + 65, hour.weatherCode,
+                                       IconAssets::WeatherSize::Small24);
+
         ScreenStyle::useValue(display);
-        display.setCursor(x - 25, panelY + 138);
-        display.printf("%.0f °C", hour.tempC);
+        display.setCursor(x - 22, panelY + 111);
+        display.printf("%.0f°", hour.tempC);
+
         ScreenStyle::useBody(display);
-        display.setCursor(x - 28, panelY + 167);
+        display.setCursor(x - 27, panelY + 140);
         display.printf("%.0f km/h", hour.windKmh);
 
-        display.fillCircle(x - 13, panelY + 286, 2, 0);
-        ScreenStyle::drawBoldLine(display, x - 13, panelY + 289, x - 15, panelY + 294, 0);
-        display.setCursor(x - 5, panelY + 296);
+        const int16_t pointY = graph.mapY(hour.tempC);
+        ScreenStyle::useBody(display);
+        display.setCursor(x - 14, pointY - 8);
+        display.printf("%.0f", hour.tempC);
+
+        display.fillCircle(x - 13, panelY + 294, 2, 0);
+        ScreenStyle::drawBoldLine(display, x - 13, panelY + 297, x - 15, panelY + 302, 0);
+        display.setCursor(x - 5, panelY + 304);
         if (hour.hasPrecipitationProbability) {
             display.printf("%u%%", hour.precipitationProbabilityPercent);
         } else {
