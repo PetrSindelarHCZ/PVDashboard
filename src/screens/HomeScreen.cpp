@@ -82,7 +82,7 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
 
     ScreenStyle::useBody(display);
     display.setCursor(570, 265);
-    display.print("CO₂ v místnosti");
+    display.print("CO2 v místnosti");
     ScreenStyle::useValue(display);
     display.setCursor(570, 290);
     display.printf("%d ppm", dm.inside.co2Ppm);
