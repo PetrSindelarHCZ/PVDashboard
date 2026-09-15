@@ -156,7 +156,7 @@ void WeatherScreen::renderHourly(IDisplay& display, const DataModel& dm) {
     ScreenStyle::useBody(display);
     display.setCursor(85, 116);
     display.printf("Po %s hodinách | Zdroj: %s",
-                   dm.weather.provider == "MET Norway" ? "3–6" : "3",
+                   dm.weather.provider == "MET Norway" ? "3-6" : "3",
                    dm.weather.provider.c_str());
 
     const HourlyWeatherForecast* slots[WeatherHourlySlotsPerDay] = {};
@@ -171,7 +171,8 @@ void WeatherScreen::renderHourly(IDisplay& display, const DataModel& dm) {
             const uint8_t lastHour = hourOfDay(*slots[slotCount - 1], date);
             if (lastHour < 24) {
                 slots[slotCount] = &hour;
-                tempPoints[slotCount] = {static_cast<float>(hourOfDay(hour, date)), hour.tempC};
+                tempPoints[slotCount].x = static_cast<float>(hourOfDay(hour, date));
+                tempPoints[slotCount].y = hour.tempC;
                 if (hour.tempC < minTemp) minTemp = hour.tempC;
                 if (hour.tempC > maxTemp) maxTemp = hour.tempC;
                 ++slotCount;
@@ -180,7 +181,8 @@ void WeatherScreen::renderHourly(IDisplay& display, const DataModel& dm) {
         }
         if (strcmp(hour.date, date) != 0) continue;
         slots[slotCount] = &hour;
-        tempPoints[slotCount] = {static_cast<float>(hourOfDay(hour, date)), hour.tempC};
+        tempPoints[slotCount].x = static_cast<float>(hourOfDay(hour, date));
+        tempPoints[slotCount].y = hour.tempC;
         if (hour.tempC < minTemp) minTemp = hour.tempC;
         if (hour.tempC > maxTemp) maxTemp = hour.tempC;
         ++slotCount;
