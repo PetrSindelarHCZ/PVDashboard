@@ -283,6 +283,11 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         .source-grid label { color: var(--text-sub); font-size: 0.8rem; }
         .source-grid input { min-width: 0; }
         .status-value.ok { color: var(--success); }
+        .btn-primary { background: #1e3a8a; border-color: var(--active-border); }
+        .update-message { color: var(--text-sub); font-size: 0.85rem; line-height: 1.4; }
+        .update-message.ok { color: var(--success); }
+        .update-message.error { color: #fca5a5; }
+        [hidden] { display: none !important; }
         .toast {
             position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
             background: #3b82f6; color: white; padding: 10px 20px; border-radius: 30px;
@@ -400,7 +405,26 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         </div>
 
         <div class="card">
-            <div class="card-title">Aktualizace firmware</div>
+            <div class="card-title">Aktualizace z GitHubu</div>
+            <div class="status-grid">
+                <div class="status-item">
+                    <div class="status-label">Nainstalovaná verze</div>
+                    <div class="status-value" id="githubCurrentVersion">-</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Poslední release</div>
+                    <div class="status-value" id="githubLatestVersion">Nezkontrolováno</div>
+                </div>
+            </div>
+            <div class="update-message" id="githubUpdateMessage">Kontrola se spustí až po stisku tlačítka.</div>
+            <div class="btn-group">
+                <button class="btn btn-secondary" id="githubCheckButton" type="button" onclick="checkGithubUpdate()">Zkontrolovat novou verzi</button>
+                <button class="btn btn-primary" id="githubInstallButton" type="button" onclick="installGithubUpdate()" hidden disabled>Stáhnout a nainstalovat</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Ruční aktualizace firmware</div>
             <form action="/api/update" method="post" enctype="multipart/form-data">
                 <label for="firmwareSha256">SHA-256 ze souboru firmware.bin.sha256</label>
                 <input class="wifi-input" id="firmwareSha256" type="text" name="sha256" pattern="[a-fA-F0-9]{64}" minlength="64" maxlength="64" required>
@@ -424,6 +448,8 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         let statusRequestInFlight = false;
         let displayCommandInFlight = false;
         let displayBusy = false;
+        let githubUpdateBusy = false;
+        let githubUpdateInfo = null;
 
         function setDisplayActionsDisabled() {
             const disabled = displayCommandInFlight || displayBusy;
@@ -446,7 +472,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         }
 
         async function updateStatus() {
-            if (statusRequestInFlight) return;
+            if (statusRequestInFlight || githubUpdateBusy) return;
             statusRequestInFlight = true;
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 2500);
@@ -456,6 +482,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 const data = await res.json();
 
                 document.getElementById('fwVer').innerText = 'v' + data.firmware;
+                document.getElementById('githubCurrentVersion').innerText = 'v' + data.firmware;
                 document.getElementById('statScreen').innerText = data.screen;
                 document.getElementById('statWifi').innerText = data.wifi.rssi + ' dBm';
                 document.getElementById('statGoodwe').innerText = data.goodwe.available ? 'OK' : 'Offline';
@@ -601,6 +628,94 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
         function selectWifi(ssid) {
             if (ssid) document.getElementById('wifiSsid').value = ssid;
+        }
+
+        function setGithubUpdateBusy(busy) {
+            githubUpdateBusy = busy;
+            const checkButton = document.getElementById('githubCheckButton');
+            const installButton = document.getElementById('githubInstallButton');
+            checkButton.disabled = busy;
+            installButton.disabled = busy || !githubUpdateInfo;
+        }
+
+        function setGithubUpdateMessage(message, type = '') {
+            const element = document.getElementById('githubUpdateMessage');
+            element.textContent = message;
+            element.className = 'update-message' + (type ? ' ' + type : '');
+        }
+
+        async function checkGithubUpdate() {
+            githubUpdateInfo = null;
+            const installButton = document.getElementById('githubInstallButton');
+            installButton.hidden = true;
+            setGithubUpdateBusy(true);
+            setGithubUpdateMessage('Kontroluji poslední GitHub release...');
+            try {
+                const response = await fetch('/api/update/check', { cache: 'no-store' });
+                const data = await response.json();
+                if (!response.ok || data.status === 'error') {
+                    throw new Error(data.message || 'Kontrola aktualizace selhala');
+                }
+
+                document.getElementById('githubCurrentVersion').textContent = 'v' + data.current_version;
+                document.getElementById('githubLatestVersion').textContent = 'v' + data.latest_version;
+                if (data.status === 'update_available') {
+                    githubUpdateInfo = data;
+                    installButton.hidden = false;
+                    setGithubUpdateMessage('Je dostupná nová verze v' + data.latest_version + '.', 'ok');
+                } else if (data.current_version === data.latest_version) {
+                    setGithubUpdateMessage('Používáte nejnovější dostupnou verzi.', 'ok');
+                } else {
+                    setGithubUpdateMessage('Nainstalovaná verze je novější než poslední GitHub release.', 'ok');
+                }
+            } catch (error) {
+                setGithubUpdateMessage('Kontrola se nezdařila: ' + error.message, 'error');
+            } finally {
+                setGithubUpdateBusy(false);
+            }
+        }
+
+        async function installGithubUpdate() {
+            if (!githubUpdateInfo) return;
+            const current = githubUpdateInfo.current_version;
+            const latest = githubUpdateInfo.latest_version;
+            if (!confirm('Aktualizovat firmware z v' + current + ' na v' + latest + '? Zařízení se po instalaci restartuje.')) return;
+
+            setGithubUpdateBusy(true);
+            setGithubUpdateMessage('Stahuji a ověřuji firmware v' + latest + '. Nezavírejte stránku...');
+            try {
+                const response = await fetch('/api/update/github', { method: 'POST' });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || 'Instalace selhala');
+                setGithubUpdateMessage('Firmware je ověřený. Zařízení se restartuje...', 'ok');
+                showToast('Aktualizace byla nainstalována');
+                await waitForDashboardRestart();
+            } catch (error) {
+                setGithubUpdateMessage('Instalace se nezdařila: ' + error.message, 'error');
+                setGithubUpdateBusy(false);
+            }
+        }
+
+        async function waitForDashboardRestart() {
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            for (let attempt = 0; attempt < 30; attempt++) {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 1500);
+                try {
+                    const response = await fetch('/api/status', { cache: 'no-store', signal: controller.signal });
+                    if (response.ok) {
+                        location.reload();
+                        return;
+                    }
+                } catch (error) {
+                    // Restart krátce přeruší dostupnost HTTP serveru.
+                } finally {
+                    clearTimeout(timeout);
+                }
+                await new Promise(resolve => setTimeout(resolve, 1500));
+            }
+            setGithubUpdateMessage('Zařízení se zatím neozvalo. Obnovte stránku ručně.', 'error');
+            setGithubUpdateBusy(false);
         }
 
         setInterval(updateStatus, 3000);
@@ -862,67 +977,67 @@ void DashboardWebServer::handleApiSourceConfig() {
 }
 
 void DashboardWebServer::handleApiCheckForUpdate() {
+    _githubUpdateVersion = "";
+    _githubUpdateUrl = "";
+    _githubUpdateSha256 = "";
+
     String payload;
     if (!httpGetString(String(GITHUB_RELEASE_API_URL), payload)) {
-        _server.send(200, "application/json", buildGithubReleaseCheckJson(false, FIRMWARE_VERSION, "", ""));
+        _server.send(502, "application/json", "{\"status\":\"error\",\"message\":\"GitHub release check failed\"}");
         return;
     }
 
     JsonDocument doc;
     DeserializationError err = deserializeJson(doc, payload);
     if (err) {
-        _server.send(200, "application/json", buildGithubReleaseCheckJson(false, FIRMWARE_VERSION, "", ""));
+        _server.send(502, "application/json", "{\"status\":\"error\",\"message\":\"Invalid GitHub release response\"}");
         return;
     }
 
     const char* tagName = doc["tag_name"] | "";
     if (tagName[0] == '\0') {
-        _server.send(200, "application/json", buildGithubReleaseCheckJson(false, FIRMWARE_VERSION, "", ""));
+        _server.send(502, "application/json", "{\"status\":\"error\",\"message\":\"GitHub release has no version\"}");
         return;
     }
 
     String latestVersion = String(tagName);
-    latestVersion.replace("v", "");
+    if (latestVersion.startsWith("v")) latestVersion.remove(0, 1);
 
     JsonArray assets = doc["assets"].as<JsonArray>();
     String downloadUrl = findGitHubAssetDownloadUrl(assets, String(GITHUB_FIRMWARE_ASSET_NAME));
     String sha256 = findGitHubAssetSha256(assets, String(GITHUB_FIRMWARE_ASSET_NAME));
-
     if (downloadUrl.isEmpty() || sha256.isEmpty()) {
-        _server.send(200, "application/json", buildGithubReleaseCheckJson(false, FIRMWARE_VERSION, "", ""));
+        _server.send(502, "application/json", "{\"status\":\"error\",\"message\":\"GitHub release assets are incomplete\"}");
         return;
     }
 
-    bool updateAvailable = compareVersions(FIRMWARE_VERSION, latestVersion);
+    const bool updateAvailable = compareVersions(FIRMWARE_VERSION, latestVersion);
+    if (updateAvailable) {
+        _githubUpdateVersion = latestVersion;
+        _githubUpdateUrl = downloadUrl;
+        _githubUpdateSha256 = sha256;
+    }
     _server.send(200, "application/json", buildGithubReleaseCheckJson(updateAvailable, latestVersion, downloadUrl, sha256));
 }
 
 void DashboardWebServer::handleApiGithubUpdate() {
-    String url = _server.hasArg("url") ? _server.arg("url") : "";
-    String sha256 = _server.hasArg("sha256") ? _server.arg("sha256") : "";
-    if (url.isEmpty()) {
-        _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Missing GitHub download URL\"}");
+    if (_githubUpdateUrl.isEmpty() || _githubUpdateSha256.isEmpty() ||
+        !compareVersions(FIRMWARE_VERSION, _githubUpdateVersion)) {
+        _server.send(409, "application/json", "{\"status\":\"error\",\"message\":\"Check for a newer GitHub release first\"}");
         return;
     }
 
-    String normalizedSha256;
-    if (!normalizeSha256(sha256, normalizedSha256)) {
-        _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Missing or invalid SHA-256\"}");
-        return;
-    }
-
-    if (!downloadFirmwareBinary(url, normalizedSha256)) {
+    if (!downloadFirmwareBinary(_githubUpdateUrl, _githubUpdateSha256)) {
         Serial.println("[OTA] GitHub binary download failed");
         _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Firmware download or validation failed\"}");
         return;
     }
 
-    Serial.println("[OTA] GitHub firmware installed, restarting...");
+    Serial.printf("[OTA] GitHub firmware %s installed, restarting...\n", _githubUpdateVersion.c_str());
     _server.send(200, "application/json", "{\"status\":\"ok\",\"message\":\"GitHub firmware updated; restarting\"}");
     delay(500);
     ESP.restart();
 }
-
 void DashboardWebServer::handleApiUpdateUpload() {
     _otaManager.handleUpload(_server.upload());
 }

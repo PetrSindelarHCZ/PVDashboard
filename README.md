@@ -49,7 +49,7 @@ připnuté v **platformio.ini**. Po sestavení připraví validované artefakty 
 příkaz:
 
 ~~~powershell
-python scripts/prepare-release.py --firmware .pio/build/esp32dev/firmware.bin --output dist --expected-version 0.1.4
+python scripts/prepare-release.py --firmware .pio/build/esp32dev/firmware.bin --output dist --expected-version 0.1.5
 ~~~
 
 Výstup obsahuje **firmware.bin**, **firmware.bin.sha256** a
@@ -67,6 +67,10 @@ známý funkční commit a obnovte jej sériově:
 ~~~
 
 Tento postup nemaže NVS. Úplné mazání flash není součástí běžného návratu verze.
+
+WebUI umožňuje ručně zkontrolovat poslední GitHub release. Nabídku instalace zobrazí
+jen pro novější verzi a před stažením vyžádá potvrzení uživatele. Zařízení používá
+URL a SHA-256 získané přímo z GitHub release, ověří celý obraz a potom se restartuje.
 
 ## REST API
 

@@ -40,6 +40,9 @@ private:
     WifiScanCallback _wifiScanCallback;
     SourceConfigCallback _sourceConfigCallback;
     OtaManager _otaManager;
+    String _githubUpdateVersion;
+    String _githubUpdateUrl;
+    String _githubUpdateSha256;
 
     void setupRoutes();
     void handleRoot();
