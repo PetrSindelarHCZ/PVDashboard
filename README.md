@@ -16,12 +16,14 @@ asynchronní obsluhu e-paperu, diagnostiku výkonu a sjednocený vzhled obrazove
 - NTP s časovou zónou pro Českou republiku,
 - recovery AP **Dashboard-Setup**, pokud se zařízení nepřipojí k uložené Wi-Fi,
 - měření dob hlavní smyčky, HTTP, integrací a e-paper refreshů,
-- živé počasí Open-Meteo pro zvolené souřadnice, čtyřdenní předpověď a
-  vyhledání místa ve WebUI.
+- živé počasí z Open-Meteo nebo MET Norway pro zvolené souřadnice,
+  čtyřdenní předpověď a vyhledání místa ve WebUI,
+- ověřené HTTPS pro oba poskytovatele a respektování serverové cache MET Norway.
 
 Počasí načítá samostatná FreeRTOS úloha a při nedostupnosti API se na displeji
 nezobrazují náhradní čísla. Hodnoty vnitřních čidel a bazénu jsou zatím
-demonstrační a firmware i WebUI je tak označují.
+demonstrační a firmware i WebUI je tak označují. Podrobnosti poskytovatelů
+a další postup pro ČHMÚ jsou v [WEATHER_PROVIDERS.md](docs/WEATHER_PROVIDERS.md).
 
 ## Sestavení a nahrání
 

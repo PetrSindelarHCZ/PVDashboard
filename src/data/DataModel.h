@@ -33,6 +33,7 @@ struct DailyWeatherForecast {
     float precipitationMm = 0.0f;
     float windMaxKmh = 0.0f;
     uint8_t precipitationProbabilityPercent = 0;
+    bool hasPrecipitationProbability = false;
     uint8_t weatherCode = 0;
 };
 
@@ -42,6 +43,7 @@ struct HourlyWeatherForecast {
     float precipitationMm = 0.0f;
     float windKmh = 0.0f;
     uint8_t precipitationProbabilityPercent = 0;
+    bool hasPrecipitationProbability = false;
     uint8_t weatherCode = 0;
 };
 

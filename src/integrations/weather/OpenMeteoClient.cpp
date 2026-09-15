@@ -2,6 +2,7 @@
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
+#include "WeatherTls.h"
 #include <cstring>
 
 namespace {
@@ -86,9 +87,8 @@ bool OpenMeteoClient::update(const WeatherConfig& config, WeatherData& weatherDa
         "&forecast_days=4&timezone=auto";
 
     WiFiClientSecure client;
-    // HTTPS chrani prenos. Overeni certifikatu doplnime spolu se spravou CA
-    // pro vsechny internetove providery, aby aktualizace certifikatu neblokovala zarizeni.
-    client.setInsecure();
+    configureWeatherTls(client);
+
 
     HTTPClient http;
     if (!http.begin(client, url)) {
@@ -165,6 +165,7 @@ bool OpenMeteoClient::parseResponse(Stream& stream, WeatherData& weatherData, St
         item.tempMinC = dailyMin[i] | 0.0f;
         item.precipitationMm = dailyRain[i] | 0.0f;
         item.precipitationProbabilityPercent = dailyRainChance[i] | 0;
+        item.hasPrecipitationProbability = !dailyRainChance[i].isNull();
         item.windMaxKmh = dailyWind[i] | 0.0f;
     }
     if (weatherData.dailyCount > 0) {
@@ -191,6 +192,7 @@ bool OpenMeteoClient::parseResponse(Stream& stream, WeatherData& weatherData, St
         item.weatherCode = hourlyCodes[sourceIndex] | 0;
         item.tempC = hourlyTemps[sourceIndex] | 0.0f;
         item.precipitationProbabilityPercent = hourlyRainChance[sourceIndex] | 0;
+        item.hasPrecipitationProbability = !hourlyRainChance[sourceIndex].isNull();
         item.precipitationMm = hourlyRain[sourceIndex] | 0.0f;
         item.windKmh = hourlyWind[sourceIndex] | 0.0f;
     }

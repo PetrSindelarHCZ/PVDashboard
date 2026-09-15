@@ -23,6 +23,11 @@ bool WeatherWorker::begin(const WeatherConfig& config) {
     }
 
     _config = config;
+    if (_config.provider == "open-meteo") {
+        _provider = &_openMeteoClient;
+    } else if (_config.provider == "met-no") {
+        _provider = &_metNorwayClient;
+    }
     _mutex = xSemaphoreCreateMutex();
     if (_mutex == nullptr) {
         Serial.println("[WEATHER] Nelze vytvorit mutex.");
@@ -74,13 +79,18 @@ void WeatherWorker::taskLoop() {
             working.status.recordError("Weather disabled");
         } else if (!WiFi.isConnected()) {
             working.status.recordError("WiFi unavailable");
+        } else if (_provider == nullptr) {
+            working.status.recordError("Unsupported provider");
         } else {
-            success = _client.update(_config, working);
+            success = _provider->update(_config, working);
         }
 
         publish(working);
-        const uint32_t delaySeconds =
+        uint32_t delaySeconds =
             nextDelaySeconds(_config.pollIntervalSeconds, failureStreak, success);
+        if (success && _provider != nullptr) {
+            delaySeconds = _provider->recommendedPollIntervalSeconds(delaySeconds);
+        }
         failureStreak = success ? 0 : min<uint8_t>(failureStreak + 1, MaximumFailureShift);
         vTaskDelay(pdMS_TO_TICKS(delaySeconds * 1000UL));
     }

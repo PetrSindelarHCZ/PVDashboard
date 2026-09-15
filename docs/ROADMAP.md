@@ -183,12 +183,15 @@ Priorita byla stanovena takto:
 - [x] zobrazit u aktuálního počasí a čtyřdenní předpovědi výrazné vektorové
   symboly pro jasno, oblačnost, mlhu, déšť, sníh a bouřku,
 - [x] zbývající hodnoty vnitřních čidel a bazénu označit jako demonstrační,
+- [x] oddělit poskytovatele společným rozhraním a umožnit jejich volbu ve WebUI,
 - [ ] přidat podobrazovku s hodinovou předpovědí pro vybraný den; data po třech
   hodinách už společný model obsahuje,
-- [ ] implementovat adaptér veřejných JSON dat ČHMÚ a ověřit velikost odpovědi,
-- [ ] implementovat MET Norway Locationforecast s identifikačním User-Agent,
+- [x] prověřit veřejná data ČHMÚ; současná distribuce je založena na regionálních
+  dávkových souborech, proto před adaptérem doplnit bezpečný výběr správného souboru,
+- [ ] implementovat adaptér veřejných dat ČHMÚ a ověřit jeho paměťové nároky,
+- [x] implementovat MET Norway Locationforecast s identifikačním User-Agent,
   HTTPS, cache a požadovanou atribucí,
-- [ ] doplnit společnou správu důvěryhodných CA certifikátů pro internetové
+- [x] doplnit společnou správu důvěryhodných CA certifikátů pro internetové
   providery,
 - [ ] po připojení hardware načítat vnitřní teplotu, vlhkost a tlak z BME280.
 
@@ -198,6 +201,14 @@ bodů prvního dne. JavaScript WebUI prošel kontrolou syntaxe a release build
 využívá 31,0 % RAM a 89,7 % OTA partition. Na zařízení načetl Open-Meteo pro
 Český Brod, konfigurace přežila restart a 12 požadavků /api/status mělo při
 online GoodWe i AZRouteru odezvu 30–70 ms, průměrně 47,2 ms.
+Ověření MET Norway 15. 9. 2026: odpověď Locationforecast Compact pro testovací
+místo měla 40 265 B. Parser ukládá jen pole potřebná pro společný model a zachází
+s pravděpodobností srážek jako s volitelnou hodnotou. Release build po přidání
+společného ověřeného TLS a druhého provideru využívá 31,0 % RAM a 91,4 % OTA
+partition. Na zařízení zůstalo přibližně 160 kB volné haldy; MET Norway, GoodWe
+i AZRouter byly současně dostupné. Dvanáct požadavků /api/status při zobrazení
+počasí trvalo 64–108 ms, průměrně 83,8 ms.
+
 ## P7 — testy a údržba
 
 - host-side testy GoodWe CRC, délky rámce a mapování registrů,

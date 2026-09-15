@@ -421,7 +421,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 </select>
                 <select class="wifi-input" id="weatherProvider">
                     <option value="open-meteo">Open-Meteo</option>
-                    <option value="met-no" disabled>MET Norway (připravuje se)</option>
+                    <option value="met-no">MET Norway</option>
                     <option value="chmi" disabled>ČHMÚ (připravuje se)</option>
                 </select>
                 <div class="source-grid">
@@ -435,7 +435,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     <input class="wifi-input" id="weatherInterval" type="number" min="900" max="21600" required>
                     <label><input id="weatherEnabled" type="checkbox"> aktivní</label>
                 </div>
-                <div class="update-message">Výchozí místo: Český Brod. Počasí a hledání míst poskytuje <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>.</div>
+                <div class="update-message">Výchozí místo: Český Brod. Zdroje: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> a <a href="https://www.met.no/" target="_blank" rel="noopener">MET Norway</a>.</div>
                 <button class="btn btn-secondary" type="submit">Uložit počasí a restartovat</button>
             </form>
         </div>
@@ -1220,7 +1220,7 @@ void DashboardWebServer::handleApiWeatherConfig() {
     const double latitude = _server.arg("latitude").toDouble();
     const double longitude = _server.arg("longitude").toDouble();
     const long interval = _server.arg("interval").toInt();
-    if (provider != "open-meteo" ||
+    if ((provider != "open-meteo" && provider != "met-no") ||
         latitude < -90.0 || latitude > 90.0 ||
         longitude < -180.0 || longitude > 180.0 ||
         (latitude == 0.0 && longitude == 0.0) ||

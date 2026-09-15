@@ -164,7 +164,7 @@ void WeatherScreen::render(IDisplay& display, const DataModel& dm) {
                        dm.weather.tempMaxTodayC,
                        dm.weather.tempMinTodayC);
         display.setCursor(95, 435);
-        display.print("Zdroj: Open-Meteo");
+        display.printf("Zdroj: %s", dm.weather.provider.c_str());
     }
 
     ScreenStyle::drawCard(display, 367, 63, 418, 402, "PREDPOVED NA 4 DNY");
@@ -192,9 +192,13 @@ void WeatherScreen::render(IDisplay& display, const DataModel& dm) {
 
         ScreenStyle::useBody(display);
         display.setCursor(590, y + 28);
-        display.printf("Dest %u %% / %.1f mm",
-                       day.precipitationProbabilityPercent,
-                       day.precipitationMm);
+        if (day.hasPrecipitationProbability) {
+            display.printf("Dest %u %% / %.1f mm",
+                           day.precipitationProbabilityPercent,
+                           day.precipitationMm);
+        } else {
+            display.printf("Dest %.1f mm", day.precipitationMm);
+        }
         display.setCursor(590, y + 52);
         display.printf("Vitr max %.0f km/h", day.windMaxKmh);
     }

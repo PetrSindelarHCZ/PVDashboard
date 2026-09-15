@@ -43,7 +43,7 @@ Dashboard načítá a zobrazuje:
 | home | funkční | Souhrn domu, energie a demonstračních čidel |
 | solar | funkční | GoodWe, baterie, síť a AZRouter |
 | pool | demonstrační | Připravený layout, hodnoty nejsou z reálných čidel |
-| weather | funkční | Aktuální počasí a čtyřdenní předpověď z Open-Meteo |
+| weather | funkční | Aktuální počasí a čtyřdenní předpověď z Open-Meteo nebo MET Norway |
 | diagnostics | funkční | Firmware, uptime, heap, Wi-Fi a integrace |
 
 Všechny obrazovky používají společnou typografii, černé záhlaví a zápatí,
@@ -57,7 +57,7 @@ WebUI musí umožnit:
 - přepnout obrazovku,
 - vyvolat částečný nebo plný refresh,
 - změnit Wi-Fi a konfiguraci zdrojů,
-- vyhledat místo a uložit souřadnice pro počasí,
+- vyhledat místo, uložit souřadnice a zvolit poskytovatele počasí,
 - restartovat zařízení,
 - provést ruční nebo GitHub OTA aktualizaci.
 
@@ -90,6 +90,17 @@ Znaménka používaná v aktuálním modelu:
 
 Úspěch celého čtení se nyní řídí odpovědí /api/v1/power. Zbývající dva
 dotazy mohou selhat, aniž by byl zdroj označen jako nedostupný.
+
+### Počasí
+
+- poskytovatelé: Open-Meteo a MET Norway Locationforecast,
+- transport: HTTPS s ověřením společně spravovaných kořenových CA certifikátů,
+- zpracování: samostatná FreeRTOS úloha a společné rozhraní poskytovatelů,
+- MET Norway: identifikační User-Agent, podmíněné požadavky `If-Modified-Since`
+  a interval odvozený z hlaviček `Date` a `Expires`,
+- model: aktuální podmínky, čtyři dny a osm bodů po třech hodinách,
+- pravděpodobnost srážek je volitelná; pokud ji provider neposkytne, displej
+  zobrazuje pouze množství srážek.
 
 ## Konfigurace
 

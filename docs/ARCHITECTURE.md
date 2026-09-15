@@ -4,8 +4,8 @@
 
 ~~~text
 GoodWe UDP ───────┐
-                  ├─> DataModel ─> Screen ─> DisplayManager ─> EpaperDisplay
-AZRouter HTTP ────┘                    ^
+AZRouter HTTP ────┼─> DataModel ─> Screen ─> DisplayManager ─> EpaperDisplay
+Weather HTTPS ────┘                    ^
                                        |
 Telefon ─> WebServer ─> ScreenManager ─┘
                  ├─> ConfigManager/NVS
@@ -19,7 +19,7 @@ mezi WebUI, datovými zdroji a displejem.
 
 - **src/app**: životní cyklus a plánování.
 - **src/data**: normalizovaný model a stav zdrojů.
-- **src/integrations**: protokoly GoodWe a AZRouteru.
+- **src/integrations**: protokoly GoodWe, AZRouteru a poskytovatelů počasí.
 - **src/screens**: čisté renderery bez síťové komunikace.
 - **src/display**: abstrakce displeje a refresh politika.
 - **src/network**: Wi-Fi, NTP, HTTP API a vložené WebUI.
@@ -45,6 +45,12 @@ ukládá do chráněného jednopolohového bufferu, slučuje změny a renderuje 
 kopii DataModel v samostatné FreeRTOS úloze. Síťové polling operace zatím zůstávají
 v hlavní smyčce a při timeoutu mohou krátce zdržet WebUI.
 
+WeatherWorker načítá internetovou předpověď v samostatné FreeRTOS úloze.
+Konkrétní klient je vybrán přes IWeatherProvider; Open-Meteo a MET Norway proto
+publikují stejný WeatherData. HTTPS klienti používají společný seznam důvěryhodných
+kořenových certifikátů. Jeho platnost je nutné ověřit při změně endpointu nebo
+certifikačního řetězce poskytovatele.
+
 ## Požadavky na souběh
 
 Pro současnou FreeRTOS display úlohu platí:
@@ -66,13 +72,13 @@ Obraz se automaticky aktualizuje přibližně jednou za minutu a při změně
 dostupnosti zdroje. Požadavky vzniklé krátce po sobě se slučují v pětisekundovém
 okně.
 
-Přepnutí obrazovky vždy vyžádá čisticí plnou obnovu. Po pěti běžných částečných
-obnovách DisplayManager také vynutí plnou obnovu. Konfigurační časový interval
-plné obnovy zatím není zapojený.
+Přepnutí obrazovky vždy vyžádá čisticí plnou obnovu. Běžné aktualizace stejné
+obrazovky jsou částečné; počet částečných obnov už automatickou plnou obnovu
+nevyvolává.
 
 ## Omezení platformy
 
 Deska má přibližně 4 MB flash a nemá PSRAM. Aktuální build využívá přibližně
-1,14 MB z 1 310 720 B dostupných v jedné OTA partition. Do návrhu proto nepatří
+1,20 MB z 1 310 720 B dostupných v jedné OTA partition. Do návrhu proto nepatří
 velký frontend framework, filesystem s duplicitními assety ani rozsáhlé fonty
 bez kontroly výsledné velikosti.

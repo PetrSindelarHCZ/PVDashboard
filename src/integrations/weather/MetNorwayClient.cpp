@@ -1,0 +1,371 @@
+#include "MetNorwayClient.h"
+#include "WeatherTls.h"
+#include "../../../include/Version.h"
+#include <ArduinoJson.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include <ctime>
+#include <cstring>
+
+namespace {
+constexpr int32_t ConnectTimeoutMs = 3000;
+constexpr uint16_t ResponseTimeoutMs = 12000;
+constexpr uint32_t MinimumCacheSeconds = 60;
+constexpr uint32_t MaximumCacheSeconds = 21600;
+
+template <size_t N>
+void copyText(char (&destination)[N], const char* source) {
+    if (source == nullptr) {
+        destination[0] = '\0';
+        return;
+    }
+    strlcpy(destination, source, N);
+}
+
+uint8_t symbolToWeatherCode(const char* symbol) {
+    if (symbol == nullptr) return 3;
+    const String value(symbol);
+    if (value.startsWith("clearsky")) return 0;
+    if (value.startsWith("fair")) return 1;
+    if (value.startsWith("partlycloudy")) return 2;
+    if (value.startsWith("cloudy")) return 3;
+    if (value.startsWith("fog")) return 45;
+    if (value.indexOf("thunder") >= 0) return 95;
+    if (value.indexOf("snow") >= 0 || value.indexOf("sleet") >= 0) return 71;
+    if (value.indexOf("rainshowers") >= 0) return 80;
+    if (value.indexOf("rain") >= 0) return 61;
+    return 3;
+}
+
+const char* conditionForCode(uint8_t code) {
+    switch (code) {
+        case 0: return "Jasno";
+        case 1: return "Prevazne jasno";
+        case 2: return "Polojasno";
+        case 3: return "Zatazeno";
+        case 45: return "Mlha";
+        case 61: return "Dest";
+        case 71: return "Snezeni";
+        case 80: return "Destove prehanky";
+        case 95: return "Bourka";
+        default: return "Neznamy stav";
+    }
+}
+
+const char* forecastSymbol(const JsonObjectConst& data) {
+    const char* symbol = data["next_1_hours"]["summary"]["symbol_code"];
+    if (symbol == nullptr) symbol = data["next_6_hours"]["summary"]["symbol_code"];
+    if (symbol == nullptr) symbol = data["next_12_hours"]["summary"]["symbol_code"];
+    return symbol;
+}
+
+JsonObjectConst precipitationDetails(const JsonObjectConst& data) {
+    JsonObjectConst details = data["next_1_hours"]["details"].as<JsonObjectConst>();
+    if (!details.isNull()) return details;
+    return data["next_6_hours"]["details"].as<JsonObjectConst>();
+}
+
+int64_t daysFromCivil(int year, unsigned month, unsigned day) {
+    year -= month <= 2;
+    const int era = (year >= 0 ? year : year - 399) / 400;
+    const unsigned yearOfEra = static_cast<unsigned>(year - era * 400);
+    const unsigned adjustedMonth = month > 2 ? month - 3 : month + 9;
+    const unsigned dayOfYear =
+        (153 * adjustedMonth + 2) / 5 + day - 1;
+    const unsigned dayOfEra =
+        yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 +
+        dayOfYear;
+    return static_cast<int64_t>(era) * 146097 +
+           static_cast<int64_t>(dayOfEra) - 719468;
+}
+
+time_t utcTimestamp(
+    int year,
+    unsigned month,
+    unsigned day,
+    unsigned hour,
+    unsigned minute,
+    unsigned second) {
+    return static_cast<time_t>(
+        daysFromCivil(year, month, day) * 86400 +
+        hour * 3600 + minute * 60 + second);
+}
+bool parseUtcTime(const char* text, time_t& utc, tm& local) {
+    if (text == nullptr || strlen(text) < 19) return false;
+    tm parsed{};
+    if (sscanf(text, "%d-%d-%dT%d:%d:%dZ",
+               &parsed.tm_year,
+               &parsed.tm_mon,
+               &parsed.tm_mday,
+               &parsed.tm_hour,
+               &parsed.tm_min,
+               &parsed.tm_sec) != 6) {
+        return false;
+    }
+    utc = utcTimestamp(
+        parsed.tm_year,
+        static_cast<unsigned>(parsed.tm_mon),
+        static_cast<unsigned>(parsed.tm_mday),
+        static_cast<unsigned>(parsed.tm_hour),
+        static_cast<unsigned>(parsed.tm_min),
+        static_cast<unsigned>(parsed.tm_sec));
+    localtime_r(&utc, &local);
+    return true;
+}
+
+bool parseHttpDate(const String& value, time_t& output) {
+    if (value.isEmpty()) return false;
+    tm parsed{};
+    char* end = strptime(value.c_str(), "%a, %d %b %Y %H:%M:%S GMT", &parsed);
+    if (end == nullptr || *end != '\0') return false;
+    output = utcTimestamp(
+        parsed.tm_year + 1900,
+        static_cast<unsigned>(parsed.tm_mon + 1),
+        static_cast<unsigned>(parsed.tm_mday),
+        static_cast<unsigned>(parsed.tm_hour),
+        static_cast<unsigned>(parsed.tm_min),
+        static_cast<unsigned>(parsed.tm_sec));
+    return output > 0;
+}
+}
+
+bool MetNorwayClient::update(const WeatherConfig& config, WeatherData& weatherData) {
+    if (config.latitude < -90.0 || config.latitude > 90.0 ||
+        config.longitude < -180.0 || config.longitude > 180.0 ||
+        (config.latitude == 0.0 && config.longitude == 0.0)) {
+        weatherData.status.recordError("Location not configured");
+        return false;
+    }
+
+    const String url =
+        "https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=" +
+        String(config.latitude, 5) + "&lon=" + String(config.longitude, 5);
+
+    WiFiClientSecure client;
+    configureWeatherTls(client);
+
+    HTTPClient http;
+    if (!http.begin(client, url)) {
+        weatherData.status.recordError("HTTPS begin failed");
+        return false;
+    }
+    http.setConnectTimeout(ConnectTimeoutMs);
+    http.setTimeout(ResponseTimeoutMs);
+    http.useHTTP10(true);
+    http.setUserAgent(
+        "PVDashboard/" FIRMWARE_VERSION " github.com/PetrSindelarHCZ/PVDashboard");
+
+    const char* headerKeys[] = {"Last-Modified", "Expires", "Date"};
+    http.collectHeaders(headerKeys, 3);
+    if (!_lastModified.isEmpty()) {
+        http.addHeader("If-Modified-Since", _lastModified);
+    }
+
+    const int httpCode = http.GET();
+    if (httpCode == HTTP_CODE_NOT_MODIFIED) {
+        updateCachePolicy(http.header("Date"), http.header("Expires"));
+        weatherData.provider = "MET Norway";
+        weatherData.status.recordSuccess();
+        http.end();
+        Serial.println("[WEATHER] MET Norway: 304 Not Modified");
+        return true;
+    }
+    if (httpCode != HTTP_CODE_OK) {
+        weatherData.status.recordError("HTTP " + String(httpCode));
+        http.end();
+        return false;
+    }
+
+    WeatherData parsedData = weatherData;
+    String parseError;
+    const bool success = parseResponse(http.getStream(), parsedData, parseError);
+    if (success) {
+        _lastModified = http.header("Last-Modified");
+        updateCachePolicy(http.header("Date"), http.header("Expires"));
+    }
+    http.end();
+
+    if (!success) {
+        weatherData.status.recordError(parseError);
+        return false;
+    }
+
+    weatherData = parsedData;
+    weatherData.provider = "MET Norway";
+    weatherData.lastUpdateMs = millis();
+    weatherData.status.recordSuccess();
+    Serial.printf("[WEATHER] MET Norway: %.1f C, %d %%, %u dnu, %u hodinovych bodu\n",
+                  weatherData.outdoorTempC,
+                  weatherData.outdoorHumidityPercent,
+                  weatherData.dailyCount,
+                  weatherData.hourlyCount);
+    return true;
+}
+
+uint32_t MetNorwayClient::recommendedPollIntervalSeconds(uint32_t configuredSeconds) const {
+    return max(configuredSeconds, _cacheSeconds);
+}
+
+void MetNorwayClient::updateCachePolicy(
+    const String& dateHeader,
+    const String& expiresHeader) {
+    time_t responseDate = 0;
+    time_t expires = 0;
+    if (parseHttpDate(dateHeader, responseDate) &&
+        parseHttpDate(expiresHeader, expires) &&
+        expires > responseDate) {
+        _cacheSeconds = constrain(
+            static_cast<uint32_t>(expires - responseDate),
+            MinimumCacheSeconds,
+            MaximumCacheSeconds);
+    }
+}
+
+bool MetNorwayClient::parseResponse(
+    Stream& stream,
+    WeatherData& weatherData,
+    String& error) {
+    JsonDocument filter;
+    filter["properties"]["timeseries"][0]["time"] = true;
+    filter["properties"]["timeseries"][0]["data"]["instant"]["details"]["air_pressure_at_sea_level"] = true;
+    filter["properties"]["timeseries"][0]["data"]["instant"]["details"]["air_temperature"] = true;
+    filter["properties"]["timeseries"][0]["data"]["instant"]["details"]["relative_humidity"] = true;
+    filter["properties"]["timeseries"][0]["data"]["instant"]["details"]["wind_speed"] = true;
+    filter["properties"]["timeseries"][0]["data"]["next_1_hours"]["summary"]["symbol_code"] = true;
+    filter["properties"]["timeseries"][0]["data"]["next_1_hours"]["details"]["precipitation_amount"] = true;
+    filter["properties"]["timeseries"][0]["data"]["next_1_hours"]["details"]["probability_of_precipitation"] = true;
+    filter["properties"]["timeseries"][0]["data"]["next_6_hours"]["summary"]["symbol_code"] = true;
+    filter["properties"]["timeseries"][0]["data"]["next_6_hours"]["details"]["precipitation_amount"] = true;
+    filter["properties"]["timeseries"][0]["data"]["next_6_hours"]["details"]["probability_of_precipitation"] = true;
+    filter["properties"]["timeseries"][0]["data"]["next_12_hours"]["summary"]["symbol_code"] = true;
+
+    JsonDocument doc;
+    const DeserializationError jsonError = deserializeJson(
+        doc,
+        stream,
+        DeserializationOption::Filter(filter));
+    if (jsonError) {
+        error = "JSON " + String(jsonError.c_str());
+        return false;
+    }
+
+    const JsonArrayConst timeseries =
+        doc["properties"]["timeseries"].as<JsonArrayConst>();
+    if (timeseries.isNull() || timeseries.size() == 0) {
+        error = "Missing MET timeseries";
+        return false;
+    }
+
+    const JsonObjectConst firstData =
+        timeseries[0]["data"].as<JsonObjectConst>();
+    const JsonObjectConst firstDetails =
+        firstData["instant"]["details"].as<JsonObjectConst>();
+    if (firstDetails["air_temperature"].isNull() ||
+        firstDetails["relative_humidity"].isNull()) {
+        error = "Missing MET current data";
+        return false;
+    }
+
+    weatherData.outdoorTempC = firstDetails["air_temperature"].as<float>();
+    weatherData.outdoorHumidityPercent =
+        static_cast<int>(roundf(firstDetails["relative_humidity"].as<float>()));
+    weatherData.surfacePressureHpa =
+        firstDetails["air_pressure_at_sea_level"] | 0.0f;
+    weatherData.windSpeedKmh =
+        (firstDetails["wind_speed"] | 0.0f) * 3.6f;
+    const JsonObjectConst firstPrecipitation =
+        precipitationDetails(firstData);
+    weatherData.currentPrecipitationMm =
+        firstPrecipitation["precipitation_amount"] | 0.0f;
+    weatherData.weatherCode = symbolToWeatherCode(forecastSymbol(firstData));
+    weatherData.conditionText = conditionForCode(weatherData.weatherCode);
+    weatherData.dailyCount = 0;
+    weatherData.hourlyCount = 0;
+
+    time_t lastHourlyUtc = 0;
+    for (JsonObjectConst point : timeseries) {
+        const char* timestamp = point["time"];
+        time_t utc = 0;
+        tm local{};
+        if (!parseUtcTime(timestamp, utc, local)) continue;
+
+        const JsonObjectConst data = point["data"].as<JsonObjectConst>();
+        const JsonObjectConst instant =
+            data["instant"]["details"].as<JsonObjectConst>();
+        if (instant["air_temperature"].isNull()) continue;
+
+        char date[11];
+        snprintf(date, sizeof(date), "%04d-%02d-%02d",
+                 local.tm_year + 1900,
+                 local.tm_mon + 1,
+                 local.tm_mday);
+
+        int dayIndex = -1;
+        for (uint8_t i = 0; i < weatherData.dailyCount; ++i) {
+            if (strcmp(weatherData.daily[i].date, date) == 0) {
+                dayIndex = i;
+                break;
+            }
+        }
+        if (dayIndex < 0 && weatherData.dailyCount < WeatherForecastDayCount) {
+            dayIndex = weatherData.dailyCount++;
+            DailyWeatherForecast& created = weatherData.daily[dayIndex];
+            created = {};
+            copyText(created.date, date);
+            created.tempMaxC = instant["air_temperature"].as<float>();
+            created.tempMinC = created.tempMaxC;
+            created.weatherCode = symbolToWeatherCode(forecastSymbol(data));
+        }
+
+        if (dayIndex >= 0) {
+            DailyWeatherForecast& day = weatherData.daily[dayIndex];
+            const float temperature = instant["air_temperature"].as<float>();
+            day.tempMaxC = max(day.tempMaxC, temperature);
+            day.tempMinC = min(day.tempMinC, temperature);
+            day.windMaxKmh = max(
+                day.windMaxKmh,
+                (instant["wind_speed"] | 0.0f) * 3.6f);
+
+            const JsonObjectConst precip = precipitationDetails(data);
+            day.precipitationMm += precip["precipitation_amount"] | 0.0f;
+            if (!precip["probability_of_precipitation"].isNull()) {
+                day.hasPrecipitationProbability = true;
+                day.precipitationProbabilityPercent = max(
+                    day.precipitationProbabilityPercent,
+                    precip["probability_of_precipitation"].as<uint8_t>());
+            }
+            if (local.tm_hour >= 11 && local.tm_hour <= 14) {
+                day.weatherCode = symbolToWeatherCode(forecastSymbol(data));
+            }
+        }
+
+        if (weatherData.hourlyCount < WeatherHourlySlotCount &&
+            (lastHourlyUtc == 0 || utc - lastHourlyUtc >= 3 * 3600)) {
+            HourlyWeatherForecast& hour =
+                weatherData.hourly[weatherData.hourlyCount++];
+            hour = {};
+            snprintf(hour.time, sizeof(hour.time), "%02d:%02d",
+                     local.tm_hour,
+                     local.tm_min);
+            hour.tempC = instant["air_temperature"].as<float>();
+            hour.windKmh = (instant["wind_speed"] | 0.0f) * 3.6f;
+            const JsonObjectConst precip = precipitationDetails(data);
+            hour.precipitationMm = precip["precipitation_amount"] | 0.0f;
+            if (!precip["probability_of_precipitation"].isNull()) {
+                hour.hasPrecipitationProbability = true;
+                hour.precipitationProbabilityPercent =
+                    precip["probability_of_precipitation"].as<uint8_t>();
+            }
+            hour.weatherCode = symbolToWeatherCode(forecastSymbol(data));
+            lastHourlyUtc = utc;
+        }
+    }
+
+    if (weatherData.dailyCount == 0) {
+        error = "No MET forecast days";
+        return false;
+    }
+    weatherData.tempMaxTodayC = weatherData.daily[0].tempMaxC;
+    weatherData.tempMinTodayC = weatherData.daily[0].tempMinC;
+    return true;
+}

@@ -5,7 +5,9 @@
 #include <freertos/task.h>
 #include "../../config/ConfigSchema.h"
 #include "../../data/DataModel.h"
+#include "IWeatherProvider.h"
 #include "OpenMeteoClient.h"
+#include "MetNorwayClient.h"
 
 class WeatherWorker {
 public:
@@ -17,7 +19,9 @@ private:
     static constexpr UBaseType_t TaskPriority = 1;
 
     WeatherConfig _config;
-    OpenMeteoClient _client;
+    OpenMeteoClient _openMeteoClient;
+    MetNorwayClient _metNorwayClient;
+    IWeatherProvider* _provider = nullptr;
     SemaphoreHandle_t _mutex = nullptr;
     TaskHandle_t _task = nullptr;
     WeatherData _latest;
