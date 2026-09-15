@@ -178,7 +178,7 @@ Priorita byla stanovena takto:
 - [x] načítat Open-Meteo mimo hlavní smyčku, s timeouty a omezenou frekvencí,
 - [x] uložit provider, souřadnice a interval do NVS,
 - [x] umožnit ve WebUI ruční zadání souřadnic i vyhledání názvu místa;
-  výchozí místo je Český Brod,
+  výchozí místo je Praha,
 - [x] při nedostupnosti počasí nezobrazovat demonstrační hodnoty,
 - [x] zobrazit u aktuálního počasí a čtyřdenní předpovědi výrazné vektorové
   symboly pro jasno, oblačnost, mlhu, déšť, sníh a bouřku,

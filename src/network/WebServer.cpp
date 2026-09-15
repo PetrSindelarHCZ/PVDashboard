@@ -424,7 +424,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         <div class="card">
             <div class="card-title">Počasí</div>
             <form onsubmit="saveWeather(event)">
-                <input class="wifi-input" id="weatherPlace" placeholder="Obec nebo PSČ, např. Český Brod">
+                <input class="wifi-input" id="weatherPlace" placeholder="Obec nebo PSČ, např. Praha">
                 <button class="btn btn-secondary" type="button" onclick="searchWeatherPlace()">Vyhledat místo</button>
                 <select class="wifi-input" id="weatherPlaces" onchange="applyWeatherPlace(this.value)" hidden>
                     <option value="">Vyber nalezené místo</option>
@@ -445,7 +445,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     <input class="wifi-input" id="weatherInterval" type="number" min="900" max="21600" required>
                     <label><input id="weatherEnabled" type="checkbox"> aktivní</label>
                 </div>
-                <div class="update-message">Výchozí místo: Český Brod. Zdroje: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> a <a href="https://www.met.no/" target="_blank" rel="noopener">MET Norway</a>.</div>
+                <div class="update-message">Výchozí místo: Praha. Zdroje: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> a <a href="https://www.met.no/" target="_blank" rel="noopener">MET Norway</a>.</div>
                 <button class="btn btn-secondary" type="submit">Uložit počasí a restartovat</button>
             </form>
         </div>

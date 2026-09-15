@@ -34,8 +34,8 @@ struct AZRouterConfig {
 struct WeatherConfig {
     bool enabled = false;
     String provider = "open-meteo";
-    double latitude = 0.0;
-    double longitude = 0.0;
+    double latitude = 50.0755;
+    double longitude = 14.4378;
     uint32_t pollIntervalSeconds = 1800;
 };
 
