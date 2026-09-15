@@ -3,6 +3,8 @@
 #include "../display/IDisplay.h"
 #include "../display/DisplayFonts.h"
 #include "../data/DataModel.h"
+#include <Fonts/FreeSansBold18pt7b.h>
+#include <Fonts/FreeSansBold9pt7b.h>
 
 namespace ScreenStyle {
 
@@ -51,26 +53,25 @@ inline void drawWifi(IDisplay& d, int16_t x, int16_t y, const DataModel& dm, uin
 }
 inline void drawSourceStatus(IDisplay& d, int16_t x, const char* label, bool available) {
     d.setTextColor(1);
-    d.setUnicodeFont(DisplayFonts::headerStatus());
-    d.setCursor(x, 30);
+    d.setFont(&FreeSansBold9pt7b);
+    d.setCursor(x, 31);
     d.print(label);
-    if (available) drawCheck(d, x + 28, 18, 1); else drawCross(d, x + 29, 18, 1);
+    if (available) drawCheck(d, x + 31, 18, 1); else drawCross(d, x + 32, 18, 1);
 }
 inline void drawHeader(IDisplay& d, const DataModel& dm) {
     d.fillRect(0, 0, Width, HeaderHeight, 0);
     drawWifi(d, 24, 25, dm, 1);
     const bool online = dm.system.wifiConnected;
     drawSourceStatus(d, 55, "GW", online && dm.solar.status.available);
-    drawSourceStatus(d, 105, "AZ", online && dm.azrouter.status.available);
+    drawSourceStatus(d, 110, "AZ", online && dm.azrouter.status.available);
 
     d.setTextColor(1);
-    d.setUnicodeFont(DisplayFonts::headerDate());
-    d.setCursor(520, 29);
+    d.setFont(&FreeSansBold9pt7b);
+    d.setCursor(535, 31);
     d.print(dm.system.dateStr);
 
-    d.setUnicodeFont(DisplayFonts::headerTime());
-    const int16_t timeWidth = d.textWidth(dm.system.timeStr);
-    d.setCursor(790 - timeWidth, 34);
+    d.setFont(&FreeSansBold18pt7b);
+    d.setCursor(690, 35);
     d.print(dm.system.timeStr);
 }
 inline void drawBoldLine(IDisplay& d, int16_t x0, int16_t y0, int16_t x1, int16_t y1,
