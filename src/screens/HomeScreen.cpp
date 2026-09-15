@@ -6,6 +6,8 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
 
     ScreenStyle::drawCard(display, 75, 63, 225, 402, "VENKU");
     if (dm.weather.status.available) {
+        ScreenStyle::drawWeatherSymbol(display, 248, 130, dm.weather.weatherCode);
+
         ScreenStyle::useMetric(display);
         display.setCursor(90, 145);
         display.printf("%.1f C", dm.weather.outdoorTempC);
@@ -22,7 +24,7 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
         display.setCursor(90, 325);
         display.printf("Stav: %s", dm.weather.conditionText.c_str());
         display.setCursor(90, 375);
-        display.print("Open-Meteo");
+        display.print(dm.weather.provider);
     } else {
         ScreenStyle::useValue(display);
         display.setCursor(90, 145);

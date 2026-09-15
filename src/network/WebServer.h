@@ -13,10 +13,13 @@ public:
     using ScreenChangeCallback = std::function<void(const String& screenId)>;
     using RefreshCallback = std::function<void(bool full)>;
     using DisplayStatusCallback = std::function<DisplayTaskStatus()>;
+    using SystemConfigCallback = std::function<void(const SystemConfig& system)>;
     using WifiConfigCallback = std::function<void(const String& ssid, const String& password)>;
     using WifiScanCallback = std::function<String()>;
     using SourceConfigCallback = std::function<void(const GoodWeConfig& goodwe, const AZRouterConfig& azrouter)>;
     using WeatherConfigCallback = std::function<void(const WeatherConfig& weather)>;
+    using FactoryResetCallback = std::function<bool()>;
+    using ConfigImportCallback = std::function<bool(const AppConfig& config)>;
 
     DashboardWebServer(uint16_t port, DataModel& dataModel, ScreenManager& screenManager, const AppConfig& config);
 
@@ -25,10 +28,13 @@ public:
     void onScreenChange(ScreenChangeCallback callback);
     void onRefresh(RefreshCallback callback);
     void onDisplayStatus(DisplayStatusCallback callback);
+    void onSystemConfig(SystemConfigCallback callback);
     void onWifiConfig(WifiConfigCallback callback);
     void onWifiScan(WifiScanCallback callback);
     void onSourceConfig(SourceConfigCallback callback);
     void onWeatherConfig(WeatherConfigCallback callback);
+    void onFactoryReset(FactoryResetCallback callback);
+    void onConfigImport(ConfigImportCallback callback);
 
 private:
     WebServer _server;
@@ -38,10 +44,13 @@ private:
     ScreenChangeCallback _screenCallback;
     RefreshCallback _refreshCallback;
     DisplayStatusCallback _displayStatusCallback;
+    SystemConfigCallback _systemConfigCallback;
     WifiConfigCallback _wifiConfigCallback;
     WifiScanCallback _wifiScanCallback;
     SourceConfigCallback _sourceConfigCallback;
     WeatherConfigCallback _weatherConfigCallback;
+    FactoryResetCallback _factoryResetCallback;
+    ConfigImportCallback _configImportCallback;
     OtaManager _otaManager;
     String _githubUpdateVersion;
     String _githubUpdateUrl;
@@ -54,6 +63,10 @@ private:
     void handleApiActivateScreen(const String& screenId);
     void handleApiRefresh(bool full);
     void handleApiRestart();
+    void handleApiFactoryReset();
+    void handleApiConfigExport();
+    void handleApiConfigImport();
+    void handleApiSystemConfig();
     void handleApiWifiConfig();
     void handleApiWifiScan();
     void handleApiSourceConfig();

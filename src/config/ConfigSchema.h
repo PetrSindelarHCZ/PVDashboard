@@ -8,7 +8,7 @@ struct SystemConfig {
 };
 
 struct WifiConfig {
-    String ssid = "VASE_WIFI";
+    String ssid = "";
     String password = "";
 };
 
@@ -19,14 +19,14 @@ struct DisplayConfig {
 
 struct GoodWeConfig {
     bool enabled = true;
-    String host = "192.168.88.51";
+    String host = "";
     uint16_t port = 8899;
     uint32_t pollIntervalSeconds = 10;
 };
 
 struct AZRouterConfig {
     bool enabled = true;
-    String host = "192.168.88.51";
+    String host = "";
     uint16_t port = 8081;
     uint32_t pollIntervalSeconds = 10;
 };

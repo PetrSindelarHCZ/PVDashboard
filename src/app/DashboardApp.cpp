@@ -100,6 +100,13 @@ void DashboardApp::setup() {
         return _displayWorker.getStatus();
     });
 
+    _webServer.onSystemConfig([this](const SystemConfig& system) {
+        _configManager.setSystem(system);
+        Serial.println("[CONFIG] System ulozen, restartuji zarizeni...");
+        delay(250);
+        ESP.restart();
+    });
+
     _webServer.onWifiConfig([this](const String& ssid, const String& password) {
         _configManager.setWifi(ssid, password);
         Serial.println("[CONFIG] Wi-Fi ulozena, restartuji zarizeni...");
@@ -123,6 +130,14 @@ void DashboardApp::setup() {
         Serial.println("[CONFIG] Pocasi ulozeno, restartuji zarizeni...");
         delay(250);
         ESP.restart();
+    });
+
+    _webServer.onFactoryReset([this]() {
+        return _configManager.resetToFactoryDefaults();
+    });
+
+    _webServer.onConfigImport([this](const AppConfig& config) {
+        return _configManager.setUserConfiguration(config);
     });
     _webServer.begin();
 

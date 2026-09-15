@@ -1,0 +1,167 @@
+#include "ConfigBackup.h"
+#include <cstdlib>
+#include <cerrno>
+
+namespace {
+constexpr uint32_t RequiredMask = (1UL << 20) - 1;
+
+String quoteYaml(const String& value) {
+    String output = "\"";
+    output.reserve(value.length() + 8);
+    const char hex[] = "0123456789ABCDEF";
+    for (size_t i = 0; i < value.length(); ++i) {
+        const uint8_t c = static_cast<uint8_t>(value[i]);
+        if (c == '\\' || c == '"') { output += '\\'; output += static_cast<char>(c); }
+        else if (c == '\n') output += "\\n";
+        else if (c == '\r') output += "\\r";
+        else if (c == '\t') output += "\\t";
+        else if (c < 0x20) { output += "\\x"; output += hex[c >> 4]; output += hex[c & 0x0F]; }
+        else output += static_cast<char>(c);
+    }
+    output += '"';
+    return output;
+}
+
+int hexValue(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+bool parseString(const String& scalar, String& value) {
+    if (scalar.length() < 2 || scalar[0] != '"' || scalar[scalar.length() - 1] != '"') return false;
+    value = "";
+    for (size_t i = 1; i + 1 < scalar.length(); ++i) {
+        char c = scalar[i];
+        if (c != '\\') {
+            if (c == '"') return false;
+            value += c;
+            continue;
+        }
+        if (++i >= scalar.length() - 1) return false;
+        c = scalar[i];
+        if (c == 'n') value += '\n';
+        else if (c == 'r') value += '\r';
+        else if (c == 't') value += '\t';
+        else if (c == '\\' || c == '"') value += c;
+        else if (c == 'x' && i + 2 < scalar.length() - 1) {
+            const int high = hexValue(scalar[++i]);
+            const int low = hexValue(scalar[++i]);
+            if (high < 0 || low < 0 || (high == 0 && low == 0)) return false;
+            value += static_cast<char>((high << 4) | low);
+        } else return false;
+    }
+    return true;
+}
+
+bool parseBool(const String& scalar, bool& value) {
+    if (scalar == "true") { value = true; return true; }
+    if (scalar == "false") { value = false; return true; }
+    return false;
+}
+
+bool parseLong(const String& scalar, long& value) {
+    errno = 0; char* end = nullptr;
+    value = strtol(scalar.c_str(), &end, 10);
+    return errno == 0 && end != scalar.c_str() && *end == '\0';
+}
+
+bool parseDouble(const String& scalar, double& value) {
+    errno = 0; char* end = nullptr;
+    value = strtod(scalar.c_str(), &end);
+    return errno == 0 && end != scalar.c_str() && *end == '\0';
+}
+
+bool invalidString(const String& value) {
+    for (size_t i = 0; i < value.length(); ++i) {
+        if (static_cast<uint8_t>(value[i]) < 0x20) return true;
+    }
+    return false;
+}
+}
+
+String exportConfigurationYaml(const AppConfig& c) {
+    String y;
+    y.reserve(768);
+    y += "format: \"pvdashboard-config\"\nversion: 1\n";
+    y += "system:\n  hostname: " + quoteYaml(c.system.hostname) + "\n";
+    y += "  ntp_server: " + quoteYaml(c.system.ntpServer) + "\n";
+    y += "  timezone: " + quoteYaml(c.system.timezone) + "\n";
+    y += "wifi:\n  ssid: " + quoteYaml(c.wifi.ssid) + "\n  password: " + quoteYaml(c.wifi.password) + "\n";
+    y += "goodwe:\n  enabled: " + String(c.goodwe.enabled ? "true" : "false") + "\n";
+    y += "  host: " + quoteYaml(c.goodwe.host) + "\n  port: " + String(c.goodwe.port) + "\n";
+    y += "  interval_seconds: " + String(c.goodwe.pollIntervalSeconds) + "\n";
+    y += "azrouter:\n  enabled: " + String(c.azrouter.enabled ? "true" : "false") + "\n";
+    y += "  host: " + quoteYaml(c.azrouter.host) + "\n  port: " + String(c.azrouter.port) + "\n";
+    y += "  interval_seconds: " + String(c.azrouter.pollIntervalSeconds) + "\n";
+    y += "weather:\n  enabled: " + String(c.weather.enabled ? "true" : "false") + "\n";
+    y += "  provider: " + quoteYaml(c.weather.provider) + "\n";
+    y += "  latitude: " + String(c.weather.latitude, 6) + "\n  longitude: " + String(c.weather.longitude, 6) + "\n";
+    y += "  interval_seconds: " + String(c.weather.pollIntervalSeconds) + "\n";
+    return y;
+}
+
+bool importConfigurationYaml(const String& yaml, AppConfig& config, String& error) {
+    if (yaml.isEmpty() || yaml.length() > 4096) { error = "Empty or oversized YAML"; return false; }
+    AppConfig parsed;
+    String section;
+    uint32_t seen = 0;
+    size_t offset = 0;
+    uint16_t lineNumber = 0;
+    while (offset < yaml.length()) {
+        size_t end = yaml.indexOf('\n', offset);
+        if (end == static_cast<size_t>(-1)) end = yaml.length();
+        String raw = yaml.substring(offset, end);
+        offset = end + 1; ++lineNumber;
+        if (raw.endsWith("\r")) raw.remove(raw.length() - 1);
+        if (raw.indexOf('\t') >= 0) { error = "Tabs are not allowed at line " + String(lineNumber); return false; }
+        int indent = 0; while (indent < raw.length() && raw[indent] == ' ') ++indent;
+        String line = raw.substring(indent); line.trim();
+        if (line.isEmpty() || line.startsWith("#")) continue;
+        const int colon = line.indexOf(':');
+        if (colon <= 0) { error = "Invalid YAML at line " + String(lineNumber); return false; }
+        String key = line.substring(0, colon); key.trim();
+        String scalar = line.substring(colon + 1); scalar.trim();
+        if (indent == 0 && scalar.isEmpty()) { section = key; continue; }
+        if ((indent == 0 && !section.isEmpty()) || (indent != 0 && indent != 2)) {
+            error = "Invalid indentation at line " + String(lineNumber); return false;
+        }
+        const String path = indent == 0 ? key : section + "." + key;
+        String text; bool flag = false; long number = 0; double decimal = 0;
+        bool ok = true; uint8_t bit = 0;
+        if (path == "format") { ok = parseString(scalar, text) && text == "pvdashboard-config"; bit = 0; }
+        else if (path == "version") { ok = parseLong(scalar, number) && number == 1; bit = 1; }
+        else if (path == "system.hostname") { ok = parseString(scalar, parsed.system.hostname); bit = 2; }
+        else if (path == "system.ntp_server") { ok = parseString(scalar, parsed.system.ntpServer); bit = 3; }
+        else if (path == "system.timezone") { ok = parseString(scalar, parsed.system.timezone); bit = 4; }
+        else if (path == "wifi.ssid") { ok = parseString(scalar, parsed.wifi.ssid); bit = 5; }
+        else if (path == "wifi.password") { ok = parseString(scalar, parsed.wifi.password); bit = 6; }
+        else if (path == "goodwe.enabled") { ok = parseBool(scalar, parsed.goodwe.enabled); bit = 7; }
+        else if (path == "goodwe.host") { ok = parseString(scalar, parsed.goodwe.host); bit = 8; }
+        else if (path == "goodwe.port") { ok = parseLong(scalar, number) && number >= 1 && number <= 65535; parsed.goodwe.port = number; bit = 9; }
+        else if (path == "goodwe.interval_seconds") { ok = parseLong(scalar, number) && number >= 1 && number <= 3600; parsed.goodwe.pollIntervalSeconds = number; bit = 10; }
+        else if (path == "azrouter.enabled") { ok = parseBool(scalar, parsed.azrouter.enabled); bit = 11; }
+        else if (path == "azrouter.host") { ok = parseString(scalar, parsed.azrouter.host); bit = 12; }
+        else if (path == "azrouter.port") { ok = parseLong(scalar, number) && number >= 1 && number <= 65535; parsed.azrouter.port = number; bit = 13; }
+        else if (path == "azrouter.interval_seconds") { ok = parseLong(scalar, number) && number >= 1 && number <= 3600; parsed.azrouter.pollIntervalSeconds = number; bit = 14; }
+        else if (path == "weather.enabled") { ok = parseBool(scalar, parsed.weather.enabled); bit = 15; }
+        else if (path == "weather.provider") { ok = parseString(scalar, parsed.weather.provider) && (parsed.weather.provider == "open-meteo" || parsed.weather.provider == "met-no"); bit = 16; }
+        else if (path == "weather.latitude") { ok = parseDouble(scalar, decimal) && decimal >= -90 && decimal <= 90; parsed.weather.latitude = decimal; bit = 17; }
+        else if (path == "weather.longitude") { ok = parseDouble(scalar, decimal) && decimal >= -180 && decimal <= 180; parsed.weather.longitude = decimal; bit = 18; }
+        else if (path == "weather.interval_seconds") { ok = parseLong(scalar, number) && number >= 900 && number <= 21600; parsed.weather.pollIntervalSeconds = number; bit = 19; }
+        else { error = "Unknown setting at line " + String(lineNumber); return false; }
+        if (!ok || (seen & (1UL << bit))) { error = "Invalid or duplicate setting at line " + String(lineNumber); return false; }
+        seen |= 1UL << bit;
+    }
+    if (seen != RequiredMask || parsed.system.hostname.isEmpty() || parsed.system.hostname.length() > 32 ||
+        parsed.system.ntpServer.isEmpty() || parsed.system.ntpServer.length() > 253 ||
+        parsed.system.timezone.isEmpty() || parsed.system.timezone.length() > 127 || (parsed.goodwe.enabled && parsed.goodwe.host.isEmpty()) || (parsed.azrouter.enabled && parsed.azrouter.host.isEmpty()) ||
+        invalidString(parsed.system.hostname) || invalidString(parsed.system.ntpServer) || invalidString(parsed.system.timezone) ||
+        invalidString(parsed.wifi.ssid) || invalidString(parsed.wifi.password) || invalidString(parsed.goodwe.host) || invalidString(parsed.azrouter.host) ||
+        (parsed.weather.latitude == 0.0 && parsed.weather.longitude == 0.0)) {
+        error = "YAML configuration is incomplete or invalid"; return false;
+    }
+    config = parsed;
+    return true;
+}

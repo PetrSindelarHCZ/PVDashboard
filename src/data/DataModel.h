@@ -4,7 +4,7 @@
 #include "DataPoint.h"
 
 constexpr size_t WeatherForecastDayCount = 4;
-constexpr size_t WeatherHourlySlotsPerDay = 8;
+constexpr size_t WeatherHourlySlotsPerDay = 9;
 constexpr size_t WeatherHourlySlotCount = WeatherForecastDayCount * WeatherHourlySlotsPerDay;
 
 struct SolarData {

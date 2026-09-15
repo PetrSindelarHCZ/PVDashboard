@@ -1,5 +1,6 @@
 #include "WebServer.h"
 #include "../diagnostics/Performance.h"
+#include "../config/ConfigBackup.h"
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
@@ -282,6 +283,9 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         .source-grid { display: grid; grid-template-columns: 1fr 100px 90px; gap: 8px; align-items: center; }
         .source-grid label { color: var(--text-sub); font-size: 0.8rem; }
         .source-grid input { min-width: 0; }
+        .system-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 10px; }
+        .system-grid label { color: var(--text-sub); font-size: 0.8rem; }
+        .system-field { display: flex; flex-direction: column; gap: 6px; }
         .status-value.ok { color: var(--success); }
         .btn-primary { background: #1e3a8a; border-color: var(--active-border); }
         .update-message { color: var(--text-sub); font-size: 0.85rem; line-height: 1.4; }
@@ -384,7 +388,32 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
         <div class="card">
             <div class="card-title">Systém</div>
-            <button class="btn btn-danger" onclick="confirmRestart()">⚠️ Restartovat ESP32</button>
+            <form onsubmit="saveSystem(event)">
+                <div class="system-grid">
+                    <div class="system-field">
+                        <label for="systemHostname">Hostname</label>
+                        <input class="wifi-input" id="systemHostname" maxlength="32" required>
+                    </div>
+                    <div class="system-field">
+                        <label for="systemNtp">NTP server</label>
+                        <input class="wifi-input" id="systemNtp" maxlength="253" required>
+                    </div>
+                    <div class="system-field">
+                        <label for="systemTimezone">Časové pásmo (POSIX)</label>
+                        <input class="wifi-input" id="systemTimezone" maxlength="127" required>
+                    </div>
+                </div>
+                <button class="btn btn-secondary" type="submit">Uložit systém a restartovat</button>
+            </form>
+            <div class="btn-group">
+                <button class="btn btn-danger" onclick="confirmRestart()">⚠️ Restartovat ESP32</button>
+                <button class="btn btn-danger" onclick="confirmFactoryReset()">🗑️ Obnovit tovární nastavení</button>
+                <a class="btn btn-secondary" href="/api/config/export" download="pvdashboard-config.yaml">⬇️ Exportovat konfiguraci YAML</a>
+                <input class="wifi-input" id="configImportFile" type="file" accept=".yaml,.yml,application/yaml,text/yaml">
+                <button class="btn btn-secondary" onclick="importConfiguration()">⬆️ Importovat konfiguraci YAML</button>
+            </div>
+            <div class="update-message">Tovární reset odstraní Wi-Fi, datové zdroje i nastavení počasí. Po restartu se zařízení může spustit v síti Dashboard-Setup.</div>
+            <div class="update-message">Export obsahuje heslo Wi-Fi v čitelné podobě. Záložní soubor uchovávejte bezpečně.</div>
         </div>
 
         <div class="card">
@@ -405,13 +434,13 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
             <form onsubmit="saveSources(event)">
                 <div class="source-grid">
                     <label>GoodWe host</label>
-                    <input class="wifi-input" id="gwHost" placeholder="IP adresa" required>
+                    <input class="wifi-input" id="gwHost" placeholder="IP adresa">
                     <input class="wifi-input" id="gwPort" type="number" min="1" max="65535" placeholder="Port" required>
                     <label>Interval (s)</label>
                     <input class="wifi-input" id="gwInterval" type="number" min="1" max="3600" required>
                     <label><input id="gwEnabled" type="checkbox" checked> aktivní</label>
                     <label>AZRouter host</label>
-                    <input class="wifi-input" id="azHost" placeholder="IP adresa" required>
+                    <input class="wifi-input" id="azHost" placeholder="IP adresa">
                     <input class="wifi-input" id="azPort" type="number" min="1" max="65535" placeholder="Port" required>
                     <label>Interval (s)</label>
                     <input class="wifi-input" id="azInterval" type="number" min="1" max="3600" required>
@@ -494,6 +523,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
             setTimeout(() => t.classList.remove('show'), 2000);
         }
 
+        let systemConfigLoaded = false;
         let sourceConfigLoaded = false;
         let weatherConfigLoaded = false;
         let lastScreenId = null;
@@ -550,6 +580,13 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 document.getElementById('statDisplayState').innerText = displayStateText(display.state);
                 displayBusy = !['idle', 'stopped', 'error'].includes(display.state);
                 setDisplayActionsDisabled();
+
+                if (!systemConfigLoaded && data.systemConfig) {
+                    document.getElementById('systemHostname').value = data.systemConfig.hostname;
+                    document.getElementById('systemNtp').value = data.systemConfig.ntpServer;
+                    document.getElementById('systemTimezone').value = data.systemConfig.timezone;
+                    systemConfigLoaded = true;
+                }
 
                 if (!sourceConfigLoaded && data.sources) {
                     const gw = data.sources.goodwe;
@@ -646,6 +683,59 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 fetch('/api/system/restart', { method: 'POST' });
                 showToast('ESP32 se restartuje...');
             }
+        }
+
+        async function importConfiguration() {
+            const file = document.getElementById('configImportFile').files[0];
+            if (!file) { showToast('Nejprve vyberte YAML soubor'); return; }
+            if (file.size > 4096) { showToast('Soubor konfigurace je příliš velký'); return; }
+            if (!confirm('Import přepíše Wi-Fi, zdroje i počasí a restartuje zařízení. Pokračovat?')) return;
+            try {
+                const yaml = await file.text();
+                const response = await fetch('/api/config/import', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/yaml'},
+                    body: yaml
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message || ('HTTP ' + response.status));
+                showToast('Konfigurace importována, zařízení se restartuje...');
+            } catch (error) {
+                showToast('Import selhal: ' + error.message);
+            }
+        }
+
+        async function confirmFactoryReset() {
+            if (!confirm('Opravdu smazat veškeré nastavení včetně Wi-Fi, zdrojů a počasí?')) return;
+            if (!confirm('Tuto akci nelze vrátit. Po restartu může být nutné připojit se k síti Dashboard-Setup. Pokračovat?')) return;
+
+            try {
+                const body = new URLSearchParams({confirmation: 'RESET'});
+                const response = await fetch('/api/config/factory-reset', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body
+                });
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                showToast('Nastavení bylo smazáno, zařízení se restartuje...');
+            } catch (error) {
+                showToast('Tovární nastavení se nepodařilo obnovit');
+            }
+        }
+
+        async function saveSystem(event) {
+            event.preventDefault();
+            const body = new URLSearchParams({
+                hostname: document.getElementById('systemHostname').value.trim(),
+                ntpServer: document.getElementById('systemNtp').value.trim(),
+                timezone: document.getElementById('systemTimezone').value.trim()
+            });
+            const response = await fetch('/api/config/system', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body
+            });
+            showToast(response.ok ? 'Systém uložen, zařízení se restartuje' : 'Systém se nepodařilo uložit');
         }
 
         async function saveWifi(event) {
@@ -904,6 +994,10 @@ void DashboardWebServer::onDisplayStatus(DisplayStatusCallback callback) {
     _displayStatusCallback = callback;
 }
 
+void DashboardWebServer::onSystemConfig(SystemConfigCallback callback) {
+    _systemConfigCallback = callback;
+}
+
 void DashboardWebServer::onWifiConfig(WifiConfigCallback callback) {
     _wifiConfigCallback = callback;
 }
@@ -918,6 +1012,14 @@ void DashboardWebServer::onSourceConfig(SourceConfigCallback callback) {
 
 void DashboardWebServer::onWeatherConfig(WeatherConfigCallback callback) {
     _weatherConfigCallback = callback;
+}
+
+void DashboardWebServer::onFactoryReset(FactoryResetCallback callback) {
+    _factoryResetCallback = callback;
+}
+
+void DashboardWebServer::onConfigImport(ConfigImportCallback callback) {
+    _configImportCallback = callback;
 }
 
 void DashboardWebServer::setupRoutes() {
@@ -940,6 +1042,10 @@ void DashboardWebServer::setupRoutes() {
     _server.on("/api/display/refresh", HTTP_POST, [this]() { handleApiRefresh(false); });
     _server.on("/api/display/full-refresh", HTTP_POST, [this]() { handleApiRefresh(true); });
     _server.on("/api/system/restart", HTTP_POST, [this]() { handleApiRestart(); });
+    _server.on("/api/config/factory-reset", HTTP_POST, [this]() { handleApiFactoryReset(); });
+    _server.on("/api/config/export", HTTP_GET, [this]() { handleApiConfigExport(); });
+    _server.on("/api/config/import", HTTP_POST, [this]() { handleApiConfigImport(); });
+    _server.on("/api/config/system", HTTP_POST, [this]() { handleApiSystemConfig(); });
     _server.on("/api/wifi/config", HTTP_POST, [this]() { handleApiWifiConfig(); });
     _server.on("/api/wifi/scan", HTTP_GET, [this]() { handleApiWifiScan(); });
     _server.on("/api/config/sources", HTTP_POST, [this]() { handleApiSourceConfig(); });
@@ -989,6 +1095,11 @@ void DashboardWebServer::handleApiStatus() {
         item["lastMs"] = value.lastMs;
         item["lastEndMs"] = value.lastEndMs;
     }
+
+    JsonObject systemConfigObj = doc["systemConfig"].to<JsonObject>();
+    systemConfigObj["hostname"] = _config.system.hostname;
+    systemConfigObj["ntpServer"] = _config.system.ntpServer;
+    systemConfigObj["timezone"] = _config.system.timezone;
 
     JsonObject wifiObj = doc["wifi"].to<JsonObject>();
     wifiObj["connected"] = _dataModel.system.wifiConnected;
@@ -1096,6 +1207,94 @@ void DashboardWebServer::handleApiRestart() {
     ESP.restart();
 }
 
+void DashboardWebServer::handleApiFactoryReset() {
+    if (!_server.hasArg("confirmation") || _server.arg("confirmation") != "RESET") {
+        _server.send(400, "application/json",
+                     "{\"status\":\"error\",\"message\":\"Factory reset confirmation required\"}");
+        return;
+    }
+    if (!_factoryResetCallback) {
+        _server.send(503, "application/json",
+                     "{\"status\":\"error\",\"message\":\"Factory reset unavailable\"}");
+        return;
+    }
+    if (!_factoryResetCallback()) {
+        _server.send(500, "application/json",
+                     "{\"status\":\"error\",\"message\":\"Failed to clear configuration\"}");
+        return;
+    }
+
+    _server.send(200, "application/json",
+                 "{\"status\":\"ok\",\"message\":\"Factory defaults restored; restarting\"}");
+    delay(750);
+    ESP.restart();
+}
+
+void DashboardWebServer::handleApiConfigExport() {
+    const String yaml = exportConfigurationYaml(_config);
+    _server.sendHeader("Content-Disposition", "attachment; filename=\"pvdashboard-config.yaml\"");
+    _server.sendHeader("Cache-Control", "no-store");
+    _server.send(200, "application/yaml; charset=utf-8", yaml);
+}
+
+void DashboardWebServer::handleApiConfigImport() {
+    if (!_server.hasArg("plain")) {
+        _server.send(400, "application/json",
+                     "{\"status\":\"error\",\"message\":\"YAML body is required\"}");
+        return;
+    }
+    AppConfig imported;
+    String error;
+    if (!importConfigurationYaml(_server.arg("plain"), imported, error)) {
+        _server.send(400, "application/json",
+                     "{\"status\":\"error\",\"message\":\"" + error + "\"}");
+        return;
+    }
+    if (!_configImportCallback || !_configImportCallback(imported)) {
+        _server.send(500, "application/json",
+                     "{\"status\":\"error\",\"message\":\"Failed to save configuration\"}");
+        return;
+    }
+    _server.send(200, "application/json",
+                 "{\"status\":\"ok\",\"message\":\"Configuration imported; restarting\"}");
+    delay(750);
+    ESP.restart();
+}
+
+void DashboardWebServer::handleApiSystemConfig() {
+    const char* required[] = {"hostname", "ntpServer", "timezone"};
+    for (const char* name : required) {
+        if (!_server.hasArg(name) || _server.arg(name).isEmpty()) {
+            _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Missing system setting\"}");
+            return;
+        }
+    }
+    SystemConfig system;
+    system.hostname = _server.arg("hostname");
+    system.ntpServer = _server.arg("ntpServer");
+    system.timezone = _server.arg("timezone");
+    const auto hasControl = [](const String& value) {
+        for (size_t i = 0; i < value.length(); ++i) if (static_cast<uint8_t>(value[i]) < 0x20) return true;
+        return false;
+    };
+    bool hostnameValid = system.hostname.length() <= 32 && system.hostname[0] != '-' && !system.hostname.endsWith("-");
+    for (size_t i = 0; hostnameValid && i < system.hostname.length(); ++i) {
+        const char c = system.hostname[i];
+        hostnameValid = isAlphaNumeric(c) || c == '-';
+    }
+    if (!hostnameValid || system.ntpServer.length() > 253 || system.timezone.length() > 127 ||
+        hasControl(system.ntpServer) || hasControl(system.timezone)) {
+        _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid system setting\"}");
+        return;
+    }
+    if (!_systemConfigCallback) {
+        _server.send(503, "application/json", "{\"status\":\"error\",\"message\":\"System configuration unavailable\"}");
+        return;
+    }
+    _server.send(200, "application/json", "{\"status\":\"saved\"}");
+    _systemConfigCallback(system);
+}
+
 void DashboardWebServer::handleApiWifiConfig() {
     if (!_server.hasArg("ssid") || !_server.hasArg("password") || _server.arg("ssid").isEmpty()) {
         _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"SSID is required\"}");
@@ -1121,7 +1320,7 @@ void DashboardWebServer::handleApiWifiScan() {
 }
 
 void DashboardWebServer::handleApiSourceConfig() {
-    const char* required[] = {"gwHost", "gwPort", "gwInterval", "azHost", "azPort", "azInterval"};
+    const char* required[] = {"gwPort", "gwInterval", "azPort", "azInterval"};
     for (const char* name : required) {
         if (!_server.hasArg(name) || _server.arg(name).isEmpty()) {
             _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Missing source setting\"}");
@@ -1129,11 +1328,16 @@ void DashboardWebServer::handleApiSourceConfig() {
         }
     }
 
+    const bool gwEnabled = _server.arg("gwEnabled") == "1";
+    const bool azEnabled = _server.arg("azEnabled") == "1";
+    const String gwHost = _server.arg("gwHost");
+    const String azHost = _server.arg("azHost");
     long gwPort = _server.arg("gwPort").toInt();
     long azPort = _server.arg("azPort").toInt();
     long gwInterval = _server.arg("gwInterval").toInt();
     long azInterval = _server.arg("azInterval").toInt();
-    if (gwPort < 1 || gwPort > 65535 || azPort < 1 || azPort > 65535 ||
+    if ((gwEnabled && gwHost.isEmpty()) || (azEnabled && azHost.isEmpty()) ||
+        gwPort < 1 || gwPort > 65535 || azPort < 1 || azPort > 65535 ||
         gwInterval < 1 || gwInterval > 3600 || azInterval < 1 || azInterval > 3600) {
         _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid source setting\"}");
         return;
@@ -1141,14 +1345,14 @@ void DashboardWebServer::handleApiSourceConfig() {
 
     if (_sourceConfigCallback) {
         GoodWeConfig goodwe;
-        goodwe.enabled = _server.arg("gwEnabled") == "1";
-        goodwe.host = _server.arg("gwHost");
+        goodwe.enabled = gwEnabled;
+        goodwe.host = gwHost;
         goodwe.port = static_cast<uint16_t>(gwPort);
         goodwe.pollIntervalSeconds = static_cast<uint32_t>(gwInterval);
 
         AZRouterConfig azrouter;
-        azrouter.enabled = _server.arg("azEnabled") == "1";
-        azrouter.host = _server.arg("azHost");
+        azrouter.enabled = azEnabled;
+        azrouter.host = azHost;
         azrouter.port = static_cast<uint16_t>(azPort);
         azrouter.pollIntervalSeconds = static_cast<uint32_t>(azInterval);
 

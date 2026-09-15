@@ -9,6 +9,9 @@ ConfigManager::ConfigManager() {
 bool ConfigManager::begin() {
     Preferences preferences;
     preferences.begin("dashboard", false);
+    if (preferences.isKey("sys_hostname")) _config.system.hostname = preferences.getString("sys_hostname", _config.system.hostname);
+    if (preferences.isKey("sys_timezone")) _config.system.timezone = preferences.getString("sys_timezone", _config.system.timezone);
+    if (preferences.isKey("sys_ntp")) _config.system.ntpServer = preferences.getString("sys_ntp", _config.system.ntpServer);
     if (preferences.isKey("wifi_ssid")) _config.wifi.ssid = preferences.getString("wifi_ssid", _config.wifi.ssid);
     if (preferences.isKey("wifi_password")) _config.wifi.password = preferences.getString("wifi_password", _config.wifi.password);
     _config.goodwe.enabled = preferences.getBool("gw_enabled", _config.goodwe.enabled);
@@ -47,6 +50,16 @@ bool ConfigManager::begin() {
 
 const AppConfig& ConfigManager::get() const {
     return _config;
+}
+
+void ConfigManager::setSystem(const SystemConfig& system) {
+    _config.system = system;
+    Preferences preferences;
+    preferences.begin("dashboard", false);
+    preferences.putString("sys_hostname", system.hostname);
+    preferences.putString("sys_timezone", system.timezone);
+    preferences.putString("sys_ntp", system.ntpServer);
+    preferences.end();
 }
 
 void ConfigManager::setWifi(const String& ssid, const String& password) {
@@ -88,4 +101,58 @@ void ConfigManager::setWeather(const WeatherConfig& weather) {
     preferences.putDouble("wx_lon", weather.longitude);
     preferences.putUInt("wx_interval", weather.pollIntervalSeconds);
     preferences.end();
+}
+
+bool ConfigManager::resetToFactoryDefaults() {
+    Preferences preferences;
+    if (!preferences.begin("dashboard", false)) {
+        Serial.println("[CONFIG] Nelze otevrit NVS pro tovarni reset.");
+        return false;
+    }
+
+    const bool cleared = preferences.clear();
+    preferences.end();
+    if (!cleared) {
+        Serial.println("[CONFIG] Tovarni reset NVS selhal.");
+        return false;
+    }
+
+    _config = AppConfig{};
+    Serial.println("[CONFIG] NVS vymazano, obnovena tovarni konfigurace.");
+    return true;
+}
+
+
+bool ConfigManager::setUserConfiguration(const AppConfig& config) {
+    Preferences preferences;
+    if (!preferences.begin("dashboard", false)) {
+        Serial.println("[CONFIG] Nelze otevrit NVS pro import.");
+        return false;
+    }
+    preferences.putString("sys_hostname", config.system.hostname);
+    preferences.putString("sys_timezone", config.system.timezone);
+    preferences.putString("sys_ntp", config.system.ntpServer);
+    preferences.putString("wifi_ssid", config.wifi.ssid);
+    preferences.putString("wifi_password", config.wifi.password);
+    preferences.putBool("gw_enabled", config.goodwe.enabled);
+    preferences.putString("gw_host", config.goodwe.host);
+    preferences.putUShort("gw_port", config.goodwe.port);
+    preferences.putUInt("gw_interval", config.goodwe.pollIntervalSeconds);
+    preferences.putBool("az_enabled", config.azrouter.enabled);
+    preferences.putString("az_host", config.azrouter.host);
+    preferences.putUShort("az_port", config.azrouter.port);
+    preferences.putUInt("az_interval", config.azrouter.pollIntervalSeconds);
+    preferences.putBool("wx_enabled", config.weather.enabled);
+    preferences.putString("wx_provider", config.weather.provider);
+    preferences.putDouble("wx_lat", config.weather.latitude);
+    preferences.putDouble("wx_lon", config.weather.longitude);
+    preferences.putUInt("wx_interval", config.weather.pollIntervalSeconds);
+    preferences.end();
+    _config.system = config.system;
+    _config.wifi = config.wifi;
+    _config.goodwe = config.goodwe;
+    _config.azrouter = config.azrouter;
+    _config.weather = config.weather;
+    Serial.println("[CONFIG] YAML konfigurace importovana do NVS.");
+    return true;
 }

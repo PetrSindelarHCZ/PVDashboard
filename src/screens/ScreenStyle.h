@@ -81,6 +81,77 @@ inline void drawBoldCircle(IDisplay& d, int16_t x, int16_t y, int16_t r, uint16_
     d.drawCircle(x, y, r, c);
     d.drawCircle(x, y, r - 1, c);
 }
+inline bool isFogCode(uint8_t code) {
+    return code == 45 || code == 48;
+}
+inline bool isRainCode(uint8_t code) {
+    return (code >= 51 && code <= 67) || (code >= 80 && code <= 82);
+}
+inline bool isSnowCode(uint8_t code) {
+    return (code >= 71 && code <= 77) || code == 85 || code == 86;
+}
+inline bool isThunderstormCode(uint8_t code) {
+    return code >= 95;
+}
+inline void drawSunSymbol(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
+    drawBoldCircle(d, x, y, 9, c);
+    drawBoldCircle(d, x, y, 4, c);
+    drawBoldLine(d, x, y - 17, x, y - 13, c);
+    drawBoldLine(d, x, y + 13, x, y + 17, c);
+    drawBoldLine(d, x - 17, y, x - 13, y, c);
+    drawBoldLine(d, x + 13, y, x + 17, y, c);
+    drawBoldLine(d, x - 12, y - 12, x - 9, y - 9, c);
+    drawBoldLine(d, x + 9, y + 9, x + 12, y + 12, c);
+    drawBoldLine(d, x + 9, y - 9, x + 12, y - 12, c);
+    drawBoldLine(d, x - 12, y + 12, x - 9, y + 9, c);
+}
+inline void drawCloudSymbol(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
+    drawBoldCircle(d, x - 11, y + 4, 8, c);
+    drawBoldCircle(d, x, y - 2, 12, c);
+    drawBoldCircle(d, x + 13, y + 3, 9, c);
+    drawBoldLine(d, x - 22, y + 11, x + 23, y + 11, c);
+    drawBoldLine(d, x - 19, y + 5, x - 19, y + 11, c);
+    drawBoldLine(d, x + 22, y + 4, x + 22, y + 11, c);
+}
+inline void drawRainSymbol(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
+    drawBoldLine(d, x - 11, y, x - 15, y + 8, c);
+    drawBoldLine(d, x, y, x - 4, y + 8, c);
+    drawBoldLine(d, x + 11, y, x + 7, y + 8, c);
+}
+inline void drawSnowSymbol(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
+    for (int16_t offset = -10; offset <= 10; offset += 10) {
+        d.drawLine(x + offset - 3, y, x + offset + 3, y + 6, c);
+        d.drawLine(x + offset + 3, y, x + offset - 3, y + 6, c);
+        d.drawLine(x + offset, y - 1, x + offset, y + 7, c);
+    }
+}
+inline void drawWeatherSymbol(IDisplay& d, int16_t x, int16_t y, uint8_t code, uint16_t c = 0) {
+    if (isFogCode(code)) {
+        drawBoldLine(d, x - 21, y - 9, x + 16, y - 9, c);
+        drawBoldLine(d, x - 15, y, x + 22, y, c);
+        drawBoldLine(d, x - 21, y + 9, x + 13, y + 9, c);
+        return;
+    }
+    if (code == 0) {
+        drawSunSymbol(d, x, y, c);
+        return;
+    }
+    if (code == 1 || code == 2) {
+        drawSunSymbol(d, x - 9, y - 8, c);
+        drawCloudSymbol(d, x + 6, y + 7, c);
+    } else {
+        drawCloudSymbol(d, x, y - 3, c);
+    }
+    if (isThunderstormCode(code)) {
+        drawBoldLine(d, x + 2, y + 10, x - 5, y + 21, c);
+        drawBoldLine(d, x - 5, y + 21, x + 2, y + 20, c);
+        drawBoldLine(d, x + 2, y + 20, x - 4, y + 31, c);
+    } else if (isSnowCode(code)) {
+        drawSnowSymbol(d, x, y + 16, c);
+    } else if (isRainCode(code)) {
+        drawRainSymbol(d, x, y + 15, c);
+    }
+}
 
 inline void drawHomeIcon(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
     drawBoldLine(d, x - 17, y - 2, x, y - 17, c);
@@ -109,13 +180,8 @@ inline void drawPoolIcon(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
 }
 
 inline void drawWeatherIcon(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
-    drawBoldCircle(d, x - 6, y - 7, 9, c);
-    drawBoldLine(d, x - 6, y - 21, x - 6, y - 16, c);
-    drawBoldLine(d, x - 20, y - 7, x - 15, y - 7, c);
-    drawBoldLine(d, x + 4, y - 17, x + 8, y - 21, c);
-    d.fillCircle(x + 1, y + 4, 8, c);
-    d.fillCircle(x + 11, y + 2, 10, c);
-    d.fillRect(x - 9, y + 4, 31, 11, c);
+    drawSunSymbol(d, x - 8, y - 7, c);
+    drawCloudSymbol(d, x + 6, y + 8, c);
 }
 
 inline void drawGearIcon(IDisplay& d, int16_t x, int16_t y, uint16_t c) {

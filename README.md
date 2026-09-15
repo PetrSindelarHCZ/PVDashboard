@@ -14,7 +14,7 @@ asynchronní obsluhu e-paperu, diagnostiku výkonu a sjednocený vzhled obrazove
 - AZRouter přes HTTP endpointy **/api/v1/power**, **/api/v1/status** a **/api/v1/devices**,
 - mobilní WebUI pro přepínání obrazovek, refresh, konfiguraci a OTA,
 - NTP s časovou zónou pro Českou republiku,
-- recovery AP **Dashboard-Setup**, pokud se zařízení nepřipojí k uložené Wi-Fi,
+- recovery AP **Dashboard-Setup**, pokud není nastavené SSID nebo se zařízení nepřipojí k uložené Wi-Fi,
 - měření dob hlavní smyčky, HTTP, integrací a e-paper refreshů,
 - živé počasí z Open-Meteo nebo MET Norway pro zvolené souřadnice,
   čtyřdenní předpověď, hodinový přehled pro vybraný den a vyhledání místa ve WebUI,
@@ -87,6 +87,10 @@ URL a SHA-256 získané přímo z GitHub release, ověří celý obraz a potom s
 | POST | /api/display/refresh | Rychlá částečná obnova |
 | POST | /api/display/full-refresh | Čisticí plná obnova |
 | POST | /api/system/restart | Restart ESP32 |
+| POST | /api/config/factory-reset | Vymazání konfigurace po potvrzení `confirmation=RESET` |
+| GET | /api/config/export | Stažení konfigurace ve formátu YAML |
+| POST | /api/config/import | Validace a import těla `application/yaml` |
+| POST | /api/config/system | Uložení hostname, NTP serveru a časového pásma |
 | POST | /api/wifi/config | Uložení Wi-Fi konfigurace |
 | GET | /api/wifi/scan | Vyhledání Wi-Fi sítí |
 | POST | /api/config/sources | Uložení konfigurace energetických zdrojů |
@@ -117,5 +121,5 @@ Výsledky měření z 14. 9. 2026 jsou historické snímky konkrétních testů:
 - E-paper obsluhuje samostatná FreeRTOS úloha; WebUI během partial ani full
   refreshu zůstává dostupné a zobrazuje stav vykreslení.
 - Platná ruční i GitHub OTA a chybové scénáře jsou ověřené na zařízení.
-- Firmware využívá přibližně 87,4 % OTA partition; release skript i zařízení
+- Firmware využívá přibližně 93,7 % OTA partition; release skript i zařízení
   odmítnou obraz větší než 1 310 720 B.

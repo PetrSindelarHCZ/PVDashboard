@@ -56,9 +56,11 @@ WebUI musí umožnit:
 - zobrazit stav zařízení a stáří dat,
 - přepnout obrazovku,
 - vyvolat částečný nebo plný refresh,
-- změnit Wi-Fi a konfiguraci zdrojů,
+- změnit hostname, NTP server, časové pásmo, Wi-Fi a konfiguraci zdrojů,
 - vyhledat místo, uložit souřadnice a zvolit poskytovatele počasí,
 - restartovat zařízení,
+- po dvojím potvrzení vymazat namespace konfigurace a obnovit tovární hodnoty,
+- exportovat a importovat uživatelskou konfiguraci ve verzovaném YAML formátu,
 - provést ruční nebo GitHub OTA aktualizaci.
 
 Přijetí příkazu a fyzické dokončení refreshu jsou nyní dvě různé události,
@@ -108,9 +110,14 @@ dotazy mohou selhat, aniž by byl zdroj označen jako nedostupný.
 ## Konfigurace
 
 Konfigurace se ukládá do ESP32 NVS přes Preferences, namespace **dashboard**.
-Ukládají se Wi-Fi údaje a nastavení obou datových zdrojů. Po uložení se zařízení
-restartuje. schemaVersion je nyní pouze hodnota v paměti a není uložená ani
-migrovaná.
+Ukládá se systémové nastavení, Wi-Fi údaje, GoodWe, AZRouter a počasí.
+Po uložení se zařízení restartuje. Prázdné SSID znamená konfigurační AP
+`Dashboard-Setup`; prázdný host GoodWe nebo AZRouteru je platný jen pro vypnutý zdroj.
+Tovární reset smaže celý namespace `dashboard`; po restartu se použijí hodnoty z
+`ConfigSchema.h`, včetně výchozí polohy Praha, vypnutých zdrojů a recovery AP.
+YAML záloha obsahuje Wi-Fi heslo v čitelné podobě. Import přijímá pouze úplné
+schéma `pvdashboard-config` verze 1 a před zápisem validuje všechny hodnoty.
+schemaVersion je nyní pouze hodnota v paměti a není uložená ani migrovaná.
 
 DisplayConfig.fullRefreshIntervalMinutes je definované, ale současná refresh
 politika ho zatím nepoužívá.
