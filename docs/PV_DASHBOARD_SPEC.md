@@ -43,7 +43,7 @@ Dashboard načítá a zobrazuje:
 | home | funkční | Souhrn domu, energie a demonstračních čidel |
 | solar | funkční | GoodWe, baterie, síť a AZRouter |
 | pool | demonstrační | Připravený layout, hodnoty nejsou z reálných čidel |
-| weather | demonstrační | Připravený layout, předpověď je pevně zadaná |
+| weather | funkční | Aktuální počasí a čtyřdenní předpověď z Open-Meteo |
 | diagnostics | funkční | Firmware, uptime, heap, Wi-Fi a integrace |
 
 Všechny obrazovky používají společnou typografii, černé záhlaví a zápatí,
@@ -57,6 +57,7 @@ WebUI musí umožnit:
 - přepnout obrazovku,
 - vyvolat částečný nebo plný refresh,
 - změnit Wi-Fi a konfiguraci zdrojů,
+- vyhledat místo a uložit souřadnice pro počasí,
 - restartovat zařízení,
 - provést ruční nebo GitHub OTA aktualizaci.
 

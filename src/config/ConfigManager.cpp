@@ -19,6 +19,11 @@ bool ConfigManager::begin() {
     if (preferences.isKey("az_host")) _config.azrouter.host = preferences.getString("az_host", _config.azrouter.host);
     _config.azrouter.port = preferences.getUShort("az_port", _config.azrouter.port);
     _config.azrouter.pollIntervalSeconds = preferences.getUInt("az_interval", _config.azrouter.pollIntervalSeconds);
+    _config.weather.enabled = preferences.getBool("wx_enabled", _config.weather.enabled);
+    if (preferences.isKey("wx_provider")) _config.weather.provider = preferences.getString("wx_provider", _config.weather.provider);
+    _config.weather.latitude = preferences.getDouble("wx_lat", _config.weather.latitude);
+    _config.weather.longitude = preferences.getDouble("wx_lon", _config.weather.longitude);
+    _config.weather.pollIntervalSeconds = preferences.getUInt("wx_interval", _config.weather.pollIntervalSeconds);
     preferences.end();
 
     Serial.printf("[CONFIG] Načtena konfigurace (Schema v%u):\n", _config.schemaVersion);
@@ -31,6 +36,12 @@ bool ConfigManager::begin() {
                   _config.azrouter.enabled ? "Povoleno" : "Zakázáno", 
                   _config.azrouter.host.c_str(), 
                   _config.azrouter.port);
+    Serial.printf("  Pocasi: %s (%s, %.5f, %.5f, interval %lu s)\n",
+                  _config.weather.enabled ? "Povoleno" : "Zakazano",
+                  _config.weather.provider.c_str(),
+                  _config.weather.latitude,
+                  _config.weather.longitude,
+                  _config.weather.pollIntervalSeconds);
     return true;
 }
 
@@ -63,5 +74,18 @@ void ConfigManager::setSources(const GoodWeConfig& goodwe, const AZRouterConfig&
     preferences.putString("az_host", azrouter.host);
     preferences.putUShort("az_port", azrouter.port);
     preferences.putUInt("az_interval", azrouter.pollIntervalSeconds);
+    preferences.end();
+}
+
+void ConfigManager::setWeather(const WeatherConfig& weather) {
+    _config.weather = weather;
+
+    Preferences preferences;
+    preferences.begin("dashboard", false);
+    preferences.putBool("wx_enabled", weather.enabled);
+    preferences.putString("wx_provider", weather.provider);
+    preferences.putDouble("wx_lat", weather.latitude);
+    preferences.putDouble("wx_lon", weather.longitude);
+    preferences.putUInt("wx_interval", weather.pollIntervalSeconds);
     preferences.end();
 }

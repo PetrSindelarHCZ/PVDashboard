@@ -16,6 +16,7 @@
 #include "../network/WebServer.h"
 #include "../integrations/goodwe/GoodWeClient.h"
 #include "../integrations/azrouter/AZRouterClient.h"
+#include "../integrations/weather/WeatherWorker.h"
 
 class DashboardApp {
 public:
@@ -45,6 +46,7 @@ private:
 
     GoodWeClient _goodweClient;
     AZRouterClient _azrouterClient;
+    WeatherWorker _weatherWorker;
 
     bool _pendingRefresh = false;
     bool _pendingFullRefresh = false;

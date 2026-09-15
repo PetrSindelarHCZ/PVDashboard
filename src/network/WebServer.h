@@ -16,6 +16,7 @@ public:
     using WifiConfigCallback = std::function<void(const String& ssid, const String& password)>;
     using WifiScanCallback = std::function<String()>;
     using SourceConfigCallback = std::function<void(const GoodWeConfig& goodwe, const AZRouterConfig& azrouter)>;
+    using WeatherConfigCallback = std::function<void(const WeatherConfig& weather)>;
 
     DashboardWebServer(uint16_t port, DataModel& dataModel, ScreenManager& screenManager, const AppConfig& config);
 
@@ -27,6 +28,7 @@ public:
     void onWifiConfig(WifiConfigCallback callback);
     void onWifiScan(WifiScanCallback callback);
     void onSourceConfig(SourceConfigCallback callback);
+    void onWeatherConfig(WeatherConfigCallback callback);
 
 private:
     WebServer _server;
@@ -39,6 +41,7 @@ private:
     WifiConfigCallback _wifiConfigCallback;
     WifiScanCallback _wifiScanCallback;
     SourceConfigCallback _sourceConfigCallback;
+    WeatherConfigCallback _weatherConfigCallback;
     OtaManager _otaManager;
     String _githubUpdateVersion;
     String _githubUpdateUrl;
@@ -54,6 +57,7 @@ private:
     void handleApiWifiConfig();
     void handleApiWifiScan();
     void handleApiSourceConfig();
+    void handleApiWeatherConfig();
     void handleApiCheckForUpdate();
     void handleApiGithubUpdate();
     void handleApiUpdateUpload();

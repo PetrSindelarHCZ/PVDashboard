@@ -3,39 +3,67 @@
 #include "DataSourceStatus.h"
 #include "DataPoint.h"
 
-// Fotovoltaická data (GoodWe)
+constexpr size_t WeatherForecastDayCount = 4;
+constexpr size_t WeatherHourlySlotCount = 8;
+
 struct SolarData {
     DataSourceStatus status;
-    float productionPowerW = 0.0f;       // Výroba panelů (W)
-    float houseConsumptionW = 0.0f;      // Spotřeba domu (W)
-    float gridPowerW = 0.0f;             // Nákup (+) / Přetok (-) (W)
-    float energyTodayKWh = 0.0f;         // Dnešní výroba (kWh)
-    float batterySocPercent = 0.0f;      // Nabití baterie (%)
-    float batteryPowerW = 0.0f;          // Nabíjení (+) / Vybíjení (-) (W)
+    float productionPowerW = 0.0f;
+    float houseConsumptionW = 0.0f;
+    float gridPowerW = 0.0f;
+    float energyTodayKWh = 0.0f;
+    float batterySocPercent = 0.0f;
+    float batteryPowerW = 0.0f;
     uint32_t lastUpdateMs = 0;
 };
 
-// AZ Router data (přetoky do bojleru)
 struct AZRouterData {
     DataSourceStatus status;
-    float gridPowerW = 0.0f;             // Měřený tok sítí (W)
-    float routedPowerW = 0.0f;           // Výkon posílaný do zátěže (W)
-    float routedEnergyTodayKWh = 0.0f;   // Dnešní vytěžená energie (kWh)
-    float boilerTempC = 0.0f;            // Teplota bojleru (°C)
+    float gridPowerW = 0.0f;
+    float routedPowerW = 0.0f;
+    float routedEnergyTodayKWh = 0.0f;
+    float boilerTempC = 0.0f;
     uint32_t lastUpdateMs = 0;
 };
 
-// Data o počasí
-struct WeatherData {
-    DataSourceStatus status;
-    float outdoorTempC = 18.6f;
-    int outdoorHumidityPercent = 63;
-    float tempMaxTodayC = 22.0f;
-    float tempMinTodayC = 12.0f;
-    String conditionText = "Slunecno";
+struct DailyWeatherForecast {
+    char date[11] = "";
+    float tempMaxC = 0.0f;
+    float tempMinC = 0.0f;
+    float precipitationMm = 0.0f;
+    float windMaxKmh = 0.0f;
+    uint8_t precipitationProbabilityPercent = 0;
+    uint8_t weatherCode = 0;
 };
 
-// Data z vnitřních čidel
+struct HourlyWeatherForecast {
+    char time[6] = "";
+    float tempC = 0.0f;
+    float precipitationMm = 0.0f;
+    float windKmh = 0.0f;
+    uint8_t precipitationProbabilityPercent = 0;
+    uint8_t weatherCode = 0;
+};
+
+struct WeatherData {
+    DataSourceStatus status;
+    String provider = "";
+    float outdoorTempC = 0.0f;
+    int outdoorHumidityPercent = 0;
+    float surfacePressureHpa = 0.0f;
+    float windSpeedKmh = 0.0f;
+    float currentPrecipitationMm = 0.0f;
+    float tempMaxTodayC = 0.0f;
+    float tempMinTodayC = 0.0f;
+    uint8_t weatherCode = 0;
+    String conditionText = "";
+    DailyWeatherForecast daily[WeatherForecastDayCount];
+    HourlyWeatherForecast hourly[WeatherHourlySlotCount];
+    uint8_t dailyCount = 0;
+    uint8_t hourlyCount = 0;
+    uint32_t lastUpdateMs = 0;
+};
+
 struct InsideData {
     float livingRoomTempC = 22.4f;
     float bedroomTempC = 21.8f;
@@ -43,7 +71,6 @@ struct InsideData {
     float poolTempC = 25.1f;
 };
 
-// Data bazénu
 struct PoolData {
     DataSourceStatus status;
     float waterTempC = 26.4f;
@@ -56,7 +83,6 @@ struct PoolData {
     bool heatingActive = true;
 };
 
-// Systémová data
 struct SystemData {
     String currentScreenId = "home";
     String timeStr = "--:--";
@@ -68,7 +94,7 @@ struct SystemData {
     bool ntpSynced = false;
     uint32_t uptimeSeconds = 0;
     uint32_t freeHeapBytes = 0;
-    String statusMessage = "Vse v poradku";
+    String statusMessage = "Stav dat se nacita";
 };
 
 class DataModel {

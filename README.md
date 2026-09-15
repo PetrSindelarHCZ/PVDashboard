@@ -4,7 +4,7 @@ Lokální domácí dashboard pro **Waveshare ESP32 e-Paper Driver Board** a čer
 7,5" panel 800 × 480 px. Firmware zobrazuje data z měniče GoodWe a AZRouteru,
 poskytuje mobilní WebUI, konfiguraci přes NVS, recovery Wi-Fi AP a OTA aktualizaci.
 
-Aktuální firmware: **0.1.4**. Obsahuje omezené timeouty a backoff datových zdrojů,
+Aktuální firmware: **0.1.5**. Obsahuje omezené timeouty a backoff datových zdrojů,
 asynchronní obsluhu e-paperu, diagnostiku výkonu a sjednocený vzhled obrazovek.
 
 ## Aktuální funkce
@@ -15,10 +15,13 @@ asynchronní obsluhu e-paperu, diagnostiku výkonu a sjednocený vzhled obrazove
 - mobilní WebUI pro přepínání obrazovek, refresh, konfiguraci a OTA,
 - NTP s časovou zónou pro Českou republiku,
 - recovery AP **Dashboard-Setup**, pokud se zařízení nepřipojí k uložené Wi-Fi,
-- měření dob hlavní smyčky, HTTP, integrací a e-paper refreshů.
+- měření dob hlavní smyčky, HTTP, integrací a e-paper refreshů,
+- živé počasí Open-Meteo pro zvolené souřadnice, čtyřdenní předpověď a
+  vyhledání místa ve WebUI.
 
-Hodnoty počasí, vnitřních čidel a bazénu jsou zatím demonstrační. Obrazovky je
-proto potřeba chápat jako připravené rozhraní pro budoucí zdroje dat.
+Počasí načítá samostatná FreeRTOS úloha a při nedostupnosti API se na displeji
+nezobrazují náhradní čísla. Hodnoty vnitřních čidel a bazénu jsou zatím
+demonstrační a firmware i WebUI je tak označují.
 
 ## Sestavení a nahrání
 
@@ -84,7 +87,8 @@ URL a SHA-256 získané přímo z GitHub release, ověří celý obraz a potom s
 | POST | /api/system/restart | Restart ESP32 |
 | POST | /api/wifi/config | Uložení Wi-Fi konfigurace |
 | GET | /api/wifi/scan | Vyhledání Wi-Fi sítí |
-| POST | /api/config/sources | Uložení konfigurace datových zdrojů |
+| POST | /api/config/sources | Uložení konfigurace energetických zdrojů |
+| POST | /api/config/weather | Uložení provideru, souřadnic a intervalu počasí |
 | GET | /api/update/check | Kontrola GitHub release |
 | POST | /api/update/github | Instalace release firmware |
 | POST | /api/update | Ruční upload firmware s polem `sha256` |

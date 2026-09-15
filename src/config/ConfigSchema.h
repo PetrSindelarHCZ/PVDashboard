@@ -14,7 +14,7 @@ struct WifiConfig {
 
 struct DisplayConfig {
     String defaultScreen = "home";
-    uint32_t fullRefreshIntervalMinutes = 1440; // 1x denně
+    uint32_t fullRefreshIntervalMinutes = 1440;
 };
 
 struct GoodWeConfig {
@@ -31,11 +31,20 @@ struct AZRouterConfig {
     uint32_t pollIntervalSeconds = 10;
 };
 
+struct WeatherConfig {
+    bool enabled = false;
+    String provider = "open-meteo";
+    double latitude = 0.0;
+    double longitude = 0.0;
+    uint32_t pollIntervalSeconds = 1800;
+};
+
 struct AppConfig {
-    uint8_t schemaVersion = 1;
+    uint8_t schemaVersion = 2;
     SystemConfig system;
     WifiConfig wifi;
     DisplayConfig display;
     GoodWeConfig goodwe;
     AZRouterConfig azrouter;
+    WeatherConfig weather;
 };

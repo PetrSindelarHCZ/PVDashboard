@@ -167,27 +167,37 @@ Akceptace:
 
 ## P6 — reálná data dalších obrazovek
 
-Rozhodnout, zda jsou další prioritou:
+Priorita byla stanovena takto:
 
 1. počasí z meteorologického API,
 2. vnitřní teploty a CO2,
 3. bazénová čidla a technologie.
 
-- umožnit výběr meteorologického provideru v konfiguraci; jako výchozí použít
-  Open-Meteo a podporovat český ČHMÚ i MET Norway (yr.no),
-- u ČHMÚ využít veřejná JSON open data podle oblasti nebo předpovědního bodu;
-  ověřit formát, velikost a mapování dat do společného modelu počasí,
-- u MET Norway použít Locationforecast API, identifikační User-Agent, HTTPS a
-  cache podle hlaviček Expires/Last-Modified; respektovat limity provozu a
-  doplnit požadovanou atribuci,
-- přidat k obrazovce počasí podobrazovku s hodinovou předpovědí pro vybraný den,
-  pokud se vejde do dostupného prostoru, paměti a obnovovacího rozpočtu;
-  zahrnout předpověď větru a deště včetně množství srážek a pravděpodobnosti,
-- pro čtení vnitřní teploty, vlhkosti a tlaku použít senzor BME280.
+- [x] přidat společný model aktuálního počasí, čtyřdenní předpovědi a
+  hodinových bodů větru a srážek,
+- [x] načítat Open-Meteo mimo hlavní smyčku, s timeouty a omezenou frekvencí,
+- [x] uložit provider, souřadnice a interval do NVS,
+- [x] umožnit ve WebUI ruční zadání souřadnic i vyhledání názvu místa;
+  výchozí místo je Český Brod,
+- [x] při nedostupnosti počasí nezobrazovat demonstrační hodnoty,
+- [x] zobrazit u aktuálního počasí a čtyřdenní předpovědi výrazné vektorové
+  symboly pro jasno, oblačnost, mlhu, déšť, sníh a bouřku,
+- [x] zbývající hodnoty vnitřních čidel a bazénu označit jako demonstrační,
+- [ ] přidat podobrazovku s hodinovou předpovědí pro vybraný den; data po třech
+  hodinách už společný model obsahuje,
+- [ ] implementovat adaptér veřejných JSON dat ČHMÚ a ověřit velikost odpovědi,
+- [ ] implementovat MET Norway Locationforecast s identifikačním User-Agent,
+  HTTPS, cache a požadovanou atribucí,
+- [ ] doplnit společnou správu důvěryhodných CA certifikátů pro internetové
+  providery,
+- [ ] po připojení hardware načítat vnitřní teplotu, vlhkost a tlak z BME280.
 
-Do té doby mají být demonstrační hodnoty v dokumentaci a WebUI jasně označené.
-Pevný text typu „Vše v pořádku“ nesmí působit jako reálně změřený stav.
-
+Ověření 15. 9. 2026: Forecast API pro čtyři dny a 96 hodin vrátilo pro testovací
+místo odpověď 4 956 B. Firmware ukládá pouze čtyři denní a osm tříhodinových
+bodů prvního dne. JavaScript WebUI prošel kontrolou syntaxe a release build
+využívá 31,0 % RAM a 89,7 % OTA partition. Na zařízení načetl Open-Meteo pro
+Český Brod, konfigurace přežila restart a 12 požadavků /api/status mělo při
+online GoodWe i AZRouteru odezvu 30–70 ms, průměrně 47,2 ms.
 ## P7 — testy a údržba
 
 - host-side testy GoodWe CRC, délky rámce a mapování registrů,

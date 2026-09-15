@@ -10,6 +10,7 @@ public:
     const AppConfig& get() const;
     void setWifi(const String& ssid, const String& password);
     void setSources(const GoodWeConfig& goodwe, const AZRouterConfig& azrouter);
+    void setWeather(const WeatherConfig& weather);
 
 private:
     AppConfig _config;

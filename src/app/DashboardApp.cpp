@@ -118,6 +118,12 @@ void DashboardApp::setup() {
         ESP.restart();
     });
 
+    _webServer.onWeatherConfig([this](const WeatherConfig& weather) {
+        _configManager.setWeather(weather);
+        Serial.println("[CONFIG] Pocasi ulozeno, restartuji zarizeni...");
+        delay(250);
+        ESP.restart();
+    });
     _webServer.begin();
 
     // 7. Inicializovat datové klienty (GoodWe UDP, AZRouter HTTP)
@@ -127,6 +133,8 @@ void DashboardApp::setup() {
     if (cfg.azrouter.enabled) {
         _azrouterClient.begin(cfg.azrouter.host, cfg.azrouter.port);
     }
+
+    _weatherWorker.begin(cfg.weather);
 
     // 8. První čtení dat a inicializace displeje proběhnou až v hlavní smyčce.
     // Web server tak může začít odpovídat ještě před pomalými síťovými a e-paper operacemi.
@@ -219,6 +227,7 @@ void DashboardApp::loop() {
     if (wasWifiConnected && !_dataModel.system.wifiConnected) {
         _dataModel.solar.status.recordError("WiFi unavailable");
         _dataModel.azrouter.status.recordError("WiFi unavailable");
+        _dataModel.weather.status.recordError("WiFi unavailable");
         _dataModel.updateSystemMetrics();
         requestAutomaticDisplayRefresh();
     }
@@ -230,6 +239,15 @@ void DashboardApp::loop() {
         requestAutomaticDisplayRefresh();
     }
 
+    WeatherData weatherUpdate;
+    if (_weatherWorker.takeLatest(weatherUpdate)) {
+        const bool changed = weatherUpdate.status.available != _dataModel.weather.status.available ||
+                             weatherUpdate.lastUpdateMs != _dataModel.weather.lastUpdateMs;
+        _dataModel.weather = weatherUpdate;
+        if (changed) {
+            requestAutomaticDisplayRefresh();
+        }
+    }
     // Po aktualizaci času předat konzistentní snímek workeru. Pokud už kreslí,
     // worker ponechá ve frontě nejnovější data a zachová požadavek na full refresh.
     if (displayStatus.ready && _pendingRefresh &&

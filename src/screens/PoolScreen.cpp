@@ -55,13 +55,13 @@ void PoolScreen::render(IDisplay& display, const DataModel& dm) {
     display.setCursor(260, 425);
     display.print("Vypnuto");
 
-    ScreenStyle::drawCard(display, 535, 210, 250, 255, "INFORMACE");
+    ScreenStyle::drawCard(display, 535, 210, 250, 255, "INFORMACE - DEMO");
     ScreenStyle::useBody(display);
     display.setCursor(550, 290);
     display.print("Objem: 32 m3");
     display.setCursor(550, 335);
     display.print("Posledni udrzba: 6. 9.");
     display.setCursor(550, 380);
-    display.print("Status: Vse v poradku");
+    display.print("Demonstracni hodnoty");
 
 }

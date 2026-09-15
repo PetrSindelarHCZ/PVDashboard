@@ -355,6 +355,13 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     <div class="status-value" id="statAzrouterUpdate">-</div>
                 </div>
                 <div class="status-item">
+                    <div class="status-label">Počasí</div>
+                    <div class="status-value" id="statWeather">-</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Počasí aktualizace</div>
+                    <div class="status-value" id="statWeatherUpdate">-</div>
+                </div>                <div class="status-item">
                     <div class="status-label">Volná paměť RAM</div>
                     <div class="status-value" id="statHeap">-</div>
                 </div>
@@ -405,6 +412,39 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         </div>
 
         <div class="card">
+            <div class="card-title">Počasí</div>
+            <form onsubmit="saveWeather(event)">
+                <input class="wifi-input" id="weatherPlace" placeholder="Obec nebo PSČ, např. Český Brod">
+                <button class="btn btn-secondary" type="button" onclick="searchWeatherPlace()">Vyhledat místo</button>
+                <select class="wifi-input" id="weatherPlaces" onchange="applyWeatherPlace(this.value)" hidden>
+                    <option value="">Vyber nalezené místo</option>
+                </select>
+                <select class="wifi-input" id="weatherProvider">
+                    <option value="open-meteo">Open-Meteo</option>
+                    <option value="met-no" disabled>MET Norway (připravuje se)</option>
+                    <option value="chmi" disabled>ČHMÚ (připravuje se)</option>
+                </select>
+                <div class="source-grid">
+                    <label>Zeměpisná šířka</label>
+                    <input class="wifi-input" id="weatherLatitude" type="number" step="0.000001" min="-90" max="90" required>
+                    <span></span>
+                    <label>Zeměpisná délka</label>
+                    <input class="wifi-input" id="weatherLongitude" type="number" step="0.000001" min="-180" max="180" required>
+                    <span></span>
+                    <label>Interval (s)</label>
+                    <input class="wifi-input" id="weatherInterval" type="number" min="900" max="21600" required>
+                    <label><input id="weatherEnabled" type="checkbox"> aktivní</label>
+                </div>
+                <div class="update-message">Výchozí místo: Český Brod. Počasí a hledání míst poskytuje <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>.</div>
+                <button class="btn btn-secondary" type="submit">Uložit počasí a restartovat</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Demonstrační data</div>
+            <div class="update-message">Vnitřní teploty, CO₂ a bazénová technologie zatím nejsou měřené. Hodnoty na těchto obrazovkách jsou demonstrační.</div>
+        </div>
+        <div class="card">
             <div class="card-title">Aktualizace z GitHubu</div>
             <div class="status-grid">
                 <div class="status-item">
@@ -445,6 +485,8 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         }
 
         let sourceConfigLoaded = false;
+        let weatherConfigLoaded = false;
+        let weatherSearchResults = [];
         let statusRequestInFlight = false;
         let displayCommandInFlight = false;
         let displayBusy = false;
@@ -487,8 +529,10 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 document.getElementById('statWifi').innerText = data.wifi.rssi + ' dBm';
                 document.getElementById('statGoodwe').innerText = data.goodwe.available ? 'OK' : 'Offline';
                 document.getElementById('statAzrouter').innerText = data.azrouter.available ? 'OK' : 'Offline';
+                document.getElementById('statWeather').innerText = data.weather.available ? data.weather.provider : (data.weather.enabled ? 'Offline' : 'Vypnuto');
                 document.getElementById('statGoodweUpdate').innerText = formatDataAge(data.goodwe.lastUpdateAgeSeconds);
                 document.getElementById('statAzrouterUpdate').innerText = formatDataAge(data.azrouter.lastUpdateAgeSeconds);
+                document.getElementById('statWeatherUpdate').innerText = formatDataAge(data.weather.lastUpdateAgeSeconds);
                 document.getElementById('statHeap').innerText = Math.round(data.freeHeap / 1024) + ' KB';
 
                 const display = data.display || {};
@@ -508,6 +552,16 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     document.getElementById('azInterval').value = az.interval;
                     document.getElementById('azEnabled').checked = az.enabled;
                     sourceConfigLoaded = true;
+                }
+
+                if (!weatherConfigLoaded && data.sources && data.sources.weather) {
+                    const weather = data.sources.weather;
+                    document.getElementById('weatherProvider').value = weather.provider;
+                    document.getElementById('weatherLatitude').value = weather.latitude;
+                    document.getElementById('weatherLongitude').value = weather.longitude;
+                    document.getElementById('weatherInterval').value = weather.interval;
+                    document.getElementById('weatherEnabled').checked = weather.enabled;
+                    weatherConfigLoaded = true;
                 }
 
                 const s = data.uptime;
@@ -606,6 +660,81 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
             showToast(response.ok ? 'Zdroje uloženy, zařízení se restartuje' : 'Zdroje se nepodařilo uložit');
         }
 
+        async function searchWeatherPlace() {
+            const query = document.getElementById('weatherPlace').value.trim();
+            if (query.length < 2) {
+                showToast('Zadejte alespoň 2 znaky');
+                return;
+            }
+
+            const select = document.getElementById('weatherPlaces');
+            select.hidden = true;
+            showToast('Hledám místo...');
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 5000);
+            try {
+                const url = 'https://geocoding-api.open-meteo.com/v1/search?' +
+                    new URLSearchParams({name: query, count: '8', language: 'cs', format: 'json'});
+                const response = await fetch(url, {signal: controller.signal});
+                if (!response.ok) throw new Error('Geocoding HTTP ' + response.status);
+                const data = await response.json();
+                weatherSearchResults = Array.isArray(data.results) ? data.results : [];
+
+                select.replaceChildren();
+                const prompt = document.createElement('option');
+                prompt.value = '';
+                prompt.textContent = weatherSearchResults.length
+                    ? 'Vyber nalezené místo'
+                    : 'Místo nebylo nalezeno';
+                select.appendChild(prompt);
+
+                weatherSearchResults.forEach((place, index) => {
+                    const option = document.createElement('option');
+                    option.value = String(index);
+                    option.textContent = [place.name, place.admin2, place.admin1, place.country]
+                        .filter(Boolean).join(', ') +
+                        ' (' + place.latitude.toFixed(5) + ', ' + place.longitude.toFixed(5) + ')';
+                    select.appendChild(option);
+                });
+                select.hidden = false;
+                showToast(weatherSearchResults.length
+                    ? 'Nalezeno míst: ' + weatherSearchResults.length
+                    : 'Místo nebylo nalezeno');
+            } catch (error) {
+                showToast(error.name === 'AbortError'
+                    ? 'Vyhledávání vypršelo'
+                    : 'Vyhledávání se nepodařilo');
+            } finally {
+                clearTimeout(timeout);
+            }
+        }
+
+        function applyWeatherPlace(indexText) {
+            if (indexText === '') return;
+            const place = weatherSearchResults[Number(indexText)];
+            if (!place) return;
+            document.getElementById('weatherLatitude').value = place.latitude;
+            document.getElementById('weatherLongitude').value = place.longitude;
+            document.getElementById('weatherPlace').value =
+                [place.name, place.admin2, place.country].filter(Boolean).join(', ');
+            showToast('Souřadnice byly vyplněny');
+        }
+        async function saveWeather(event) {
+            event.preventDefault();
+            const body = new URLSearchParams({
+                provider: document.getElementById('weatherProvider').value,
+                latitude: document.getElementById('weatherLatitude').value,
+                longitude: document.getElementById('weatherLongitude').value,
+                interval: document.getElementById('weatherInterval').value,
+                enabled: document.getElementById('weatherEnabled').checked ? '1' : '0'
+            });
+            const response = await fetch('/api/config/weather', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body
+            });
+            showToast(response.ok ? 'Počasí uloženo, zařízení se restartuje' : 'Počasí se nepodařilo uložit');
+        }
         async function scanWifi() {
             showToast('Vyhledávám okolní Wi-Fi...');
             try {
@@ -765,6 +894,10 @@ void DashboardWebServer::onSourceConfig(SourceConfigCallback callback) {
     _sourceConfigCallback = callback;
 }
 
+void DashboardWebServer::onWeatherConfig(WeatherConfigCallback callback) {
+    _weatherConfigCallback = callback;
+}
+
 void DashboardWebServer::setupRoutes() {
     _server.on("/", HTTP_GET, [this]() { handleRoot(); });
     _server.on("/api/status", HTTP_GET, [this]() { handleApiStatus(); });
@@ -782,6 +915,7 @@ void DashboardWebServer::setupRoutes() {
     _server.on("/api/wifi/config", HTTP_POST, [this]() { handleApiWifiConfig(); });
     _server.on("/api/wifi/scan", HTTP_GET, [this]() { handleApiWifiScan(); });
     _server.on("/api/config/sources", HTTP_POST, [this]() { handleApiSourceConfig(); });
+    _server.on("/api/config/weather", HTTP_POST, [this]() { handleApiWeatherConfig(); });
     _server.on("/api/update/check", HTTP_GET, [this]() { handleApiCheckForUpdate(); });
     _server.on("/api/update/github", HTTP_POST, [this]() { handleApiGithubUpdate(); });
     _server.on("/api/update", HTTP_POST,
@@ -849,6 +983,17 @@ void DashboardWebServer::handleApiStatus() {
         azObj["lastUpdateAgeSeconds"] = (millis() - _dataModel.azrouter.status.lastSuccessMs) / 1000;
     }
 
+    JsonObject weatherObj = doc["weather"].to<JsonObject>();
+    weatherObj["enabled"] = _config.weather.enabled;
+    weatherObj["available"] = _dataModel.weather.status.available;
+    weatherObj["provider"] = _dataModel.weather.provider;
+    weatherObj["lastError"] = _dataModel.weather.status.lastError;
+    if (_dataModel.weather.status.lastSuccessMs == 0) {
+        weatherObj["lastUpdateAgeSeconds"] = nullptr;
+    } else {
+        weatherObj["lastUpdateAgeSeconds"] =
+            (millis() - _dataModel.weather.status.lastSuccessMs) / 1000;
+    }
     JsonObject sourcesObj = doc["sources"].to<JsonObject>();
     JsonObject sourceGw = sourcesObj["goodwe"].to<JsonObject>();
     sourceGw["enabled"] = _config.goodwe.enabled;
@@ -860,6 +1005,12 @@ void DashboardWebServer::handleApiStatus() {
     sourceAz["host"] = _config.azrouter.host;
     sourceAz["port"] = _config.azrouter.port;
     sourceAz["interval"] = _config.azrouter.pollIntervalSeconds;
+    JsonObject sourceWeather = sourcesObj["weather"].to<JsonObject>();
+    sourceWeather["enabled"] = _config.weather.enabled;
+    sourceWeather["provider"] = _config.weather.provider;
+    sourceWeather["latitude"] = _config.weather.latitude;
+    sourceWeather["longitude"] = _config.weather.longitude;
+    sourceWeather["interval"] = _config.weather.pollIntervalSeconds;
 
     String response;
     serializeJson(doc, response);
@@ -1053,4 +1204,44 @@ void DashboardWebServer::handleApiUpdateComplete() {
     _server.send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Firmware updated; restarting\"}");
     delay(500);
     ESP.restart();
+}
+
+void DashboardWebServer::handleApiWeatherConfig() {
+    const char* required[] = {"provider", "latitude", "longitude", "interval"};
+    for (const char* name : required) {
+        if (!_server.hasArg(name) || _server.arg(name).isEmpty()) {
+            _server.send(400, "application/json",
+                         "{\"status\":\"error\",\"message\":\"Missing weather setting\"}");
+            return;
+        }
+    }
+
+    const String provider = _server.arg("provider");
+    const double latitude = _server.arg("latitude").toDouble();
+    const double longitude = _server.arg("longitude").toDouble();
+    const long interval = _server.arg("interval").toInt();
+    if (provider != "open-meteo" ||
+        latitude < -90.0 || latitude > 90.0 ||
+        longitude < -180.0 || longitude > 180.0 ||
+        (latitude == 0.0 && longitude == 0.0) ||
+        interval < 900 || interval > 21600) {
+        _server.send(400, "application/json",
+                     "{\"status\":\"error\",\"message\":\"Invalid weather setting\"}");
+        return;
+    }
+
+    if (_weatherConfigCallback) {
+        WeatherConfig weather;
+        weather.enabled = _server.arg("enabled") == "1";
+        weather.provider = provider;
+        weather.latitude = latitude;
+        weather.longitude = longitude;
+        weather.pollIntervalSeconds = static_cast<uint32_t>(interval);
+        _server.send(200, "application/json", "{\"status\":\"saved\"}");
+        _weatherConfigCallback(weather);
+        return;
+    }
+
+    _server.send(503, "application/json",
+                 "{\"status\":\"error\",\"message\":\"Weather configuration unavailable\"}");
 }

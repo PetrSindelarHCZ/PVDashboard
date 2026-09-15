@@ -5,23 +5,34 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
     ScreenStyle::drawChrome(display, dm);
 
     ScreenStyle::drawCard(display, 75, 63, 225, 402, "VENKU");
-    ScreenStyle::useMetric(display);
-    display.setCursor(90, 145);
-    display.printf("%.1f C", dm.weather.outdoorTempC);
+    if (dm.weather.status.available) {
+        ScreenStyle::useMetric(display);
+        display.setCursor(90, 145);
+        display.printf("%.1f C", dm.weather.outdoorTempC);
 
-    ScreenStyle::useBody(display);
-    display.setCursor(90, 185);
-    display.printf("Vlhkost: %d %%", dm.weather.outdoorHumidityPercent);
-    display.setCursor(90, 235);
-    display.print("Dnesni rozsah");
-
-    ScreenStyle::useValue(display);
-    display.setCursor(90, 270);
-    display.printf("%.0f / %.0f C", dm.weather.tempMaxTodayC, dm.weather.tempMinTodayC);
-
-    ScreenStyle::useBody(display);
-    display.setCursor(90, 325);
-    display.printf("Stav: %s", dm.weather.conditionText.c_str());
+        ScreenStyle::useBody(display);
+        display.setCursor(90, 185);
+        display.printf("Vlhkost: %d %%", dm.weather.outdoorHumidityPercent);
+        display.setCursor(90, 235);
+        display.print("Dnesni rozsah");
+        ScreenStyle::useValue(display);
+        display.setCursor(90, 270);
+        display.printf("%.0f / %.0f C", dm.weather.tempMaxTodayC, dm.weather.tempMinTodayC);
+        ScreenStyle::useBody(display);
+        display.setCursor(90, 325);
+        display.printf("Stav: %s", dm.weather.conditionText.c_str());
+        display.setCursor(90, 375);
+        display.print("Open-Meteo");
+    } else {
+        ScreenStyle::useValue(display);
+        display.setCursor(90, 145);
+        display.print("--.- C");
+        ScreenStyle::useBody(display);
+        display.setCursor(90, 195);
+        display.print("Pocasi nedostupne");
+        display.setCursor(90, 235);
+        display.print(dm.weather.status.lastError);
+    }
 
     ScreenStyle::drawCard(display, 315, 63, 225, 402, "ENERGIE");
     ScreenStyle::useBody(display);
@@ -52,7 +63,7 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
     display.setCursor(330, 360);
     display.printf("%.0f %% (%+.0f W)", dm.solar.batterySocPercent, dm.solar.batteryPowerW);
 
-    ScreenStyle::drawCard(display, 555, 63, 230, 402, "UVNITR");
+    ScreenStyle::drawCard(display, 555, 63, 230, 402, "UVNITR - DEMO");
     ScreenStyle::useBody(display);
     display.setCursor(570, 125);
     display.print("Obyvak");
@@ -80,5 +91,4 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
     ScreenStyle::useValue(display);
     display.setCursor(570, 360);
     display.printf("%.1f C", dm.inside.poolTempC);
-
 }
