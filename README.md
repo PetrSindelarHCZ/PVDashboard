@@ -105,7 +105,6 @@ Výsledky měření z 14. 9. 2026 jsou historické snímky konkrétních testů:
   během jednotlivého síťového timeoutu čekat přibližně 1,8 sekundy.
 - E-paper obsluhuje samostatná FreeRTOS úloha; WebUI během partial ani full
   refreshu zůstává dostupné a zobrazuje stav vykreslení.
-- Platná ruční OTA a chybové scénáře jsou ověřené na zařízení. Instalace novějšího
-  GitHub release se správným SHA-256 čeká na release novější než běžící 0.1.4.
+- Platná ruční i GitHub OTA a chybové scénáře jsou ověřené na zařízení.
 - Firmware využívá přibližně 87,4 % OTA partition; release skript i zařízení
   odmítnou obraz větší než 1 310 720 B.
