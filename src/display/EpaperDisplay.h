@@ -2,6 +2,7 @@
 #include "IDisplay.h"
 #include <GxEPD2_BW.h>
 #include <SPI.h>
+#include <U8g2_for_Adafruit_GFX.h>
 
 class EpaperDisplay : public IDisplay {
 public:
@@ -18,13 +19,17 @@ public:
     void fillRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t color) override;
     void drawCircle(int16_t x0, int16_t y0, int16_t r, uint16_t color) override;
     void fillCircle(int16_t x0, int16_t y0, int16_t r, uint16_t color) override;
-    
+    void drawBitmap(int16_t x, int16_t y, const uint8_t* bitmap,
+                    int16_t w, int16_t h, uint16_t color) override;
+
     void setFont(const GFXfont* f = nullptr) override;
+    void setUnicodeFont(const uint8_t* font) override;
     void setTextColor(uint16_t c) override;
     void setTextSize(uint8_t s) override;
     void setCursor(int16_t x, int16_t y) override;
     void print(const String& text) override;
     void printf(const char* format, ...) override;
+    int16_t textWidth(const String& text) override;
 
     int16_t width() const override;
     int16_t height() const override;
@@ -34,7 +39,11 @@ public:
     void powerOff() override;
 
 private:
+    uint16_t mapColor(uint16_t color) const;
+
     int8_t _cs, _dc, _rst, _busy, _sck, _miso, _mosi;
     GxEPD2_BW<GxEPD2_750_T7, GxEPD2_750_T7::HEIGHT> _epd;
+    U8G2_FOR_ADAFRUIT_GFX _u8g2;
+    bool _useUnicodeFont = false;
     bool _isPartial = false;
 };
