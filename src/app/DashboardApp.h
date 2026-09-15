@@ -38,6 +38,9 @@ private:
     SolarScreen _solarScreen;
     PoolScreen _poolScreen;
     WeatherScreen _weatherScreen;
+    WeatherScreen _weatherHourlyScreens[WeatherForecastDayCount] = {
+        WeatherScreen(0), WeatherScreen(1), WeatherScreen(2), WeatherScreen(3)
+    };
     DiagnosticsScreen _diagnosticsScreen;
 
     WifiManager _wifiManager;

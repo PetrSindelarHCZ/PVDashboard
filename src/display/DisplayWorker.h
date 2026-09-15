@@ -17,7 +17,7 @@ public:
     DisplayTaskStatus getStatus();
 
 private:
-    static constexpr uint32_t TaskStackWords = 4096;
+    static constexpr uint32_t TaskStackWords = 8192;
     static constexpr UBaseType_t TaskPriority = 1;
 
     DisplayManager& _displayManager;

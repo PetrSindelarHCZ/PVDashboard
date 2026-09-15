@@ -4,7 +4,8 @@
 #include "DataPoint.h"
 
 constexpr size_t WeatherForecastDayCount = 4;
-constexpr size_t WeatherHourlySlotCount = 8;
+constexpr size_t WeatherHourlySlotsPerDay = 8;
+constexpr size_t WeatherHourlySlotCount = WeatherForecastDayCount * WeatherHourlySlotsPerDay;
 
 struct SolarData {
     DataSourceStatus status;
@@ -38,6 +39,7 @@ struct DailyWeatherForecast {
 };
 
 struct HourlyWeatherForecast {
+    char date[11] = "";
     char time[6] = "";
     float tempC = 0.0f;
     float precipitationMm = 0.0f;

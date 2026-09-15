@@ -42,3 +42,12 @@ Do té doby zůstává volba ČHMÚ ve WebUI vypnutá.
 Zdroje: [MET Norway API](https://api.met.no/doc/TermsOfService),
 [Locationforecast](https://api.met.no/weatherapi/locationforecast/2.0/documentation)
 a [veřejná data ČHMÚ](https://opendata.chmi.cz/meteorology/weather/forecast/).
+
+## Hodinový přehled na displeji
+
+Ve WebUI v části obrazovek zvolte datum u „Hodinová předpověď“ a stiskněte
+„Zobrazit hodiny“. Návrat na souhrnnou předpověď obstará tlačítko „Počasí“.
+Každý den má nejvýše osm karet s časem, ikonou, teplotou, větrem, množstvím
+srážek a případně jejich pravděpodobností. Body obsahují datum, aby se nemíchaly
+hodiny různých dnů. MET Norway pro vzdálenější dny poskytuje řidší časové body;
+chybějící body firmware nedoplňuje odhadem. Přepnutí dne vyvolá plný refresh.

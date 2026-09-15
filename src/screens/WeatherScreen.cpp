@@ -126,6 +126,10 @@ void printShortDate(IDisplay& display, const char* date) {
 }
 
 void WeatherScreen::render(IDisplay& display, const DataModel& dm) {
+    if (_forecastDay >= 0) {
+        renderHourly(display, dm);
+        return;
+    }
     ScreenStyle::drawChrome(display, dm);
 
     ScreenStyle::drawCard(display, 75, 63, 282, 402, "AKTUALNE");
@@ -201,5 +205,54 @@ void WeatherScreen::render(IDisplay& display, const DataModel& dm) {
         }
         display.setCursor(590, y + 52);
         display.printf("Vitr max %.0f km/h", day.windMaxKmh);
+    }
+}
+void WeatherScreen::renderHourly(IDisplay& display, const DataModel& dm) {
+    ScreenStyle::drawChrome(display, dm);
+    ScreenStyle::useTitle(display);
+    display.setCursor(85, 91);
+    display.print("HODINOVA PREDPOVED");
+    if (!dm.weather.status.available || _forecastDay >= dm.weather.dailyCount) {
+        ScreenStyle::useBody(display);
+        display.setCursor(95, 155);
+        display.print("Predpoved zatim neni k dispozici.");
+        return;
+    }
+
+    const char* date = dm.weather.daily[_forecastDay].date;
+    display.setCursor(650, 91);
+    printShortDate(display, date);
+    ScreenStyle::useBody(display);
+    display.setCursor(85, 116);
+    display.printf("Po %s hodinach | Zdroj: %s",
+                   dm.weather.provider == "MET Norway" ? "3-6" : "3",
+                   dm.weather.provider.c_str());
+
+    uint8_t slot = 0;
+    for (uint8_t i = 0; i < dm.weather.hourlyCount && slot < WeatherHourlySlotsPerDay; ++i) {
+        const HourlyWeatherForecast& hour = dm.weather.hourly[i];
+        if (strcmp(hour.date, date) != 0) continue;
+        const int16_t x = 75 + (slot % 4) * 179;
+        const int16_t y = 131 + (slot / 4) * 167;
+        ScreenStyle::drawCard(display, x, y, 173, 160, hour.time);
+        drawWeatherSymbol(display, x + 135, y + 51, hour.weatherCode);
+        ScreenStyle::useValue(display);
+        display.setCursor(x + 12, y + 67);
+        display.printf("%.1f C", hour.tempC);
+        ScreenStyle::useBody(display);
+        display.setCursor(x + 12, y + 101);
+        display.printf("Vitr %.0f km/h", hour.windKmh);
+        display.setCursor(x + 12, y + 127);
+        display.printf("Srazky %.1f mm", hour.precipitationMm);
+        if (hour.hasPrecipitationProbability) {
+            display.setCursor(x + 12, y + 150);
+            display.printf("Pravdep. %u %%", hour.precipitationProbabilityPercent);
+        }
+        ++slot;
+    }
+    if (slot == 0) {
+        ScreenStyle::useBody(display);
+        display.setCursor(95, 155);
+        display.print("Pro tento den nejsou hodinova data.");
     }
 }

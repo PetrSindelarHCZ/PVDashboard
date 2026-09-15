@@ -131,7 +131,8 @@ inline void drawGearIcon(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
     drawBoldLine(d, x - 13, y + 13, x - 9, y + 9, c);
 }
 inline void drawMenuItem(IDisplay& d, int16_t y, const char* id, const DataModel& dm, uint8_t icon) {
-    const bool active = dm.system.currentScreenId.equalsIgnoreCase(id);
+    const bool active = dm.system.currentScreenId.equalsIgnoreCase(id) ||
+        (strcmp(id, "weather") == 0 && dm.system.currentScreenId.startsWith("weather-hourly-"));
     if (active) d.fillRoundRect(6, y - 28, 48, 56, 7, 0);
     const uint16_t c = active ? 1 : 0;
     if (icon == 0) drawHomeIcon(d, 30, y, c);

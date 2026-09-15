@@ -311,6 +311,16 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 <button class="btn" data-display-action onclick="activate('solar')">☀️ Fotovoltaika (FVE) <span class="tag" id="tag-solar"></span></button>
                 <button class="btn" data-display-action onclick="activate('pool')">🏊 Bazén <span class="tag" id="tag-pool"></span></button>
                 <button class="btn" data-display-action onclick="activate('weather')">🌤️ Počasí <span class="tag" id="tag-weather"></span></button>
+                <div class="source-grid">
+                    <label for="weatherForecastDay">Hodinová předpověď</label>
+                    <select class="wifi-input" id="weatherForecastDay">
+                        <option value="0">1. den</option>
+                        <option value="1">2. den</option>
+                        <option value="2">3. den</option>
+                        <option value="3">4. den</option>
+                    </select>
+                    <button class="btn btn-secondary" data-display-action onclick="activate('weather-hourly-' + document.getElementById('weatherForecastDay').value)">Zobrazit hodiny</button>
+                </div>
                 <button class="btn" data-display-action onclick="activate('diagnostics')">⚙️ Diagnostika <span class="tag" id="tag-diagnostics"></span></button>
             </div>
         </div>
@@ -486,6 +496,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
         let sourceConfigLoaded = false;
         let weatherConfigLoaded = false;
+        let lastScreenId = null;
         let weatherSearchResults = [];
         let statusRequestInFlight = false;
         let displayCommandInFlight = false;
@@ -569,9 +580,20 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 const mins = Math.floor((s % 3600) / 60);
                 document.getElementById('statUptime').innerText = `${hrs}h ${mins}m ${s % 60}s`;
 
+                if (data.weather.forecastDays) {
+                    const select = document.getElementById('weatherForecastDay');
+                    Array.from(select.options).forEach((option, index) => {
+                        const date = data.weather.forecastDays[index];
+                        option.textContent = date ? date.slice(8, 10) + '.' + date.slice(5, 7) + '. — detail' : (index + 1) + '. den';
+                    });
+                }
+                if (data.screen !== lastScreenId && data.screen.startsWith('weather-hourly-')) {
+                    document.getElementById('weatherForecastDay').value = data.screen.slice('weather-hourly-'.length);
+                }
+                lastScreenId = data.screen;
                 ['home', 'solar', 'pool', 'weather', 'diagnostics'].forEach(id => {
                     const el = document.querySelector(`button[onclick="activate('${id}')"]`);
-                    if (el) el.classList.toggle('active', id === data.screen);
+                    if (el) el.classList.toggle('active', id === data.screen || (id === 'weather' && data.screen.startsWith('weather-hourly-')));
                 });
             } catch (e) {
                 if (e.name !== 'AbortError') console.error('Chyba čtení statusu:', e);
@@ -907,6 +929,12 @@ void DashboardWebServer::setupRoutes() {
     _server.on("/api/screens/solar/activate", HTTP_POST, [this]() { handleApiActivateScreen("solar"); });
     _server.on("/api/screens/pool/activate", HTTP_POST, [this]() { handleApiActivateScreen("pool"); });
     _server.on("/api/screens/weather/activate", HTTP_POST, [this]() { handleApiActivateScreen("weather"); });
+    for (uint8_t day = 0; day < WeatherForecastDayCount; ++day) {
+        const String id = "weather-hourly-" + String(day);
+        _server.on("/api/screens/" + id + "/activate", HTTP_POST, [this, id]() {
+            handleApiActivateScreen(id);
+        });
+    }
     _server.on("/api/screens/diagnostics/activate", HTTP_POST, [this]() { handleApiActivateScreen("diagnostics"); });
 
     _server.on("/api/display/refresh", HTTP_POST, [this]() { handleApiRefresh(false); });
@@ -988,6 +1016,11 @@ void DashboardWebServer::handleApiStatus() {
     weatherObj["available"] = _dataModel.weather.status.available;
     weatherObj["provider"] = _dataModel.weather.provider;
     weatherObj["lastError"] = _dataModel.weather.status.lastError;
+    JsonArray forecastDays = weatherObj["forecastDays"].to<JsonArray>();
+    for (uint8_t i = 0; i < _dataModel.weather.dailyCount; ++i) {
+        forecastDays.add(_dataModel.weather.daily[i].date);
+    }
+    weatherObj["hourlyCount"] = _dataModel.weather.hourlyCount;
     if (_dataModel.weather.status.lastSuccessMs == 0) {
         weatherObj["lastUpdateAgeSeconds"] = nullptr;
     } else {

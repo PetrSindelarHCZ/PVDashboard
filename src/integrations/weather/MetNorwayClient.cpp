@@ -339,11 +339,13 @@ bool MetNorwayClient::parseResponse(
             }
         }
 
-        if (weatherData.hourlyCount < WeatherHourlySlotCount &&
+        if (dayIndex >= 0 && weatherData.hourlyCount < WeatherHourlySlotCount &&
+            local.tm_hour % 3 == 0 &&
             (lastHourlyUtc == 0 || utc - lastHourlyUtc >= 3 * 3600)) {
             HourlyWeatherForecast& hour =
                 weatherData.hourly[weatherData.hourlyCount++];
             hour = {};
+            copyText(hour.date, date);
             snprintf(hour.time, sizeof(hour.time), "%02d:%02d",
                      local.tm_hour,
                      local.tm_min);

@@ -184,8 +184,8 @@ Priorita byla stanovena takto:
   symboly pro jasno, oblačnost, mlhu, déšť, sníh a bouřku,
 - [x] zbývající hodnoty vnitřních čidel a bazénu označit jako demonstrační,
 - [x] oddělit poskytovatele společným rozhraním a umožnit jejich volbu ve WebUI,
-- [ ] přidat podobrazovku s hodinovou předpovědí pro vybraný den; data po třech
-  hodinách už společný model obsahuje,
+- [x] přidat podobrazovku s hodinovou předpovědí pro každý ze čtyř dnů,
+  s výběrem dne ve WebUI, ikonami, teplotou, větrem a srážkami,
 - [x] prověřit veřejná data ČHMÚ; současná distribuce je založena na regionálních
   dávkových souborech, proto před adaptérem doplnit bezpečný výběr správného souboru,
 - [ ] implementovat adaptér veřejných dat ČHMÚ a ověřit jeho paměťové nároky,
@@ -208,6 +208,16 @@ společného ověřeného TLS a druhého provideru využívá 31,0 % RAM a 91,4 
 partition. Na zařízení zůstalo přibližně 160 kB volné haldy; MET Norway, GoodWe
 i AZRouter byly současně dostupné. Dvanáct požadavků /api/status při zobrazení
 počasí trvalo 64–108 ms, průměrně 83,8 ms.
+
+Ověření hodinové předpovědi 15. 9. 2026: model rozšířen na nejvýše 32 bodů
+s datem i časem. Open-Meteo načetl osm tříhodinových bodů pro každý ze čtyř dnů.
+MET Norway načetl 21 dostupných bodů; první den je neúplný a vzdálenější body
+má API po šesti hodinách. Všechny čtyři podobrazovky byly aktivovány na zařízení,
+přepnutí používá plný refresh (přibližně 7,1 s). GoodWe a AZRouter zůstaly
+dostupné. Build využívá 31,9 % statické RAM a 92,0 % OTA partition; při
+vykreslování zůstalo přibližně 146 kB volné haldy. JavaScript WebUI prošel
+kontrolou syntaxe. Pro větší snímky modelu byly zvětšeny zásobníky display
+workeru a weather workeru.
 
 ## P7 — testy a údržba
 

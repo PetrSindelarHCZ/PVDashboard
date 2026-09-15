@@ -188,6 +188,7 @@ bool OpenMeteoClient::parseResponse(Stream& stream, WeatherData& weatherData, St
          sourceIndex += 3) {
         HourlyWeatherForecast& item = weatherData.hourly[weatherData.hourlyCount++];
         const char* timestamp = hourlyTimes[sourceIndex].as<const char*>();
+        copyText(item.date, timestamp);
         copyText(item.time, timestamp != nullptr && strlen(timestamp) >= 16 ? timestamp + 11 : "--:--");
         item.weatherCode = hourlyCodes[sourceIndex] | 0;
         item.tempC = hourlyTemps[sourceIndex] | 0.0f;

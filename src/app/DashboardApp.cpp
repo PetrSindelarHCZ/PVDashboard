@@ -151,6 +151,9 @@ void DashboardApp::registerScreens() {
     _screenManager.registerScreen(&_solarScreen);
     _screenManager.registerScreen(&_poolScreen);
     _screenManager.registerScreen(&_weatherScreen);
+    for (auto& screen : _weatherHourlyScreens) {
+        _screenManager.registerScreen(&screen);
+    }
     _screenManager.registerScreen(&_diagnosticsScreen);
 }
 

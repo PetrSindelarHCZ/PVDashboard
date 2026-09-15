@@ -3,7 +3,16 @@
 
 class WeatherScreen : public IScreen {
 public:
-    String getId() const override { return "weather"; }
-    String getTitle() const override { return "Pocasi"; }
+    explicit WeatherScreen(int8_t forecastDay = -1) : _forecastDay(forecastDay) {}
+    String getId() const override {
+        return _forecastDay < 0 ? String("weather") : String("weather-hourly-") + String(_forecastDay);
+    }
+    String getTitle() const override {
+        return _forecastDay < 0 ? String("Pocasi") : String("Pocasi - den ") + String(_forecastDay + 1);
+    }
     void render(IDisplay& display, const DataModel& dataModel) override;
+
+private:
+    int8_t _forecastDay;
+    void renderHourly(IDisplay& display, const DataModel& dataModel);
 };

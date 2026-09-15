@@ -17,7 +17,7 @@ asynchronní obsluhu e-paperu, diagnostiku výkonu a sjednocený vzhled obrazove
 - recovery AP **Dashboard-Setup**, pokud se zařízení nepřipojí k uložené Wi-Fi,
 - měření dob hlavní smyčky, HTTP, integrací a e-paper refreshů,
 - živé počasí z Open-Meteo nebo MET Norway pro zvolené souřadnice,
-  čtyřdenní předpověď a vyhledání místa ve WebUI,
+  čtyřdenní předpověď, hodinový přehled pro vybraný den a vyhledání místa ve WebUI,
 - ověřené HTTPS pro oba poskytovatele a respektování serverové cache MET Norway.
 
 Počasí načítá samostatná FreeRTOS úloha a při nedostupnosti API se na displeji
@@ -91,6 +91,7 @@ URL a SHA-256 získané přímo z GitHub release, ověří celý obraz a potom s
 | GET | /api/wifi/scan | Vyhledání Wi-Fi sítí |
 | POST | /api/config/sources | Uložení konfigurace energetických zdrojů |
 | POST | /api/config/weather | Uložení provideru, souřadnic a intervalu počasí |
+| POST | /api/screens/weather-hourly-0/activate | Hodinový přehled prvního dne (indexy 0–3) |
 | GET | /api/update/check | Kontrola GitHub release |
 | POST | /api/update/github | Instalace release firmware |
 | POST | /api/update | Ruční upload firmware s polem `sha256` |

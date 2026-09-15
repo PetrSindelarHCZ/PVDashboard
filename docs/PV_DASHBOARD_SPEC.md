@@ -98,7 +98,10 @@ dotazy mohou selhat, aniž by byl zdroj označen jako nedostupný.
 - zpracování: samostatná FreeRTOS úloha a společné rozhraní poskytovatelů,
 - MET Norway: identifikační User-Agent, podmíněné požadavky `If-Modified-Since`
   a interval odvozený z hlaviček `Date` a `Expires`,
-- model: aktuální podmínky, čtyři dny a osm bodů po třech hodinách,
+- model: aktuální podmínky, čtyři dny a nejvýše 32 bodů s datem a časem,
+- podobrazovky: `weather-hourly-0` až `weather-hourly-3`, výběr dne ve WebUI,
+- časový krok: Open-Meteo po třech hodinách, MET Norway podle dostupnosti po
+  třech až šesti hodinách,
 - pravděpodobnost srážek je volitelná; pokud ji provider neposkytne, displej
   zobrazuje pouze množství srážek.
 

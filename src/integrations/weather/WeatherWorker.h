@@ -15,7 +15,7 @@ public:
     bool takeLatest(WeatherData& weatherData);
 
 private:
-    static constexpr uint32_t TaskStackWords = 6144;
+    static constexpr uint32_t TaskStackWords = 12288;
     static constexpr UBaseType_t TaskPriority = 1;
 
     WeatherConfig _config;
