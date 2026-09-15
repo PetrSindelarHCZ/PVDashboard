@@ -9,6 +9,10 @@ on:
       - 'v*'
   workflow_dispatch:
 
+env:
+  PLATFORMIO_CORE_VERSION: '6.2.0'
+  PLATFORMIO_PLATFORM: 'platformio/espressif32@7.1.3'
+
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
@@ -22,26 +26,34 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install PlatformIO
-        run: python -m pip install --upgrade pip && pip install platformio
+      - name: Install pinned PlatformIO
+        run: python -m pip install "platformio==${PLATFORMIO_CORE_VERSION}"
 
       - name: Build firmware
         run: pio run -e esp32dev
 
-      - name: Prepare release assets
+      - name: Prepare and validate release assets
         shell: bash
         run: |
-          mkdir -p dist
-          cp .pio/build/esp32dev/firmware.bin dist/firmware.bin
-          sha256sum dist/firmware.bin | awk '{print $1}' > dist/firmware.bin.sha256
-          echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+          expected_version=""
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            expected_version="${GITHUB_REF_NAME#v}"
+          fi
+          python scripts/prepare-release.py \
+            --firmware .pio/build/esp32dev/firmware.bin \
+            --output dist \
+            --expected-version "${expected_version}" \
+            --platformio-core "${PLATFORMIO_CORE_VERSION}" \
+            --platform "${PLATFORMIO_PLATFORM}"
 
       - name: Create GitHub Release
+        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/firmware.bin
             dist/firmware.bin.sha256
+            dist/dashboard-manifest.json
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

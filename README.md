@@ -42,6 +42,32 @@ Pokud se ESP32 nepřipojí k uložené Wi-Fi, vytvoří konfigurační síť
 **Dashboard-Setup** s heslem **dashboard**. Nastavení je pak dostupné na
 **http://192.168.4.1/**.
 
+## Release a návrat verze
+
+PlatformIO Core je připnuté v release workflow; platforma, framework, nástroje a knihovny jsou
+připnuté v **platformio.ini**. Po sestavení připraví validované artefakty tento
+příkaz:
+
+~~~powershell
+python scripts/prepare-release.py --firmware .pio/build/esp32dev/firmware.bin --output dist --expected-version 0.1.4
+~~~
+
+Výstup obsahuje **firmware.bin**, **firmware.bin.sha256** a
+**dashboard-manifest.json**. Skript odmítne nesoulad verze a obraz větší než
+1 310 720 B. GitHub workflow provádí stejné kontroly a tag **vX.Y.Z** musí
+odpovídat **FIRMWARE_VERSION**. Ruční upload ve WebUI vyžaduje vložit 64znakový SHA-256 ze souboru **firmware.bin.sha256** a ověří jej ještě před aktivací oddílu.
+
+Před OTA je vhodné ponechat si poslední známý funkční **firmware.bin**. Chyba
+uploadu nebo SHA-256 vrátí HTTP 400 a běžící partition zůstane aktivní. Pokud
+zařízení po platné aktualizaci nenaběhne, připojte USB, zvolte odpovídající
+známý funkční commit a obnovte jej sériově:
+
+~~~powershell
+& "$env:USERPROFILE\.platformio\penv\Scripts\platformio.exe" run --target upload --upload-port COM5
+~~~
+
+Tento postup nemaže NVS. Úplné mazání flash není součástí běžného návratu verze.
+
 ## REST API
 
 | Metoda | Endpoint | Účel |
@@ -57,7 +83,7 @@ Pokud se ESP32 nepřipojí k uložené Wi-Fi, vytvoří konfigurační síť
 | POST | /api/config/sources | Uložení konfigurace datových zdrojů |
 | GET | /api/update/check | Kontrola GitHub release |
 | POST | /api/update/github | Instalace release firmware |
-| POST | /api/update | Ruční upload firmware |
+| POST | /api/update | Ruční upload firmware s polem `sha256` |
 
 ## Dokumentace
 
@@ -79,7 +105,7 @@ Výsledky měření z 14. 9. 2026 jsou historické snímky konkrétních testů:
   během jednotlivého síťového timeoutu čekat přibližně 1,8 sekundy.
 - E-paper obsluhuje samostatná FreeRTOS úloha; WebUI během partial ani full
   refreshu zůstává dostupné a zobrazuje stav vykreslení.
-- OTA je implementované, ale celý upgrade a chybové scénáře ještě nejsou
-  provozně ověřené.
-- Závislosti a platforma v platformio.ini nejsou připnuté na přesné verze.
-- Firmware využívá přibližně 87,5 % OTA partition; velikost je nutné hlídat.
+- Platná ruční OTA a chybové scénáře jsou ověřené na zařízení. Instalace novějšího
+  GitHub release se správným SHA-256 čeká na release novější než běžící 0.1.4.
+- Firmware využívá přibližně 87,4 % OTA partition; release skript i zařízení
+  odmítnou obraz větší než 1 310 720 B.

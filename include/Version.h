@@ -2,4 +2,4 @@
 
 #define FIRMWARE_NAME       "Home Dashboard ESP32"
 #define FIRMWARE_VERSION    "0.1.4"
-#define FIRMWARE_BUILD_DATE __DATE__ " " __TIME__
+#define FIRMWARE_BUILD_DATE "release " FIRMWARE_VERSION

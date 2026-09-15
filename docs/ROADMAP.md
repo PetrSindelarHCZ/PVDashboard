@@ -142,18 +142,27 @@ Akceptace:
 
 ## P5 — OTA a reprodukovatelné sestavení
 
-- připnout verzi PlatformIO platformy a všech knihoven,
-- ověřit ruční OTA platným firmwarem,
-- ověřit odmítnutí poškozeného a příliš velkého souboru,
-- ověřit GitHub OTA včetně SHA-256,
-- zdokumentovat návrat ke známé funkční verzi,
-- hlídat velikost firmware vůči 1 310 720 B OTA partition.
+- [x] připnout verzi PlatformIO Core, platformy, frameworku, nástrojů a knihoven,
+- [x] ověřit ruční OTA platným firmwarem a povinným SHA-256,
+- [x] ověřit odmítnutí chybějícího SHA-256, poškozeného a příliš velkého souboru,
+- [x] ověřit stažení GitHub release a odmítnutí nesprávného SHA-256,
+- [ ] ověřit instalaci novějšího GitHub release se správným SHA-256,
+- [x] zdokumentovat návrat ke známé funkční verzi,
+- [x] hlídat velikost firmware vůči 1 310 720 B OTA partition.
+
+Ověření na zařízení 15. 9. 2026: platný ruční upload o velikosti 1 152 560 B
+prošel s odpovídajícím SHA-256 a po restartu zůstala zachována konfigurace.
+Firmware s poškozeným bajtem uvnitř obrazu skončil HTTP 400 na neshodě SHA-256.
+Stejně byly bez restartu odmítnuty chybějící checksum a obraz o velikosti
+1 310 721 B. GitHub OTA stáhla release 0.1.3, při úmyslně chybném SHA-256 jej
+odmítla před aktivací oddílu a běžící verze 0.1.4 pokračovala. Platnou instalaci
+z GitHubu ponecháváme na ověření s novějším release.
 
 Akceptace:
 
-- běžící firmware přežije každý chybový OTA scénář,
-- stejný commit sestaví stejné hlavní verze nástrojů a knihoven,
-- release obsahuje firmware, manifest a kontrolní součet.
+- [x] běžící firmware přežije ověřené chybové OTA scénáře,
+- [x] stejný commit sestaví stejné hlavní verze nástrojů a knihoven,
+- [ ] publikovaný release obsahuje firmware, manifest a kontrolní součet.
 
 ## P6 — reálná data dalších obrazovek
 

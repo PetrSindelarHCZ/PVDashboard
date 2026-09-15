@@ -6,6 +6,7 @@
 #include <Update.h>
 #include <mbedtls/sha256.h>
 #include "../../include/Version.h"
+#include "../../include/FirmwareLimits.h"
 
 namespace {
     static const char* GITHUB_RELEASE_API_URL = "https://api.github.com/repos/PetrSindelarHCZ/PVDashboard/releases/latest";
@@ -44,27 +45,6 @@ namespace {
         return out;
     }
 
-    static bool calculateSha256(const uint8_t* data, size_t length, String& result) {
-        mbedtls_sha256_context ctx;
-        uint8_t digest[32];
-        mbedtls_sha256_init(&ctx);
-        if (mbedtls_sha256_starts_ret(&ctx, 0) != 0) {
-            mbedtls_sha256_free(&ctx);
-            return false;
-        }
-        if (mbedtls_sha256_update_ret(&ctx, data, length) != 0) {
-            mbedtls_sha256_free(&ctx);
-            return false;
-        }
-        if (mbedtls_sha256_finish_ret(&ctx, digest) != 0) {
-            mbedtls_sha256_free(&ctx);
-            return false;
-        }
-        mbedtls_sha256_free(&ctx);
-        result = sha256ToHex(digest, sizeof(digest));
-        return true;
-    }
-
     static bool httpGetString(const String& url, String& payload) {
         WiFiClientSecure client;
         client.setInsecure();
@@ -85,25 +65,50 @@ namespace {
         return !payload.isEmpty();
     }
 
+    static bool normalizeSha256(String value, String& normalized) {
+        value.trim();
+        const int separator = value.indexOf(' ');
+        if (separator > 0) value = value.substring(0, separator);
+        if (value.length() != 64) return false;
+        value.toLowerCase();
+        for (size_t i = 0; i < value.length(); ++i) {
+            const char c = value[i];
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return false;
+        }
+        normalized = value;
+        return true;
+    }
+
     static bool downloadFirmwareBinary(const String& url, const String& expectedSha256) {
+        String normalizedExpectedSha256;
+        if (!normalizeSha256(expectedSha256, normalizedExpectedSha256)) {
+            Serial.println("[OTA] Missing or invalid GitHub SHA-256");
+            return false;
+        }
+
         WiFiClientSecure client;
         client.setInsecure();
         HTTPClient http;
-        if (!http.begin(client, url)) {
-            return false;
-        }
+        if (!http.begin(client, url)) return false;
         http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+        http.setTimeout(10000);
         http.addHeader("Accept", "application/octet-stream");
         http.addHeader("User-Agent", "ESP32-Dashboard-Updater");
 
-        int code = http.GET();
+        const int code = http.GET();
         if (code != HTTP_CODE_OK) {
             http.end();
             return false;
         }
 
-        size_t total = http.getSize();
-        if (!Update.begin(total > 0 ? total : UPDATE_SIZE_UNKNOWN)) {
+        const int total = http.getSize();
+        if (total > 0 && static_cast<size_t>(total) > FirmwareLimits::MaxImageBytes) {
+            Serial.printf("[OTA] GitHub firmware too large: %d > %u\n",
+                          total, (unsigned int)FirmwareLimits::MaxImageBytes);
+            http.end();
+            return false;
+        }
+        if (!Update.begin(total > 0 ? static_cast<size_t>(total) : FirmwareLimits::MaxImageBytes)) {
             http.end();
             return false;
         }
@@ -111,61 +116,69 @@ namespace {
         WiFiClient* stream = http.getStreamPtr();
         uint8_t buffer[1024];
         size_t received = 0;
-        String downloadedSha256;
         uint8_t digestBuffer[32];
         mbedtls_sha256_context ctx;
         mbedtls_sha256_init(&ctx);
         if (mbedtls_sha256_starts_ret(&ctx, 0) != 0) {
             http.end();
             Update.abort();
+            mbedtls_sha256_free(&ctx);
             return false;
         }
 
-        while (stream->available()) {
-            size_t len = stream->readBytes(reinterpret_cast<char*>(buffer), sizeof(buffer));
-            if (len == 0) {
+        bool streamOk = true;
+        unsigned long lastDataAt = millis();
+        while (http.connected() && (total < 0 || received < static_cast<size_t>(total))) {
+            const size_t available = stream->available();
+            if (available == 0) {
+                if (millis() - lastDataAt > 10000UL) {
+                    streamOk = false;
+                    break;
+                }
+                delay(1);
+                continue;
+            }
+
+            const size_t requested = available < sizeof(buffer) ? available : sizeof(buffer);
+            const size_t len = stream->readBytes(reinterpret_cast<char*>(buffer), requested);
+            if (len == 0) continue;
+            lastDataAt = millis();
+
+            if (received + len > FirmwareLimits::MaxImageBytes ||
+                mbedtls_sha256_update_ret(&ctx, buffer, len) != 0 ||
+                Update.write(buffer, len) != len) {
+                streamOk = false;
                 break;
-            }
-            if (mbedtls_sha256_update_ret(&ctx, buffer, len) != 0) {
-                http.end();
-                Update.abort();
-                mbedtls_sha256_free(&ctx);
-                return false;
-            }
-            if (Update.write(buffer, len) != len) {
-                http.end();
-                Update.abort();
-                mbedtls_sha256_free(&ctx);
-                return false;
             }
             received += len;
         }
 
-        if (mbedtls_sha256_finish_ret(&ctx, digestBuffer) != 0) {
-            http.end();
-            Update.abort();
-            mbedtls_sha256_free(&ctx);
-            return false;
-        }
-        mbedtls_sha256_free(&ctx);
+        if (total > 0 && received != static_cast<size_t>(total)) streamOk = false;
 
+        bool hashFinished = false;
+        if (streamOk) hashFinished = mbedtls_sha256_finish_ret(&ctx, digestBuffer) == 0;
+        mbedtls_sha256_free(&ctx);
         http.end();
 
-        if (!Update.end()) {
+        if (!streamOk || !hashFinished || received == 0) {
+            Update.abort();
             return false;
         }
 
-        if (!expectedSha256.isEmpty()) {
-            downloadedSha256 = sha256ToHex(digestBuffer, sizeof(digestBuffer));
-            if (downloadedSha256 != expectedSha256) {
-                Serial.printf("[OTA] GitHub SHA256 mismatch. expected=%s actual=%s\n", expectedSha256.c_str(), downloadedSha256.c_str());
-                return false;
-            }
+        const String downloadedSha256 = sha256ToHex(digestBuffer, sizeof(digestBuffer));
+        if (downloadedSha256 != normalizedExpectedSha256) {
+            Serial.printf("[OTA] GitHub SHA256 mismatch. expected=%s actual=%s\n",
+                          normalizedExpectedSha256.c_str(), downloadedSha256.c_str());
+            Update.abort();
+            return false;
         }
 
-        return Update.isFinished() && received > 0;
+        if (!Update.end(total <= 0)) {
+            Update.abort();
+            return false;
+        }
+        return Update.isFinished();
     }
-
     static String buildGithubReleaseCheckJson(bool updateAvailable, const String& version, const String& downloadUrl, const String& sha256) {
         JsonDocument doc;
         doc["status"] = updateAvailable ? "update_available" : "up_to_date";
@@ -182,16 +195,7 @@ namespace {
         for (const JsonVariant asset : assets) {
             const char* name = asset["name"] | "";
             const char* url = asset["browser_download_url"] | "";
-            if (name && url && (String(name) == preferredName || String(name).endsWith(preferredName))) {
-                return String(url);
-            }
-        }
-        if (!assets.isNull() && assets.size() > 0) {
-            const JsonVariant firstAsset = assets[0];
-            const char* url = firstAsset["browser_download_url"] | "";
-            if (url) {
-                return String(url);
-            }
+            if (name && url && String(name) == preferredName) return String(url);
         }
         return String();
     }
@@ -200,11 +204,12 @@ namespace {
         for (const JsonVariant asset : assets) {
             const char* name = asset["name"] | "";
             const char* url = asset["browser_download_url"] | "";
-            if (name && url && (String(name) == preferredName + ".sha256" || String(name).endsWith(preferredName + ".sha256"))) {
-                String hash;
-                if (httpGetString(String(url), hash) && !hash.isEmpty()) {
-                    hash.trim();
-                    return hash;
+            if (name && url && String(name) == preferredName + ".sha256") {
+                String hashPayload;
+                String normalizedHash;
+                if (httpGetString(String(url), hashPayload) &&
+                    normalizeSha256(hashPayload, normalizedHash)) {
+                    return normalizedHash;
                 }
             }
         }
@@ -397,6 +402,8 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         <div class="card">
             <div class="card-title">Aktualizace firmware</div>
             <form action="/api/update" method="post" enctype="multipart/form-data">
+                <label for="firmwareSha256">SHA-256 ze souboru firmware.bin.sha256</label>
+                <input class="wifi-input" id="firmwareSha256" type="text" name="sha256" pattern="[a-fA-F0-9]{64}" minlength="64" maxlength="64" required>
                 <input class="wifi-input" type="file" name="firmware" accept=".bin" required>
                 <button class="btn btn-secondary" type="submit">Nahrát firmware a restartovat</button>
             </form>
@@ -881,7 +888,7 @@ void DashboardWebServer::handleApiCheckForUpdate() {
     String downloadUrl = findGitHubAssetDownloadUrl(assets, String(GITHUB_FIRMWARE_ASSET_NAME));
     String sha256 = findGitHubAssetSha256(assets, String(GITHUB_FIRMWARE_ASSET_NAME));
 
-    if (downloadUrl.isEmpty()) {
+    if (downloadUrl.isEmpty() || sha256.isEmpty()) {
         _server.send(200, "application/json", buildGithubReleaseCheckJson(false, FIRMWARE_VERSION, "", ""));
         return;
     }
@@ -898,7 +905,13 @@ void DashboardWebServer::handleApiGithubUpdate() {
         return;
     }
 
-    if (!downloadFirmwareBinary(url, sha256)) {
+    String normalizedSha256;
+    if (!normalizeSha256(sha256, normalizedSha256)) {
+        _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Missing or invalid SHA-256\"}");
+        return;
+    }
+
+    if (!downloadFirmwareBinary(url, normalizedSha256)) {
         Serial.println("[OTA] GitHub binary download failed");
         _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Firmware download or validation failed\"}");
         return;
@@ -915,7 +928,7 @@ void DashboardWebServer::handleApiUpdateUpload() {
 }
 
 void DashboardWebServer::handleApiUpdateComplete() {
-    if (!_otaManager.finish()) {
+    if (!_otaManager.finish(_server.arg("sha256"))) {
         Serial.printf("[OTA] Upload failed: %s\n", _otaManager.error().c_str());
         _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"" + _otaManager.error() + "\"}");
         return;
