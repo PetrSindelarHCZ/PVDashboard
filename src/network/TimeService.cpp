@@ -75,7 +75,7 @@ String TimeService::getDateStr() {
         }
         return String(buf);
     }
-    return "-- --.--. | --";
+    return "-- --.--.---- | -- | ";
 }
 
 String TimeService::getDayOfWeekStr() {
