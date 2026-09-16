@@ -105,30 +105,55 @@ inline void drawWeatherSymbol(IDisplay& d, int16_t centerX, int16_t centerY,
                          color);
 }
 
-inline void drawMenuItem(IDisplay& d, int16_t y, const char* id, const DataModel& dm,
-                         IconAssets::SidebarIcon iconId) {
+inline void drawMenuItem(IDisplay& d, int16_t y, const char* id, const char* shortLabel,
+                         const DataModel& dm, IconAssets::SidebarIcon iconId) {
     const bool active = dm.system.currentScreenId.equalsIgnoreCase(id) ||
         (strcmp(id, "weather") == 0 && dm.system.currentScreenId.startsWith("weather-hourly-"));
-    if (active) d.fillRoundRect(6, y - 28, 48, 56, 7, 0);
+
+    // Navigation-rail tile: enough room for a 32 px pictogram plus a short label.
+    constexpr int16_t tileX = 4;
+    constexpr int16_t tileW = 52;
+    constexpr int16_t tileH = 68;
+    constexpr int16_t tileRadius = 8;
+    const int16_t tileY = y - tileH / 2;
+
+    if (active) {
+        d.fillRoundRect(tileX, tileY, tileW, tileH, tileRadius, 0);
+        // Small white notch makes the current page easier to find at a glance.
+        d.fillRoundRect(tileX + 1, y - 10, 3, 20, 1, 1);
+    }
 
     const IconAssets::Bitmap icon = IconAssets::sidebar(iconId);
     if (icon.data != nullptr) {
+        const int16_t iconCenterY = y - 10;
         d.drawBitmap(30 - icon.width / 2,
-                     y - icon.height / 2,
+                     iconCenterY - icon.height / 2,
                      icon.data,
                      icon.width,
                      icon.height,
                      active ? 1 : 0);
     }
+
+    // Keep labels deliberately short so they stay readable on the 60 px rail.
+    d.setFont(&FreeSansBold9pt7b);
+    d.setTextColor(active ? 1 : 0);
+    const int16_t labelWidth = d.textWidth(String(shortLabel));
+    int16_t labelX = (SidebarWidth - labelWidth) / 2;
+    if (labelX < 2) labelX = 2;
+    d.setCursor(labelX, y + 27);
+    d.print(shortLabel);
 }
 
 inline void drawSidebar(IDisplay& d, const DataModel& dm) {
     d.drawLine(SidebarWidth, HeaderHeight, SidebarWidth, Height - 1, 0);
-    drawMenuItem(d, 88, "home", dm, IconAssets::SidebarIcon::Home);
-    drawMenuItem(d, 170, "solar", dm, IconAssets::SidebarIcon::Solar);
-    drawMenuItem(d, 252, "pool", dm, IconAssets::SidebarIcon::Pool);
-    drawMenuItem(d, 334, "weather", dm, IconAssets::SidebarIcon::Weather);
-    drawMenuItem(d, 416, "diagnostics", dm, IconAssets::SidebarIcon::Settings);
+
+    // Five evenly spaced navigation destinations. Text is intentionally ASCII
+    // because this rail uses the proven GFX font path (same as the header).
+    drawMenuItem(d, 90,  "home",        "DOM", dm, IconAssets::SidebarIcon::Home);
+    drawMenuItem(d, 172, "solar",       "FVE", dm, IconAssets::SidebarIcon::Solar);
+    drawMenuItem(d, 254, "pool",        "BAZ", dm, IconAssets::SidebarIcon::Pool);
+    drawMenuItem(d, 336, "weather",     "MET", dm, IconAssets::SidebarIcon::Weather);
+    drawMenuItem(d, 418, "diagnostics", "SYS", dm, IconAssets::SidebarIcon::Settings);
 }
 
 inline void drawChrome(IDisplay& d, const DataModel& dm) {
