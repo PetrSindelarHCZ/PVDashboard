@@ -1,4 +1,5 @@
 #include "TimeService.h"
+#include "CzechNamedays.h"
 
 TimeService::TimeService() : _synced(false) {
 }
@@ -51,11 +52,32 @@ String TimeService::getDateStr() {
     time(&nowTime);
     struct tm timeinfo;
     if (localtime_r(&nowTime, &timeinfo) && _synced) {
-        char buf[32];
-        snprintf(buf, sizeof(buf), "%d. %d. %d", timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
+        static const char* dayAbbreviations[] = {
+            "Ne", "Po", "Ut", "St", "Ct", "Pa", "So"
+        };
+
+        const uint8_t day = static_cast<uint8_t>(timeinfo.tm_mday);
+        const uint8_t month = static_cast<uint8_t>(timeinfo.tm_mon + 1);
+        const char* nameday = CzechNamedays::get(day, month);
+
+        char buf[48];
+        if (nameday != nullptr && nameday[0] != '\0') {
+            snprintf(buf, sizeof(buf), "%s %d.%d.%04d | %s",
+                     dayAbbreviations[timeinfo.tm_wday % 7],
+                     timeinfo.tm_mday,
+                     timeinfo.tm_mon + 1,
+                     timeinfo.tm_year + 1900,
+                     nameday);
+        } else {
+            snprintf(buf, sizeof(buf), "%s %d.%d.%04d",
+                     dayAbbreviations[timeinfo.tm_wday % 7],
+                     timeinfo.tm_mday,
+                     timeinfo.tm_mon + 1,
+                     timeinfo.tm_year + 1900);
+        }
         return String(buf);
     }
-    return "--.--.----";
+    return "-- --.--.---- | --";
 }
 
 String TimeService::getDayOfWeekStr() {

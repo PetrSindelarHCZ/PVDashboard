@@ -16,13 +16,22 @@ public:
     virtual void fillRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t color) = 0;
     virtual void drawCircle(int16_t x0, int16_t y0, int16_t r, uint16_t color) = 0;
     virtual void fillCircle(int16_t x0, int16_t y0, int16_t r, uint16_t color) = 0;
-    
+    virtual void drawBitmap(int16_t x, int16_t y, const uint8_t* bitmap,
+                            int16_t w, int16_t h, uint16_t color) = 0;
+    virtual void drawInvertedBitmap(int16_t x, int16_t y, const uint8_t* bitmap,
+                                    int16_t w, int16_t h, uint16_t color) = 0;
+
+    // Legacy Adafruit-GFX font path. Kept for compatibility with existing code.
     virtual void setFont(const GFXfont* f = nullptr) = 0;
+
+    // UTF-8 capable U8g2 font path. The font pointer is one of u8g2_font_* symbols.
+    virtual void setUnicodeFont(const uint8_t* font) = 0;
     virtual void setTextColor(uint16_t c) = 0;
     virtual void setTextSize(uint8_t s) = 0;
     virtual void setCursor(int16_t x, int16_t y) = 0;
     virtual void print(const String& text) = 0;
     virtual void printf(const char* format, ...) = 0;
+    virtual int16_t textWidth(const String& text) = 0;
 
     virtual int16_t width() const = 0;
     virtual int16_t height() const = 0;

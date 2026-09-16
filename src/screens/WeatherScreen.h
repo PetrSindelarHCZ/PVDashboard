@@ -8,7 +8,7 @@ public:
         return _forecastDay < 0 ? String("weather") : String("weather-hourly-") + String(_forecastDay);
     }
     String getTitle() const override {
-        return _forecastDay < 0 ? String("Pocasi") : String("Pocasi - den ") + String(_forecastDay + 1);
+        return _forecastDay < 0 ? String("Počasí") : String("Počasí - den ") + String(_forecastDay + 1);
     }
     void render(IDisplay& display, const DataModel& dataModel) override;
 

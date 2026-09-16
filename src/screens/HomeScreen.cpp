@@ -10,16 +10,16 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
 
         ScreenStyle::useMetric(display);
         display.setCursor(90, 145);
-        display.printf("%.1f C", dm.weather.outdoorTempC);
+        display.printf("%.1f °C", dm.weather.outdoorTempC);
 
         ScreenStyle::useBody(display);
         display.setCursor(90, 185);
         display.printf("Vlhkost: %d %%", dm.weather.outdoorHumidityPercent);
         display.setCursor(90, 235);
-        display.print("Dnesni rozsah");
+        display.print("Dnešní rozsah");
         ScreenStyle::useValue(display);
         display.setCursor(90, 270);
-        display.printf("%.0f / %.0f C", dm.weather.tempMaxTodayC, dm.weather.tempMinTodayC);
+        display.printf("%.0f / %.0f °C", dm.weather.tempMaxTodayC, dm.weather.tempMinTodayC);
         ScreenStyle::useBody(display);
         display.setCursor(90, 325);
         display.printf("Stav: %s", dm.weather.conditionText.c_str());
@@ -28,10 +28,10 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
     } else {
         ScreenStyle::useValue(display);
         display.setCursor(90, 145);
-        display.print("--.- C");
+        display.print("--.- °C");
         ScreenStyle::useBody(display);
         display.setCursor(90, 195);
-        display.print("Pocasi nedostupne");
+        display.print("Počasí nedostupné");
         display.setCursor(90, 235);
         display.print(dm.weather.status.lastError);
     }
@@ -39,14 +39,14 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
     ScreenStyle::drawCard(display, 315, 63, 225, 402, "ENERGIE");
     ScreenStyle::useBody(display);
     display.setCursor(330, 125);
-    display.print("Vyroba FVE");
+    display.print("Výroba FVE");
     ScreenStyle::useValue(display);
     display.setCursor(330, 150);
     display.printf("%.1f kW", dm.solar.productionPowerW / 1000.0f);
 
     ScreenStyle::useBody(display);
     display.setCursor(330, 195);
-    display.print("Spotreba domu");
+    display.print("Spotřeba domu");
     ScreenStyle::useValue(display);
     display.setCursor(330, 220);
     display.printf("%.1f kW", dm.solar.houseConsumptionW / 1000.0f);
@@ -65,32 +65,32 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
     display.setCursor(330, 360);
     display.printf("%.0f %% (%+.0f W)", dm.solar.batterySocPercent, dm.solar.batteryPowerW);
 
-    ScreenStyle::drawCard(display, 555, 63, 230, 402, "UVNITR - DEMO");
+    ScreenStyle::drawCard(display, 555, 63, 230, 402, "UVNITŘ - DEMO");
     ScreenStyle::useBody(display);
     display.setCursor(570, 125);
-    display.print("Obyvak");
+    display.print("Obývák");
     ScreenStyle::useValue(display);
     display.setCursor(570, 150);
-    display.printf("%.1f C", dm.inside.livingRoomTempC);
+    display.printf("%.1f °C", dm.inside.livingRoomTempC);
 
     ScreenStyle::useBody(display);
     display.setCursor(570, 195);
-    display.print("Loznice");
+    display.print("Ložnice");
     ScreenStyle::useValue(display);
     display.setCursor(570, 220);
-    display.printf("%.1f C", dm.inside.bedroomTempC);
+    display.printf("%.1f °C", dm.inside.bedroomTempC);
 
     ScreenStyle::useBody(display);
     display.setCursor(570, 265);
-    display.print("CO2 v mistnosti");
+    display.print("CO2 v místnosti");
     ScreenStyle::useValue(display);
     display.setCursor(570, 290);
     display.printf("%d ppm", dm.inside.co2Ppm);
 
     ScreenStyle::useBody(display);
     display.setCursor(570, 335);
-    display.print("Bazen");
+    display.print("Bazén");
     ScreenStyle::useValue(display);
     display.setCursor(570, 360);
-    display.printf("%.1f C", dm.inside.poolTempC);
+    display.printf("%.1f °C", dm.inside.poolTempC);
 }

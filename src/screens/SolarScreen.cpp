@@ -1,10 +1,12 @@
 #include "SolarScreen.h"
 #include "ScreenStyle.h"
+#include "../display/EInkGraph.h"
+#include <math.h>
 
 void SolarScreen::render(IDisplay& display, const DataModel& dm) {
     ScreenStyle::drawChrome(display, dm);
 
-    ScreenStyle::drawCard(display, 75, 63, 225, 190, "SOLAR VYROBA");
+    ScreenStyle::drawCard(display, 75, 63, 225, 190, "SOLÁRNÍ VÝROBA");
     ScreenStyle::useMetric(display);
     display.setCursor(90, 145);
     display.printf("%.0f W", dm.solar.productionPowerW);
@@ -12,7 +14,7 @@ void SolarScreen::render(IDisplay& display, const DataModel& dm) {
     display.setCursor(90, 185);
     display.printf("Dnes: %.1f kWh", dm.solar.energyTodayKWh);
     display.setCursor(90, 210);
-    display.printf("Status: %s", dm.solar.status.available ? "Online" : "Nedostupne");
+    display.printf("Status: %s", dm.solar.status.available ? "Online" : "Nedostupné");
 
     ScreenStyle::drawCard(display, 315, 63, 225, 190, "BATERIE");
     ScreenStyle::useMetric(display);
@@ -22,8 +24,8 @@ void SolarScreen::render(IDisplay& display, const DataModel& dm) {
     display.setCursor(330, 185);
     display.printf("Tok: %+.0f W", dm.solar.batteryPowerW);
     display.setCursor(330, 210);
-    display.printf("Stav: %s", dm.solar.batteryPowerW < 0 ? "Nabijeni" :
-                   (dm.solar.batteryPowerW > 0 ? "Vybijeni" : "Klid"));
+    display.printf("Stav: %s", dm.solar.batteryPowerW < 0 ? "Nabíjení" :
+                   (dm.solar.batteryPowerW > 0 ? "Vybíjení" : "Klid"));
 
     ScreenStyle::drawCard(display, 555, 63, 230, 190, "DISTRIBUCE");
     ScreenStyle::useMetric(display);
@@ -31,33 +33,70 @@ void SolarScreen::render(IDisplay& display, const DataModel& dm) {
     display.printf("%+.0f W", dm.solar.gridPowerW);
     ScreenStyle::useBody(display);
     display.setCursor(570, 185);
-    display.print(dm.solar.gridPowerW >= 0 ? "Pretok do site" : "Nakup ze site");
+    display.print(dm.solar.gridPowerW >= 0 ? "Přetok do sítě" : "Nákup ze sítě");
+    display.setCursor(570, 215);
+    display.printf("Dům: %.0f W", dm.solar.houseConsumptionW);
 
-    ScreenStyle::drawCard(display, 75, 268, 225, 197, "SPOTREBA DOMU");
-    ScreenStyle::useMetric(display);
-    display.setCursor(90, 350);
-    display.printf("%.0f W", dm.solar.houseConsumptionW);
-    ScreenStyle::useBody(display);
-    display.setCursor(90, 395);
-    display.print("Okamzity prikon");
+    ScreenStyle::drawCard(display, 75, 268, 470, 197, "DNEŠNÍ PRŮBĚH FVE");
 
-    ScreenStyle::drawCard(display, 315, 268, 225, 197, "AZ ROUTER");
+    if (!dm.solar.status.available || dm.solar.historyCount == 0) {
+        ScreenStyle::useBody(display);
+        display.setCursor(95, 350);
+        display.print("Čekám na historická data výroby.");
+    } else {
+        EInkGraphPoint points[SolarHistorySampleCount];
+        float maxPower = 1000.0f;
+
+        for (uint8_t i = 0; i < dm.solar.historyCount; ++i) {
+            const SolarHistorySample& sample = dm.solar.history[i];
+            points[i].x = static_cast<float>(sample.minuteOfDay) / 60.0f;
+            points[i].y = sample.productionPowerW;
+            if (sample.productionPowerW > maxPower) maxPower = sample.productionPowerW;
+        }
+
+        maxPower = ceilf(maxPower / 1000.0f) * 1000.0f;
+        if (maxPower < 1000.0f) maxPower = 1000.0f;
+
+        const int16_t graphX = 112;
+        const int16_t graphY = 320;
+        const int16_t graphW = 410;
+        const int16_t graphH = 105;
+        EInkGraph graph(display, graphX, graphY, graphW, graphH);
+        graph.setXRange(0.0f, 24.0f);
+        graph.setYRange(0.0f, maxPower);
+        graph.drawHorizontalGrid(4);
+        graph.drawVerticalGrid(4);
+        graph.drawLineSeries(points, dm.solar.historyCount, false);
+
+        ScreenStyle::useBody(display);
+        for (uint8_t i = 0; i <= 4; ++i) {
+            const float watts = maxPower - (maxPower * i / 4.0f);
+            const int16_t y = graph.mapY(watts);
+            display.setCursor(83, y + 5);
+            if (watts >= 1000.0f) display.printf("%.0fk", watts / 1000.0f);
+            else display.printf("%.0f", watts);
+        }
+
+        const uint8_t hours[] = {0, 6, 12, 18, 24};
+        for (uint8_t i = 0; i < 5; ++i) {
+            const int16_t x = graph.mapX(static_cast<float>(hours[i]));
+            display.setCursor(x - (hours[i] >= 10 ? 10 : 5), 450);
+            if (hours[i] == 24) display.print("24h");
+            else display.printf("%u", hours[i]);
+        }
+    }
+
+    ScreenStyle::drawCard(display, 555, 268, 230, 197, "AZ ROUTER / STAV");
     ScreenStyle::useMetric(display);
-    display.setCursor(330, 350);
+    display.setCursor(570, 340);
     display.printf("%.0f W", dm.azrouter.routedPowerW);
     ScreenStyle::useBody(display);
-    display.setCursor(330, 395);
-    display.printf("Bojler: %.1f C", dm.azrouter.boilerTempC);
-    display.setCursor(330, 425);
-    display.printf("Dnes: %.1f kWh", dm.azrouter.routedEnergyTodayKWh);
-
-    ScreenStyle::drawCard(display, 555, 268, 230, 197, "STAV ZDROJU");
-    ScreenStyle::useBody(display);
-    display.setCursor(570, 333);
-    display.printf("GoodWe UDP: %s", dm.solar.status.available ? "OK" : "Offline");
     display.setCursor(570, 375);
-    display.printf("AZRouter HTTP: %s", dm.azrouter.status.available ? "OK" : "Offline");
-    display.setCursor(570, 417);
-    display.print("Samospotreba: OK");
-
+    display.printf("Bojler: %.1f °C", dm.azrouter.boilerTempC);
+    display.setCursor(570, 405);
+    display.printf("Dnes: %.1f kWh", dm.azrouter.routedEnergyTodayKWh);
+    display.setCursor(570, 438);
+    display.printf("GW %s | AZ %s",
+                   dm.solar.status.available ? "OK" : "OFF",
+                   dm.azrouter.status.available ? "OK" : "OFF");
 }

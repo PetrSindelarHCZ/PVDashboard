@@ -6,6 +6,14 @@
 constexpr size_t WeatherForecastDayCount = 4;
 constexpr size_t WeatherHourlySlotsPerDay = 9;
 constexpr size_t WeatherHourlySlotCount = WeatherForecastDayCount * WeatherHourlySlotsPerDay;
+constexpr size_t SolarHistorySampleCount = 96; // 24 h * 4 samples/hour
+constexpr uint16_t SolarHistoryIntervalMinutes = 15;
+
+struct SolarHistorySample {
+    uint16_t minuteOfDay = 0;
+    float productionPowerW = 0.0f;
+    float houseConsumptionW = 0.0f;
+};
 
 struct SolarData {
     DataSourceStatus status;
@@ -16,6 +24,8 @@ struct SolarData {
     float batterySocPercent = 0.0f;
     float batteryPowerW = 0.0f;
     uint32_t lastUpdateMs = 0;
+    SolarHistorySample history[SolarHistorySampleCount];
+    uint8_t historyCount = 0;
 };
 
 struct AZRouterData {
@@ -113,4 +123,5 @@ public:
     SystemData system;
 
     void updateSystemMetrics();
+    void sampleSolarHistory(uint16_t minuteOfDay);
 };
