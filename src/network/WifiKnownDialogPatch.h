@@ -5,7 +5,6 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
 <style>
     :root { --control-bg:#171a21; --control-menu:#14171d; --control-hover:#252b37; --control-border:var(--card-border); }
 
-    /* Stavové indikace zařízení – stejný vizuální jazyk jako NTP. */
     .source-device-status-wrap { display:flex; align-items:center; gap:12px; margin-left:auto; }
     .source-device-status { position:relative; display:inline-flex; align-items:center; gap:6px; border:0; background:transparent; color:var(--text-sub); font-size:.72rem; font-weight:700; cursor:help; padding:2px 0; white-space:nowrap; }
     .source-device-status-dot { width:8px; height:8px; border-radius:50%; background:#6b7280; box-shadow:0 0 0 2px rgba(107,114,128,.15); }
@@ -15,7 +14,6 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
     .source-device-status::after { content:attr(data-tooltip); position:absolute; right:0; top:calc(100% + 8px); z-index:95; width:max-content; max-width:min(390px,82vw); padding:9px 11px; border:1px solid var(--card-border); border-radius:8px; background:#0f1218; color:var(--text); box-shadow:0 10px 24px rgba(0,0,0,.45); font-size:.74rem; font-weight:400; line-height:1.45; white-space:pre-line; text-align:left; opacity:0; visibility:hidden; pointer-events:none; transform:translateY(-3px); transition:.12s ease; }
     .source-device-status:hover::after,.source-device-status:focus::after { opacity:1; visibility:visible; transform:none; }
 
-    /* DHCP / statická IPv4 konfigurace. */
     .network-config-field { grid-column:1 / -1; }
     .network-config-box { border:1px solid var(--card-border); border-radius:9px; background:#171a21; padding:11px; }
     .network-mode-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(150px,220px); gap:12px; align-items:center; }
@@ -31,7 +29,6 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
     .network-config-status.ok { color:#86efac; }
     .network-ap-note { color:var(--text-sub); font-size:.70rem; line-height:1.4; margin-top:9px; }
 
-    /* Jednotný styl vstupů a všech rozbalovacích seznamů. */
     .wifi-input,.ntp-picker-button,.wifi-picker-button { background-color:var(--control-bg); color:var(--text); border:1px solid var(--control-border); border-radius:8px; min-height:44px; font-size:.92rem; }
     .wifi-input:focus,.ntp-picker-button:focus,.wifi-picker-button:focus { outline:none; border-color:#4b5563; box-shadow:0 0 0 2px rgba(96,165,250,.10); }
     select.wifi-input { appearance:none; -webkit-appearance:none; padding-right:34px; background-image:linear-gradient(45deg,transparent 50%,#9ba1b0 50%),linear-gradient(135deg,#9ba1b0 50%,transparent 50%); background-position:calc(100% - 17px) 52%,calc(100% - 12px) 52%; background-size:5px 5px,5px 5px; background-repeat:no-repeat; }
@@ -41,7 +38,6 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
     .timezone-result,.ntp-option-main,.wifi-known-entry { border-radius:7px; }
     .timezone-result:hover,.timezone-result:focus,.ntp-option:hover,.wifi-known-entry:hover,.wifi-known-entry:focus { background:var(--control-hover); }
 
-    /* Systémové nastavení má dvě stejně pojaté podkarty jako Datové zdroje. */
     .system-settings-card { grid-column:1 / -1 !important; }
     .system-subcard-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; width:100%; }
     .system-subcard { background:#171a21; border:1px solid #2b3240; border-radius:10px; padding:14px; display:flex; flex-direction:column; gap:12px; min-width:0; }
@@ -53,14 +49,12 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
     .system-network-card .network-config-box { border:0; border-radius:0; background:transparent; padding:0; }
     .system-network-card .network-config-field { width:100%; }
 
-    /* Stav nad IP polem + ruční diagnostika. */
     .source-host-label-row { display:flex; align-items:center; justify-content:space-between; gap:10px; min-width:0; }
     .source-host-actions { display:flex; align-items:center; gap:9px; flex:0 0 auto; }
     .source-test-button { appearance:none; border:1px solid var(--card-border); border-radius:7px; background:#1c2230; color:var(--text-sub); padding:5px 8px; font-size:.69rem; font-weight:700; cursor:pointer; white-space:nowrap; }
     .source-test-button:hover,.source-test-button:focus { color:var(--text); border-color:#4b5563; outline:none; }
     .source-test-button:disabled { opacity:.55; cursor:wait; }
 
-    /* Collapsible sekce v pohledu Nastavení. */
     .settings-collapse-toggle { width:100%; appearance:none; border:0; background:transparent; color:inherit; padding:0; display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; text-align:left; }
     .settings-collapse-title { font-size:.85rem; text-transform:uppercase; letter-spacing:.05em; color:var(--text-sub); font-weight:700; }
     .settings-collapse-chevron { color:var(--text-sub); font-size:.82rem; transition:transform .16s ease; }
@@ -76,8 +70,6 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
 </style>
 
 <script>
-/* GoodWe/AZRouter: stav aplikace. Indikátory se nejdřív vytvoří v kartě a po DOMContentLoaded
-   je přesuneme nad příslušné IP pole. */
 (() => {
     const cards=Array.from(document.querySelectorAll('.source-device-card'));
     if(!cards.length)return;
@@ -109,12 +101,12 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
         try{const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),2500);const response=await fetch('/api/status',{cache:'no-store',signal:controller.signal});clearTimeout(timeout);if(!response.ok)throw new Error();const data=await response.json();defs.forEach(def=>updateOne(def,data));}
         catch(_){defs.forEach(def=>{const el=document.getElementById(def.id);if(!el)return;el.classList.remove('ok','syncing');el.classList.add('error');const text=el.querySelector('.source-device-status-text');if(text)text.textContent='Chyba';el.dataset.tooltip='Stav zařízení se nepodařilo načíst.';});}
     }
+    window.dashboardRefreshSourceStatus=refreshDeviceStatus;
     refreshDeviceStatus();setInterval(refreshDeviceStatus,5000);
 })();
 </script>
 
 <script>
-/* Ping + port/protokol diagnostika. Stejná funkce je dostupná i tlačítku Otestovat. */
 (() => {
     const marker='\n──────── síťová diagnostika ────────\n';
     const defs=[{key:'goodwe',id:'gwDeviceStatus'},{key:'azrouter',id:'azDeviceStatus'}];const cache=new Map();
@@ -123,17 +115,20 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
     function apply(def){const el=document.getElementById(def.id);if(!el)return;const current=el.dataset.tooltip||'';const base=current.includes(marker)?current.split(marker)[0]:current;const next=base+marker+diagnosticLines(def).join('\n');if(current!==next)el.dataset.tooltip=next;}
     defs.forEach(def=>{const el=document.getElementById(def.id);if(!el)return;new MutationObserver(()=>apply(def)).observe(el,{attributes:true,attributeFilter:['data-tooltip']});apply(def);});
 
-    async function testOne(def){
+    async function testConfigured(def){
         try{const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),3500);const response=await fetch('/api/diagnostics/device?source='+encodeURIComponent(def.key),{cache:'no-store',signal:controller.signal});clearTimeout(timeout);if(!response.ok)throw new Error('HTTP '+response.status);const data=await response.json();cache.set(def.key,{data,at:Date.now()});apply(def);return data;}
         catch(error){const data={tested:false,portProtocol:def.key==='goodwe'?'UDP':'TCP',message:error.name==='AbortError'?'test vypršel':'test selhal'};cache.set(def.key,{data,at:Date.now()});apply(def);return data;}
     }
-    window.dashboardTestSourceNetwork=async key=>{const def=defs.find(item=>item.key===key);return def?testOne(def):null;};
-    async function refreshNetworkDiagnostics(){for(const def of defs)await testOne(def);}setTimeout(refreshNetworkDiagnostics,1500);setInterval(refreshNetworkDiagnostics,30000);
+    async function testEdited(def,host,port){
+        try{const body=new URLSearchParams({source:def.key,host,port:String(port)});const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),4000);const response=await fetch('/api/sources/test',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body,signal:controller.signal});clearTimeout(timeout);const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||('HTTP '+response.status));cache.set(def.key,{data,at:Date.now()});apply(def);return data;}
+        catch(error){const data={tested:false,portProtocol:def.key==='goodwe'?'UDP':'TCP',message:error.name==='AbortError'?'test vypršel':(error.message||'test selhal')};cache.set(def.key,{data,at:Date.now()});apply(def);return data;}
+    }
+    window.dashboardTestSourceNetwork=async (key,host='',port='')=>{const def=defs.find(item=>item.key===key);if(!def)return null;return host&&port?testEdited(def,host,port):testConfigured(def);};
+    async function refreshNetworkDiagnostics(){for(const def of defs)await testConfigured(def);}setTimeout(refreshNetworkDiagnostics,1500);setInterval(refreshNetworkDiagnostics,30000);
 })();
 </script>
 
 <script>
-/* DHCP / statická IP – nastavení pouze STA rozhraní. AP má vždy 192.168.4.1/24. */
 (() => {
     if(document.getElementById('networkAddressMode'))return;
     const systemGrid=document.querySelector('form[onsubmit^="saveSystem"] .system-grid');const wifiField=document.querySelector('.wifi-system-field');if(!systemGrid)return;
@@ -152,25 +147,22 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
 </script>
 
 <script>
-/* Přeskládání Nastavení po vytvoření responsive shellu. */
 (() => {
     function moveSourceStatusAndAddTest(){
-        const defs=[{key:'goodwe',name:'GoodWe',statusId:'gwDeviceStatus',hostId:'gwHost'},{key:'azrouter',name:'AZRouter',statusId:'azDeviceStatus',hostId:'azHost'}];
+        const defs=[{key:'goodwe',name:'GoodWe',statusId:'gwDeviceStatus',hostId:'gwHost',portId:'gwPort'},{key:'azrouter',name:'AZRouter',statusId:'azDeviceStatus',hostId:'azHost',portId:'azPort'}];
         defs.forEach(def=>{
-            const status=document.getElementById(def.statusId),host=document.getElementById(def.hostId);if(!status||!host||document.getElementById(def.statusId+'Test'))return;
+            const status=document.getElementById(def.statusId),host=document.getElementById(def.hostId),port=document.getElementById(def.portId);if(!status||!host||!port||document.getElementById(def.statusId+'Test'))return;
             const field=host.closest('.source-field'),label=field&&field.querySelector('label[for="'+def.hostId+'"]');if(!field||!label)return;
-            const oldWrap=status.closest('.source-device-status-wrap');
-            if(oldWrap){const enabled=oldWrap.querySelector('.source-enabled'),header=oldWrap.closest('.source-device-header');if(enabled&&header)header.appendChild(enabled);}
+            const oldWrap=status.closest('.source-device-status-wrap');if(oldWrap){const enabled=oldWrap.querySelector('.source-enabled'),header=oldWrap.closest('.source-device-header');if(enabled&&header)header.appendChild(enabled);}
             const row=document.createElement('div');row.className='source-host-label-row';const actions=document.createElement('div');actions.className='source-host-actions';
-            const test=document.createElement('button');test.type='button';test.className='source-test-button';test.id=def.statusId+'Test';test.textContent='Otestovat';test.title='Ručně obnovit ping a test portu/protokolu';
+            const test=document.createElement('button');test.type='button';test.className='source-test-button';test.id=def.statusId+'Test';test.textContent='Otestovat';test.title='Ručně otestovat zadanou IP/host a port';
             label.replaceWith(row);row.append(label,actions);actions.append(status,test);if(oldWrap&&oldWrap.children.length===0)oldWrap.remove();
             test.addEventListener('click',async()=>{
-                test.disabled=true;test.textContent='Testuji…';
-                status.classList.remove('ok','error');status.classList.add('syncing');const text=status.querySelector('.source-device-status-text');if(text)text.textContent='Testuji…';
-                const data=window.dashboardTestSourceNetwork?await window.dashboardTestSourceNetwork(def.key):null;
-                if(data&&data.tested){const result=(data.portOpen?'port OK':'port nedostupný')+(data.pingOk?' · ping '+Number(data.pingMs||0)+' ms':' · ping bez odezvy');showToast(def.name+': '+result);}
-                else showToast(def.name+': diagnostiku se nepodařilo provést');
-                test.disabled=false;test.textContent='Otestovat';
+                const targetHost=host.value.trim(),targetPort=Number(port.value);if(!targetHost||!Number.isInteger(targetPort)||targetPort<1||targetPort>65535){showToast(def.name+': zadej platný host a port');return;}
+                test.disabled=true;test.textContent='Testuji…';status.classList.remove('ok','error');status.classList.add('syncing');const text=status.querySelector('.source-device-status-text');if(text)text.textContent='Testuji…';
+                const data=window.dashboardTestSourceNetwork?await window.dashboardTestSourceNetwork(def.key,targetHost,targetPort):null;
+                if(data&&data.tested){status.classList.remove('syncing','error','ok');status.classList.add(data.portOpen?'ok':'error');if(text)text.textContent=data.portOpen?'Test OK':'Test selhal';const result=(data.portOpen?'port OK':'port nedostupný')+(data.pingOk?' · ping '+Number(data.pingMs||0)+' ms':' · ping bez odezvy');showToast(def.name+': '+result);}else{status.classList.remove('syncing','ok');status.classList.add('error');if(text)text.textContent='Test selhal';showToast(def.name+': diagnostiku se nepodařilo provést');}
+                test.disabled=false;test.textContent='Otestovat';setTimeout(()=>{if(window.dashboardRefreshSourceStatus)window.dashboardRefreshSourceStatus();},1800);
             });
         });
     }
