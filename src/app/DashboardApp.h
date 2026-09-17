@@ -69,6 +69,7 @@ private:
     unsigned long _lastDisplayUpdate = 0;
 
     void registerScreens();
+    void setWeatherScreensEnabled(bool enabled);
     void requestDisplayRefresh(bool full, unsigned long delayMs = 0);
     void requestAutomaticDisplayRefresh();
     void onScreenSwitchRequested(const String& screenId);
