@@ -251,6 +251,10 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         .badge { background: #1e3a5f; color: #93c5fd; padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; }
         .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
         .card-title { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-sub); font-weight: 700; }
+        .card-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .btn-inline { width: auto; min-height: 0; padding: 7px 11px; font-size: 0.78rem; line-height: 1.2; white-space: nowrap; }
+        .field-help { color: var(--text-sub); font-size: 0.75rem; line-height: 1.35; }
+        .source-grid-wide { grid-template-columns: 145px minmax(260px, 1fr) 115px; }
         .btn-group { display: flex; flex-direction: column; gap: 10px; }
         .btn {
             background: #282e3c;
@@ -350,8 +354,10 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
             .card { padding: 14px; border-radius: 10px; }
             #screensList { grid-template-columns: 1fr; }
             #screensList > .source-grid { grid-column: auto; }
-            .source-grid { grid-template-columns: 1fr; }
+            .source-grid, .source-grid-wide { grid-template-columns: 1fr; }
             .source-grid > span:empty { display: none; }
+            .card-title-row { align-items: flex-start; }
+            .btn-inline { flex: 0 0 auto; padding: 7px 9px; }
             .source-grid > label { margin-top: 4px; }
             .status-grid, .view-system .status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
             .btn { min-height: 48px; }
@@ -366,7 +372,10 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         </div>
 
         <div class="card">
-            <div class="card-title">Aktivní obrazovka displeje</div>
+            <div class="card-title-row">
+                <div class="card-title">Aktivní obrazovka displeje</div>
+                <button class="btn btn-secondary btn-inline" type="button" data-display-action onclick="triggerRefresh(true)">✨ Full refresh</button>
+            </div>
             <div class="btn-group" id="screensList">
                 <button class="btn" data-display-action onclick="activate('home')">🏠 Hlavní souhrn <span class="tag" id="tag-home"></span></button>
                 <button class="btn" data-display-action onclick="activate('solar')">☀️ Fotovoltaika (FVE) <span class="tag" id="tag-solar"></span></button>
@@ -383,14 +392,6 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     <button class="btn btn-secondary" data-display-action onclick="activate('weather-hourly-' + document.getElementById('weatherForecastDay').value)">Zobrazit hodiny</button>
                 </div>
                 <button class="btn" data-display-action onclick="activate('diagnostics')">⚙️ Diagnostika <span class="tag" id="tag-diagnostics"></span></button>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-title">Ovládání displeje</div>
-            <div class="btn-group">
-                <button class="btn btn-secondary" data-display-action onclick="triggerRefresh(false)">🔄 Obnovit displej (Partial)</button>
-                <button class="btn btn-secondary" data-display-action onclick="triggerRefresh(true)">✨ Plný refresh (Full)</button>
             </div>
         </div>
 
@@ -456,8 +457,15 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                         <input class="wifi-input" id="systemNtp" maxlength="253" required>
                     </div>
                     <div class="system-field">
-                        <label for="systemTimezone">Časové pásmo (POSIX)</label>
-                        <input class="wifi-input" id="systemTimezone" maxlength="127" required>
+                        <label for="systemTimezone">Časové pásmo</label>
+                        <select class="wifi-input" id="systemTimezone" required>
+                            <option value="CET-1CEST,M3.5.0,M10.5.0/3">Střední Evropa — Praha, Bratislava, Berlín, Vídeň (CET/CEST)</option>
+                            <option value="EET-2EEST,M3.5.0/3,M10.5.0/4">Východní Evropa — Helsinky, Tallinn, Riga, Vilnius (EET/EEST)</option>
+                            <option value="GMT0BST,M3.5.0/1,M10.5.0">Velká Británie a Irsko (GMT/BST)</option>
+                            <option value="UTC0">UTC — bez letního času</option>
+                            <option value="EST5EDT,M3.2.0/2,M11.1.0/2">Severní Amerika — Eastern Time (EST/EDT)</option>
+                        </select>
+                        <div class="field-help">Technická POSIX hodnota se ukládá automaticky.</div>
                     </div>
                 </div>
                 <button class="btn btn-secondary" type="submit">Uložit systém a restartovat</button>
@@ -489,7 +497,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         <div class="card">
             <div class="card-title">Datové zdroje</div>
             <form onsubmit="saveSources(event)">
-                <div class="source-grid">
+                <div class="source-grid source-grid-wide">
                     <label>GoodWe host</label>
                     <input class="wifi-input" id="gwHost" placeholder="IP adresa">
                     <input class="wifi-input" id="gwPort" type="number" min="1" max="65535" placeholder="Port" required>
@@ -641,7 +649,18 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 if (!systemConfigLoaded && data.systemConfig) {
                     document.getElementById('systemHostname').value = data.systemConfig.hostname;
                     document.getElementById('systemNtp').value = data.systemConfig.ntpServer;
-                    document.getElementById('systemTimezone').value = data.systemConfig.timezone;
+                    const timezoneSelect = document.getElementById('systemTimezone');
+                    const timezoneValue = data.systemConfig.timezone;
+                    if (timezoneSelect && timezoneValue) {
+                        const knownTimezone = Array.from(timezoneSelect.options).some(option => option.value === timezoneValue);
+                        if (!knownTimezone) {
+                            const customOption = document.createElement('option');
+                            customOption.value = timezoneValue;
+                            customOption.textContent = 'Vlastní / původní nastavení';
+                            timezoneSelect.appendChild(customOption);
+                        }
+                        timezoneSelect.value = timezoneValue;
+                    }
                     systemConfigLoaded = true;
                 }
 
