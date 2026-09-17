@@ -621,11 +621,14 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         <div class="card">
             <div class="card-title">Počasí</div>
             <form onsubmit="saveWeather(event)">
-                <input class="wifi-input" id="weatherPlace" placeholder="Obec nebo PSČ, např. Praha">
-                <button class="btn btn-secondary" type="button" onclick="searchWeatherPlace()">Vyhledat místo</button>
-                <select class="wifi-input" id="weatherPlaces" onchange="applyWeatherPlace(this.value)" hidden>
-                    <option value="">Vyber nalezené místo</option>
-                </select>
+                <div class="timezone-picker">
+                    <input class="wifi-input" id="weatherPlace" type="search" autocomplete="off"
+                           placeholder="Obec nebo PSČ, např. Praha"
+                           oninput="scheduleWeatherPlaceSearch()"
+                           onfocus="showWeatherPlaceSuggestions()">
+                    <div class="timezone-results" id="weatherPlaceResults" hidden></div>
+                </div>
+                <div class="field-help">Začněte psát obec nebo PSČ a vyberte návrh. Souřadnice se doplní automaticky.</div>
                 <select class="wifi-input" id="weatherProvider">
                     <option value="open-meteo">Open-Meteo</option>
                     <option value="met-no">MET Norway</option>
@@ -696,6 +699,8 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         let weatherConfigLoaded = false;
         let lastScreenId = null;
         let weatherSearchResults = [];
+        let weatherSearchTimer = null;
+        let weatherSearchController = null;
         let statusRequestInFlight = false;
         let displayCommandInFlight = false;
         let displayBusy = false;
@@ -969,8 +974,10 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         document.addEventListener('click', event => {
             const picker = event.target.closest('.timezone-picker');
             if (picker) return;
-            const results = document.getElementById('systemTimezoneResults');
-            if (results) results.hidden = true;
+            ['systemTimezoneResults', 'weatherPlaceResults'].forEach(id => {
+                const results = document.getElementById(id);
+                if (results) results.hidden = true;
+            });
         });
 
         async function saveSystem(event) {
@@ -1028,17 +1035,80 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
             showToast(response.ok ? 'Zdroje uloženy, zařízení se restartuje' : 'Zdroje se nepodařilo uložit');
         }
 
-        async function searchWeatherPlace() {
-            const query = document.getElementById('weatherPlace').value.trim();
+        function scheduleWeatherPlaceSearch() {
+            const input = document.getElementById('weatherPlace');
+            const results = document.getElementById('weatherPlaceResults');
+            if (!input || !results) return;
+
+            clearTimeout(weatherSearchTimer);
+            if (weatherSearchController) {
+                weatherSearchController.abort();
+                weatherSearchController = null;
+            }
+
+            const query = input.value.trim();
             if (query.length < 2) {
-                showToast('Zadejte alespoň 2 znaky');
+                weatherSearchResults = [];
+                results.replaceChildren();
+                results.hidden = true;
                 return;
             }
 
-            const select = document.getElementById('weatherPlaces');
-            select.hidden = true;
-            showToast('Hledám místo...');
+            results.replaceChildren();
+            const loading = document.createElement('div');
+            loading.className = 'timezone-no-result';
+            loading.textContent = 'Hledám…';
+            results.appendChild(loading);
+            results.hidden = false;
+
+            weatherSearchTimer = setTimeout(() => searchWeatherPlace(query), 350);
+        }
+
+        function showWeatherPlaceSuggestions() {
+            const input = document.getElementById('weatherPlace');
+            if (!input || input.value.trim().length < 2) return;
+            if (weatherSearchResults.length) {
+                renderWeatherPlaceSuggestions();
+            } else {
+                scheduleWeatherPlaceSearch();
+            }
+        }
+
+        function renderWeatherPlaceSuggestions(message = '') {
+            const results = document.getElementById('weatherPlaceResults');
+            if (!results) return;
+            results.replaceChildren();
+
+            if (message) {
+                const info = document.createElement('div');
+                info.className = 'timezone-no-result';
+                info.textContent = message;
+                results.appendChild(info);
+            } else if (!weatherSearchResults.length) {
+                const empty = document.createElement('div');
+                empty.className = 'timezone-no-result';
+                empty.textContent = 'Místo nebylo nalezeno.';
+                results.appendChild(empty);
+            } else {
+                weatherSearchResults.forEach((place, index) => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'timezone-result';
+                    button.textContent = [place.name, place.admin2, place.admin1, place.country]
+                        .filter(Boolean).join(', ');
+                    button.addEventListener('click', () => applyWeatherPlace(index));
+                    results.appendChild(button);
+                });
+            }
+            results.hidden = false;
+        }
+
+        async function searchWeatherPlace(query) {
+            const input = document.getElementById('weatherPlace');
+            if (!input || input.value.trim() !== query) return;
+
             const controller = new AbortController();
+            weatherSearchController = controller;
             const timeout = setTimeout(() => controller.abort(), 5000);
             try {
                 const url = 'https://geocoding-api.open-meteo.com/v1/search?' +
@@ -1046,47 +1116,32 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 const response = await fetch(url, {signal: controller.signal});
                 if (!response.ok) throw new Error('Geocoding HTTP ' + response.status);
                 const data = await response.json();
+                if (input.value.trim() !== query) return;
                 weatherSearchResults = Array.isArray(data.results) ? data.results : [];
-
-                select.replaceChildren();
-                const prompt = document.createElement('option');
-                prompt.value = '';
-                prompt.textContent = weatherSearchResults.length
-                    ? 'Vyber nalezené místo'
-                    : 'Místo nebylo nalezeno';
-                select.appendChild(prompt);
-
-                weatherSearchResults.forEach((place, index) => {
-                    const option = document.createElement('option');
-                    option.value = String(index);
-                    option.textContent = [place.name, place.admin2, place.admin1, place.country]
-                        .filter(Boolean).join(', ') +
-                        ' (' + place.latitude.toFixed(5) + ', ' + place.longitude.toFixed(5) + ')';
-                    select.appendChild(option);
-                });
-                select.hidden = false;
-                showToast(weatherSearchResults.length
-                    ? 'Nalezeno míst: ' + weatherSearchResults.length
-                    : 'Místo nebylo nalezeno');
+                renderWeatherPlaceSuggestions();
             } catch (error) {
-                showToast(error.name === 'AbortError'
-                    ? 'Vyhledávání vypršelo'
-                    : 'Vyhledávání se nepodařilo');
+                if (error.name !== 'AbortError') {
+                    weatherSearchResults = [];
+                    renderWeatherPlaceSuggestions('Vyhledávání se nepodařilo.');
+                }
             } finally {
                 clearTimeout(timeout);
+                if (weatherSearchController === controller) weatherSearchController = null;
             }
         }
 
-        function applyWeatherPlace(indexText) {
-            if (indexText === '') return;
-            const place = weatherSearchResults[Number(indexText)];
+        function applyWeatherPlace(index) {
+            const place = weatherSearchResults[Number(index)];
             if (!place) return;
             document.getElementById('weatherLatitude').value = place.latitude;
             document.getElementById('weatherLongitude').value = place.longitude;
             document.getElementById('weatherPlace').value =
-                [place.name, place.admin2, place.country].filter(Boolean).join(', ');
+                [place.name, place.admin2, place.admin1, place.country].filter(Boolean).join(', ');
+            const results = document.getElementById('weatherPlaceResults');
+            if (results) results.hidden = true;
             showToast('Souřadnice byly vyplněny');
         }
+
         async function saveWeather(event) {
             event.preventDefault();
             const body = new URLSearchParams({
