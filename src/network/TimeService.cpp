@@ -5,6 +5,10 @@
 #include <atomic>
 
 namespace {
+constexpr unsigned long NtpSyncIntervalMs = 6UL * 60UL * 60UL * 1000UL;
+constexpr unsigned long NtpRetryIntervalMs = 10UL * 60UL * 1000UL;
+constexpr unsigned long NtpReconnectGuardMs = 5000UL;
+
 // SNTP invokes this callback from the network task. Do not touch Strings there.
 std::atomic<uint32_t> receivedNtpEpoch{0};
 TimeService* activeTimeService = nullptr;
@@ -20,35 +24,74 @@ TimeService::TimeService() : _synced(false) {
     activeTimeService = this;
 }
 
-void TimeService::begin(const String& timezone, const String& ntpServer) {
+void TimeService::startNtpSync(bool preserveValidTime, const char* reason) {
     esp_sntp_stop();
-    _synced = false;
+    if (!preserveValidTime) {
+        _synced = false;
+        _lastSyncMs = 0;
+        _lastSyncEpoch = 0;
+    }
     _configuredAtMs = millis();
-    _lastSyncMs = 0;
-    _lastSyncEpoch = 0;
+    _lastSyncAttemptMs = _configuredAtMs;
     receivedNtpEpoch.store(0);
     sntp_set_time_sync_notification_cb(onNtpSync);
+
+    Serial.printf("[NTP] Synchronizace (%s): TZ '%s', server '%s'...\n",
+                  reason ? reason : "manual", _timezone.c_str(), _ntpServer.c_str());
+    configTzTime(_timezone.c_str(), _ntpServer.c_str());
+    sntp_set_sync_interval(NtpSyncIntervalMs);
+}
+
+void TimeService::begin(const String& timezone, const String& ntpServer) {
+    const bool sameConfiguration = _timezone == timezone && _ntpServer == ntpServer;
+    const bool preserveValidTime = sameConfiguration && _synced;
+
     _timezone = timezone;
     _ntpServer = ntpServer;
     activeTimeService = this;
-
-    Serial.printf("[NTP] Nastavuji TZ '%s' a NTP server '%s'...\n", _timezone.c_str(), _ntpServer.c_str());
-    configTzTime(_timezone.c_str(), _ntpServer.c_str());
+    startNtpSync(preserveValidTime, sameConfiguration ? "manualni obnovení" : "nova konfigurace");
 }
 
-void TimeService::loop() {
+void TimeService::loop(bool wifiConnected) {
     const uint32_t receivedEpoch = receivedNtpEpoch.exchange(0);
-    if (receivedEpoch == 0) return;
+    if (receivedEpoch != 0) {
+        time_t nowTime;
+        time(&nowTime);
+        struct tm timeinfo;
+        if (localtime_r(&nowTime, &timeinfo) && timeinfo.tm_year > (2020 - 1900)) {
+            _synced = true;
+            _lastSyncEpoch = static_cast<time_t>(receivedEpoch);
+            _lastSyncMs = millis();
+            Serial.printf("[NTP] Cas uspesne synchronizovan: %s %s | server: %s\n",
+                          getDateStr().c_str(), getTimeStr().c_str(), _ntpServer.c_str());
+        }
+    }
 
-    time_t nowTime;
-    time(&nowTime);
-    struct tm timeinfo;
-    if (localtime_r(&nowTime, &timeinfo) && timeinfo.tm_year > (2020 - 1900)) {
-        _synced = true;
-        _lastSyncEpoch = static_cast<time_t>(receivedEpoch);
-        _lastSyncMs = millis();
-        Serial.printf("[NTP] Cas uspesne synchronizovan: %s %s | server: %s\n",
-                      getDateStr().c_str(), getTimeStr().c_str(), _ntpServer.c_str());
+    const unsigned long now = millis();
+    const bool wifiReturned = wifiConnected && !_networkAvailable;
+    _networkAvailable = wifiConnected;
+    if (!wifiConnected || _ntpServer.isEmpty()) return;
+
+    // Po návratu Wi-Fi synchronizujeme hned, ale nezdvojujeme právě spuštěný pokus.
+    if (wifiReturned && now - _lastSyncAttemptMs >= NtpReconnectGuardMs) {
+        startNtpSync(_synced, "navrat Wi-Fi");
+        return;
+    }
+
+    // První synchronizace: při neúspěchu nečekáme šest hodin, ale opakujeme po 10 minutách.
+    if (!_synced) {
+        if (now - _lastSyncAttemptMs >= NtpRetryIntervalMs) {
+            startNtpSync(false, "retry po chybe");
+        }
+        return;
+    }
+
+    // Běžný SNTP interval je 6 h. Pokud po očekávaném periodickém pokusu čas
+    // zůstane starší ještě o retry interval, vynutíme nový pokus. Platný čas
+    // přitom zachováme a dashboard ho dál zobrazuje.
+    if (_lastSyncMs != 0 && now - _lastSyncMs >= NtpSyncIntervalMs + NtpRetryIntervalMs &&
+        now - _lastSyncAttemptMs >= NtpRetryIntervalMs) {
+        startNtpSync(true, "retry periodicke synchronizace");
     }
 }
 
@@ -66,6 +109,8 @@ String TimeService::getNtpStatusJson(bool wifiConnected) {
         doc["lastSyncEpoch"] = 0;
         doc["lastSyncAgeSeconds"] = nullptr;
         doc["configuredAgeSeconds"] = 0;
+        doc["syncIntervalSeconds"] = NtpSyncIntervalMs / 1000UL;
+        doc["retryIntervalSeconds"] = NtpRetryIntervalMs / 1000UL;
     } else {
         const unsigned long now = millis();
         const unsigned long configuredAgeSeconds = (now - service->_configuredAtMs) / 1000UL;
@@ -88,6 +133,8 @@ String TimeService::getNtpStatusJson(bool wifiConnected) {
             doc["lastSyncAgeSeconds"] = (now - service->_lastSyncMs) / 1000UL;
         }
         doc["configuredAgeSeconds"] = configuredAgeSeconds;
+        doc["syncIntervalSeconds"] = NtpSyncIntervalMs / 1000UL;
+        doc["retryIntervalSeconds"] = NtpRetryIntervalMs / 1000UL;
     }
 
     String response;
