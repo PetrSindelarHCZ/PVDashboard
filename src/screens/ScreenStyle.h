@@ -37,15 +37,16 @@ inline void drawDisconnected(IDisplay& d, int16_t x, int16_t y) {
         d.drawLine(x + 3, y + 3 + offset, x + 28, y + 28 + offset, 1);
 }
 
-inline void drawWifi(IDisplay& d, int16_t x, int16_t y, bool connected) {
+inline void drawWifi(IDisplay& d, int16_t x, int16_t y, bool connected, uint8_t level) {
     // Rasterized circular bands, clipped to the upper 90-degree sector.
-    // Keep the familiar complete symbol even at weak signal strength.
+    // Disconnected: keep the full symbol visible beneath the slash.
+    const uint8_t arcs = connected ? (level == 0 ? 1 : level) : 3;
     for (int16_t dy = -23; dy <= -4; ++dy) {
         for (int16_t dx = -23; dx <= 23; ++dx) {
             if (abs(dx) > -dy) continue;
             const int16_t r2 = dx * dx + dy * dy;
-            if ((r2 >= 20 * 20 && r2 <= 23 * 23) ||
-                (r2 >= 13 * 13 && r2 <= 16 * 16) ||
+            if ((arcs >= 3 && r2 >= 20 * 20 && r2 <= 23 * 23) ||
+                (arcs >= 2 && r2 >= 13 * 13 && r2 <= 16 * 16) ||
                 (r2 >= 6 * 6 && r2 <= 9 * 9))
                 d.drawPixel(x + 16 + dx, y + 27 + dy, 1);
         }
@@ -81,7 +82,7 @@ inline void drawRouterStatus(IDisplay& d, int16_t x, int16_t y, bool available) 
 inline void drawHeader(IDisplay& d, const DataModel& dm) {
     d.fillRect(0, 0, Width, HeaderHeight, 0);
     const bool online = dm.system.wifiConnected;
-    drawWifi(d, 8, 8, online);
+    drawWifi(d, 8, 8, online, dm.system.wifiSignalLevel);
     drawSolarStatus(d, 56, 8, online && dm.solar.status.available);
     drawRouterStatus(d, 104, 8, online && dm.azrouter.status.available);
 

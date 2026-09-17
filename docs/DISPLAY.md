@@ -52,7 +52,11 @@ Všechny obrazovky používají společný ScreenStyle:
 - vlevo ikony Wi-Fi (oblouky), GoodWe (solární panel) a AZRouteru (topná spirála),
 - připojené zařízení má čistou ikonu, nedostupné šikmé přeškrtnutí přímo přes ikonu;
   při odpojené Wi-Fi jsou přeškrtnuté také obě síťové integrace,
-- Wi-Fi ikona značí připojení; číselná síla signálu zůstává v diagnostice,
+- Wi-Fi ukazuje 1–3 oblouky podle RSSI; při připojení jsou hranice −75 a −67 dBm,
+  následně se používá hystereze ±3 dB a potvrzení změny po 5 sekundách;
+  odpojení se označí bez tohoto zpoždění, číselné RSSI zůstává v diagnostice,
+- změna ustálené úrovně požádá o běžný refresh (s existujícím slučováním požadavků);
+  vykreslení používá uloženou úroveň, takže se nezmění mezi stránkami jednoho snímku,
 - datum a svátek vpravo používají český Unicode font a lokální UTF-8 kalendář,
 - datum se zarovnává před hodiny podle šířky textu; případné zkrácení zachovává celé UTF-8 znaky,
 - velké hodiny zůstávají vpravo,

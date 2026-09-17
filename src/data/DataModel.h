@@ -104,6 +104,7 @@ struct SystemData {
     String dayOfWeekStr = "";
     bool wifiConnected = false;
     int8_t wifiRssi = 0;
+    uint8_t wifiSignalLevel = 0; // 0 = offline, 1..3 = stable signal strength
     String ipAddress = "0.0.0.0";
     bool ntpSynced = false;
     uint32_t uptimeSeconds = 0;
