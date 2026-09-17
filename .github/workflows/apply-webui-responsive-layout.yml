@@ -29,6 +29,17 @@ jobs:
           grep -q "view-settings" src/network/WebServer.cpp
           grep -q "appNavigation" src/network/WebServer.cpp
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PlatformIO
+        run: python -m pip install 'platformio==6.2.0'
+
+      - name: Build firmware
+        run: pio run -e esp32dev
+
       - name: Commit WebUI update
         shell: bash
         run: |
