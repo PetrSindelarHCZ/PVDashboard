@@ -81,12 +81,15 @@ void DashboardApp::setup() {
     }
 
     // 5. Aktualizovat data pro první vykreslení
+    const bool previousAccessPoint = _dataModel.system.wifiAccessPoint;
+    _dataModel.system.wifiAccessPoint = _wifiManager.isConfigAccessPoint();
     _dataModel.system.wifiConnected = _wifiManager.isConnected();
     _dataModel.system.wifiRssi = _wifiManager.getRssi();
     const uint8_t previousSignalLevel = _dataModel.system.wifiSignalLevel;
     _dataModel.system.wifiSignalLevel = _wifiSignalLevel.update(
         _dataModel.system.wifiConnected, _dataModel.system.wifiRssi, millis());
-    if (previousSignalLevel != _dataModel.system.wifiSignalLevel) {
+    if (previousSignalLevel != _dataModel.system.wifiSignalLevel ||
+        previousAccessPoint != _dataModel.system.wifiAccessPoint) {
         requestAutomaticDisplayRefresh();
     }
     _dataModel.system.ipAddress = _wifiManager.getIpAddress();
@@ -242,12 +245,15 @@ void DashboardApp::loop() {
 
     // Aktualizace systémových údajů v datovém modelu
     const bool wasWifiConnected = _dataModel.system.wifiConnected;
+    const bool previousAccessPoint = _dataModel.system.wifiAccessPoint;
+    _dataModel.system.wifiAccessPoint = _wifiManager.isConfigAccessPoint();
     _dataModel.system.wifiConnected = _wifiManager.isConnected();
     _dataModel.system.wifiRssi = _wifiManager.getRssi();
     const uint8_t previousSignalLevel = _dataModel.system.wifiSignalLevel;
     _dataModel.system.wifiSignalLevel = _wifiSignalLevel.update(
         _dataModel.system.wifiConnected, _dataModel.system.wifiRssi, millis());
-    if (previousSignalLevel != _dataModel.system.wifiSignalLevel) {
+    if (previousSignalLevel != _dataModel.system.wifiSignalLevel ||
+        previousAccessPoint != _dataModel.system.wifiAccessPoint) {
         requestAutomaticDisplayRefresh();
     }
     _dataModel.system.ipAddress = _wifiManager.getIpAddress();

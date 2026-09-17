@@ -37,10 +37,10 @@ inline void drawDisconnected(IDisplay& d, int16_t x, int16_t y) {
         d.drawLine(x + 3, y + 3 + offset, x + 28, y + 28 + offset, 1);
 }
 
-inline void drawWifi(IDisplay& d, int16_t x, int16_t y, bool connected, uint8_t level) {
+inline void drawWifi(IDisplay& d, int16_t x, int16_t y, bool connected, uint8_t level, bool accessPoint) {
     // Rasterized circular bands, clipped to the upper 90-degree sector.
     // Disconnected: keep the full symbol visible beneath the slash.
-    const uint8_t arcs = connected ? (level == 0 ? 1 : level) : 3;
+    const uint8_t arcs = accessPoint ? 3 : (connected ? (level == 0 ? 1 : level) : 3);
     for (int16_t dy = -23; dy <= -4; ++dy) {
         for (int16_t dx = -23; dx <= 23; ++dx) {
             if (abs(dx) > -dy) continue;
@@ -52,7 +52,21 @@ inline void drawWifi(IDisplay& d, int16_t x, int16_t y, bool connected, uint8_t 
         }
     }
     d.fillCircle(x + 16, y + 27, 2, 1);
-    if (!connected) drawDisconnected(d, x, y);
+    if (accessPoint) {
+        // Small 5x7 A/P glyphs on a black badge at the lower left.
+        // Draw pixels directly so the badge never changes the text font state.
+        static const uint8_t aRows[] = {14, 17, 17, 31, 17, 17, 17};
+        static const uint8_t pRows[] = {30, 17, 17, 30, 16, 16, 16};
+        d.fillRect(x, y + 23, 13, 9, 0);
+        for (uint8_t row = 0; row < 7; ++row) {
+            for (uint8_t col = 0; col < 5; ++col) {
+                if (aRows[row] & (16 >> col)) d.drawPixel(x + 1 + col, y + 24 + row, 1);
+                if (pRows[row] & (16 >> col)) d.drawPixel(x + 7 + col, y + 24 + row, 1);
+            }
+        }
+    } else if (!connected) {
+        drawDisconnected(d, x, y);
+    }
 }
 
 inline void drawSolarStatus(IDisplay& d, int16_t x, int16_t y, bool available) {
@@ -82,7 +96,7 @@ inline void drawRouterStatus(IDisplay& d, int16_t x, int16_t y, bool available) 
 inline void drawHeader(IDisplay& d, const DataModel& dm) {
     d.fillRect(0, 0, Width, HeaderHeight, 0);
     const bool online = dm.system.wifiConnected;
-    drawWifi(d, 8, 8, online, dm.system.wifiSignalLevel);
+    drawWifi(d, 8, 8, online, dm.system.wifiSignalLevel, dm.system.wifiAccessPoint);
     drawSolarStatus(d, 56, 8, online && dm.solar.status.available);
     drawRouterStatus(d, 104, 8, online && dm.azrouter.status.available);
 

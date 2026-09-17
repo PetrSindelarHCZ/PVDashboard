@@ -55,6 +55,8 @@ Všechny obrazovky používají společný ScreenStyle:
 - Wi-Fi ukazuje 1–3 oblouky podle RSSI; při připojení jsou hranice −75 a −67 dBm,
   následně se používá hystereze ±3 dB a potvrzení změny po 5 sekundách;
   odpojení se označí bez tohoto zpoždění, číselné RSSI zůstává v diagnostice,
+- konfigurační AP má vždy plnou Wi-Fi ikonu s malým „AP“ vlevo dole na černém
+  podkladu, bez přeškrtnutí; stav GW/AZ se nadále řídí připojením STA a dostupností dat,
 - změna ustálené úrovně požádá o běžný refresh (s existujícím slučováním požadavků);
   vykreslení používá uloženou úroveň, takže se nezmění mezi stránkami jednoho snímku,
 - datum a svátek vpravo používají český Unicode font a lokální UTF-8 kalendář,
