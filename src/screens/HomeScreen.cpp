@@ -91,7 +91,7 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
         display.setCursor(90, 325);
         display.printf("Stav: %s", dm.weather.conditionText.c_str());
         display.setCursor(90, 375);
-        display.print(dm.weather.provider);
+        display.print(dm.weather.locationName.isEmpty() ? dm.weather.provider : dm.weather.locationName);
     } else {
         ScreenStyle::useValue(display);
         display.setCursor(90, 145);
