@@ -12,12 +12,6 @@ public:
 
     WifiManager();
 
-    void configureNetwork(bool dhcp,
-                          const String& ipAddress,
-                          const String& subnetMask,
-                          const String& gateway,
-                          const String& dns1,
-                          const String& dns2);
     void begin(const String& ssid, const String& password, const String& hostname);
     bool waitForConnection(uint32_t timeoutMs = 8000);
     void disconnectToConfigAccessPoint();
@@ -48,12 +42,6 @@ private:
     String _ssid;
     String _password;
     String _hostname;
-    bool _dhcp = true;
-    String _ipAddress;
-    String _subnetMask;
-    String _gateway;
-    String _dns1;
-    String _dns2;
     unsigned long _lastReconnectAttempt = 0;
     unsigned long _staFailureStarted = 0;
     unsigned long _lastStatusLog = 0;
@@ -74,7 +62,6 @@ private:
     unsigned long _nextKnownNetworkScan = 0;
 
     const char* wlStatusToString(wl_status_t status);
-    bool applyNetworkConfig();
     void startConfigAccessPoint(uint32_t autoScanDelayMs = 0);
     void serviceConfigAccessPoint();
     void startKnownNetworkScan();
