@@ -8,6 +8,8 @@ public:
     ScreenManager();
 
     void registerScreen(IScreen* screen);
+    bool unregisterScreen(const String& id);
+    bool hasScreen(const String& id) const;
     bool activateScreen(const String& id);
     IScreen* getActiveScreen() const;
     String getActiveScreenId() const;
