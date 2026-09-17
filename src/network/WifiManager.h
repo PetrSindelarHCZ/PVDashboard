@@ -7,6 +7,7 @@ class WifiManager {
 public:
     using WifiStatusCallback = std::function<void(bool connected, const String& ip)>;
     using KnownNetworkLookupCallback = std::function<bool(const String& ssid, String& password)>;
+    using KnownNetworkAtCallback = std::function<bool(size_t enabledIndex, String& ssid, String& password)>;
     using AutoNetworkSelectedCallback = std::function<void(const String& ssid, const String& password)>;
 
     WifiManager();
@@ -22,6 +23,7 @@ public:
     String getIpAddress() const;
     void onStatusChange(WifiStatusCallback callback);
     void onKnownNetworkLookup(KnownNetworkLookupCallback callback);
+    void onKnownNetworkAt(KnownNetworkAtCallback callback);
     void onAutoNetworkSelected(AutoNetworkSelectedCallback callback);
 
 private:
@@ -36,7 +38,6 @@ private:
     static constexpr uint32_t StaFallbackTimeoutMs = 30000;
     static constexpr uint32_t AutoJoinTimeoutMs = 8000;
     static constexpr uint32_t KnownNetworkScanIntervalMs = 30000;
-    static constexpr uint32_t ManualDisconnectGraceMs = 60000;
 
     String _ssid;
     String _password;
@@ -49,6 +50,7 @@ private:
     bool _eventsRegistered = false;
     WifiStatusCallback _statusCallback;
     KnownNetworkLookupCallback _knownNetworkLookupCallback;
+    KnownNetworkAtCallback _knownNetworkAtCallback;
     AutoNetworkSelectedCallback _autoNetworkSelectedCallback;
 
     AutoJoinCandidate _autoJoinCandidates[MaxAutoJoinCandidates];
@@ -64,6 +66,7 @@ private:
     void serviceConfigAccessPoint();
     void startKnownNetworkScan();
     void processKnownNetworkScan(int16_t networkCount);
+    void appendUnseenKnownNetworks();
     void tryNextKnownNetwork();
     void completeConnection(bool selectedFromFallback);
 };
