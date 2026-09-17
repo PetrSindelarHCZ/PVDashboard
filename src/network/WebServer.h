@@ -24,6 +24,7 @@ public:
     DashboardWebServer(uint16_t port, DataModel& dataModel, ScreenManager& screenManager, const AppConfig& config);
 
     void begin();
+    void enableTimezoneUiExtension();
     void loop();
     void onScreenChange(ScreenChangeCallback callback);
     void onRefresh(RefreshCallback callback);
@@ -58,16 +59,9 @@ private:
 
     void setupRoutes();
     void handleRoot();
+    void handleExtendedRoot();
     void handleApiTimezoneConfig();
     void handleApiSystemConfigV2();
-
-    // Původní implementace je zachovaná v WebServerLegacy.inc a používá se
-    // pro všechny ostatní endpointy. Tyto tři metody jsou přejmenované
-    // pouze proto, aby nad nimi šla bezpečně rozšířit root stránka.
-    void beginLegacy();
-    void setupRoutesLegacy();
-    void handleRootLegacy();
-
     void handleApiStatus();
     void handleApiScreens();
     void handleApiActivateScreen(const String& screenId);
