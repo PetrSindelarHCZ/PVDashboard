@@ -1,5 +1,6 @@
 #include "NetworkDiagnostics.h"
 #include <WiFiClient.h>
+#include <WiFiUdp.h>
 #include <cstring>
 #include <lwip/inet.h>
 #include <lwip/netdb.h>
@@ -82,9 +83,7 @@ bool pingTarget(const ip_addr_t& target, uint32_t timeoutMs, uint32_t& elapsedMs
 
     const uint32_t started = millis();
     const uint32_t guardMs = timeoutMs + 350;
-    while (!gPingContext.finished && millis() - started < guardMs) {
-        delay(5);
-    }
+    while (!gPingContext.finished && millis() - started < guardMs) delay(5);
 
     if (!gPingContext.finished) {
         esp_ping_stop(handle);
@@ -107,12 +106,48 @@ bool testTcpPort(const String& host, uint16_t port, uint32_t timeoutMs, uint32_t
     client.stop();
     return connected;
 }
+
+bool testGoodWeUdpPort(const String& resolvedIp, uint16_t port, uint32_t timeoutMs, uint32_t& elapsedMs) {
+    IPAddress remote;
+    if (!remote.fromString(resolvedIp)) return false;
+
+    // Stejný bezpečný read-only Modbus dotaz, který používá GoodWeClient.
+    const uint8_t request[8] = {0xF7, 0x03, 0x89, 0x1C, 0x00, 0x7D, 0x7A, 0xE7};
+    WiFiUDP udp;
+    if (!udp.begin(0)) return false;
+
+    const uint32_t started = millis();
+    if (!udp.beginPacket(remote, port)) {
+        udp.stop();
+        return false;
+    }
+    udp.write(request, sizeof(request));
+    if (!udp.endPacket()) {
+        udp.stop();
+        return false;
+    }
+
+    bool response = false;
+    while (millis() - started < timeoutMs) {
+        const int packetSize = udp.parsePacket();
+        if (packetSize > 0) {
+            response = udp.remoteIP() == remote && udp.remotePort() == port;
+            udp.flush();
+            if (response) break;
+        }
+        delay(5);
+    }
+    elapsedMs = millis() - started;
+    udp.stop();
+    return response;
+}
 }
 
 NetworkProbeResult NetworkDiagnostics::probe(const String& host,
                                              uint16_t port,
+                                             NetworkProbeTransport transport,
                                              uint32_t pingTimeoutMs,
-                                             uint32_t tcpTimeoutMs) {
+                                             uint32_t portTimeoutMs) {
     NetworkProbeResult result;
     if (host.isEmpty() || port == 0) {
         result.error = "Invalid host or port";
@@ -126,16 +161,22 @@ NetworkProbeResult NetworkDiagnostics::probe(const String& host,
         return result;
     }
     result.resolved = true;
-
     result.pingOk = pingTarget(target, pingTimeoutMs, result.pingMs);
-    result.portOpen = testTcpPort(host, port, tcpTimeoutMs, result.portConnectMs);
+
+    if (transport == NetworkProbeTransport::GoodWeUdp) {
+        result.portProtocol = "UDP";
+        result.portOpen = testGoodWeUdpPort(result.resolvedIp, port, portTimeoutMs, result.portConnectMs);
+    } else {
+        result.portProtocol = "TCP";
+        result.portOpen = testTcpPort(host, port, portTimeoutMs, result.portConnectMs);
+    }
 
     if (!result.pingOk && !result.portOpen) {
-        result.error = "No ICMP reply and TCP port is closed/unreachable";
+        result.error = "No ICMP reply and configured port is unreachable";
     } else if (!result.pingOk && result.portOpen) {
-        result.error = "ICMP reply missing; TCP port is reachable";
+        result.error = "ICMP reply missing; configured port is reachable";
     } else if (result.pingOk && !result.portOpen) {
-        result.error = "Host replies to ICMP, but TCP port is closed/unreachable";
+        result.error = "Host replies to ICMP, but configured port is unreachable";
     }
     return result;
 }
