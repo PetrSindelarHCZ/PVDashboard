@@ -27,6 +27,10 @@ void WifiManager::onKnownNetworkLookup(KnownNetworkLookupCallback callback) {
     _knownNetworkLookupCallback = callback;
 }
 
+void WifiManager::onKnownNetworkAt(KnownNetworkAtCallback callback) {
+    _knownNetworkAtCallback = callback;
+}
+
 void WifiManager::onAutoNetworkSelected(AutoNetworkSelectedCallback callback) {
     _autoNetworkSelectedCallback = callback;
 }
@@ -57,8 +61,6 @@ void WifiManager::begin(const String& ssid, const String& password, const String
     delay(100);
     WiFi.mode(WIFI_STA);
 
-    // Event handlery registrujeme jen jednou. begin() lze volat znovu při
-    // změně konfigurace bez hromadění duplicitních callbacků.
     if (!_eventsRegistered) {
         WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
             if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
@@ -118,8 +120,8 @@ void WifiManager::disconnectToConfigAccessPoint() {
     if (wasConnected && _statusCallback) {
         _statusCallback(false, "0.0.0.0");
     }
-    Serial.println("[WIFI] Rucni odpojeni od STA. AP zustane aktivni; automaticke hledani znamych siti ma 60 s odklad.");
-    startConfigAccessPoint(ManualDisconnectGraceMs);
+    Serial.println("[WIFI] Rucni odpojeni od STA. AP zustane aktivni; ostatni povolene zname site hledam ihned.");
+    startConfigAccessPoint();
 }
 
 void WifiManager::loop() {
@@ -225,15 +227,15 @@ void WifiManager::serviceConfigAccessPoint() {
 
     if (_autoScanRunning) {
         const int16_t networkCount = WiFi.scanComplete();
-        if (networkCount == -1) return; // WIFI_SCAN_RUNNING
+        if (networkCount == -1) return;
 
         _autoScanRunning = false;
         if (networkCount >= 0) {
             processKnownNetworkScan(networkCount);
         } else {
-            Serial.println("[WIFI] Automaticky scan znamych siti selhal, zopakuji pozdeji.");
+            Serial.println("[WIFI] Automaticky scan znamych siti selhal; zkusim ulozene site i bez vysledku scanu.");
             WiFi.scanDelete();
-            _nextKnownNetworkScan = now + KnownNetworkScanIntervalMs;
+            processKnownNetworkScan(0);
         }
         return;
     }
@@ -244,7 +246,7 @@ void WifiManager::serviceConfigAccessPoint() {
 }
 
 void WifiManager::startKnownNetworkScan() {
-    if (!_knownNetworkLookupCallback) {
+    if (!_knownNetworkLookupCallback && !_knownNetworkAtCallback) {
         _nextKnownNetworkScan = millis() + KnownNetworkScanIntervalMs;
         return;
     }
@@ -252,7 +254,7 @@ void WifiManager::startKnownNetworkScan() {
     WiFi.scanDelete();
     Serial.println("[WIFI] AP fallback: hledam dostupne zname site...");
     const int16_t result = WiFi.scanNetworks(true, true);
-    if (result == -1) { // WIFI_SCAN_RUNNING
+    if (result == -1) {
         _autoScanRunning = true;
         return;
     }
@@ -262,8 +264,34 @@ void WifiManager::startKnownNetworkScan() {
         return;
     }
 
-    Serial.println("[WIFI] Automaticky scan se nepodarilo spustit.");
-    _nextKnownNetworkScan = millis() + KnownNetworkScanIntervalMs;
+    Serial.println("[WIFI] Automaticky scan se nepodarilo spustit; zkusim ulozene site primo.");
+    processKnownNetworkScan(0);
+}
+
+void WifiManager::appendUnseenKnownNetworks() {
+    if (!_knownNetworkAtCallback) return;
+
+    for (size_t knownIndex = 0; knownIndex < MaxAutoJoinCandidates && _autoJoinCandidateCount < MaxAutoJoinCandidates; ++knownIndex) {
+        String ssid;
+        String password;
+        if (!_knownNetworkAtCallback(knownIndex, ssid, password)) break;
+        if (ssid.isEmpty()) continue;
+
+        bool alreadyPresent = false;
+        for (uint8_t candidateIndex = 0; candidateIndex < _autoJoinCandidateCount; ++candidateIndex) {
+            if (_autoJoinCandidates[candidateIndex].ssid == ssid) {
+                alreadyPresent = true;
+                break;
+            }
+        }
+        if (alreadyPresent) continue;
+
+        auto& candidate = _autoJoinCandidates[_autoJoinCandidateCount++];
+        candidate.ssid = ssid;
+        candidate.password = password;
+        candidate.rssi = -127;
+        Serial.printf("[WIFI] Fallback doplnuje ulozenou sit '%s' i kdyz nebyla ve scanu.\n", ssid.c_str());
+    }
 }
 
 void WifiManager::processKnownNetworkScan(int16_t networkCount) {
@@ -299,7 +327,6 @@ void WifiManager::processKnownNetworkScan(int16_t networkCount) {
 
     WiFi.scanDelete();
 
-    // Nejsilnejsi znama sit se zkusi jako prvni.
     for (uint8_t i = 0; i < _autoJoinCandidateCount; ++i) {
         for (uint8_t j = i + 1; j < _autoJoinCandidateCount; ++j) {
             if (_autoJoinCandidates[j].rssi <= _autoJoinCandidates[i].rssi) continue;
@@ -309,20 +336,24 @@ void WifiManager::processKnownNetworkScan(int16_t networkCount) {
         }
     }
 
+    // Scan je pouze prioritizace. I známou síť, kterou scan v AP+STA režimu
+    // právě nevrátil, následně přímo vyzkoušíme.
+    appendUnseenKnownNetworks();
+
     if (_autoJoinCandidateCount == 0) {
-        Serial.println("[WIFI] V okoli neni zadna znama Wi-Fi. AP zustava aktivni.");
+        Serial.println("[WIFI] Neni k dispozici zadna povolena znama Wi-Fi. AP zustava aktivni.");
         _nextKnownNetworkScan = millis() + KnownNetworkScanIntervalMs;
         return;
     }
 
-    Serial.printf("[WIFI] Nalezeno %u znamych siti, zkousim je podle sily signalu.\n",
+    Serial.printf("[WIFI] Fallback ma %u kandidatu; viditelne site maji prioritu podle RSSI.\n",
                   static_cast<unsigned>(_autoJoinCandidateCount));
     tryNextKnownNetwork();
 }
 
 void WifiManager::tryNextKnownNetwork() {
     if (_autoJoinCandidateIndex >= _autoJoinCandidateCount) {
-        Serial.println("[WIFI] Zadna nalezena znama sit se nepripojila. AP zustava aktivni.");
+        Serial.println("[WIFI] Zadna povolena znama sit se nepripojila. AP zustava aktivni.");
         _autoJoinInProgress = false;
         _nextKnownNetworkScan = millis() + KnownNetworkScanIntervalMs;
         return;
@@ -335,8 +366,13 @@ void WifiManager::tryNextKnownNetwork() {
     WiFi.disconnect(false);
     WiFi.setHostname(_hostname.c_str());
     WiFi.setAutoReconnect(false);
-    Serial.printf("[WIFI] AP fallback: zkousim znamou sit '%s' (%ld dBm), AP zustava behem pokusu dostupny.\n",
-                  _ssid.c_str(), static_cast<long>(candidate.rssi));
+    if (candidate.rssi > -127) {
+        Serial.printf("[WIFI] AP fallback: zkousim znamou sit '%s' (%ld dBm), AP zustava behem pokusu dostupny.\n",
+                      _ssid.c_str(), static_cast<long>(candidate.rssi));
+    } else {
+        Serial.printf("[WIFI] AP fallback: zkousim ulozenou sit '%s' primo, protoze nebyla v poslednim scanu.\n",
+                      _ssid.c_str());
+    }
     WiFi.begin(_ssid.c_str(), _password.c_str());
     _autoJoinStarted = millis();
     _autoJoinInProgress = true;
@@ -355,8 +391,6 @@ String WifiManager::scanNetworksJson() {
         WiFi.mode(WIFI_AP_STA);
     }
 
-    // Pokud prave bezi automaticky scan, kratce vyuzijeme jeho vysledek.
-    // Nezaciname druhy scan soubezne, protoze ESP32 ma jen jedno Wi-Fi radio.
     int16_t networkCount = -1;
     if (_autoScanRunning) {
         const unsigned long started = millis();
