@@ -27,6 +27,7 @@ private:
     unsigned long _lastStatusLog = 0;
     bool _connected = false;
     bool _configAccessPoint = false;
+    bool _eventsRegistered = false;
     WifiStatusCallback _statusCallback;
 
     const char* wlStatusToString(wl_status_t status);
