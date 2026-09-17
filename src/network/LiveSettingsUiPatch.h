@@ -84,7 +84,7 @@ static const char LIVE_SETTINGS_UI_PATCH[] PROGMEM = R"livepatch(
     const saveForms = [
         ['form[onsubmit^="saveSystem"]', 'Uložit systém'],
         ['form[onsubmit^="saveWifi"]', 'Uložit Wi-Fi'],
-        ['form[onsubmit^="saveSources"]', 'Uložit datové zdroje'],
+        ['form[onsubmit^="saveSources"]', 'Uložit fotovoltaiku'],
         ['form[onsubmit^="saveWeather"]', 'Uložit počasí']
     ];
 
@@ -105,7 +105,7 @@ static const char LIVE_SETTINGS_UI_PATCH[] PROGMEM = R"livepatch(
         const replacements = new Map([
             ['Systém uložen, zařízení se restartuje', 'Systém uložen a použit'],
             ['Wi-Fi uložena, zařízení se restartuje', 'Wi-Fi uložena, přepojuji síť…'],
-            ['Zdroje uloženy, zařízení se restartuje', 'Datové zdroje uloženy a použity'],
+            ['Zdroje uloženy, zařízení se restartuje', 'Fotovoltaika uložena a použita'],
             ['Počasí uloženo, zařízení se restartuje', 'Počasí uloženo a použito']
         ]);
         window.showToast = function(message) {
@@ -156,6 +156,12 @@ static const char LIVE_SETTINGS_UI_PATCH[] PROGMEM = R"livepatch(
     function polishNetworkLabels() {
         const title = document.querySelector('.network-mode-title');
         if (title) title.textContent = 'Přidělení IP adresy';
+    }
+
+    function renamePhotovoltaicsUi() {
+        document.querySelectorAll('.card-title').forEach(title => {
+            if (title.textContent.trim() === 'Datové zdroje') title.textContent = 'Fotovoltaika';
+        });
     }
 
     function pruneSystemView() {
@@ -309,6 +315,7 @@ static const char LIVE_SETTINGS_UI_PATCH[] PROGMEM = R"livepatch(
     function installNetworkConfigFix(attempt = 0) {
         const fixed = patchNetworkConfigLoader();
         polishNetworkLabels();
+        renamePhotovoltaicsUi();
         pruneSystemView();
         const ntpReady = installNtpSyncButton();
         if (fixed && ntpReady) return;
