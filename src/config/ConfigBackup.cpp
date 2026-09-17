@@ -1,4 +1,5 @@
 #include "ConfigBackup.h"
+#include <math.h>
 #include <cstdlib>
 #include <cerrno>
 #include <IPAddress.h>
