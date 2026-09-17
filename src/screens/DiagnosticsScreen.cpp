@@ -8,7 +8,7 @@ void DiagnosticsScreen::render(IDisplay& display, const DataModel& dm) {
     ScreenStyle::drawCard(display, 75, 63, 342, 402, "ESP32 A SÍŤ");
     ScreenStyle::useBody(display);
     display.setCursor(90, 135);
-    display.printf("Firmware: v%s", FIRMWARE_VERSION);
+    display.printf("Firmware: %s", FIRMWARE_NAME);
     display.setCursor(90, 170);
     display.printf("Build: %s", FIRMWARE_BUILD_DATE);
     display.setCursor(90, 205);
