@@ -7,7 +7,7 @@ public:
     TimeService();
 
     void begin(const String& timezone, const String& ntpServer);
-    void loop(bool wifiConnected);
+    void loop();
     bool isSynced() const;
     String getTimeStr();    // HH:MM bez sekund
     String getDateStr();    // d. m. YYYY
