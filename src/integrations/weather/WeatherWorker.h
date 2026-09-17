@@ -12,6 +12,7 @@
 class WeatherWorker {
 public:
     bool begin(const WeatherConfig& config);
+    bool reconfigure(const WeatherConfig& config);
     bool takeLatest(WeatherData& weatherData);
 
 private:
@@ -30,4 +31,5 @@ private:
     static void taskEntry(void* parameter);
     void taskLoop();
     void publish(const WeatherData& weatherData);
+    IWeatherProvider* providerFor(const String& providerName);
 };
