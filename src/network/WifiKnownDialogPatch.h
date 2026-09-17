@@ -189,4 +189,84 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
     setInterval(refreshDeviceStatus,5000);
 })();
 </script>
+
+<script>
+(() => {
+    const marker='\n──────── síťová diagnostika ────────\n';
+    const defs=[
+        {key:'goodwe',id:'gwDeviceStatus'},
+        {key:'azrouter',id:'azDeviceStatus'}
+    ];
+    const cache=new Map();
+
+    function formatTestAge(timestamp){
+        if(!timestamp)return'neprovedeno';
+        const seconds=Math.max(0,Math.floor((Date.now()-timestamp)/1000));
+        if(seconds<60)return'před '+seconds+' s';
+        return'před '+Math.floor(seconds/60)+' min';
+    }
+
+    function diagnosticLines(def){
+        const entry=cache.get(def.key);
+        if(!entry)return['Ping: čeká na test','Port: čeká na test'];
+        const data=entry.data||{};
+        if(!data.tested){
+            return [
+                'Ping: neproveden',
+                'Port '+(data.portProtocol||'')+': neproveden',
+                'Důvod: '+(data.message||'diagnostika není dostupná')
+            ];
+        }
+        const lines=[];
+        if(data.resolvedIp)lines.push('IP: '+data.resolvedIp);
+        lines.push(data.pingOk
+            ? 'Ping: OK · '+Number(data.pingMs||0)+' ms'
+            : 'Ping: bez odezvy');
+        const protocol=data.portProtocol||'';
+        const portLabel='Port '+protocol+' '+(data.port||'');
+        lines.push(data.portOpen
+            ? portLabel+': OK · '+Number(data.portMs||0)+' ms'
+            : portLabel+': nedostupný');
+        if(data.message)lines.push('Poznámka: '+data.message);
+        lines.push('Testováno: '+formatTestAge(entry.at));
+        return lines;
+    }
+
+    function apply(def){
+        const el=document.getElementById(def.id);if(!el)return;
+        const current=el.dataset.tooltip||'';
+        const base=current.includes(marker)?current.split(marker)[0]:current;
+        const next=base+marker+diagnosticLines(def).join('\n');
+        if(current!==next)el.dataset.tooltip=next;
+    }
+
+    defs.forEach(def=>{
+        const el=document.getElementById(def.id);if(!el)return;
+        const observer=new MutationObserver(()=>apply(def));
+        observer.observe(el,{attributes:true,attributeFilter:['data-tooltip']});
+        apply(def);
+    });
+
+    async function testOne(def){
+        try{
+            const controller=new AbortController();
+            const timeout=setTimeout(()=>controller.abort(),3000);
+            const response=await fetch('/api/diagnostics/device?source='+encodeURIComponent(def.key),{cache:'no-store',signal:controller.signal});
+            clearTimeout(timeout);
+            if(!response.ok)throw new Error('HTTP '+response.status);
+            cache.set(def.key,{data:await response.json(),at:Date.now()});
+        }catch(error){
+            cache.set(def.key,{data:{tested:false,portProtocol:def.key==='goodwe'?'UDP':'TCP',message:error.name==='AbortError'?'test vypršel':'test selhal'},at:Date.now()});
+        }
+        apply(def);
+    }
+
+    async function refreshNetworkDiagnostics(){
+        for(const def of defs)await testOne(def);
+    }
+
+    setTimeout(refreshNetworkDiagnostics,1500);
+    setInterval(refreshNetworkDiagnostics,30000);
+})();
+</script>
 )wifiknown";
