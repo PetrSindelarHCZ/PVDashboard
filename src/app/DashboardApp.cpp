@@ -78,8 +78,13 @@ void DashboardApp::setup() {
     applyWifiAddressing(cfg.wifi);
 
     registerScreens();
-    _screenManager.activateScreen(cfg.display.defaultScreen);
-    _dataModel.system.currentScreenId = cfg.display.defaultScreen;
+    if (!_screenManager.activateScreen(cfg.display.defaultScreen)) {
+        _screenManager.activateScreen("home");
+    }
+    _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
+    _dataModel.weather.enabled = cfg.weather.enabled;
+    const WeatherLocation* initialWeatherLocation = cfg.weather.activeLocation();
+    _dataModel.weather.locationName = initialWeatherLocation ? initialWeatherLocation->name : "";
 
     _wifiManager.onStatusChange([this](bool connected, const String& ip) {
         Serial.printf("[APP] Wi-Fi zmena stavu -> Connected: %d, IP: %s\n", connected, ip.c_str());
@@ -248,8 +253,13 @@ void DashboardApp::setup() {
 
     _webServer.onWeatherConfig([this](const WeatherConfig& weather) {
         _configManager.setWeather(weather);
-        if (!_weatherWorker.reconfigure(weather)) Serial.println("[CONFIG] Nepodarilo se aplikovat konfiguraci pocasi za behu.");
-        if (!weather.enabled) _dataModel.weather.status.recordError("Weather disabled");
+        const WeatherConfig& applied = _configManager.get().weather;
+        if (!_weatherWorker.reconfigure(applied)) Serial.println("[CONFIG] Nepodarilo se aplikovat konfiguraci pocasi za behu.");
+        _dataModel.weather.enabled = applied.enabled;
+        const WeatherLocation* activeLocation = applied.activeLocation();
+        _dataModel.weather.locationName = activeLocation ? activeLocation->name : "";
+        if (!applied.enabled) _dataModel.weather.status.recordError("Weather disabled");
+        setWeatherScreensEnabled(applied.enabled);
         requestAutomaticDisplayRefresh();
         Serial.println("[CONFIG] Pocasi ulozeno a aplikovano za behu.");
     });
@@ -275,9 +285,33 @@ void DashboardApp::registerScreens() {
     _screenManager.registerScreen(&_homeScreen);
     _screenManager.registerScreen(&_solarScreen);
     _screenManager.registerScreen(&_poolScreen);
-    _screenManager.registerScreen(&_weatherScreen);
-    for (auto& screen : _weatherHourlyScreens) _screenManager.registerScreen(&screen);
+    if (_configManager.get().weather.enabled) {
+        _screenManager.registerScreen(&_weatherScreen);
+        for (auto& screen : _weatherHourlyScreens) _screenManager.registerScreen(&screen);
+    }
     _screenManager.registerScreen(&_diagnosticsScreen);
+}
+
+void DashboardApp::setWeatherScreensEnabled(bool enabled) {
+    const String activeId = _screenManager.getActiveScreenId();
+    const bool weatherWasActive = activeId == "weather" || activeId.startsWith("weather-hourly-");
+
+    if (enabled) {
+        _screenManager.registerScreen(&_weatherScreen);
+        for (auto& screen : _weatherHourlyScreens) _screenManager.registerScreen(&screen);
+        return;
+    }
+
+    _screenManager.unregisterScreen("weather");
+    for (uint8_t i = 0; i < WeatherForecastDayCount; ++i) {
+        _screenManager.unregisterScreen("weather-hourly-" + String(i));
+    }
+
+    if (weatherWasActive) {
+        _screenManager.activateScreen("home");
+        _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
+        requestDisplayRefresh(true, 100);
+    }
 }
 
 void DashboardApp::requestDisplayRefresh(bool full, unsigned long delayMs) {
