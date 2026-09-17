@@ -12,9 +12,13 @@ public:
     String getTimeStr();    // HH:MM bez sekund
     String getDateStr();    // d. m. YYYY
     String getDayOfWeekStr();
+    static String getNtpStatusJson(bool wifiConnected);
 
 private:
     String _timezone;
     String _ntpServer;
     bool _synced = false;
+    unsigned long _configuredAtMs = 0;
+    unsigned long _lastSyncMs = 0;
+    time_t _lastSyncEpoch = 0;
 };
