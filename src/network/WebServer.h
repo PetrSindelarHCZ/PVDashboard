@@ -1,12 +1,14 @@
 #pragma once
 #include <Arduino.h>
 #include <WebServer.h>
+#include <ArduinoJson.h>
 #include <functional>
 #include "../config/ConfigSchema.h"
 #include "../data/DataModel.h"
 #include "../display/DisplayTaskStatus.h"
 #include "../screens/ScreenManager.h"
 #include "../update/OtaManager.h"
+#include "NetworkDiagnostics.h"
 
 class DashboardWebServer {
 public:
@@ -111,6 +113,51 @@ public:
 
             _server.send(200, "application/json", "{\"status\":\"saved\"}");
             _wifiNetworkConfigCallback(wifi);
+        });
+
+        // Ruční diagnostika používá hodnoty právě zadané do formuláře a nic neukládá.
+        _server.on("/api/sources/test", HTTP_POST, [this]() {
+            if (!_server.hasArg("source") || !_server.hasArg("host") || !_server.hasArg("port")) {
+                _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Chybi zdroj, host nebo port\"}");
+                return;
+            }
+            const String source = _server.arg("source");
+            String host = _server.arg("host");
+            host.trim();
+            const long parsedPort = _server.arg("port").toInt();
+            if (host.isEmpty() || parsedPort < 1 || parsedPort > 65535 || (source != "goodwe" && source != "azrouter")) {
+                _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Neplatny cil testu\"}");
+                return;
+            }
+            if (!_dataModel.system.wifiConnected) {
+                _server.send(409, "application/json", "{\"status\":\"error\",\"message\":\"Wi-Fi neni pripojena\"}");
+                return;
+            }
+
+            const uint16_t port = static_cast<uint16_t>(parsedPort);
+            const NetworkProbeTransport transport = source == "goodwe"
+                ? NetworkProbeTransport::GoodWeUdp
+                : NetworkProbeTransport::Tcp;
+            const NetworkProbeResult probe = NetworkDiagnostics::probe(host, port, transport);
+
+            JsonDocument doc;
+            doc["status"] = "ok";
+            doc["source"] = source;
+            doc["host"] = host;
+            doc["port"] = port;
+            doc["tested"] = true;
+            doc["resolved"] = probe.resolved;
+            doc["resolvedIp"] = probe.resolvedIp;
+            doc["pingOk"] = probe.pingOk;
+            doc["pingMs"] = probe.pingMs;
+            doc["portOpen"] = probe.portOpen;
+            doc["portMs"] = probe.portConnectMs;
+            doc["portProtocol"] = probe.portProtocol;
+            doc["message"] = probe.error;
+            String response;
+            serializeJson(doc, response);
+            _server.sendHeader("Cache-Control", "no-store");
+            _server.send(200, "application/json", response);
         });
     }
     void onWifiScan(WifiScanCallback callback);
