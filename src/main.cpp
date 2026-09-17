@@ -3,6 +3,9 @@
 #include "soc/rtc_cntl_reg.h"
 #include "app/DashboardApp.h"
 
+// GitHub HTTPS checks and OTA downloads run on loopTask and need stack headroom.
+SET_LOOP_TASK_STACK_SIZE(16 * 1024);
+
 DashboardApp app;
 
 void setup() {
