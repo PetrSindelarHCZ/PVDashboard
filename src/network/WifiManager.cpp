@@ -24,25 +24,40 @@ void WifiManager::onStatusChange(WifiStatusCallback callback) {
 }
 
 void WifiManager::begin(const String& ssid, const String& password, const String& hostname) {
+    const bool wasOnline = _connected || _configAccessPoint || WiFi.status() == WL_CONNECTED;
+
     _ssid = ssid;
     _password = password;
     _hostname = hostname;
+    _connected = false;
+    _configAccessPoint = false;
+    _lastReconnectAttempt = millis();
 
+    if (wasOnline && _statusCallback) {
+        _statusCallback(false, "0.0.0.0");
+    }
+
+    MDNS.end();
+    WiFi.softAPdisconnect(true);
     WiFi.disconnect(false);
     delay(100);
     WiFi.mode(WIFI_STA);
 
-    // Registrace událostí pro detailní diagnostiku Wi-Fi stavu
-    WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
-        if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
-            Serial.printf("[WIFI-EVENT] Odpojeno! Dvod (reason code): %d\n", info.wifi_sta_disconnected.reason);
-            // Kódy: 2 = AUTH_EXPIRE, 15 = 4WAY_HANDSHAKE_TIMEOUT, 201 = NO_AP_FOUND, 202 = AUTH_FAIL
-        } else if (event == ARDUINO_EVENT_WIFI_STA_CONNECTED) {
-            Serial.println("[WIFI-EVENT] AP prirazeno (STA_CONNECTED).");
-        } else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
-            Serial.printf("[WIFI-EVENT] IP pridelena: %s\n", IPAddress(info.got_ip.ip_info.ip.addr).toString().c_str());
-        }
-    });
+    // Event handlery registrujeme jen jednou. begin() lze volat znovu při
+    // změně konfigurace bez hromadění duplicitních callbacků.
+    if (!_eventsRegistered) {
+        WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+            if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+                Serial.printf("[WIFI-EVENT] Odpojeno! Dvod (reason code): %d\n", info.wifi_sta_disconnected.reason);
+                // Kódy: 2 = AUTH_EXPIRE, 15 = 4WAY_HANDSHAKE_TIMEOUT, 201 = NO_AP_FOUND, 202 = AUTH_FAIL
+            } else if (event == ARDUINO_EVENT_WIFI_STA_CONNECTED) {
+                Serial.println("[WIFI-EVENT] AP prirazeno (STA_CONNECTED).");
+            } else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
+                Serial.printf("[WIFI-EVENT] IP pridelena: %s\n", IPAddress(info.got_ip.ip_info.ip.addr).toString().c_str());
+            }
+        });
+        _eventsRegistered = true;
+    }
 
     if (_ssid.isEmpty() || _ssid == "VASE_WIFI") {
         Serial.println("[WIFI] Wi-Fi neni nakonfigurovano, spoustim konfiguracni AP.");
@@ -58,7 +73,7 @@ void WifiManager::begin(const String& ssid, const String& password, const String
 
     // Nastavení Wi-Fi protokolu na širokou kompatibilitu 802.11 b/g/n (vypnuté Long Range a proprietární režimy)
     esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
-    
+
     // Vypnutí úsporného režimu Wi-Fi pro maximální stabilitu
     esp_wifi_set_ps(WIFI_PS_NONE);
 
@@ -79,8 +94,8 @@ bool WifiManager::waitForConnection(uint32_t timeoutMs) {
 
     if (WiFi.status() == WL_CONNECTED) {
         _connected = true;
-        Serial.printf("[WIFI] Uspesne pripojeno! IP: %s | RSSI: %d dBm\n", 
-                      WiFi.localIP().toString().c_str(), 
+        Serial.printf("[WIFI] Uspesne pripojeno! IP: %s | RSSI: %d dBm\n",
+                      WiFi.localIP().toString().c_str(),
                       WiFi.RSSI());
         if (MDNS.begin(_hostname.c_str())) {
             Serial.printf("[WIFI] mDNS responder bezi: http://%s.local/\n", _hostname.c_str());
@@ -103,6 +118,7 @@ void WifiManager::loop() {
         String ip = WiFi.localIP().toString();
         Serial.printf("[WIFI] Pripojeno! IP: %s, RSSI: %d dBm\n", ip.c_str(), WiFi.RSSI());
 
+        MDNS.end();
         if (MDNS.begin(_hostname.c_str())) {
             Serial.printf("[WIFI] mDNS responder bezi: http://%s.local/\n", _hostname.c_str());
         }
@@ -120,8 +136,8 @@ void WifiManager::loop() {
         unsigned long now = millis();
         if (now - _lastReconnectAttempt > 10000) {
             _lastReconnectAttempt = now;
-            Serial.printf("[WIFI] Stav: %s -> zkousim znovu pripojit k '%s'...\n", 
-                          wlStatusToString(WiFi.status()), 
+            Serial.printf("[WIFI] Stav: %s -> zkousim znovu pripojit k '%s'...\n",
+                          wlStatusToString(WiFi.status()),
                           _ssid.c_str());
             WiFi.reconnect();
         }
@@ -172,6 +188,7 @@ String WifiManager::getIpAddress() const {
 void WifiManager::startConfigAccessPoint() {
     _configAccessPoint = true;
     _connected = false;
+    MDNS.end();
     WiFi.mode(WIFI_AP);
     WiFi.softAP("Dashboard-Setup", "dashboard");
     Serial.printf("[WIFI] Konfiguracni AP: Dashboard-Setup | heslo: dashboard | IP: %s\n",
