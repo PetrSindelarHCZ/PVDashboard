@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include <WebServer.h>
+#include <WiFi.h>
 #include <ArduinoJson.h>
 #include <functional>
 #include "../config/ConfigSchema.h"
@@ -49,6 +50,17 @@ public:
             doc["gateway"] = wifi.gateway;
             doc["dns1"] = wifi.dns1;
             doc["dns2"] = wifi.dns2;
+
+            const bool leaseAvailable = WiFi.status() == WL_CONNECTED;
+            doc["leaseAvailable"] = leaseAvailable;
+            if (leaseAvailable) {
+                doc["currentIpAddress"] = WiFi.localIP().toString();
+                doc["currentSubnetMask"] = WiFi.subnetMask().toString();
+                doc["currentGateway"] = WiFi.gatewayIP().toString();
+                doc["currentDns1"] = WiFi.dnsIP(0).toString();
+                doc["currentDns2"] = WiFi.dnsIP(1).toString();
+            }
+
             String response;
             serializeJson(doc, response);
             _server.sendHeader("Cache-Control", "no-store");
