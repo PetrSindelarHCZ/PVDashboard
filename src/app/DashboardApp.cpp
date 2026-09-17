@@ -71,6 +71,16 @@ void DashboardApp::setup() {
 
     _wifiManager.onStatusChange([this](bool connected, const String& ip) {
         Serial.printf("[APP] Wi-Fi zmena stavu -> Connected: %d, IP: %s\n", connected, ip.c_str());
+
+        if (connected && _pendingWifiSave && _wifiManager.getSsid() == _pendingWifiSsid) {
+            _configManager.setWifi(_pendingWifiSsid, _pendingWifiPassword);
+            Serial.printf("[WIFI] Rucne vybrana sit '%s' se uspesne pripojila a byla ulozena.\n",
+                          _pendingWifiSsid.c_str());
+            _pendingWifiSave = false;
+            _pendingWifiSsid = "";
+            _pendingWifiPassword = "";
+        }
+
         _dataModel.system.wifiConnected = connected;
         _dataModel.system.wifiSignalLevel = _wifiSignalLevel.update(connected, _wifiManager.getRssi(), millis());
         _dataModel.system.ipAddress = ip;
@@ -81,6 +91,9 @@ void DashboardApp::setup() {
         return _configManager.getAutoJoinWifiPassword(ssid, password);
     });
     _wifiManager.onAutoNetworkSelected([this](const String& ssid, const String& password) {
+        _pendingWifiSave = false;
+        _pendingWifiSsid = "";
+        _pendingWifiPassword = "";
         _configManager.setWifi(ssid, password);
         Serial.printf("[WIFI] Automaticky obnovena znama sit '%s' a nastavena jako aktivni.\n", ssid.c_str());
         requestAutomaticDisplayRefresh();
@@ -146,14 +159,19 @@ void DashboardApp::setup() {
     });
 
     _webServer.onWifiConfig([this](const String& ssid, const String& password) {
-        _configManager.setWifi(ssid, password);
         const auto& current = _configManager.get();
+        _pendingWifiSave = true;
+        _pendingWifiSsid = ssid;
+        _pendingWifiPassword = password;
         applyWifiAddressing(current.wifi);
-        Serial.println("[CONFIG] Wi-Fi ulozena, prepojuji bez restartu...");
+        Serial.printf("[WIFI] Rucne zkousim sit '%s'; ulozim ji az po uspesnem pripojeni.\n", ssid.c_str());
         _wifiManager.begin(ssid, password, current.system.hostname);
     });
 
     _webServer.onWifiNetworkConfig([this](const WifiConfig& wifi) {
+        _pendingWifiSave = false;
+        _pendingWifiSsid = "";
+        _pendingWifiPassword = "";
         _configManager.setWifiNetworkConfig(wifi);
         const auto& current = _configManager.get();
         applyWifiAddressing(current.wifi);
@@ -169,15 +187,20 @@ void DashboardApp::setup() {
     _webServer.onWifiConnectKnown([this](const String& ssid) {
         String password;
         if (!_configManager.getKnownWifiPassword(ssid, password)) return false;
-        _configManager.setWifi(ssid, password);
         const auto& current = _configManager.get();
+        _pendingWifiSave = true;
+        _pendingWifiSsid = ssid;
+        _pendingWifiPassword = password;
         applyWifiAddressing(current.wifi);
-        Serial.printf("[WIFI] Rucne pripojuji znamou sit '%s'; auto-connect je znovu povolen.\n", ssid.c_str());
+        Serial.printf("[WIFI] Rucne zkousim znamou sit '%s'; auto-connect povolim az po uspesnem pripojeni.\n", ssid.c_str());
         _wifiManager.begin(ssid, password, current.system.hostname);
         return true;
     });
 
     _webServer.onWifiDisconnect([this]() {
+        _pendingWifiSave = false;
+        _pendingWifiSsid = "";
+        _pendingWifiPassword = "";
         const String activeSsid = _configManager.get().wifi.ssid;
         if (!activeSsid.isEmpty() && activeSsid != "VASE_WIFI") {
             if (_configManager.setWifiAutoConnectEnabled(activeSsid, false))
@@ -188,6 +211,11 @@ void DashboardApp::setup() {
     });
 
     _webServer.onWifiForget([this](const String& ssid) {
+        if (_pendingWifiSave && _pendingWifiSsid == ssid) {
+            _pendingWifiSave = false;
+            _pendingWifiSsid = "";
+            _pendingWifiPassword = "";
+        }
         const bool wasActive = _configManager.get().wifi.ssid == ssid;
         if (!_configManager.forgetWifi(ssid)) return false;
         if (wasActive) { _wifiManager.disconnectToConfigAccessPoint(); requestAutomaticDisplayRefresh(); }
