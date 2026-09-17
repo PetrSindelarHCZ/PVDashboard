@@ -14,21 +14,6 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
     .source-device-status::after { content:attr(data-tooltip); position:absolute; right:0; top:calc(100% + 8px); z-index:95; width:max-content; max-width:min(390px,82vw); padding:9px 11px; border:1px solid var(--card-border); border-radius:8px; background:#0f1218; color:var(--text); box-shadow:0 10px 24px rgba(0,0,0,.45); font-size:.74rem; font-weight:400; line-height:1.45; white-space:pre-line; text-align:left; opacity:0; visibility:hidden; pointer-events:none; transform:translateY(-3px); transition:.12s ease; }
     .source-device-status:hover::after,.source-device-status:focus::after { opacity:1; visibility:visible; transform:none; }
 
-    .network-config-field { grid-column:1 / -1; }
-    .network-config-box { border:1px solid var(--card-border); border-radius:9px; background:#171a21; padding:11px; }
-    .network-mode-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(150px,220px); gap:12px; align-items:center; }
-    .network-mode-title { font-weight:700; }
-    .network-mode-sub { color:var(--text-sub); font-size:.72rem; margin-top:3px; }
-    .network-static-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:12px; padding-top:12px; border-top:1px solid #2b3240; }
-    .network-ip-field { display:flex; flex-direction:column; gap:5px; }
-    .network-ip-field label { color:var(--text-sub); font-size:.72rem; }
-    .network-config-actions { display:flex; align-items:center; gap:10px; margin-top:11px; flex-wrap:wrap; }
-    .network-config-actions .btn { width:auto; min-height:0; padding:8px 11px; }
-    .network-config-status { color:var(--text-sub); font-size:.72rem; }
-    .network-config-status.error { color:#fca5a5; }
-    .network-config-status.ok { color:#86efac; }
-    .network-ap-note { color:var(--text-sub); font-size:.70rem; line-height:1.4; margin-top:9px; }
-
     .wifi-input,.ntp-picker-button,.wifi-picker-button { background-color:var(--control-bg); color:var(--text); border:1px solid var(--control-border); border-radius:8px; min-height:44px; font-size:.92rem; }
     .wifi-input:focus,.ntp-picker-button:focus,.wifi-picker-button:focus { outline:none; border-color:#4b5563; box-shadow:0 0 0 2px rgba(96,165,250,.10); }
     select.wifi-input { appearance:none; -webkit-appearance:none; padding-right:34px; background-image:linear-gradient(45deg,transparent 50%,#9ba1b0 50%),linear-gradient(135deg,#9ba1b0 50%,transparent 50%); background-position:calc(100% - 17px) 52%,calc(100% - 12px) 52%; background-size:5px 5px,5px 5px; background-repeat:no-repeat; }
@@ -41,13 +26,19 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
     .system-settings-card { grid-column:1 / -1 !important; }
     .system-subcard-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; width:100%; }
     .system-subcard { background:#171a21; border:1px solid #2b3240; border-radius:10px; padding:14px; display:flex; flex-direction:column; gap:12px; min-width:0; }
-    .system-subcard-header { padding-bottom:10px; border-bottom:1px solid #282e3a; }
+    .system-subcard-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-bottom:10px; border-bottom:1px solid #282e3a; }
     .system-subcard-title { font-size:1rem; font-weight:700; }
-    .system-subcard-help { color:var(--text-sub); font-size:.72rem; line-height:1.4; margin-top:3px; }
     .system-subcard-body { display:flex; flex-direction:column; gap:10px; min-width:0; }
     .system-subcard-body .system-grid { margin:0; }
-    .system-network-card .network-config-box { border:0; border-radius:0; background:transparent; padding:0; }
-    .system-network-card .network-config-field { width:100%; }
+    .system-settings-save { margin-top:14px; }
+
+    .network-config-field { grid-column:1 / -1; width:100%; }
+    .network-config-box { display:flex; flex-direction:column; gap:10px; }
+    .network-mode-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(150px,220px); gap:12px; align-items:center; }
+    .network-mode-title { font-weight:700; }
+    .network-static-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; padding-top:2px; }
+    .network-ip-field { display:flex; flex-direction:column; gap:5px; }
+    .network-ip-field label { color:var(--text-sub); font-size:.72rem; }
 
     .source-host-label-row { display:flex; align-items:center; justify-content:space-between; gap:10px; min-width:0; }
     .source-host-actions { display:flex; align-items:center; gap:9px; flex:0 0 auto; }
@@ -133,15 +124,31 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
     if(document.getElementById('networkAddressMode'))return;
     const systemGrid=document.querySelector('form[onsubmit^="saveSystem"] .system-grid');const wifiField=document.querySelector('.wifi-system-field');if(!systemGrid)return;
     const field=document.createElement('div');field.className='system-field network-config-field';
-    field.innerHTML=`<div class="network-config-box"><div class="network-mode-row"><div><div class="network-mode-title">IP konfigurace</div><div class="network-mode-sub">Adresace Wi‑Fi STA rozhraní dashboardu</div></div><select class="wifi-input" id="networkAddressMode"><option value="dhcp">DHCP — automaticky</option><option value="static">Pevná IP adresa</option></select></div><div class="network-static-grid" id="networkStaticFields" hidden><div class="network-ip-field"><label for="networkIpAddress">IP adresa</label><input class="wifi-input" id="networkIpAddress" inputmode="decimal" placeholder="192.168.1.50"></div><div class="network-ip-field"><label for="networkSubnetMask">Maska sítě</label><input class="wifi-input" id="networkSubnetMask" inputmode="decimal" placeholder="255.255.255.0"></div><div class="network-ip-field"><label for="networkGateway">Výchozí brána</label><input class="wifi-input" id="networkGateway" inputmode="decimal" placeholder="192.168.1.1"></div><div class="network-ip-field"><label for="networkDns1">DNS 1</label><input class="wifi-input" id="networkDns1" inputmode="decimal" placeholder="192.168.1.1"></div><div class="network-ip-field"><label for="networkDns2">DNS 2 · volitelné</label><input class="wifi-input" id="networkDns2" inputmode="decimal" placeholder="1.1.1.1"></div></div><div class="network-ap-note">Konfigurační AP <b>Dashboard-Setup</b> používá vždy adresu <b>192.168.4.1</b>; toto nastavení se týká pouze připojení STA.</div><div class="network-config-actions"><button class="btn btn-secondary" type="button" id="networkConfigSave">Použít síťové nastavení</button><span class="network-config-status" id="networkConfigStatus"></span></div></div>`;
+    field.innerHTML=`<div class="network-config-box"><div class="network-mode-row"><div class="network-mode-title">IP konfigurace</div><select class="wifi-input" id="networkAddressMode"><option value="dhcp">DHCP — automaticky</option><option value="static">Pevná IP adresa</option></select></div><div class="network-static-grid" id="networkStaticFields" hidden><div class="network-ip-field"><label for="networkIpAddress">IP adresa</label><input class="wifi-input" id="networkIpAddress" inputmode="decimal" placeholder="192.168.1.50"></div><div class="network-ip-field"><label for="networkSubnetMask">Maska sítě</label><input class="wifi-input" id="networkSubnetMask" inputmode="decimal" placeholder="255.255.255.0"></div><div class="network-ip-field"><label for="networkGateway">Výchozí brána</label><input class="wifi-input" id="networkGateway" inputmode="decimal" placeholder="192.168.1.1"></div><div class="network-ip-field"><label for="networkDns1">DNS 1</label><input class="wifi-input" id="networkDns1" inputmode="decimal" placeholder="192.168.1.1"></div><div class="network-ip-field"><label for="networkDns2">DNS 2 · volitelné</label><input class="wifi-input" id="networkDns2" inputmode="decimal" placeholder="1.1.1.1"></div></div></div>`;
     if(wifiField)wifiField.insertAdjacentElement('afterend',field);else systemGrid.prepend(field);
-    const mode=document.getElementById('networkAddressMode'),staticFields=document.getElementById('networkStaticFields'),status=document.getElementById('networkConfigStatus'),save=document.getElementById('networkConfigSave');
+
+    const mode=document.getElementById('networkAddressMode'),staticFields=document.getElementById('networkStaticFields');
     const ids={ipAddress:'networkIpAddress',subnetMask:'networkSubnetMask',gateway:'networkGateway',dns1:'networkDns1',dns2:'networkDns2'};
+    let lastMode='dhcp';let lastData=null;
     function showMode(){staticFields.hidden=mode.value!=='static';}
-    function setStatus(text,kind=''){status.textContent=text;status.className='network-config-status'+(kind?' '+kind:'');}
-    mode.addEventListener('change',showMode);
-    async function load(){try{const r=await fetch('/api/network/config',{cache:'no-store'});if(!r.ok)throw new Error();const d=await r.json();mode.value=d.dhcp===false?'static':'dhcp';Object.entries(ids).forEach(([key,id])=>document.getElementById(id).value=d[key]||'');showMode();}catch(_){setStatus('Síťovou konfiguraci nelze načíst.','error');}}
-    save.addEventListener('click',async()=>{save.disabled=true;setStatus('Ukládám…');try{const body=new URLSearchParams({mode:mode.value,ipAddress:document.getElementById(ids.ipAddress).value.trim(),subnetMask:document.getElementById(ids.subnetMask).value.trim(),gateway:document.getElementById(ids.gateway).value.trim(),dns1:document.getElementById(ids.dns1).value.trim(),dns2:document.getElementById(ids.dns2).value.trim()});const r=await fetch('/api/network/config',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.message||('HTTP '+r.status));setStatus(mode.value==='dhcp'?'DHCP nastaveno. Připojení se obnovuje…':'Pevná IP uložena. WebUI bude dostupné na nové adrese…','ok');}catch(e){setStatus(e.message||'Nastavení se nepodařilo uložit.','error');save.disabled=false;return;}setTimeout(()=>save.disabled=false,4000);});
+    function usable(value){return value&&value!=='0.0.0.0';}
+    function setFields(data,prefix=''){
+        const map={ipAddress:prefix+'IpAddress',subnetMask:prefix+'SubnetMask',gateway:prefix+'Gateway',dns1:prefix+'Dns1',dns2:prefix+'Dns2'};
+        Object.entries(ids).forEach(([key,id])=>{const value=data[map[key]]||'';document.getElementById(id).value=usable(value)?value:'';});
+    }
+    async function fetchConfig(){const r=await fetch('/api/network/config',{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);lastData=await r.json();return lastData;}
+    async function load(){
+        try{const data=await fetchConfig();mode.value=data.dhcp===false?'static':'dhcp';setFields(data);lastMode=mode.value;showMode();return data;}
+        catch(_){return null;}
+    }
+    async function prefillLease(){
+        try{const data=await fetchConfig();if(data.leaseAvailable){setFields(data,'current');}else if(lastData){setFields(lastData);}return data;}
+        catch(_){return null;}
+    }
+    function rawState(){return{mode:mode.value,ipAddress:document.getElementById(ids.ipAddress).value.trim(),subnetMask:document.getElementById(ids.subnetMask).value.trim(),gateway:document.getElementById(ids.gateway).value.trim(),dns1:document.getElementById(ids.dns1).value.trim(),dns2:document.getElementById(ids.dns2).value.trim()};}
+    function comparableState(){const s=rawState();return s.mode==='dhcp'?{mode:'dhcp'}:s;}
+    mode.addEventListener('change',async()=>{const previous=lastMode;lastMode=mode.value;if(previous==='dhcp'&&mode.value==='static')await prefillLease();showMode();if(window.dashboardUpdateSystemDirty)window.dashboardUpdateSystemDirty();});
+    window.dashboardNetworkUi={load,prefillLease,rawState,comparableState,fetchConfig};
     load();
 })();
 </script>
@@ -168,14 +175,18 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
     }
 
     function splitSystemSettings(){
-        const form=document.querySelector('.view-settings form[onsubmit^="saveSystem"]')||document.querySelector('form[onsubmit^="saveSystem"]');if(!form||form.querySelector('.system-subcard-grid'))return;
-        const grid=form.querySelector('.system-grid');if(!grid)return;const wifiField=grid.querySelector('.wifi-system-field'),networkField=grid.querySelector('.network-config-field'),submit=form.querySelector('button[type="submit"]');
+        const form=document.querySelector('.view-settings form[onsubmit^="saveSystem"]')||document.querySelector('form[onsubmit^="saveSystem"]');if(!form||form.querySelector('.system-subcard-grid'))return form;
+        const grid=form.querySelector('.system-grid');if(!grid)return form;
+        const timezoneSearch=document.getElementById('systemTimezoneSearch');const timezoneField=timezoneSearch&&timezoneSearch.closest('.system-field');if(timezoneField)timezoneField.querySelectorAll('.field-help').forEach(el=>el.remove());
+        const wifiField=grid.querySelector('.wifi-system-field'),networkField=grid.querySelector('.network-config-field');
         const subgrid=document.createElement('div');subgrid.className='system-subcard-grid';
-        const general=document.createElement('section');general.className='system-subcard system-general-card';general.innerHTML='<div class="system-subcard-header"><div class="system-subcard-title">Zařízení a čas</div><div class="system-subcard-help">Hostname, časové pásmo a synchronizace času.</div></div>';
-        const generalBody=document.createElement('div');generalBody.className='system-subcard-body';const generalGrid=document.createElement('div');generalGrid.className='system-grid';Array.from(grid.children).forEach(child=>{if(child!==wifiField&&child!==networkField)generalGrid.appendChild(child);});generalBody.appendChild(generalGrid);if(submit)generalBody.appendChild(submit);general.appendChild(generalBody);
-        const network=document.createElement('section');network.className='system-subcard system-network-card';network.innerHTML='<div class="system-subcard-header"><div class="system-subcard-title">Síť</div><div class="system-subcard-help">Wi‑Fi připojení, známé sítě a IP adresace rozhraní.</div></div>';
+        const general=document.createElement('section');general.className='system-subcard system-general-card';general.innerHTML='<div class="system-subcard-header"><div class="system-subcard-title">🕒 Zařízení a čas</div></div>';
+        const generalBody=document.createElement('div');generalBody.className='system-subcard-body';const generalGrid=document.createElement('div');generalGrid.className='system-grid';Array.from(grid.children).forEach(child=>{if(child!==wifiField&&child!==networkField)generalGrid.appendChild(child);});generalBody.appendChild(generalGrid);general.appendChild(generalBody);
+        const network=document.createElement('section');network.className='system-subcard system-network-card';network.innerHTML='<div class="system-subcard-header"><div class="system-subcard-title">🌐 Síť</div></div>';
         const networkBody=document.createElement('div');networkBody.className='system-subcard-body';if(wifiField)networkBody.appendChild(wifiField);if(networkField)networkBody.appendChild(networkField);network.appendChild(networkBody);
-        grid.replaceWith(subgrid);subgrid.append(general,network);const card=form.closest('.card');if(card)card.classList.add('system-settings-card','wide-card');
+        grid.replaceWith(subgrid);subgrid.append(general,network);
+        const submit=form.querySelector('button[type="submit"]');if(submit){submit.id='systemSettingsSave';submit.textContent='Uložit systém';submit.classList.add('source-save','system-settings-save');submit.disabled=true;}
+        const card=form.closest('.card');if(card)card.classList.add('system-settings-card','wide-card');return form;
     }
 
     function makeSettingsCardsCollapsible(){
@@ -188,7 +199,48 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
         });
     }
 
-    function init(){splitSystemSettings();moveSourceStatusAndAddTest();makeSettingsCardsCollapsible();}
+    function setupSharedSystemSave(form){
+        if(!form||form.dataset.sharedSaveReady==='1')return;form.dataset.sharedSaveReady='1';const save=document.getElementById('systemSettingsSave');if(!save)return;
+        let baselineSystem=null,baselineNetwork=null,saving=false;
+        const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+        function currentSystem(){
+            const timezone=document.getElementById('systemTimezone')?.value.trim()||'';let timezoneId=document.getElementById('systemTimezoneId')?.value.trim()||'';
+            if(!timezoneId&&baselineSystem&&timezone===baselineSystem.timezone)timezoneId=baselineSystem.timezoneId;
+            if(!timezoneId&&timezone)timezoneId='manual:'+timezone;
+            return{hostname:document.getElementById('systemHostname')?.value.trim()||'',ntpServer:document.getElementById('systemNtp')?.value.trim()||'',timezone,timezoneId};
+        }
+        function currentNetwork(){return window.dashboardNetworkUi?window.dashboardNetworkUi.comparableState():{mode:'dhcp'};}
+        function updateDirty(){if(!baselineSystem||!baselineNetwork){save.disabled=true;return;}save.disabled=saving||(!same(currentSystem(),baselineSystem)&&false);const dirty=!same(currentSystem(),baselineSystem)||!same(currentNetwork(),baselineNetwork);save.disabled=saving||!dirty;}
+        window.dashboardUpdateSystemDirty=updateDirty;
+        async function loadBaseline(){
+            try{
+                if(window.dashboardNetworkUi)await window.dashboardNetworkUi.load();
+                const [statusResponse,tzResponse,networkResponse]=await Promise.all([fetch('/api/status',{cache:'no-store'}),fetch('/api/config/timezone',{cache:'no-store'}),fetch('/api/network/config',{cache:'no-store'})]);
+                if(!statusResponse.ok||!tzResponse.ok||!networkResponse.ok)throw new Error();const status=await statusResponse.json(),tz=await tzResponse.json(),network=await networkResponse.json();
+                baselineSystem={hostname:status.systemConfig?.hostname||'',ntpServer:status.systemConfig?.ntpServer||'',timezone:tz.timezone||status.systemConfig?.timezone||'',timezoneId:tz.timezoneId||''};
+                baselineNetwork=network.dhcp===false?{mode:'static',ipAddress:network.ipAddress||'',subnetMask:network.subnetMask||'',gateway:network.gateway||'',dns1:network.dns1||'',dns2:network.dns2||''}:{mode:'dhcp'};
+                updateDirty();
+            }catch(_){save.disabled=true;}
+        }
+        form.addEventListener('input',()=>setTimeout(updateDirty,0));form.addEventListener('change',()=>setTimeout(updateDirty,0));
+        document.addEventListener('click',event=>{if(event.target.closest('.timezone-result,.ntp-option-main,.ntp-delete,.ntp-add button'))setTimeout(updateDirty,0);});
+        const ntpValue=document.getElementById('ntpPickerValue');if(ntpValue)new MutationObserver(()=>setTimeout(updateDirty,0)).observe(ntpValue,{childList:true,subtree:true,characterData:true});
+
+        window.saveSystem=async function(event){
+            event.preventDefault();if(save.disabled||saving)return;const system=currentSystem();const rawNetwork=window.dashboardNetworkUi?window.dashboardNetworkUi.rawState():{mode:'dhcp',ipAddress:'',subnetMask:'',gateway:'',dns1:'',dns2:''};
+            if(!system.hostname||!system.ntpServer||!system.timezone){showToast('Doplň systémové nastavení');return;}
+            saving=true;save.disabled=true;save.textContent='Ukládám…';
+            const networkChanged=!same(currentNetwork(),baselineNetwork);
+            try{
+                const body=new URLSearchParams({...system,...rawNetwork});const response=await fetch('/api/config/system-network',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.message||('HTTP '+response.status));
+                baselineSystem={...system};baselineNetwork={...currentNetwork()};showToast(networkChanged?'Nastavení uloženo, síť se znovu připojuje…':'Systémové nastavení uloženo');
+            }catch(error){showToast('Uložení se nezdařilo: '+(error.message||'chyba'));}
+            finally{saving=false;save.textContent='Uložit systém';updateDirty();}
+        };
+        loadBaseline();
+    }
+
+    function init(){const form=splitSystemSettings();moveSourceStatusAndAddTest();makeSettingsCardsCollapsible();setupSharedSystemSave(form);}
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 </script>
