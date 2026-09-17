@@ -121,6 +121,15 @@ void WeatherWorker::taskLoop() {
         }
 
         publish(working);
+
+        if (!config.enabled) {
+            // Vypnutý modul neprovádí polling ani periodické probouzení.
+            // Reconfigure() task probudí, až uživatel počasí znovu zapne.
+            failureStreak = 0;
+            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+            continue;
+        }
+
         uint32_t delaySeconds =
             nextDelaySeconds(config.pollIntervalSeconds, failureStreak, success);
         if (success && provider != nullptr) {
