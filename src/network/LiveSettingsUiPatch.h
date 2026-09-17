@@ -37,6 +37,18 @@ static const char LIVE_SETTINGS_UI_PATCH[] PROGMEM = R"livepatch(
         width: 100%;
     }
 
+    /* Refresh Wi-Fi držíme u labelu, ale velikostí odpovídá Otestovat/Synchronizovat. */
+    .system-network-card .wifi-refresh {
+        width: auto;
+        height: auto;
+        min-height: 0;
+        padding: 5px 8px;
+        border-radius: 7px;
+        font-size: .69rem;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
     .ntp-label-actions { display:flex; align-items:center; gap:9px; }
     .ntp-sync-button {
         appearance:none;
@@ -53,11 +65,18 @@ static const char LIVE_SETTINGS_UI_PATCH[] PROGMEM = R"livepatch(
     .ntp-sync-button:hover,.ntp-sync-button:focus { color:var(--text); border-color:#4b5563; outline:none; }
     .ntp-sync-button:disabled { opacity:.55; cursor:wait; }
 
+    /* Po odstranění duplicit zůstávají jen tři skutečně systémové ukazatele. */
+    .view-system .status-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+    @media (max-width: 1099px) {
+        .view-system .status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
     @media (max-width: 699px) {
         .view-settings .settings-form > .settings-save {
             width: auto;
             min-width: 150px;
         }
+        .view-system .status-grid { grid-template-columns: 1fr; }
     }
 </style>
 <script>
@@ -139,6 +158,33 @@ static const char LIVE_SETTINGS_UI_PATCH[] PROGMEM = R"livepatch(
         if (title) title.textContent = 'Přidělení IP adresy';
     }
 
+    function pruneSystemView() {
+        // Tyto informace už mají vlastní místo v UI a na kartě Systémový stav
+        // byly duplicitní. Elementy pouze skryjeme, aby starší refresh kód mohl
+        // dál bezpečně aktualizovat jejich hodnoty bez null dereference.
+        const redundantStatusIds = [
+            'statScreen',
+            'statWifi',
+            'statGoodwe',
+            'statGoodweUpdate',
+            'statAzrouter',
+            'statAzrouterUpdate',
+            'statWeather',
+            'statWeatherUpdate'
+        ];
+        redundantStatusIds.forEach(id => {
+            const value = document.getElementById(id);
+            const item = value && value.closest('.status-item');
+            if (item) item.hidden = true;
+        });
+
+        // Karta s upozorněním na demo data už na systémové stránce není užitečná.
+        document.querySelectorAll('.card').forEach(card => {
+            const title = card.querySelector('.card-title');
+            if (title && title.textContent.trim() === 'Demonstrační data') card.hidden = true;
+        });
+    }
+
     function formatNtpEpoch(epoch) {
         if (!epoch) return 'nikdy';
         try { return new Date(Number(epoch) * 1000).toLocaleString('cs-CZ'); }
@@ -164,11 +210,15 @@ static const char LIVE_SETTINGS_UI_PATCH[] PROGMEM = R"livepatch(
         else if (data.state === 'offline') label = 'Bez Wi-Fi';
         else status.classList.add('error');
         text.textContent = label;
+        const intervalHours = data.syncIntervalSeconds ? Number(data.syncIntervalSeconds) / 3600 : 6;
+        const retryMinutes = data.retryIntervalSeconds ? Number(data.retryIntervalSeconds) / 60 : 10;
         status.dataset.tooltip = [
             'Nakonfigurovaný server: ' + (data.server || '-'),
             'Stav: ' + label,
             'Poslední synchronizace: ' + formatNtpEpoch(data.lastSyncEpoch),
-            'Stáří synchronizace: ' + formatNtpAge(data.lastSyncAgeSeconds)
+            'Stáří synchronizace: ' + formatNtpAge(data.lastSyncAgeSeconds),
+            'Běžný interval: ' + intervalHours + ' h',
+            'Retry po chybě: ' + retryMinutes + ' min'
         ].join('\n');
     }
 
@@ -259,6 +309,7 @@ static const char LIVE_SETTINGS_UI_PATCH[] PROGMEM = R"livepatch(
     function installNetworkConfigFix(attempt = 0) {
         const fixed = patchNetworkConfigLoader();
         polishNetworkLabels();
+        pruneSystemView();
         const ntpReady = installNtpSyncButton();
         if (fixed && ntpReady) return;
         if (attempt < 10) setTimeout(() => installNetworkConfigFix(attempt + 1), 50);
