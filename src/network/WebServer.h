@@ -15,6 +15,7 @@ public:
     using DisplayStatusCallback = std::function<DisplayTaskStatus()>;
     using SystemConfigCallback = std::function<void(const SystemConfig& system)>;
     using WifiConfigCallback = std::function<void(const String& ssid, const String& password)>;
+    using WifiNetworkConfigCallback = std::function<void(const WifiConfig& wifi)>;
     using WifiScanCallback = std::function<String()>;
     using WifiKnownNetworksCallback = std::function<String()>;
     using WifiKnownNetworkActionCallback = std::function<bool(const String& ssid)>;
@@ -34,6 +35,7 @@ public:
     void onDisplayStatus(DisplayStatusCallback callback);
     void onSystemConfig(SystemConfigCallback callback);
     void onWifiConfig(WifiConfigCallback callback);
+    void onWifiNetworkConfig(WifiNetworkConfigCallback callback);
     void onWifiScan(WifiScanCallback callback);
     void onWifiKnownNetworks(WifiKnownNetworksCallback callback);
     void onWifiConnectKnown(WifiKnownNetworkActionCallback callback);
@@ -54,6 +56,7 @@ private:
     DisplayStatusCallback _displayStatusCallback;
     SystemConfigCallback _systemConfigCallback;
     WifiConfigCallback _wifiConfigCallback;
+    WifiNetworkConfigCallback _wifiNetworkConfigCallback;
     WifiScanCallback _wifiScanCallback;
     WifiKnownNetworksCallback _wifiKnownNetworksCallback;
     WifiKnownNetworkActionCallback _wifiConnectKnownCallback;
