@@ -58,6 +58,16 @@ private:
 
     void setupRoutes();
     void handleRoot();
+    void handleApiTimezoneConfig();
+    void handleApiSystemConfigV2();
+
+    // Původní implementace je zachovaná v WebServerLegacy.inc a používá se
+    // pro všechny ostatní endpointy. Tyto tři metody jsou přejmenované
+    // pouze proto, aby nad nimi šla bezpečně rozšířit root stránka.
+    void beginLegacy();
+    void setupRoutesLegacy();
+    void handleRootLegacy();
+
     void handleApiStatus();
     void handleApiScreens();
     void handleApiActivateScreen(const String& screenId);
