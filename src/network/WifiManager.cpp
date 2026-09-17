@@ -49,7 +49,6 @@ void WifiManager::begin(const String& ssid, const String& password, const String
         WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
             if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
                 Serial.printf("[WIFI-EVENT] Odpojeno! Dvod (reason code): %d\n", info.wifi_sta_disconnected.reason);
-                // Kódy: 2 = AUTH_EXPIRE, 15 = 4WAY_HANDSHAKE_TIMEOUT, 201 = NO_AP_FOUND, 202 = AUTH_FAIL
             } else if (event == ARDUINO_EVENT_WIFI_STA_CONNECTED) {
                 Serial.println("[WIFI-EVENT] AP prirazeno (STA_CONNECTED).");
             } else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
@@ -70,11 +69,7 @@ void WifiManager::begin(const String& ssid, const String& password, const String
     WiFi.setAutoReconnect(true);
     WiFi.setHostname(_hostname.c_str());
     WiFi.persistent(false);
-
-    // Nastavení Wi-Fi protokolu na širokou kompatibilitu 802.11 b/g/n (vypnuté Long Range a proprietární režimy)
     esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
-
-    // Vypnutí úsporného režimu Wi-Fi pro maximální stabilitu
     esp_wifi_set_ps(WIFI_PS_NONE);
 
     Serial.printf("[WIFI] Pripojuji k '%s'...\n", _ssid.c_str());
@@ -95,17 +90,26 @@ bool WifiManager::waitForConnection(uint32_t timeoutMs) {
     if (WiFi.status() == WL_CONNECTED) {
         _connected = true;
         Serial.printf("[WIFI] Uspesne pripojeno! IP: %s | RSSI: %d dBm\n",
-                      WiFi.localIP().toString().c_str(),
-                      WiFi.RSSI());
+                      WiFi.localIP().toString().c_str(), WiFi.RSSI());
         if (MDNS.begin(_hostname.c_str())) {
             Serial.printf("[WIFI] mDNS responder bezi: http://%s.local/\n", _hostname.c_str());
         }
         return true;
-    } else {
-        Serial.printf("[WIFI] Timeout pripojeni. Aktualni stav: %s\n", wlStatusToString(WiFi.status()));
-        startConfigAccessPoint();
-        return false;
     }
+
+    Serial.printf("[WIFI] Timeout pripojeni. Aktualni stav: %s\n", wlStatusToString(WiFi.status()));
+    startConfigAccessPoint();
+    return false;
+}
+
+void WifiManager::disconnectToConfigAccessPoint() {
+    const bool wasConnected = _connected || WiFi.status() == WL_CONNECTED;
+    _connected = false;
+    if (wasConnected && _statusCallback) {
+        _statusCallback(false, "0.0.0.0");
+    }
+    Serial.println("[WIFI] Rucni odpojeni od STA, prechazim do konfiguracniho AP.");
+    startConfigAccessPoint();
 }
 
 void WifiManager::loop() {
@@ -137,8 +141,7 @@ void WifiManager::loop() {
         if (now - _lastReconnectAttempt > 10000) {
             _lastReconnectAttempt = now;
             Serial.printf("[WIFI] Stav: %s -> zkousim znovu pripojit k '%s'...\n",
-                          wlStatusToString(WiFi.status()),
-                          _ssid.c_str());
+                          wlStatusToString(WiFi.status()), _ssid.c_str());
             WiFi.reconnect();
         }
     }
@@ -189,6 +192,7 @@ void WifiManager::startConfigAccessPoint() {
     _configAccessPoint = true;
     _connected = false;
     MDNS.end();
+    WiFi.disconnect(false);
     WiFi.mode(WIFI_AP);
     WiFi.softAP("Dashboard-Setup", "dashboard");
     Serial.printf("[WIFI] Konfiguracni AP: Dashboard-Setup | heslo: dashboard | IP: %s\n",
