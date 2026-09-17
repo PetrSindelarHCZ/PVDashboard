@@ -490,7 +490,13 @@ void WifiManager::startConfigAccessPoint(uint32_t autoScanDelayMs) {
     esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
     esp_wifi_set_ps(WIFI_PS_NONE);
 
+    // AP ma vzdy vlastni pevnou adresu, nezavislou na DHCP/staticke konfiguraci STA.
+    const IPAddress apIp(192, 168, 4, 1);
+    const IPAddress apMask(255, 255, 255, 0);
     WiFi.softAPdisconnect(true);
+    if (!WiFi.softAPConfig(apIp, apIp, apMask)) {
+        Serial.println("[WIFI] Varovani: nepodarilo se nastavit AP adresu 192.168.4.1/24.");
+    }
     WiFi.softAP("Dashboard-Setup", "dashboard");
     _nextKnownNetworkScan = millis() + autoScanDelayMs;
 
