@@ -56,12 +56,14 @@ private:
     String _githubUpdateVersion;
     String _githubUpdateUrl;
     String _githubUpdateSha256;
+    bool _timezoneUiEnabled = false;
 
     void setupRoutes();
     void handleRoot();
     void handleExtendedRoot();
     void handleApiTimezoneConfig();
     void handleApiSystemConfigV2();
+    void loopLegacy();
     void handleApiStatus();
     void handleApiScreens();
     void handleApiActivateScreen(const String& screenId);
