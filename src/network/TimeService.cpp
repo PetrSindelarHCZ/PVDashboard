@@ -2,6 +2,7 @@
 #include "CzechNamedays.h"
 #include <esp_sntp.h>
 #include <ArduinoJson.h>
+#include <WiFi.h>
 #include <atomic>
 
 namespace {
@@ -49,10 +50,10 @@ void TimeService::begin(const String& timezone, const String& ntpServer) {
     _timezone = timezone;
     _ntpServer = ntpServer;
     activeTimeService = this;
-    startNtpSync(preserveValidTime, sameConfiguration ? "manualni obnovení" : "nova konfigurace");
+    startNtpSync(preserveValidTime, sameConfiguration ? "manualni obnoveni" : "nova konfigurace");
 }
 
-void TimeService::loop(bool wifiConnected) {
+void TimeService::loop() {
     const uint32_t receivedEpoch = receivedNtpEpoch.exchange(0);
     if (receivedEpoch != 0) {
         time_t nowTime;
@@ -68,6 +69,7 @@ void TimeService::loop(bool wifiConnected) {
     }
 
     const unsigned long now = millis();
+    const bool wifiConnected = WiFi.status() == WL_CONNECTED;
     const bool wifiReturned = wifiConnected && !_networkAvailable;
     _networkAvailable = wifiConnected;
     if (!wifiConnected || _ntpServer.isEmpty()) return;
