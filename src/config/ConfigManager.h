@@ -11,6 +11,7 @@ public:
     const AppConfig& get() const;
     void setSystem(const SystemConfig& system);
     void setWifi(const String& ssid, const String& password);
+    void setWifiNetworkConfig(const WifiConfig& wifi);
     String getKnownWifiNetworksJson() const;
     bool getKnownWifiPassword(const String& ssid, String& password) const;
     bool getAutoJoinWifiPassword(const String& ssid, String& password) const;
