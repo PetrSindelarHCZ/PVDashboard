@@ -17,17 +17,19 @@ uint32_t nextDelaySeconds(uint32_t configuredSeconds, uint8_t failureStreak, boo
 }
 }
 
+IWeatherProvider* WeatherWorker::providerFor(const String& providerName) {
+    if (providerName == "open-meteo") return &_openMeteoClient;
+    if (providerName == "met-no") return &_metNorwayClient;
+    return nullptr;
+}
+
 bool WeatherWorker::begin(const WeatherConfig& config) {
     if (_task != nullptr) {
-        return true;
+        return reconfigure(config);
     }
 
     _config = config;
-    if (_config.provider == "open-meteo") {
-        _provider = &_openMeteoClient;
-    } else if (_config.provider == "met-no") {
-        _provider = &_metNorwayClient;
-    }
+    _provider = providerFor(_config.provider);
     _mutex = xSemaphoreCreateMutex();
     if (_mutex == nullptr) {
         Serial.println("[WEATHER] Nelze vytvorit mutex.");
@@ -49,6 +51,28 @@ bool WeatherWorker::begin(const WeatherConfig& config) {
         _task = nullptr;
         return false;
     }
+    return true;
+}
+
+bool WeatherWorker::reconfigure(const WeatherConfig& config) {
+    if (_mutex == nullptr || _task == nullptr) {
+        return begin(config);
+    }
+
+    if (xSemaphoreTake(_mutex, pdMS_TO_TICKS(1000)) != pdTRUE) {
+        Serial.println("[WEATHER] Reconfiguration lock timeout.");
+        return false;
+    }
+    _config = config;
+    _provider = providerFor(_config.provider);
+    xSemaphoreGive(_mutex);
+
+    Serial.printf("[WEATHER] Konfigurace zmenena za behu: %s, %.5f, %.5f, interval %lu s, enabled=%d\n",
+                  _config.provider.c_str(), _config.latitude, _config.longitude,
+                  _config.pollIntervalSeconds, _config.enabled);
+
+    // Probudit task z čekání, aby novou konfiguraci použil hned.
+    xTaskNotifyGive(_task);
     return true;
 }
 
@@ -74,25 +98,35 @@ void WeatherWorker::taskLoop() {
     uint8_t failureStreak = 0;
 
     for (;;) {
+        WeatherConfig config;
+        IWeatherProvider* provider = nullptr;
+        if (xSemaphoreTake(_mutex, portMAX_DELAY) == pdTRUE) {
+            config = _config;
+            provider = _provider;
+            xSemaphoreGive(_mutex);
+        }
+
         bool success = false;
-        if (!_config.enabled) {
+        if (!config.enabled) {
             working.status.recordError("Weather disabled");
         } else if (!WiFi.isConnected()) {
             working.status.recordError("WiFi unavailable");
-        } else if (_provider == nullptr) {
+        } else if (provider == nullptr) {
             working.status.recordError("Unsupported provider");
         } else {
-            success = _provider->update(_config, working);
+            success = provider->update(config, working);
         }
 
         publish(working);
         uint32_t delaySeconds =
-            nextDelaySeconds(_config.pollIntervalSeconds, failureStreak, success);
-        if (success && _provider != nullptr) {
-            delaySeconds = _provider->recommendedPollIntervalSeconds(delaySeconds);
+            nextDelaySeconds(config.pollIntervalSeconds, failureStreak, success);
+        if (success && provider != nullptr) {
+            delaySeconds = provider->recommendedPollIntervalSeconds(delaySeconds);
         }
         failureStreak = success ? 0 : min<uint8_t>(failureStreak + 1, MaximumFailureShift);
-        vTaskDelay(pdMS_TO_TICKS(delaySeconds * 1000UL));
+
+        // Nová konfigurace probudí task okamžitě; jinak čekáme běžný interval.
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(delaySeconds * 1000UL));
     }
 }
 
