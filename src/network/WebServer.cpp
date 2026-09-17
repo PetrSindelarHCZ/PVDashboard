@@ -22,7 +22,8 @@ bool jsonContainsKnownSsid(const String& json, const String& ssid) {
     JsonDocument doc;
     if (deserializeJson(doc, json)) return false;
     for (JsonObject item : doc.as<JsonArray>()) {
-        if ((item["ssid"] | "") == ssid) return true;
+        const char* candidate = item["ssid"] | "";
+        if (ssid == candidate) return true;
     }
     return false;
 }
