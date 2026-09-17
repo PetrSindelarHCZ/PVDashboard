@@ -14,6 +14,7 @@ public:
     String getKnownWifiNetworksJson() const;
     bool getKnownWifiPassword(const String& ssid, String& password) const;
     bool getAutoJoinWifiPassword(const String& ssid, String& password) const;
+    bool getAutoJoinWifiNetworkAt(size_t enabledIndex, String& ssid, String& password) const;
     bool isWifiAutoConnectEnabled(const String& ssid) const;
     bool setWifiAutoConnectEnabled(const String& ssid, bool enabled);
     bool forgetWifi(const String& ssid);
@@ -41,3 +42,15 @@ private:
     void rememberWifi(const String& ssid, const String& password, bool enableAutoConnect = true);
     void saveKnownWifiNetworks();
 };
+
+inline bool ConfigManager::getAutoJoinWifiNetworkAt(size_t enabledIndex, String& ssid, String& password) const {
+    size_t current = 0;
+    for (const auto& network : _knownWifiNetworks) {
+        if (!network.autoConnect) continue;
+        if (current++ != enabledIndex) continue;
+        ssid = network.ssid;
+        password = network.password;
+        return true;
+    }
+    return false;
+}
