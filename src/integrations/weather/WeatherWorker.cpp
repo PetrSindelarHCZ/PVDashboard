@@ -106,6 +106,9 @@ void WeatherWorker::taskLoop() {
             xSemaphoreGive(_mutex);
         }
 
+        working.enabled = config.enabled;
+        const WeatherLocation* activeLocation = config.activeLocation();
+        working.locationName = activeLocation ? activeLocation->name : "";
         bool success = false;
         if (!config.enabled) {
             working.status.recordError("Weather disabled");
