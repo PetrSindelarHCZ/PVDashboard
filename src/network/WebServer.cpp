@@ -11,25 +11,33 @@
 #include "../../include/FirmwareLimits.h"
 #include <cstring>
 
-// Původní implementaci zachováváme beze změny. Jen její loop lokálně
-// přejmenujeme, abychom před prvním handleClient() mohli jednorázově
-// zaregistrovat rozšířené timezone endpointy a root stránku.
+// Původní implementaci zachováváme beze změny. Její begin/loop lokálně
+// přejmenujeme a obalíme, abychom mohli rozšířené timezone routy
+// zaregistrovat před původními routami. Starší WebServer 2.0.0 nemá
+// removeRoute(), takže pořadí registrace je zde záměrné.
+#define begin beginLegacy
 #define loop loopLegacy
 #include "WebServerLegacy.inc"
 #undef loop
+#undef begin
 
 void DashboardWebServer::enableTimezoneUiExtension() {
     if (_timezoneUiEnabled) return;
     _timezoneUiEnabled = true;
 
-    _server.removeRoute("/", HTTP_GET);
+    // První shodný handler má v ESP32 WebServer prioritu. Proto rozšířený
+    // root registrujeme ještě před setupRoutes() uvnitř beginLegacy().
     _server.on("/", HTTP_GET, [this]() { handleExtendedRoot(); });
     _server.on("/api/config/timezone", HTTP_GET, [this]() { handleApiTimezoneConfig(); });
     _server.on("/api/config/system-v2", HTTP_POST, [this]() { handleApiSystemConfigV2(); });
 }
 
-void DashboardWebServer::loop() {
+void DashboardWebServer::begin() {
     enableTimezoneUiExtension();
+    beginLegacy();
+}
+
+void DashboardWebServer::loop() {
     loopLegacy();
 }
 
