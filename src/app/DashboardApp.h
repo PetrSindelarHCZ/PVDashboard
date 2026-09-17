@@ -56,6 +56,9 @@ private:
     bool _pendingRefresh = false;
     bool _pendingFullRefresh = false;
     bool _displayWorkerStarted = false;
+    bool _pendingWifiSave = false;
+    String _pendingWifiSsid;
+    String _pendingWifiPassword;
     unsigned long _displayInitNotBefore = 0;
     unsigned long _displayRefreshNotBefore = 0;
     unsigned long _lastGoodweSync = 0;
