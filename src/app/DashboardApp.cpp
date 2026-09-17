@@ -24,6 +24,18 @@ uint8_t nextFailureStreak(uint8_t current) {
 
 bool applyWifiAddressing(const WifiConfig& wifi) {
     if (wifi.dhcp) {
+        // Při přechodu ze statické adresy nejdřív ukončíme aktivní STA spojení.
+        // Jinak může lwIP ještě krátce obsluhovat původní statickou IP, než se
+        // DHCP klient skutečně rozběhne a získá novou lease.
+        if (WiFi.status() == WL_CONNECTED) {
+            Serial.println("[WIFI] Prechod na DHCP: odpojuji STA pred zmenou adresace...");
+            WiFi.setAutoReconnect(false);
+            WiFi.disconnect(false);
+            const unsigned long disconnectStarted = millis();
+            while (WiFi.status() == WL_CONNECTED && millis() - disconnectStarted < 500UL) {
+                delay(5);
+            }
+        }
         const bool ok = WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
         Serial.printf("[WIFI] IP konfigurace: DHCP (%s)\n", ok ? "OK" : "CHYBA");
         return ok;
