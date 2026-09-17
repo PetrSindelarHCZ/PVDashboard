@@ -1,6 +1,15 @@
 #include "ConfigManager.h"
 #include <Preferences.h>
 
+namespace {
+String inferTimezoneId(const String& timezone) {
+    if (timezone == "CET-1CEST,M3.5.0,M10.5.0/3") return "Europe/Prague";
+    if (timezone == "GMT0BST,M3.5.0/1,M10.5.0") return "Europe/London";
+    if (timezone == "EET-2EEST,M3.5.0/3,M10.5.0/4") return "Europe/Helsinki";
+    return "";
+}
+}
+
 ConfigManager::ConfigManager() {
     // Inicializace výchozí konfigurace dle ConfigSchema.h
     // _config již obsahuje výchozí hodnoty z definice struct AppConfig
@@ -10,7 +19,13 @@ bool ConfigManager::begin() {
     Preferences preferences;
     preferences.begin("dashboard", false);
     if (preferences.isKey("sys_hostname")) _config.system.hostname = preferences.getString("sys_hostname", _config.system.hostname);
-    if (preferences.isKey("sys_timezone")) _config.system.timezone = preferences.getString("sys_timezone", _config.system.timezone);
+    const bool hasStoredTimezone = preferences.isKey("sys_timezone");
+    if (hasStoredTimezone) _config.system.timezone = preferences.getString("sys_timezone", _config.system.timezone);
+    if (preferences.isKey("sys_tzid")) {
+        _config.system.timezoneId = preferences.getString("sys_tzid", _config.system.timezoneId);
+    } else if (hasStoredTimezone) {
+        _config.system.timezoneId = inferTimezoneId(_config.system.timezone);
+    }
     if (preferences.isKey("sys_ntp")) _config.system.ntpServer = preferences.getString("sys_ntp", _config.system.ntpServer);
     if (preferences.isKey("wifi_ssid")) _config.wifi.ssid = preferences.getString("wifi_ssid", _config.wifi.ssid);
     if (preferences.isKey("wifi_password")) _config.wifi.password = preferences.getString("wifi_password", _config.wifi.password);
@@ -31,6 +46,7 @@ bool ConfigManager::begin() {
 
     Serial.printf("[CONFIG] Načtena konfigurace (Schema v%u):\n", _config.schemaVersion);
     Serial.printf("  Wi-Fi SSID: '%s'\n", _config.wifi.ssid.c_str());
+    Serial.printf("  Timezone: %s (%s)\n", _config.system.timezoneId.c_str(), _config.system.timezone.c_str());
     Serial.printf("  GoodWe: %s (host: %s:%u)\n", 
                   _config.goodwe.enabled ? "Povoleno" : "Zakázáno", 
                   _config.goodwe.host.c_str(), 
@@ -58,6 +74,7 @@ void ConfigManager::setSystem(const SystemConfig& system) {
     preferences.begin("dashboard", false);
     preferences.putString("sys_hostname", system.hostname);
     preferences.putString("sys_timezone", system.timezone);
+    preferences.putString("sys_tzid", system.timezoneId);
     preferences.putString("sys_ntp", system.ntpServer);
     preferences.end();
 }
@@ -131,6 +148,7 @@ bool ConfigManager::setUserConfiguration(const AppConfig& config) {
     }
     preferences.putString("sys_hostname", config.system.hostname);
     preferences.putString("sys_timezone", config.system.timezone);
+    preferences.putString("sys_tzid", config.system.timezoneId);
     preferences.putString("sys_ntp", config.system.ntpServer);
     preferences.putString("wifi_ssid", config.wifi.ssid);
     preferences.putString("wifi_password", config.wifi.password);
