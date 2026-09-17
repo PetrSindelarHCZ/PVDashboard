@@ -1,4 +1,5 @@
 #include "ConfigManager.h"
+#include <math.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
 
