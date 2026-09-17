@@ -4,6 +4,7 @@
 #include "LiveSettingsUiPatch.h"
 #include "WifiUiPatch.h"
 #include "WifiKnownDialogPatch.h"
+#include "WeatherSettingsUiPatch.h"
 #include "TimeService.h"
 #include "NetworkDiagnostics.h"
 #include "../diagnostics/Performance.h"
@@ -382,6 +383,7 @@ void DashboardWebServer::handleExtendedRoot() {
         _server.sendContent_P(LIVE_SETTINGS_UI_PATCH);
         _server.sendContent_P(WIFI_UI_PATCH);
         _server.sendContent_P(WIFI_KNOWN_DIALOG_PATCH);
+        _server.sendContent_P(WEATHER_SETTINGS_UI_PATCH);
         _server.sendContent_P(bodyEnd);
     } else {
         _server.sendContent_P(INDEX_HTML);
@@ -390,6 +392,7 @@ void DashboardWebServer::handleExtendedRoot() {
         _server.sendContent_P(LIVE_SETTINGS_UI_PATCH);
         _server.sendContent_P(WIFI_UI_PATCH);
         _server.sendContent_P(WIFI_KNOWN_DIALOG_PATCH);
+        _server.sendContent_P(WEATHER_SETTINGS_UI_PATCH);
     }
     _server.sendContent("");
 }
