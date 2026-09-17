@@ -5,6 +5,7 @@
 #include "WifiUiPatch.h"
 #include "WifiKnownDialogPatch.h"
 #include "TimeService.h"
+#include "NetworkDiagnostics.h"
 #include "../diagnostics/Performance.h"
 #include "../config/ConfigBackup.h"
 #include <ArduinoJson.h>
@@ -172,6 +173,71 @@ void DashboardWebServer::enableTimezoneUiExtension() {
         for (const auto& item : servers) array.add(item);
         String response;
         serializeJson(doc, response);
+        _server.send(200, "application/json", response);
+    });
+
+    // Diagnostika je záměrně omezena jen na nakonfigurované zdroje.
+    // GoodWe používá UDP/Modbus, AZRouter TCP/HTTP.
+    _server.on("/api/diagnostics/device", HTTP_GET, [this]() {
+        if (!_server.hasArg("source")) {
+            _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Missing source\"}");
+            return;
+        }
+
+        const String source = _server.arg("source");
+        String host;
+        uint16_t port = 0;
+        bool enabled = false;
+        NetworkProbeTransport transport = NetworkProbeTransport::Tcp;
+
+        if (source == "goodwe") {
+            host = _config.goodwe.host;
+            port = _config.goodwe.port;
+            enabled = _config.goodwe.enabled;
+            transport = NetworkProbeTransport::GoodWeUdp;
+        } else if (source == "azrouter") {
+            host = _config.azrouter.host;
+            port = _config.azrouter.port;
+            enabled = _config.azrouter.enabled;
+            transport = NetworkProbeTransport::Tcp;
+        } else {
+            _server.send(404, "application/json", "{\"status\":\"error\",\"message\":\"Unknown source\"}");
+            return;
+        }
+
+        JsonDocument doc;
+        doc["source"] = source;
+        doc["enabled"] = enabled;
+        doc["host"] = host;
+        doc["port"] = port;
+        doc["wifiConnected"] = _dataModel.system.wifiConnected;
+
+        if (!enabled || !_dataModel.system.wifiConnected || host.isEmpty() || port == 0) {
+            doc["tested"] = false;
+            doc["resolved"] = false;
+            doc["pingOk"] = false;
+            doc["portOpen"] = false;
+            doc["portProtocol"] = transport == NetworkProbeTransport::GoodWeUdp ? "UDP" : "TCP";
+            if (!enabled) doc["message"] = "Source disabled";
+            else if (!_dataModel.system.wifiConnected) doc["message"] = "Wi-Fi offline";
+            else doc["message"] = "Invalid host or port";
+        } else {
+            const NetworkProbeResult probe = NetworkDiagnostics::probe(host, port, transport);
+            doc["tested"] = true;
+            doc["resolved"] = probe.resolved;
+            doc["resolvedIp"] = probe.resolvedIp;
+            doc["pingOk"] = probe.pingOk;
+            doc["pingMs"] = probe.pingMs;
+            doc["portOpen"] = probe.portOpen;
+            doc["portMs"] = probe.portConnectMs;
+            doc["portProtocol"] = probe.portProtocol;
+            doc["message"] = probe.error;
+        }
+        doc["testedAtMs"] = millis();
+
+        String response;
+        serializeJson(doc, response);
+        _server.sendHeader("Cache-Control", "no-store");
         _server.send(200, "application/json", response);
     });
 
