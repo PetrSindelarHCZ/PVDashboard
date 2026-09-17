@@ -150,6 +150,10 @@ void DashboardApp::setup() {
     _webServer.onConfigImport([this](const AppConfig& config) {
         return _configManager.setUserConfiguration(config);
     });
+
+    // Timezone UI registruje vlastní root handler; u WebServer 2.0.0 má
+    // první registrovaná shoda prioritu, proto musí být před begin().
+    _webServer.enableTimezoneUiExtension();
     _webServer.begin();
 
     // 7. Inicializovat datové klienty (GoodWe UDP, AZRouter HTTP)
