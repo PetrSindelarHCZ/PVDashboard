@@ -61,7 +61,9 @@ struct HourlyWeatherForecast {
 
 struct WeatherData {
     DataSourceStatus status;
+    bool enabled = false;
     String provider = "";
+    String locationName = "";
     float outdoorTempC = 0.0f;
     int outdoorHumidityPercent = 0;
     float surfacePressureHpa = 0.0f;
