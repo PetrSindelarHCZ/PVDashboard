@@ -1,48 +1,98 @@
 #include "TimeService.h"
 #include "CzechNamedays.h"
 #include <esp_sntp.h>
+#include <ArduinoJson.h>
 #include <atomic>
 
 namespace {
 // SNTP invokes this callback from the network task. Do not touch Strings there.
-std::atomic<bool> receivedNtpTime{false};
+std::atomic<uint32_t> receivedNtpEpoch{0};
+TimeService* activeTimeService = nullptr;
+
 void onNtpSync(struct timeval* tv) {
     if (tv != nullptr && tv->tv_sec >= 1609459200) { // 2021-01-01 UTC
-        receivedNtpTime.store(true);
+        receivedNtpEpoch.store(static_cast<uint32_t>(tv->tv_sec));
     }
 }
 }
 
 TimeService::TimeService() : _synced(false) {
+    activeTimeService = this;
 }
 
 void TimeService::begin(const String& timezone, const String& ntpServer) {
     esp_sntp_stop();
     _synced = false;
-    receivedNtpTime.store(false);
+    _configuredAtMs = millis();
+    _lastSyncMs = 0;
+    _lastSyncEpoch = 0;
+    receivedNtpEpoch.store(0);
     sntp_set_time_sync_notification_cb(onNtpSync);
     _timezone = timezone;
     _ntpServer = ntpServer;
+    activeTimeService = this;
 
     Serial.printf("[NTP] Nastavuji TZ '%s' a NTP server '%s'...\n", _timezone.c_str(), _ntpServer.c_str());
     configTzTime(_timezone.c_str(), _ntpServer.c_str());
 }
 
 void TimeService::loop() {
-    // A plausible RTC date is not evidence of a successful NTP request.
-    if (_synced || !receivedNtpTime.load()) return;
+    const uint32_t receivedEpoch = receivedNtpEpoch.exchange(0);
+    if (receivedEpoch == 0) return;
+
     time_t nowTime;
     time(&nowTime);
     struct tm timeinfo;
     if (localtime_r(&nowTime, &timeinfo) && timeinfo.tm_year > (2020 - 1900)) {
         _synced = true;
-        Serial.printf("[NTP] Cas uspesne synchronizovan: %s %s\n",
-                      getDateStr().c_str(), getTimeStr().c_str());
+        _lastSyncEpoch = static_cast<time_t>(receivedEpoch);
+        _lastSyncMs = millis();
+        Serial.printf("[NTP] Cas uspesne synchronizovan: %s %s | server: %s\n",
+                      getDateStr().c_str(), getTimeStr().c_str(), _ntpServer.c_str());
     }
 }
 
 bool TimeService::isSynced() const {
     return _synced;
+}
+
+String TimeService::getNtpStatusJson(bool wifiConnected) {
+    JsonDocument doc;
+    TimeService* service = activeTimeService;
+    if (service == nullptr) {
+        doc["server"] = "";
+        doc["state"] = "unavailable";
+        doc["synced"] = false;
+        doc["lastSyncEpoch"] = 0;
+        doc["lastSyncAgeSeconds"] = nullptr;
+        doc["configuredAgeSeconds"] = 0;
+    } else {
+        const unsigned long now = millis();
+        const unsigned long configuredAgeSeconds = (now - service->_configuredAtMs) / 1000UL;
+        const char* state = "unavailable";
+        if (!wifiConnected) {
+            state = "offline";
+        } else if (service->_synced) {
+            state = "ok";
+        } else if (configuredAgeSeconds < 20UL) {
+            state = "syncing";
+        }
+
+        doc["server"] = service->_ntpServer;
+        doc["state"] = state;
+        doc["synced"] = service->_synced;
+        doc["lastSyncEpoch"] = static_cast<uint32_t>(service->_lastSyncEpoch);
+        if (service->_lastSyncMs == 0) {
+            doc["lastSyncAgeSeconds"] = nullptr;
+        } else {
+            doc["lastSyncAgeSeconds"] = (now - service->_lastSyncMs) / 1000UL;
+        }
+        doc["configuredAgeSeconds"] = configuredAgeSeconds;
+    }
+
+    String response;
+    serializeJson(doc, response);
+    return response;
 }
 
 String TimeService::getTimeStr() {
