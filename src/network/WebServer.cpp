@@ -335,8 +335,16 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         .section-heading { margin: 2px 0 14px; }
         .section-heading h2 { font-size: 1.25rem; margin-bottom: 4px; }
         .section-heading p { color: var(--text-sub); font-size: 0.86rem; line-height: 1.45; }
-        .section-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
-        .section-grid > .card { min-width: 0; }
+        .section-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+            align-items: stretch;
+        }
+        .section-grid > .card {
+            min-width: 0;
+            height: 100%;
+        }
         .section-grid > .wide-card { grid-column: 1 / -1; }
         #screensList { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
         #screensList > .source-grid { grid-column: 1 / -1; }
