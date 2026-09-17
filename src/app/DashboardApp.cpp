@@ -60,6 +60,8 @@ void DashboardApp::setup() {
     _wifiManager.onStatusChange([this](bool connected, const String& ip) {
         Serial.printf("[APP] Wi-Fi zmena stavu -> Connected: %d, IP: %s\n", connected, ip.c_str());
         _dataModel.system.wifiConnected = connected;
+        _dataModel.system.wifiSignalLevel = _wifiSignalLevel.update(
+            connected, _wifiManager.getRssi(), millis());
         _dataModel.system.ipAddress = ip;
         requestAutomaticDisplayRefresh();
     });
@@ -79,8 +81,17 @@ void DashboardApp::setup() {
     }
 
     // 5. Aktualizovat data pro první vykreslení
+    const bool previousAccessPoint = _dataModel.system.wifiAccessPoint;
+    _dataModel.system.wifiAccessPoint = _wifiManager.isConfigAccessPoint();
     _dataModel.system.wifiConnected = _wifiManager.isConnected();
     _dataModel.system.wifiRssi = _wifiManager.getRssi();
+    const uint8_t previousSignalLevel = _dataModel.system.wifiSignalLevel;
+    _dataModel.system.wifiSignalLevel = _wifiSignalLevel.update(
+        _dataModel.system.wifiConnected, _dataModel.system.wifiRssi, millis());
+    if (previousSignalLevel != _dataModel.system.wifiSignalLevel ||
+        previousAccessPoint != _dataModel.system.wifiAccessPoint) {
+        requestAutomaticDisplayRefresh();
+    }
     _dataModel.system.ipAddress = _wifiManager.getIpAddress();
     _dataModel.system.ntpSynced = _timeService.isSynced();
     _dataModel.system.timeStr = _timeService.getTimeStr();
@@ -234,8 +245,17 @@ void DashboardApp::loop() {
 
     // Aktualizace systémových údajů v datovém modelu
     const bool wasWifiConnected = _dataModel.system.wifiConnected;
+    const bool previousAccessPoint = _dataModel.system.wifiAccessPoint;
+    _dataModel.system.wifiAccessPoint = _wifiManager.isConfigAccessPoint();
     _dataModel.system.wifiConnected = _wifiManager.isConnected();
     _dataModel.system.wifiRssi = _wifiManager.getRssi();
+    const uint8_t previousSignalLevel = _dataModel.system.wifiSignalLevel;
+    _dataModel.system.wifiSignalLevel = _wifiSignalLevel.update(
+        _dataModel.system.wifiConnected, _dataModel.system.wifiRssi, millis());
+    if (previousSignalLevel != _dataModel.system.wifiSignalLevel ||
+        previousAccessPoint != _dataModel.system.wifiAccessPoint) {
+        requestAutomaticDisplayRefresh();
+    }
     _dataModel.system.ipAddress = _wifiManager.getIpAddress();
     _dataModel.system.ntpSynced = _timeService.isSynced();
     _dataModel.system.timeStr = _timeService.getTimeStr();

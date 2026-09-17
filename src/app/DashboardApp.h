@@ -12,6 +12,7 @@
 #include "../screens/WeatherScreen.h"
 #include "../screens/DiagnosticsScreen.h"
 #include "../network/WifiManager.h"
+#include "../network/WifiSignalLevel.h"
 #include "../network/TimeService.h"
 #include "../network/WebServer.h"
 #include "../integrations/goodwe/GoodWeClient.h"
@@ -44,6 +45,7 @@ private:
     DiagnosticsScreen _diagnosticsScreen;
 
     WifiManager _wifiManager;
+    WifiSignalLevel _wifiSignalLevel;
     TimeService _timeService;
     DashboardWebServer _webServer;
 
