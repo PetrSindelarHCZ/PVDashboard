@@ -11,6 +11,12 @@ struct SystemConfig {
 struct WifiConfig {
     String ssid = "";
     String password = "";
+    bool dhcp = true;
+    String ipAddress = "";
+    String subnetMask = "";
+    String gateway = "";
+    String dns1 = "";
+    String dns2 = "";
 };
 
 struct DisplayConfig {
@@ -41,7 +47,7 @@ struct WeatherConfig {
 };
 
 struct AppConfig {
-    uint8_t schemaVersion = 3;
+    uint8_t schemaVersion = 4;
     SystemConfig system;
     WifiConfig wifi;
     DisplayConfig display;
