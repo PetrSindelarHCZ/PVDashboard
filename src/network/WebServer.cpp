@@ -1,15 +1,36 @@
 #include "WebServer.h"
 #include "TimezoneUiPatch.h"
+#include "../diagnostics/Performance.h"
+#include "../config/ConfigBackup.h"
+#include <ArduinoJson.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include <Update.h>
+#include <mbedtls/sha256.h>
+#include "../../include/Version.h"
+#include "../../include/FirmwareLimits.h"
 #include <cstring>
 
-// Původní implementace zůstává beze změny a je vložena do této překladové jednotky.
+// Původní implementaci zachováváme beze změny. Jen její loop lokálně
+// přejmenujeme, abychom před prvním handleClient() mohli jednorázově
+// zaregistrovat rozšířené timezone endpointy a root stránku.
+#define loop loopLegacy
 #include "WebServerLegacy.inc"
+#undef loop
 
 void DashboardWebServer::enableTimezoneUiExtension() {
+    if (_timezoneUiEnabled) return;
+    _timezoneUiEnabled = true;
+
     _server.removeRoute("/", HTTP_GET);
     _server.on("/", HTTP_GET, [this]() { handleExtendedRoot(); });
     _server.on("/api/config/timezone", HTTP_GET, [this]() { handleApiTimezoneConfig(); });
     _server.on("/api/config/system-v2", HTTP_POST, [this]() { handleApiSystemConfigV2(); });
+}
+
+void DashboardWebServer::loop() {
+    enableTimezoneUiExtension();
+    loopLegacy();
 }
 
 void DashboardWebServer::handleExtendedRoot() {
