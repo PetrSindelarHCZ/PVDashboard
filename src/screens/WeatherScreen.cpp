@@ -98,7 +98,9 @@ void WeatherScreen::render(IDisplay& display, const DataModel& dm) {
         display.printf("Dnes: %.0f / %.0f °C",
                        dm.weather.tempMaxTodayC,
                        dm.weather.tempMinTodayC);
-        display.setCursor(95, 435);
+        display.setCursor(95, 415);
+        if (!dm.weather.locationName.isEmpty()) display.printf("Místo: %s", dm.weather.locationName.c_str());
+        display.setCursor(95, 440);
         display.printf("Zdroj: %s", dm.weather.provider.c_str());
     }
 
@@ -157,9 +159,16 @@ void WeatherScreen::renderHourly(IDisplay& display, const DataModel& dm) {
     printShortDate(display, date);
     ScreenStyle::useBody(display);
     display.setCursor(85, 116);
-    display.printf("Po %s hodinách | Zdroj: %s",
-                   dm.weather.provider == "MET Norway" ? "3-6" : "3",
-                   dm.weather.provider.c_str());
+    if (!dm.weather.locationName.isEmpty()) {
+        display.printf("%s | po %s h | %s",
+                       dm.weather.locationName.c_str(),
+                       dm.weather.provider == "MET Norway" ? "3-6" : "3",
+                       dm.weather.provider.c_str());
+    } else {
+        display.printf("Po %s hodinách | Zdroj: %s",
+                       dm.weather.provider == "MET Norway" ? "3-6" : "3",
+                       dm.weather.provider.c_str());
+    }
 
     const HourlyWeatherForecast* slots[WeatherHourlySlotsPerDay] = {};
     EInkGraphPoint tempPoints[WeatherHourlySlotsPerDay] = {};
