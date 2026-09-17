@@ -1,5 +1,6 @@
 #include "ConfigManager.h"
 #include <Preferences.h>
+#include <ArduinoJson.h>
 
 namespace {
 String inferTimezoneId(const String& timezone) {
@@ -29,6 +30,17 @@ bool ConfigManager::begin() {
     if (preferences.isKey("sys_ntp")) _config.system.ntpServer = preferences.getString("sys_ntp", _config.system.ntpServer);
     if (preferences.isKey("wifi_ssid")) _config.wifi.ssid = preferences.getString("wifi_ssid", _config.wifi.ssid);
     if (preferences.isKey("wifi_password")) _config.wifi.password = preferences.getString("wifi_password", _config.wifi.password);
+
+    _knownWifiNetworks.clear();
+    const uint8_t knownCount = min<uint8_t>(preferences.getUChar("wifi_known_n", 0), MaxKnownWifiNetworks);
+    for (uint8_t i = 0; i < knownCount; ++i) {
+        const String ssidKey = "w_ssid" + String(i);
+        const String passKey = "w_pass" + String(i);
+        const String ssid = preferences.getString(ssidKey.c_str(), "");
+        if (ssid.isEmpty()) continue;
+        _knownWifiNetworks.push_back({ssid, preferences.getString(passKey.c_str(), "")});
+    }
+
     _config.goodwe.enabled = preferences.getBool("gw_enabled", _config.goodwe.enabled);
     if (preferences.isKey("gw_host")) _config.goodwe.host = preferences.getString("gw_host", _config.goodwe.host);
     _config.goodwe.port = preferences.getUShort("gw_port", _config.goodwe.port);
@@ -44,16 +56,25 @@ bool ConfigManager::begin() {
     _config.weather.pollIntervalSeconds = preferences.getUInt("wx_interval", _config.weather.pollIntervalSeconds);
     preferences.end();
 
+    // Migrace ze starší konfigurace s jedinou Wi-Fi sítí do seznamu známých sítí.
+    if (!_config.wifi.ssid.isEmpty() && _config.wifi.ssid != "VASE_WIFI") {
+        String storedPassword;
+        if (!getKnownWifiPassword(_config.wifi.ssid, storedPassword)) {
+            rememberWifi(_config.wifi.ssid, _config.wifi.password);
+        }
+    }
+
     Serial.printf("[CONFIG] Načtena konfigurace (Schema v%u):\n", _config.schemaVersion);
-    Serial.printf("  Wi-Fi SSID: '%s'\n", _config.wifi.ssid.c_str());
+    Serial.printf("  Wi-Fi SSID: '%s' | známých sítí: %u\n",
+                  _config.wifi.ssid.c_str(), static_cast<unsigned>(_knownWifiNetworks.size()));
     Serial.printf("  Timezone: %s (%s)\n", _config.system.timezoneId.c_str(), _config.system.timezone.c_str());
-    Serial.printf("  GoodWe: %s (host: %s:%u)\n", 
-                  _config.goodwe.enabled ? "Povoleno" : "Zakázáno", 
-                  _config.goodwe.host.c_str(), 
+    Serial.printf("  GoodWe: %s (host: %s:%u)\n",
+                  _config.goodwe.enabled ? "Povoleno" : "Zakázáno",
+                  _config.goodwe.host.c_str(),
                   _config.goodwe.port);
-    Serial.printf("  AZRouter: %s (host: %s:%u)\n", 
-                  _config.azrouter.enabled ? "Povoleno" : "Zakázáno", 
-                  _config.azrouter.host.c_str(), 
+    Serial.printf("  AZRouter: %s (host: %s:%u)\n",
+                  _config.azrouter.enabled ? "Povoleno" : "Zakázáno",
+                  _config.azrouter.host.c_str(),
                   _config.azrouter.port);
     Serial.printf("  Pocasi: %s (%s, %.5f, %.5f, interval %lu s)\n",
                   _config.weather.enabled ? "Povoleno" : "Zakazano",
@@ -79,6 +100,43 @@ void ConfigManager::setSystem(const SystemConfig& system) {
     preferences.end();
 }
 
+void ConfigManager::rememberWifi(const String& ssid, const String& password) {
+    if (ssid.isEmpty() || ssid == "VASE_WIFI") return;
+
+    for (auto& network : _knownWifiNetworks) {
+        if (network.ssid == ssid) {
+            network.password = password;
+            saveKnownWifiNetworks();
+            return;
+        }
+    }
+
+    if (_knownWifiNetworks.size() >= MaxKnownWifiNetworks) {
+        _knownWifiNetworks.erase(_knownWifiNetworks.begin());
+    }
+    _knownWifiNetworks.push_back({ssid, password});
+    saveKnownWifiNetworks();
+}
+
+void ConfigManager::saveKnownWifiNetworks() {
+    Preferences preferences;
+    if (!preferences.begin("dashboard", false)) return;
+
+    preferences.putUChar("wifi_known_n", static_cast<uint8_t>(_knownWifiNetworks.size()));
+    for (size_t i = 0; i < MaxKnownWifiNetworks; ++i) {
+        const String ssidKey = "w_ssid" + String(i);
+        const String passKey = "w_pass" + String(i);
+        if (i < _knownWifiNetworks.size()) {
+            preferences.putString(ssidKey.c_str(), _knownWifiNetworks[i].ssid);
+            preferences.putString(passKey.c_str(), _knownWifiNetworks[i].password);
+        } else {
+            preferences.remove(ssidKey.c_str());
+            preferences.remove(passKey.c_str());
+        }
+    }
+    preferences.end();
+}
+
 void ConfigManager::setWifi(const String& ssid, const String& password) {
     _config.wifi.ssid = ssid;
     _config.wifi.password = password;
@@ -88,6 +146,53 @@ void ConfigManager::setWifi(const String& ssid, const String& password) {
     preferences.putString("wifi_ssid", ssid);
     preferences.putString("wifi_password", password);
     preferences.end();
+
+    rememberWifi(ssid, password);
+}
+
+String ConfigManager::getKnownWifiNetworksJson() const {
+    JsonDocument doc;
+    JsonArray array = doc.to<JsonArray>();
+    for (const auto& network : _knownWifiNetworks) {
+        JsonObject item = array.add<JsonObject>();
+        item["ssid"] = network.ssid;
+        item["hasPassword"] = !network.password.isEmpty();
+        item["active"] = network.ssid == _config.wifi.ssid;
+    }
+    String response;
+    serializeJson(doc, response);
+    return response;
+}
+
+bool ConfigManager::getKnownWifiPassword(const String& ssid, String& password) const {
+    for (const auto& network : _knownWifiNetworks) {
+        if (network.ssid == ssid) {
+            password = network.password;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool ConfigManager::forgetWifi(const String& ssid) {
+    for (auto it = _knownWifiNetworks.begin(); it != _knownWifiNetworks.end(); ++it) {
+        if (it->ssid != ssid) continue;
+
+        _knownWifiNetworks.erase(it);
+        saveKnownWifiNetworks();
+
+        if (_config.wifi.ssid == ssid) {
+            _config.wifi.ssid = "";
+            _config.wifi.password = "";
+            Preferences preferences;
+            preferences.begin("dashboard", false);
+            preferences.putString("wifi_ssid", "");
+            preferences.putString("wifi_password", "");
+            preferences.end();
+        }
+        return true;
+    }
+    return false;
 }
 
 void ConfigManager::setSources(const GoodWeConfig& goodwe, const AZRouterConfig& azrouter) {
@@ -135,10 +240,10 @@ bool ConfigManager::resetToFactoryDefaults() {
     }
 
     _config = AppConfig{};
+    _knownWifiNetworks.clear();
     Serial.println("[CONFIG] NVS vymazano, obnovena tovarni konfigurace.");
     return true;
 }
-
 
 bool ConfigManager::setUserConfiguration(const AppConfig& config) {
     Preferences preferences;
@@ -171,6 +276,7 @@ bool ConfigManager::setUserConfiguration(const AppConfig& config) {
     _config.goodwe = config.goodwe;
     _config.azrouter = config.azrouter;
     _config.weather = config.weather;
+    rememberWifi(config.wifi.ssid, config.wifi.password);
     Serial.println("[CONFIG] YAML konfigurace importovana do NVS.");
     return true;
 }
