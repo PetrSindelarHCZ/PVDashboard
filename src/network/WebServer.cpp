@@ -252,9 +252,9 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
         .card-title { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-sub); font-weight: 700; }
         .card-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-        .btn-inline { width: auto; min-height: 0; padding: 7px 11px; font-size: 0.78rem; line-height: 1.2; white-space: nowrap; }
+        .btn.btn-inline { width: auto; min-height: 0; padding: 7px 11px; font-size: 0.78rem; line-height: 1.2; white-space: nowrap; }
         .field-help { color: var(--text-sub); font-size: 0.75rem; line-height: 1.35; }
-        .source-grid-wide { grid-template-columns: 145px minmax(260px, 1fr) 115px; }
+        .source-grid.source-grid-wide { grid-template-columns: 145px minmax(260px, 1fr) 115px; }
         .btn-group { display: flex; flex-direction: column; gap: 10px; }
         .btn {
             background: #282e3c;
@@ -357,7 +357,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
             .source-grid, .source-grid-wide { grid-template-columns: 1fr; }
             .source-grid > span:empty { display: none; }
             .card-title-row { align-items: flex-start; }
-            .btn-inline { flex: 0 0 auto; padding: 7px 9px; }
+            .btn.btn-inline { flex: 0 0 auto; min-height: 0; padding: 7px 9px; }
             .source-grid > label { margin-top: 4px; }
             .status-grid, .view-system .status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
             .btn { min-height: 48px; }
