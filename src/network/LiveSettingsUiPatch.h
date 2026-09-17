@@ -37,6 +37,22 @@ static const char LIVE_SETTINGS_UI_PATCH[] PROGMEM = R"livepatch(
         width: 100%;
     }
 
+    .ntp-label-actions { display:flex; align-items:center; gap:9px; }
+    .ntp-sync-button {
+        appearance:none;
+        border:1px solid var(--card-border);
+        border-radius:7px;
+        background:#1c2230;
+        color:var(--text-sub);
+        padding:5px 8px;
+        font-size:.69rem;
+        font-weight:700;
+        cursor:pointer;
+        white-space:nowrap;
+    }
+    .ntp-sync-button:hover,.ntp-sync-button:focus { color:var(--text); border-color:#4b5563; outline:none; }
+    .ntp-sync-button:disabled { opacity:.55; cursor:wait; }
+
     @media (max-width: 699px) {
         .view-settings .settings-form > .settings-save {
             width: auto;
@@ -123,10 +139,128 @@ static const char LIVE_SETTINGS_UI_PATCH[] PROGMEM = R"livepatch(
         if (title) title.textContent = 'Přidělení IP adresy';
     }
 
+    function formatNtpEpoch(epoch) {
+        if (!epoch) return 'nikdy';
+        try { return new Date(Number(epoch) * 1000).toLocaleString('cs-CZ'); }
+        catch (_) { return String(epoch); }
+    }
+
+    function formatNtpAge(seconds) {
+        if (seconds === null || seconds === undefined) return 'nikdy';
+        const s = Math.max(0, Number(seconds) || 0);
+        if (s < 60) return 'před ' + Math.round(s) + ' s';
+        if (s < 3600) return 'před ' + Math.floor(s / 60) + ' min';
+        return 'před ' + Math.floor(s / 3600) + ' h';
+    }
+
+    function renderNtpStatus(data) {
+        const status = document.getElementById('ntpStatusIndicator');
+        const text = document.getElementById('ntpStatusText');
+        if (!status || !text || !data) return;
+        status.classList.remove('ok', 'syncing', 'error');
+        let label = 'Bez odezvy';
+        if (data.state === 'ok') { label = 'OK'; status.classList.add('ok'); }
+        else if (data.state === 'syncing') { label = 'Synchronizace…'; status.classList.add('syncing'); }
+        else if (data.state === 'offline') label = 'Bez Wi-Fi';
+        else status.classList.add('error');
+        text.textContent = label;
+        status.dataset.tooltip = [
+            'Nakonfigurovaný server: ' + (data.server || '-'),
+            'Stav: ' + label,
+            'Poslední synchronizace: ' + formatNtpEpoch(data.lastSyncEpoch),
+            'Stáří synchronizace: ' + formatNtpAge(data.lastSyncAgeSeconds)
+        ].join('\n');
+    }
+
+    async function refreshNtpStatusNow() {
+        try {
+            const response = await fetch('/api/ntp/status', {cache:'no-store'});
+            if (!response.ok) return;
+            renderNtpStatus(await response.json());
+        } catch (_) {}
+    }
+
+    function installNtpSyncButton() {
+        const row = document.querySelector('.ntp-label-row');
+        const status = document.getElementById('ntpStatusIndicator');
+        if (!row || !status) return false;
+        if (document.getElementById('ntpSyncNow')) return true;
+
+        const actions = document.createElement('div');
+        actions.className = 'ntp-label-actions';
+        status.replaceWith(actions);
+        actions.appendChild(status);
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.id = 'ntpSyncNow';
+        button.className = 'source-test-button ntp-sync-button';
+        button.textContent = 'Synchronizovat';
+        button.title = 'Ručně spustit synchronizaci času s nakonfigurovaným NTP serverem';
+        actions.appendChild(button);
+
+        button.addEventListener('click', async () => {
+            button.disabled = true;
+            const originalLabel = button.textContent;
+            button.textContent = 'Synchronizuji…';
+            try {
+                const [statusResponse, timezoneResponse] = await Promise.all([
+                    fetch('/api/status', {cache:'no-store'}),
+                    fetch('/api/config/timezone', {cache:'no-store'})
+                ]);
+                if (!statusResponse.ok || !timezoneResponse.ok) throw new Error('Konfiguraci nelze načíst');
+                const appStatus = await statusResponse.json();
+                const timezone = await timezoneResponse.json();
+                const system = appStatus.systemConfig || {};
+                const configuredServer = (system.ntpServer || '').trim();
+                const selectedServer = (document.getElementById('systemNtp')?.value || '').trim();
+                if (selectedServer && configuredServer && selectedServer !== configuredServer) {
+                    showToast('Nejprve ulož změnu NTP serveru');
+                    return;
+                }
+
+                const timezoneValue = timezone.timezone || system.timezone || '';
+                const timezoneId = timezone.timezoneId || (timezoneValue ? 'manual:' + timezoneValue : '');
+                if (!system.hostname || !configuredServer || !timezoneValue || !timezoneId) throw new Error('Neúplná konfigurace času');
+
+                status.classList.remove('ok', 'error');
+                status.classList.add('syncing');
+                const statusText = document.getElementById('ntpStatusText');
+                if (statusText) statusText.textContent = 'Synchronizace…';
+
+                const body = new URLSearchParams({
+                    hostname: system.hostname,
+                    ntpServer: configuredServer,
+                    timezone: timezoneValue,
+                    timezoneId
+                });
+                const response = await fetch('/api/config/system-v2', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+                    body
+                });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(result.message || ('HTTP ' + response.status));
+                showToast('Synchronizace NTP spuštěna');
+                setTimeout(refreshNtpStatusNow, 250);
+                setTimeout(refreshNtpStatusNow, 1500);
+                setTimeout(refreshNtpStatusNow, 3500);
+            } catch (error) {
+                showToast('Synchronizaci NTP se nepodařilo spustit: ' + (error.message || 'chyba'));
+                await refreshNtpStatusNow();
+            } finally {
+                button.disabled = false;
+                button.textContent = originalLabel;
+            }
+        });
+        return true;
+    }
+
     function installNetworkConfigFix(attempt = 0) {
         const fixed = patchNetworkConfigLoader();
         polishNetworkLabels();
-        if (fixed) return;
+        const ntpReady = installNtpSyncButton();
+        if (fixed && ntpReady) return;
         if (attempt < 10) setTimeout(() => installNetworkConfigFix(attempt + 1), 50);
     }
 
