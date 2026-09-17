@@ -4,6 +4,73 @@
 void HomeScreen::render(IDisplay& display, const DataModel& dm) {
     ScreenStyle::drawChrome(display, dm);
 
+    // Pokud je modul Počasí vypnutý, nezobrazujeme ani prázdnou weather kartu.
+    // Energetická část využije uvolněné místo.
+    if (!dm.weather.enabled) {
+        ScreenStyle::drawCard(display, 75, 63, 465, 402, "ENERGIE");
+
+        ScreenStyle::useBody(display);
+        display.setCursor(95, 125);
+        display.print("Výroba FVE");
+        ScreenStyle::useValue(display);
+        display.setCursor(95, 150);
+        display.printf("%.1f kW", dm.solar.productionPowerW / 1000.0f);
+
+        ScreenStyle::useBody(display);
+        display.setCursor(95, 235);
+        display.print("Spotřeba domu");
+        ScreenStyle::useValue(display);
+        display.setCursor(95, 260);
+        display.printf("%.1f kW", dm.solar.houseConsumptionW / 1000.0f);
+
+        ScreenStyle::useBody(display);
+        display.setCursor(320, 125);
+        display.print("Distribuce");
+        ScreenStyle::useValue(display);
+        display.setCursor(320, 150);
+        display.printf("%+.1f kW", dm.solar.gridPowerW / 1000.0f);
+
+        ScreenStyle::useBody(display);
+        display.setCursor(320, 235);
+        display.print("Baterie");
+        ScreenStyle::useValue(display);
+        display.setCursor(320, 260);
+        display.printf("%.0f %%", dm.solar.batterySocPercent);
+        ScreenStyle::useBody(display);
+        display.setCursor(320, 300);
+        display.printf("%+.0f W", dm.solar.batteryPowerW);
+
+        ScreenStyle::drawCard(display, 555, 63, 230, 402, "UVNITŘ - DEMO");
+        ScreenStyle::useBody(display);
+        display.setCursor(570, 125);
+        display.print("Obývák");
+        ScreenStyle::useValue(display);
+        display.setCursor(570, 150);
+        display.printf("%.1f °C", dm.inside.livingRoomTempC);
+
+        ScreenStyle::useBody(display);
+        display.setCursor(570, 195);
+        display.print("Ložnice");
+        ScreenStyle::useValue(display);
+        display.setCursor(570, 220);
+        display.printf("%.1f °C", dm.inside.bedroomTempC);
+
+        ScreenStyle::useBody(display);
+        display.setCursor(570, 265);
+        display.print("CO2 v místnosti");
+        ScreenStyle::useValue(display);
+        display.setCursor(570, 290);
+        display.printf("%d ppm", dm.inside.co2Ppm);
+
+        ScreenStyle::useBody(display);
+        display.setCursor(570, 335);
+        display.print("Bazén");
+        ScreenStyle::useValue(display);
+        display.setCursor(570, 360);
+        display.printf("%.1f °C", dm.inside.poolTempC);
+        return;
+    }
+
     ScreenStyle::drawCard(display, 75, 63, 225, 402, "VENKU");
     if (dm.weather.status.available) {
         ScreenStyle::drawWeatherSymbol(display, 248, 130, dm.weather.weatherCode);
