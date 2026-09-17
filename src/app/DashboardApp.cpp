@@ -63,10 +63,10 @@ void DashboardApp::setup() {
         requestAutomaticDisplayRefresh();
     });
 
-    // Fallback v AP režimu pracuje pouze se sítěmi uloženými v ConfigManageru.
+    // Automaticky fallback smí použít jen známé sítě, které nejsou ručně odpojené.
     // Heslo se předává interně v RAM, nikdy přes WebUI/API.
     _wifiManager.onKnownNetworkLookup([this](const String& ssid, String& password) {
-        return _configManager.getKnownWifiPassword(ssid, password);
+        return _configManager.getAutoJoinWifiPassword(ssid, password);
     });
     _wifiManager.onAutoNetworkSelected([this](const String& ssid, const String& password) {
         _configManager.setWifi(ssid, password);
@@ -74,8 +74,21 @@ void DashboardApp::setup() {
         requestAutomaticDisplayRefresh();
     });
 
-    _wifiManager.begin(cfg.wifi.ssid, cfg.wifi.password, cfg.system.hostname);
-    bool wifiOk = _wifiManager.waitForConnection(8000);
+    bool wifiOk = false;
+    const bool hasConfiguredWifi = !cfg.wifi.ssid.isEmpty() && cfg.wifi.ssid != "VASE_WIFI";
+    const bool configuredWifiAllowed = hasConfiguredWifi &&
+        _configManager.isWifiAutoConnectEnabled(cfg.wifi.ssid);
+
+    if (configuredWifiAllowed) {
+        _wifiManager.begin(cfg.wifi.ssid, cfg.wifi.password, cfg.system.hostname);
+        wifiOk = _wifiManager.waitForConnection(8000);
+    } else {
+        if (hasConfiguredWifi) {
+            Serial.printf("[WIFI] Sit '%s' byla rucne odpojena. Po restartu ji automaticky nezkousim.\n",
+                          cfg.wifi.ssid.c_str());
+        }
+        _wifiManager.begin("", "", cfg.system.hostname);
+    }
 
     _timeService.begin(cfg.system.timezone, cfg.system.ntpServer);
     if (wifiOk) {
@@ -126,7 +139,12 @@ void DashboardApp::setup() {
 
         if (previousHostname != system.hostname) {
             const auto& current = _configManager.get();
-            _wifiManager.begin(current.wifi.ssid, current.wifi.password, system.hostname);
+            if (!current.wifi.ssid.isEmpty() &&
+                _configManager.isWifiAutoConnectEnabled(current.wifi.ssid)) {
+                _wifiManager.begin(current.wifi.ssid, current.wifi.password, system.hostname);
+            } else {
+                _wifiManager.begin("", "", system.hostname);
+            }
         }
 
         requestAutomaticDisplayRefresh();
@@ -134,6 +152,7 @@ void DashboardApp::setup() {
     });
 
     _webServer.onWifiConfig([this](const String& ssid, const String& password) {
+        // Uložit a připojit je explicitní volba uživatele, proto auto-connect znovu povolí.
         _configManager.setWifi(ssid, password);
         const auto& current = _configManager.get();
         Serial.println("[CONFIG] Wi-Fi ulozena, prepojuji bez restartu...");
@@ -151,14 +170,24 @@ void DashboardApp::setup() {
     _webServer.onWifiConnectKnown([this](const String& ssid) {
         String password;
         if (!_configManager.getKnownWifiPassword(ssid, password)) return false;
+
+        // Ruční Připojit je jediná akce, která zruší stav ručního odpojení.
         _configManager.setWifi(ssid, password);
         const auto& current = _configManager.get();
-        Serial.printf("[WIFI] Pripojuji znamou sit '%s'.\n", ssid.c_str());
+        Serial.printf("[WIFI] Rucne pripojuji znamou sit '%s'; auto-connect je znovu povolen.\n",
+                      ssid.c_str());
         _wifiManager.begin(ssid, password, current.system.hostname);
         return true;
     });
 
     _webServer.onWifiDisconnect([this]() {
+        const String activeSsid = _configManager.get().wifi.ssid;
+        if (!activeSsid.isEmpty() && activeSsid != "VASE_WIFI") {
+            if (_configManager.setWifiAutoConnectEnabled(activeSsid, false)) {
+                Serial.printf("[WIFI] Sit '%s' byla rucne odpojena a zustane vyradena z auto-connectu do rucniho Pripojit.\n",
+                              activeSsid.c_str());
+            }
+        }
         _wifiManager.disconnectToConfigAccessPoint();
         requestAutomaticDisplayRefresh();
     });
