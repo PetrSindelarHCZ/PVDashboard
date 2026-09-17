@@ -254,6 +254,11 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         .card-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
         .btn.btn-inline { width: auto; min-height: 0; padding: 7px 11px; font-size: 0.78rem; line-height: 1.2; white-space: nowrap; }
         .field-help { color: var(--text-sub); font-size: 0.75rem; line-height: 1.35; }
+        .timezone-picker { position: relative; }
+        .timezone-results { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 60; max-height: 300px; overflow-y: auto; background: #171a21; border: 1px solid var(--card-border); border-radius: 9px; box-shadow: 0 10px 24px rgba(0,0,0,.45); padding: 5px; }
+        .timezone-result { width: 100%; border: 0; border-radius: 7px; background: transparent; color: var(--text); padding: 9px 10px; text-align: left; font-size: .88rem; line-height: 1.3; cursor: pointer; }
+        .timezone-result:hover, .timezone-result:focus { background: #252b37; outline: none; }
+        .timezone-no-result { color: var(--text-sub); padding: 10px; font-size: .82rem; }
         .source-grid.source-grid-wide { grid-template-columns: 145px minmax(260px, 1fr) 115px; }
         .source-device-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
         .source-device-card { background: #171a21; border: 1px solid #2b3240; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
@@ -469,54 +474,61 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                         <input class="wifi-input" id="systemNtp" maxlength="253" required>
                     </div>
                     <div class="system-field">
-                        <label for="systemTimezone">Časové pásmo</label>
-                        <select class="wifi-input" id="systemTimezone" required>
+                        <label for="systemTimezoneSearch">Časové pásmo</label>
+                        <div class="timezone-picker">
+                            <input class="wifi-input" id="systemTimezoneSearch" type="search" autocomplete="off"
+                                   placeholder="Hledat město, zemi nebo UTC offset…"
+                                   onfocus="filterTimezones(this.value, false)"
+                                   oninput="filterTimezones(this.value, true)">
+                            <div class="timezone-results" id="systemTimezoneResults" hidden></div>
+                        <select id="systemTimezone" required hidden>
                             <optgroup label="Evropa — automatický letní/zimní čas">
-                                <option value="GMT0BST,M3.5.0/1,M10.5.0">UTC+00 — Londýn, Dublin (GMT/BST)</option>
-                                <option value="CET-1CEST,M3.5.0,M10.5.0/3">UTC+01 — Praha, Bratislava, Berlín, Vídeň (CET/CEST)</option>
-                                <option value="EET-2EEST,M3.5.0/3,M10.5.0/4">UTC+02 — Helsinky, Tallinn, Riga, Vilnius (EET/EEST)</option>
+                                <option value="GMT0BST,M3.5.0/1,M10.5.0">UTC+00 — Londýn, Velká Británie / Dublin, Irsko (GMT/BST)</option>
+                                <option value="CET-1CEST,M3.5.0,M10.5.0/3">UTC+01 — Praha, Česko / Bratislava, Slovensko / Berlín, Německo / Vídeň, Rakousko (CET/CEST)</option>
+                                <option value="EET-2EEST,M3.5.0/3,M10.5.0/4">UTC+02 — Helsinky, Finsko / Tallinn, Estonsko / Riga, Lotyšsko / Vilnius, Litva (EET/EEST)</option>
                             </optgroup>
                             <optgroup label="UTC pásma — reprezentativní místo / pevný posun">
-                                <option value="UTC12">UTC−12 — Baker Island</option>
+                                <option value="UTC12">UTC−12 — Baker Island, USA</option>
                                 <option value="UTC11">UTC−11 — Pago Pago, American Samoa</option>
-                                <option value="UTC10">UTC−10 — Honolulu, Hawaii</option>
-                                <option value="UTC9:30">UTC−09:30 — Marquesas Islands</option>
-                                <option value="UTC9">UTC−09 — Gambier Islands</option>
+                                <option value="UTC10">UTC−10 — Honolulu, Hawaii, USA</option>
+                                <option value="UTC9:30">UTC−09:30 — Marquesas Islands, Francouzská Polynésie</option>
+                                <option value="UTC9">UTC−09 — Gambier Islands, Francouzská Polynésie</option>
                                 <option value="UTC8">UTC−08 — Pitcairn Islands</option>
-                                <option value="UTC7">UTC−07 — Phoenix, Arizona</option>
-                                <option value="UTC6">UTC−06 — Guatemala City</option>
+                                <option value="UTC7">UTC−07 — Phoenix, Arizona, USA</option>
+                                <option value="UTC6">UTC−06 — Guatemala City, Guatemala</option>
                                 <option value="UTC5">UTC−05 — Bogotá, Colombia</option>
-                                <option value="UTC4">UTC−04 — Santo Domingo</option>
-                                <option value="UTC3:30">UTC−03:30 — St. John's, Newfoundland</option>
-                                <option value="UTC3">UTC−03 — Buenos Aires</option>
-                                <option value="UTC2">UTC−02 — South Georgia</option>
+                                <option value="UTC4">UTC−04 — Santo Domingo, Dominikánská republika</option>
+                                <option value="UTC3:30">UTC−03:30 — St. John's, Newfoundland, Kanada</option>
+                                <option value="UTC3">UTC−03 — Buenos Aires, Argentina</option>
+                                <option value="UTC2">UTC−02 — South Georgia and South Sandwich Islands</option>
                                 <option value="UTC1">UTC−01 — Cabo Verde</option>
                                 <option value="UTC0">UTC±00 — Reykjavík, Iceland</option>
                                 <option value="UTC-1">UTC+01 — Lagos, Nigeria</option>
                                 <option value="UTC-2">UTC+02 — Johannesburg, South Africa</option>
-                                <option value="UTC-3">UTC+03 — Moscow, Riyadh</option>
-                                <option value="UTC-3:30">UTC+03:30 — Tehran</option>
-                                <option value="UTC-4">UTC+04 — Dubai</option>
-                                <option value="UTC-4:30">UTC+04:30 — Kabul</option>
-                                <option value="UTC-5">UTC+05 — Karachi</option>
-                                <option value="UTC-5:30">UTC+05:30 — Delhi, Mumbai</option>
-                                <option value="UTC-5:45">UTC+05:45 — Kathmandu</option>
-                                <option value="UTC-6">UTC+06 — Dhaka</option>
-                                <option value="UTC-6:30">UTC+06:30 — Yangon</option>
-                                <option value="UTC-7">UTC+07 — Bangkok, Jakarta</option>
-                                <option value="UTC-8">UTC+08 — Singapore, Beijing, Perth</option>
-                                <option value="UTC-8:45">UTC+08:45 — Eucla, Western Australia</option>
-                                <option value="UTC-9">UTC+09 — Tokyo, Seoul</option>
-                                <option value="UTC-9:30">UTC+09:30 — Darwin</option>
-                                <option value="UTC-10">UTC+10 — Brisbane</option>
-                                <option value="UTC-10:30">UTC+10:30 — Lord Howe Island</option>
-                                <option value="UTC-11">UTC+11 — Nouméa, New Caledonia</option>
-                                <option value="UTC-12">UTC+12 — Suva, Fiji</option>
-                                <option value="UTC-12:45">UTC+12:45 — Chatham Islands</option>
+                                <option value="UTC-3">UTC+03 — Moskva, Rusko / Rijád, Saúdská Arábie</option>
+                                <option value="UTC-3:30">UTC+03:30 — Teherán, Írán</option>
+                                <option value="UTC-4">UTC+04 — Dubaj, Spojené arabské emiráty</option>
+                                <option value="UTC-4:30">UTC+04:30 — Kábul, Afghánistán</option>
+                                <option value="UTC-5">UTC+05 — Karáčí, Pákistán</option>
+                                <option value="UTC-5:30">UTC+05:30 — Dillí, Bombaj, Indie</option>
+                                <option value="UTC-5:45">UTC+05:45 — Káthmándú, Nepál</option>
+                                <option value="UTC-6">UTC+06 — Dháka, Bangladéš</option>
+                                <option value="UTC-6:30">UTC+06:30 — Yangon, Myanmar</option>
+                                <option value="UTC-7">UTC+07 — Bangkok, Thajsko / Jakarta, Indonésie</option>
+                                <option value="UTC-8">UTC+08 — Singapur / Peking, Čína / Perth, Austrálie</option>
+                                <option value="UTC-8:45">UTC+08:45 — Eucla, Západní Austrálie</option>
+                                <option value="UTC-9">UTC+09 — Tokio, Japonsko / Soul, Jižní Korea</option>
+                                <option value="UTC-9:30">UTC+09:30 — Darwin, Austrálie</option>
+                                <option value="UTC-10">UTC+10 — Brisbane, Austrálie</option>
+                                <option value="UTC-10:30">UTC+10:30 — Lord Howe Island, Austrálie</option>
+                                <option value="UTC-11">UTC+11 — Nouméa, Nová Kaledonie</option>
+                                <option value="UTC-12">UTC+12 — Suva, Fidži</option>
+                                <option value="UTC-12:45">UTC+12:45 — Chatham Islands, Nový Zéland</option>
                                 <option value="UTC-13">UTC+13 — Apia, Samoa</option>
-                                <option value="UTC-14">UTC+14 — Kiritimati, Line Islands</option>
+                                <option value="UTC-14">UTC+14 — Kiritimati, Kiribati</option>
                             </optgroup>
                         </select>
+                        </div>
                         <div class="field-help">Praha, Londýn a Helsinky používají automatický letní/zimní čas. Ostatní položky představují pevný UTC posun daného pásma.</div>
                     </div>
                 </div>
@@ -739,10 +751,11 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                         if (!knownTimezone) {
                             const customOption = document.createElement('option');
                             customOption.value = timezoneValue;
-                            customOption.textContent = 'Vlastní / původní nastavení';
+                            customOption.textContent = 'Vlastní / původní nastavení — ' + timezoneValue;
                             timezoneSelect.appendChild(customOption);
                         }
                         timezoneSelect.value = timezoneValue;
+                        syncTimezoneSearchLabel();
                     }
                     systemConfigLoaded = true;
                 }
@@ -882,12 +895,88 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
             }
         }
 
+        function timezoneOptionLabel(option) {
+            return option ? option.textContent.trim() : '';
+        }
+
+        function syncTimezoneSearchLabel() {
+            const select = document.getElementById('systemTimezone');
+            const input = document.getElementById('systemTimezoneSearch');
+            if (!select || !input) return;
+            const selected = select.options[select.selectedIndex];
+            input.value = timezoneOptionLabel(selected);
+        }
+
+        function selectTimezone(value) {
+            const select = document.getElementById('systemTimezone');
+            const input = document.getElementById('systemTimezoneSearch');
+            const results = document.getElementById('systemTimezoneResults');
+            if (!select || !input || !results) return;
+            select.value = value;
+            syncTimezoneSearchLabel();
+            results.hidden = true;
+        }
+
+        function filterTimezones(query, editing) {
+            const select = document.getElementById('systemTimezone');
+            const input = document.getElementById('systemTimezoneSearch');
+            const results = document.getElementById('systemTimezoneResults');
+            if (!select || !input || !results) return;
+
+            if (editing) {
+                const selected = select.options[select.selectedIndex];
+                if (!selected || timezoneOptionLabel(selected) !== input.value.trim()) {
+                    select.value = '';
+                }
+            }
+
+            const needle = (query || '').trim().toLowerCase();
+            const options = Array.from(select.options);
+            const matches = options.filter(option => {
+                const group = option.parentElement && option.parentElement.tagName === 'OPTGROUP'
+                    ? option.parentElement.label : '';
+                const haystack = (timezoneOptionLabel(option) + ' ' + group + ' ' + option.value).toLowerCase();
+                return !needle || haystack.includes(needle);
+            });
+
+            results.replaceChildren();
+            if (matches.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'timezone-no-result';
+                empty.textContent = 'Nenalezeno. Zkus město, zemi nebo např. UTC+05:45.';
+                results.appendChild(empty);
+            } else {
+                matches.forEach(option => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'timezone-result';
+                    button.textContent = timezoneOptionLabel(option);
+                    button.addEventListener('click', () => selectTimezone(option.value));
+                    results.appendChild(button);
+                });
+            }
+            results.hidden = false;
+        }
+
+        document.addEventListener('click', event => {
+            const picker = event.target.closest('.timezone-picker');
+            if (picker) return;
+            const results = document.getElementById('systemTimezoneResults');
+            if (results) results.hidden = true;
+        });
+
         async function saveSystem(event) {
             event.preventDefault();
+            const timezoneValue = document.getElementById('systemTimezone').value.trim();
+            if (!timezoneValue) {
+                showToast('Vyber časové pásmo ze seznamu');
+                document.getElementById('systemTimezoneSearch').focus();
+                return;
+            }
             const body = new URLSearchParams({
                 hostname: document.getElementById('systemHostname').value.trim(),
                 ntpServer: document.getElementById('systemNtp').value.trim(),
-                timezone: document.getElementById('systemTimezone').value.trim()
+                timezone: timezoneValue
             });
             const response = await fetch('/api/config/system', {
                 method: 'POST',
