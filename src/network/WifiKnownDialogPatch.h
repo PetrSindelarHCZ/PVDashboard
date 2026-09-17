@@ -87,4 +87,106 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
     refreshCount();
 })();
 </script>
+
+<style>
+    .source-device-status-wrap { display:flex; align-items:center; gap:12px; margin-left:auto; }
+    .source-device-status { position:relative; display:inline-flex; align-items:center; gap:6px; border:0; background:transparent; color:var(--text-sub); font-size:.72rem; font-weight:700; cursor:help; padding:2px 0; white-space:nowrap; }
+    .source-device-status-dot { width:8px; height:8px; border-radius:50%; background:#6b7280; box-shadow:0 0 0 2px rgba(107,114,128,.15); }
+    .source-device-status.ok { color:#86efac; }.source-device-status.ok .source-device-status-dot { background:#22c55e; box-shadow:0 0 0 2px rgba(34,197,94,.16); }
+    .source-device-status.syncing { color:#fcd34d; }.source-device-status.syncing .source-device-status-dot { background:#f59e0b; box-shadow:0 0 0 2px rgba(245,158,11,.16); }
+    .source-device-status.error { color:#fca5a5; }.source-device-status.error .source-device-status-dot { background:#ef4444; box-shadow:0 0 0 2px rgba(239,68,68,.16); }
+    .source-device-status::after { content:attr(data-tooltip); position:absolute; right:0; top:calc(100% + 8px); z-index:95; width:max-content; max-width:min(380px,82vw); padding:9px 11px; border:1px solid var(--card-border); border-radius:8px; background:#0f1218; color:var(--text); box-shadow:0 10px 24px rgba(0,0,0,.45); font-size:.74rem; font-weight:400; line-height:1.45; white-space:pre-line; text-align:left; opacity:0; visibility:hidden; pointer-events:none; transform:translateY(-3px); transition:.12s ease; }
+    .source-device-status:hover::after,.source-device-status:focus::after { opacity:1; visibility:visible; transform:none; }
+    @media(max-width:699px){.source-device-header{flex-wrap:wrap}.source-device-status-wrap{margin-left:0;width:100%;justify-content:space-between}.source-device-status::after{position:fixed;left:12px;right:12px;top:auto;bottom:82px;width:auto;max-width:none}}
+</style>
+<script>
+(() => {
+    const cards=Array.from(document.querySelectorAll('.source-device-card'));
+    if(!cards.length)return;
+
+    const defs=[
+        {key:'goodwe',match:'GoodWe',id:'gwDeviceStatus'},
+        {key:'azrouter',match:'AZRouter',id:'azDeviceStatus'}
+    ];
+
+    defs.forEach(def=>{
+        const card=cards.find(item=>{
+            const title=item.querySelector('.source-device-title');
+            return title&&title.textContent.includes(def.match);
+        });
+        if(!card||document.getElementById(def.id))return;
+        const header=card.querySelector('.source-device-header');
+        const enabled=header&&header.querySelector('.source-enabled');
+        if(!header)return;
+        const wrap=document.createElement('div');wrap.className='source-device-status-wrap';
+        const status=document.createElement('button');status.type='button';status.className='source-device-status';status.id=def.id;
+        status.innerHTML='<span class="source-device-status-dot"></span><span class="source-device-status-text">Ověřuji…</span>';
+        status.dataset.tooltip='Načítám stav zařízení…';
+        wrap.appendChild(status);
+        if(enabled){enabled.remove();wrap.appendChild(enabled);}
+        header.appendChild(wrap);
+    });
+
+    function formatAge(seconds){
+        if(seconds===null||seconds===undefined)return'nikdy';
+        const s=Math.max(0,Number(seconds)||0);
+        if(s<60)return'před '+Math.round(s)+' s';
+        if(s<3600)return'před '+Math.floor(s/60)+' min';
+        if(s<86400)return'před '+Math.floor(s/3600)+' h';
+        return'před '+Math.floor(s/86400)+' d';
+    }
+
+    function updateOne(def,data){
+        const el=document.getElementById(def.id);if(!el)return;
+        const device=(data&&data[def.key])||{};
+        const source=(data&&data.sources&&data.sources[def.key])||{};
+        const enabled=source.enabled!==false;
+        const age=device.lastUpdateAgeSeconds;
+        const uptime=Number(data&&data.uptime||0);
+        const interval=Math.max(1,Number(source.interval||30));
+
+        el.classList.remove('ok','syncing','error');
+        let text='Vypnuto';
+        let stateText='Zdroj je vypnutý';
+        if(!enabled){
+            text='Vypnuto';
+        }else if(device.available){
+            text='OK';stateText='Komunikace je funkční';el.classList.add('ok');
+        }else if((age===null||age===undefined)&&uptime<=interval+10){
+            text='Čekám…';stateText='Čekám na první úspěšnou komunikaci';el.classList.add('syncing');
+        }else{
+            text='Nedostupné';stateText='Zařízení momentálně neodpovídá';el.classList.add('error');
+        }
+        const textNode=el.querySelector('.source-device-status-text');if(textNode)textNode.textContent=text;
+        const endpoint=(source.host||'-')+(source.port?':'+source.port:'');
+        const lines=[
+            'Endpoint: '+endpoint,
+            'Stav: '+stateText,
+            'Poslední úspěšná komunikace: '+formatAge(age),
+            'Interval dotazování: '+interval+' s'
+        ];
+        if(!enabled)lines.push('Zdroj je v konfiguraci vypnutý.');
+        el.dataset.tooltip=lines.join('\n');
+    }
+
+    async function refreshDeviceStatus(){
+        try{
+            const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),2500);
+            const response=await fetch('/api/status',{cache:'no-store',signal:controller.signal});clearTimeout(timeout);
+            if(!response.ok)throw new Error('HTTP '+response.status);
+            const data=await response.json();defs.forEach(def=>updateOne(def,data));
+        }catch(_){
+            defs.forEach(def=>{
+                const el=document.getElementById(def.id);if(!el)return;
+                el.classList.remove('ok','syncing');el.classList.add('error');
+                const text=el.querySelector('.source-device-status-text');if(text)text.textContent='Chyba';
+                el.dataset.tooltip='Stav zařízení se nepodařilo načíst.';
+            });
+        }
+    }
+
+    refreshDeviceStatus();
+    setInterval(refreshDeviceStatus,5000);
+})();
+</script>
 )wifiknown";
