@@ -36,9 +36,14 @@ bool ConfigManager::begin() {
     for (uint8_t i = 0; i < knownCount; ++i) {
         const String ssidKey = "w_ssid" + String(i);
         const String passKey = "w_pass" + String(i);
+        const String autoKey = "w_auto" + String(i);
         const String ssid = preferences.getString(ssidKey.c_str(), "");
         if (ssid.isEmpty()) continue;
-        _knownWifiNetworks.push_back({ssid, preferences.getString(passKey.c_str(), "")});
+        _knownWifiNetworks.push_back({
+            ssid,
+            preferences.getString(passKey.c_str(), ""),
+            preferences.getBool(autoKey.c_str(), true)
+        });
     }
 
     _config.goodwe.enabled = preferences.getBool("gw_enabled", _config.goodwe.enabled);
@@ -60,7 +65,7 @@ bool ConfigManager::begin() {
     if (!_config.wifi.ssid.isEmpty() && _config.wifi.ssid != "VASE_WIFI") {
         String storedPassword;
         if (!getKnownWifiPassword(_config.wifi.ssid, storedPassword)) {
-            rememberWifi(_config.wifi.ssid, _config.wifi.password);
+            rememberWifi(_config.wifi.ssid, _config.wifi.password, true);
         }
     }
 
@@ -100,12 +105,13 @@ void ConfigManager::setSystem(const SystemConfig& system) {
     preferences.end();
 }
 
-void ConfigManager::rememberWifi(const String& ssid, const String& password) {
+void ConfigManager::rememberWifi(const String& ssid, const String& password, bool enableAutoConnect) {
     if (ssid.isEmpty() || ssid == "VASE_WIFI") return;
 
     for (auto& network : _knownWifiNetworks) {
         if (network.ssid == ssid) {
             network.password = password;
+            if (enableAutoConnect) network.autoConnect = true;
             saveKnownWifiNetworks();
             return;
         }
@@ -114,7 +120,7 @@ void ConfigManager::rememberWifi(const String& ssid, const String& password) {
     if (_knownWifiNetworks.size() >= MaxKnownWifiNetworks) {
         _knownWifiNetworks.erase(_knownWifiNetworks.begin());
     }
-    _knownWifiNetworks.push_back({ssid, password});
+    _knownWifiNetworks.push_back({ssid, password, enableAutoConnect});
     saveKnownWifiNetworks();
 }
 
@@ -126,12 +132,15 @@ void ConfigManager::saveKnownWifiNetworks() {
     for (size_t i = 0; i < MaxKnownWifiNetworks; ++i) {
         const String ssidKey = "w_ssid" + String(i);
         const String passKey = "w_pass" + String(i);
+        const String autoKey = "w_auto" + String(i);
         if (i < _knownWifiNetworks.size()) {
             preferences.putString(ssidKey.c_str(), _knownWifiNetworks[i].ssid);
             preferences.putString(passKey.c_str(), _knownWifiNetworks[i].password);
+            preferences.putBool(autoKey.c_str(), _knownWifiNetworks[i].autoConnect);
         } else {
             preferences.remove(ssidKey.c_str());
             preferences.remove(passKey.c_str());
+            preferences.remove(autoKey.c_str());
         }
     }
     preferences.end();
@@ -147,7 +156,8 @@ void ConfigManager::setWifi(const String& ssid, const String& password) {
     preferences.putString("wifi_password", password);
     preferences.end();
 
-    rememberWifi(ssid, password);
+    // Explicitní výběr nebo úspěšný fallback síť znovu povoluje pro auto-connect.
+    rememberWifi(ssid, password, true);
 }
 
 String ConfigManager::getKnownWifiNetworksJson() const {
@@ -158,6 +168,7 @@ String ConfigManager::getKnownWifiNetworksJson() const {
         item["ssid"] = network.ssid;
         item["hasPassword"] = !network.password.isEmpty();
         item["active"] = network.ssid == _config.wifi.ssid;
+        item["autoConnect"] = network.autoConnect;
     }
     String response;
     serializeJson(doc, response);
@@ -170,6 +181,34 @@ bool ConfigManager::getKnownWifiPassword(const String& ssid, String& password) c
             password = network.password;
             return true;
         }
+    }
+    return false;
+}
+
+bool ConfigManager::getAutoJoinWifiPassword(const String& ssid, String& password) const {
+    for (const auto& network : _knownWifiNetworks) {
+        if (network.ssid == ssid && network.autoConnect) {
+            password = network.password;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool ConfigManager::isWifiAutoConnectEnabled(const String& ssid) const {
+    for (const auto& network : _knownWifiNetworks) {
+        if (network.ssid == ssid) return network.autoConnect;
+    }
+    return false;
+}
+
+bool ConfigManager::setWifiAutoConnectEnabled(const String& ssid, bool enabled) {
+    for (auto& network : _knownWifiNetworks) {
+        if (network.ssid != ssid) continue;
+        if (network.autoConnect == enabled) return true;
+        network.autoConnect = enabled;
+        saveKnownWifiNetworks();
+        return true;
     }
     return false;
 }
@@ -276,7 +315,7 @@ bool ConfigManager::setUserConfiguration(const AppConfig& config) {
     _config.goodwe = config.goodwe;
     _config.azrouter = config.azrouter;
     _config.weather = config.weather;
-    rememberWifi(config.wifi.ssid, config.wifi.password);
+    rememberWifi(config.wifi.ssid, config.wifi.password, true);
     Serial.println("[CONFIG] YAML konfigurace importovana do NVS.");
     return true;
 }
