@@ -112,17 +112,32 @@ void DashboardApp::setup() {
     });
 
     _webServer.onSystemConfig([this](const SystemConfig& system) {
+        const String previousHostname = _configManager.get().system.hostname;
         _configManager.setSystem(system);
-        Serial.println("[CONFIG] System ulozen, restartuji zarizeni...");
-        delay(250);
-        ESP.restart();
+
+        // NTP a časové pásmo lze přenastavit přímo za běhu. Po změně
+        // schováme časové údaje do další potvrzené NTP synchronizace.
+        _timeService.begin(system.timezone, system.ntpServer);
+        _dataModel.system.ntpSynced = false;
+        _dataModel.system.timeStr = "";
+        _dataModel.system.dateStr = "";
+        _dataModel.system.dayOfWeekStr = "";
+
+        // Hostname se aplikuje novým STA připojením, bez restartu ESP32.
+        if (previousHostname != system.hostname) {
+            const auto& current = _configManager.get();
+            _wifiManager.begin(current.wifi.ssid, current.wifi.password, system.hostname);
+        }
+
+        requestAutomaticDisplayRefresh();
+        Serial.println("[CONFIG] System ulozen a aplikovan za behu.");
     });
 
     _webServer.onWifiConfig([this](const String& ssid, const String& password) {
         _configManager.setWifi(ssid, password);
-        Serial.println("[CONFIG] Wi-Fi ulozena, restartuji zarizeni...");
-        delay(250);
-        ESP.restart();
+        const auto& current = _configManager.get();
+        Serial.println("[CONFIG] Wi-Fi ulozena, prepojuji bez restartu...");
+        _wifiManager.begin(ssid, password, current.system.hostname);
     });
 
     _webServer.onWifiScan([this]() {
@@ -131,16 +146,37 @@ void DashboardApp::setup() {
 
     _webServer.onSourceConfig([this](const GoodWeConfig& goodwe, const AZRouterConfig& azrouter) {
         _configManager.setSources(goodwe, azrouter);
-        Serial.println("[CONFIG] Zdroje ulozeny, restartuji zarizeni...");
-        delay(250);
-        ESP.restart();
+
+        if (goodwe.enabled) {
+            _goodweClient.begin(goodwe.host, goodwe.port);
+        } else {
+            _dataModel.solar.status.recordError("Disabled");
+        }
+        if (azrouter.enabled) {
+            _azrouterClient.begin(azrouter.host, azrouter.port);
+        } else {
+            _dataModel.azrouter.status.recordError("Disabled");
+        }
+
+        _goodweFailureStreak = 0;
+        _azrouterFailureStreak = 0;
+        _lastGoodweSync = millis() - goodwe.pollIntervalSeconds * 1000UL;
+        _lastAzrouterSync = millis() - azrouter.pollIntervalSeconds * 1000UL;
+        _dataModel.updateSystemMetrics();
+        requestAutomaticDisplayRefresh();
+        Serial.println("[CONFIG] Datove zdroje ulozeny a aplikovany za behu.");
     });
 
     _webServer.onWeatherConfig([this](const WeatherConfig& weather) {
         _configManager.setWeather(weather);
-        Serial.println("[CONFIG] Pocasi ulozeno, restartuji zarizeni...");
-        delay(250);
-        ESP.restart();
+        if (!_weatherWorker.reconfigure(weather)) {
+            Serial.println("[CONFIG] Nepodarilo se aplikovat konfiguraci pocasi za behu.");
+        }
+        if (!weather.enabled) {
+            _dataModel.weather.status.recordError("Weather disabled");
+        }
+        requestAutomaticDisplayRefresh();
+        Serial.println("[CONFIG] Pocasi ulozeno a aplikovano za behu.");
     });
 
     _webServer.onFactoryReset([this]() {
