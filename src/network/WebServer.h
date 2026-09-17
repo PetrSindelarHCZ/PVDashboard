@@ -16,6 +16,9 @@ public:
     using SystemConfigCallback = std::function<void(const SystemConfig& system)>;
     using WifiConfigCallback = std::function<void(const String& ssid, const String& password)>;
     using WifiScanCallback = std::function<String()>;
+    using WifiKnownNetworksCallback = std::function<String()>;
+    using WifiKnownNetworkActionCallback = std::function<bool(const String& ssid)>;
+    using WifiDisconnectCallback = std::function<void()>;
     using SourceConfigCallback = std::function<void(const GoodWeConfig& goodwe, const AZRouterConfig& azrouter)>;
     using WeatherConfigCallback = std::function<void(const WeatherConfig& weather)>;
     using FactoryResetCallback = std::function<bool()>;
@@ -32,6 +35,10 @@ public:
     void onSystemConfig(SystemConfigCallback callback);
     void onWifiConfig(WifiConfigCallback callback);
     void onWifiScan(WifiScanCallback callback);
+    void onWifiKnownNetworks(WifiKnownNetworksCallback callback);
+    void onWifiConnectKnown(WifiKnownNetworkActionCallback callback);
+    void onWifiForget(WifiKnownNetworkActionCallback callback);
+    void onWifiDisconnect(WifiDisconnectCallback callback);
     void onSourceConfig(SourceConfigCallback callback);
     void onWeatherConfig(WeatherConfigCallback callback);
     void onFactoryReset(FactoryResetCallback callback);
@@ -48,6 +55,10 @@ private:
     SystemConfigCallback _systemConfigCallback;
     WifiConfigCallback _wifiConfigCallback;
     WifiScanCallback _wifiScanCallback;
+    WifiKnownNetworksCallback _wifiKnownNetworksCallback;
+    WifiKnownNetworkActionCallback _wifiConnectKnownCallback;
+    WifiKnownNetworkActionCallback _wifiForgetCallback;
+    WifiDisconnectCallback _wifiDisconnectCallback;
     SourceConfigCallback _sourceConfigCallback;
     WeatherConfigCallback _weatherConfigCallback;
     FactoryResetCallback _factoryResetCallback;
