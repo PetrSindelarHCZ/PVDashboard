@@ -4,6 +4,7 @@
 struct SystemConfig {
     String hostname = "dashboard";
     String timezone = "CET-1CEST,M3.5.0,M10.5.0/3";
+    String timezoneId = "Europe/Prague";
     String ntpServer = "pool.ntp.org";
 };
 
@@ -40,7 +41,7 @@ struct WeatherConfig {
 };
 
 struct AppConfig {
-    uint8_t schemaVersion = 2;
+    uint8_t schemaVersion = 3;
     SystemConfig system;
     WifiConfig wifi;
     DisplayConfig display;
