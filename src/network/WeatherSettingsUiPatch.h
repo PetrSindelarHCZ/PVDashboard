@@ -482,7 +482,15 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
                 }];
                 activeLocationId = String(source.activeLocationId || locations[0].id);
                 document.getElementById('weatherProvider').value = source.provider || 'open-meteo';
-                document.getElementById('weatherInterval').value = String(source.interval || 1800);
+                const intervalSelect = document.getElementById('weatherInterval');
+                const intervalValue = String(source.interval || 1800);
+                if (intervalSelect && !Array.from(intervalSelect.options).some(option => option.value === intervalValue)) {
+                    const custom = document.createElement('option');
+                    custom.value = intervalValue;
+                    custom.textContent = Math.round(Number(intervalValue) / 60) + ' minut (původní)';
+                    intervalSelect.appendChild(custom);
+                }
+                if (intervalSelect) intervalSelect.value = intervalValue;
                 document.getElementById('weatherEnabled').checked = source.enabled !== false;
                 renderLocations();
                 initialized = true;
