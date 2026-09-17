@@ -13,10 +13,20 @@
 #include "../../include/FirmwareLimits.h"
 #include <cstring>
 
-// Původní implementaci zachováváme beze změny. Rozšířené timezone routy
-// se registrují explicitně z DashboardApp ještě před begin(), takže není
-// nutné přejmenovávat begin()/loop() pomocí preprocesorových maker.
+// Původní implementaci zachováváme beze změny. Rozšířené routy
+// se registrují explicitně z DashboardApp ještě před begin().
 #include "WebServerLegacy.inc"
+
+namespace {
+bool jsonContainsKnownSsid(const String& json, const String& ssid) {
+    JsonDocument doc;
+    if (deserializeJson(doc, json)) return false;
+    for (JsonObject item : doc.as<JsonArray>()) {
+        if ((item["ssid"] | "") == ssid) return true;
+    }
+    return false;
+}
+}
 
 void DashboardWebServer::enableTimezoneUiExtension() {
     if (_timezoneUiEnabled) return;
@@ -28,8 +38,7 @@ void DashboardWebServer::enableTimezoneUiExtension() {
     _server.on("/api/config/timezone", HTTP_GET, [this]() { handleApiTimezoneConfig(); });
     _server.on("/api/config/system-v2", HTTP_POST, [this]() { handleApiSystemConfigV2(); });
 
-    // Bezpečný Wi-Fi endpoint nikdy nevrací uložené heslo. WebUI dostane jen
-    // informaci, zda heslo existuje, a může požádat o jeho zachování.
+    // Bezpečný Wi-Fi endpoint nikdy nevrací uložené heslo.
     _server.on("/api/config/wifi", HTTP_GET, [this]() {
         JsonDocument doc;
         doc["ssid"] = _config.wifi.ssid;
@@ -42,6 +51,15 @@ void DashboardWebServer::enableTimezoneUiExtension() {
         serializeJson(doc, response);
         _server.sendHeader("Cache-Control", "no-store");
         _server.send(200, "application/json", response);
+    });
+
+    _server.on("/api/wifi/known", HTTP_GET, [this]() {
+        if (!_wifiKnownNetworksCallback) {
+            _server.send(503, "application/json", "[]");
+            return;
+        }
+        _server.sendHeader("Cache-Control", "no-store");
+        _server.send(200, "application/json", _wifiKnownNetworksCallback());
     });
 
     _server.on("/api/wifi/config-v2", HTTP_POST, [this]() {
@@ -82,11 +100,70 @@ void DashboardWebServer::enableTimezoneUiExtension() {
             password = _config.wifi.password;
         }
 
-        // Odpověď odešleme ještě před přepojením Wi-Fi, aby prohlížeč spolehlivě
-        // dostal potvrzení i v případě změny IP adresy nebo SSID.
         _server.send(200, "application/json", "{\"status\":\"saved\"}");
         _wifiConfigCallback(ssid, password);
     });
+
+    _server.on("/api/wifi/connect-known", HTTP_POST, [this]() {
+        if (!_server.hasArg("ssid") || _server.arg("ssid").isEmpty()) {
+            _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"SSID is required\"}");
+            return;
+        }
+        if (!_wifiKnownNetworksCallback || !_wifiConnectKnownCallback) {
+            _server.send(503, "application/json", "{\"status\":\"error\",\"message\":\"Known Wi-Fi unavailable\"}");
+            return;
+        }
+        const String ssid = _server.arg("ssid");
+        if (!jsonContainsKnownSsid(_wifiKnownNetworksCallback(), ssid)) {
+            _server.send(404, "application/json", "{\"status\":\"error\",\"message\":\"Unknown Wi-Fi network\"}");
+            return;
+        }
+        _server.send(200, "application/json", "{\"status\":\"connecting\"}");
+        _wifiConnectKnownCallback(ssid);
+    });
+
+    _server.on("/api/wifi/disconnect", HTTP_POST, [this]() {
+        if (!_wifiDisconnectCallback) {
+            _server.send(503, "application/json", "{\"status\":\"error\",\"message\":\"Wi-Fi disconnect unavailable\"}");
+            return;
+        }
+        _server.send(200, "application/json", "{\"status\":\"disconnected\"}");
+        _wifiDisconnectCallback();
+    });
+
+    _server.on("/api/wifi/forget", HTTP_POST, [this]() {
+        if (!_server.hasArg("ssid") || _server.arg("ssid").isEmpty()) {
+            _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"SSID is required\"}");
+            return;
+        }
+        if (!_wifiKnownNetworksCallback || !_wifiForgetCallback) {
+            _server.send(503, "application/json", "{\"status\":\"error\",\"message\":\"Known Wi-Fi unavailable\"}");
+            return;
+        }
+        const String ssid = _server.arg("ssid");
+        if (!jsonContainsKnownSsid(_wifiKnownNetworksCallback(), ssid)) {
+            _server.send(404, "application/json", "{\"status\":\"error\",\"message\":\"Unknown Wi-Fi network\"}");
+            return;
+        }
+        _server.send(200, "application/json", "{\"status\":\"forgotten\"}");
+        _wifiForgetCallback(ssid);
+    });
+}
+
+void DashboardWebServer::onWifiKnownNetworks(WifiKnownNetworksCallback callback) {
+    _wifiKnownNetworksCallback = callback;
+}
+
+void DashboardWebServer::onWifiConnectKnown(WifiKnownNetworkActionCallback callback) {
+    _wifiConnectKnownCallback = callback;
+}
+
+void DashboardWebServer::onWifiForget(WifiKnownNetworkActionCallback callback) {
+    _wifiForgetCallback = callback;
+}
+
+void DashboardWebServer::onWifiDisconnect(WifiDisconnectCallback callback) {
+    _wifiDisconnectCallback = callback;
 }
 
 void DashboardWebServer::handleExtendedRoot() {
