@@ -252,6 +252,7 @@ void DashboardApp::setup() {
     });
 
     _webServer.onWeatherConfig([this](const WeatherConfig& weather) {
+        const bool enabledChanged = _configManager.get().weather.enabled != weather.enabled;
         _configManager.setWeather(weather);
         const WeatherConfig& applied = _configManager.get().weather;
         if (!_weatherWorker.reconfigure(applied)) Serial.println("[CONFIG] Nepodarilo se aplikovat konfiguraci pocasi za behu.");
@@ -260,7 +261,8 @@ void DashboardApp::setup() {
         _dataModel.weather.locationName = activeLocation ? activeLocation->name : "";
         if (!applied.enabled) _dataModel.weather.status.recordError("Weather disabled");
         setWeatherScreensEnabled(applied.enabled);
-        requestAutomaticDisplayRefresh();
+        if (enabledChanged) requestDisplayRefresh(true, 100);
+        else requestAutomaticDisplayRefresh();
         Serial.println("[CONFIG] Pocasi ulozeno a aplikovano za behu.");
     });
 
