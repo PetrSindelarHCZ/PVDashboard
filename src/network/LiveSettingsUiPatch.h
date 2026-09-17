@@ -18,6 +18,25 @@ static const char LIVE_SETTINGS_UI_PATCH[] PROGMEM = R"livepatch(
         min-width: 150px;
         justify-content: center;
     }
+
+    /* Síťová podkarta používá stejné malé popisky jako ostatní formulářová pole. */
+    .system-network-card .wifi-label-row label,
+    .system-network-card .network-mode-title {
+        color: var(--text-sub);
+        font-size: .8rem;
+        font-weight: 400;
+        line-height: 1.25;
+    }
+    .system-network-card .network-mode-row {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+    }
+    .system-network-card #networkAddressMode {
+        width: 100%;
+    }
+
     @media (max-width: 699px) {
         .view-settings .settings-form > .settings-save {
             width: auto;
@@ -99,8 +118,15 @@ static const char LIVE_SETTINGS_UI_PATCH[] PROGMEM = R"livepatch(
         return true;
     }
 
+    function polishNetworkLabels() {
+        const title = document.querySelector('.system-network-card .network-mode-title');
+        if (title) title.textContent = 'Přidělení IP adresy';
+    }
+
     function installNetworkConfigFix(attempt = 0) {
-        if (patchNetworkConfigLoader()) return;
+        const fixed = patchNetworkConfigLoader();
+        polishNetworkLabels();
+        if (fixed) return;
         if (attempt < 10) setTimeout(() => installNetworkConfigFix(attempt + 1), 50);
     }
 
