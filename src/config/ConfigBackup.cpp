@@ -3,7 +3,8 @@
 #include <cerrno>
 
 namespace {
-constexpr uint32_t RequiredMask = (1UL << 20) - 1;
+constexpr uint32_t RequiredMaskV1 = (1UL << 20) - 1;
+constexpr uint32_t RequiredMaskV2 = (1UL << 21) - 1;
 
 String quoteYaml(const String& value) {
     String output = "\"";
@@ -79,15 +80,23 @@ bool invalidString(const String& value) {
     }
     return false;
 }
+
+String inferTimezoneId(const String& timezone) {
+    if (timezone == "CET-1CEST,M3.5.0,M10.5.0/3") return "Europe/Prague";
+    if (timezone == "GMT0BST,M3.5.0/1,M10.5.0") return "Europe/London";
+    if (timezone == "EET-2EEST,M3.5.0/3,M10.5.0/4") return "Europe/Helsinki";
+    return "";
+}
 }
 
 String exportConfigurationYaml(const AppConfig& c) {
     String y;
-    y.reserve(768);
-    y += "format: \"pvdashboard-config\"\nversion: 1\n";
+    y.reserve(832);
+    y += "format: \"pvdashboard-config\"\nversion: 2\n";
     y += "system:\n  hostname: " + quoteYaml(c.system.hostname) + "\n";
     y += "  ntp_server: " + quoteYaml(c.system.ntpServer) + "\n";
     y += "  timezone: " + quoteYaml(c.system.timezone) + "\n";
+    y += "  timezone_id: " + quoteYaml(c.system.timezoneId) + "\n";
     y += "wifi:\n  ssid: " + quoteYaml(c.wifi.ssid) + "\n  password: " + quoteYaml(c.wifi.password) + "\n";
     y += "goodwe:\n  enabled: " + String(c.goodwe.enabled ? "true" : "false") + "\n";
     y += "  host: " + quoteYaml(c.goodwe.host) + "\n  port: " + String(c.goodwe.port) + "\n";
@@ -107,6 +116,7 @@ bool importConfigurationYaml(const String& yaml, AppConfig& config, String& erro
     AppConfig parsed;
     String section;
     uint32_t seen = 0;
+    long configVersion = 0;
     size_t offset = 0;
     uint16_t lineNumber = 0;
     while (offset < yaml.length()) {
@@ -131,7 +141,7 @@ bool importConfigurationYaml(const String& yaml, AppConfig& config, String& erro
         String text; bool flag = false; long number = 0; double decimal = 0;
         bool ok = true; uint8_t bit = 0;
         if (path == "format") { ok = parseString(scalar, text) && text == "pvdashboard-config"; bit = 0; }
-        else if (path == "version") { ok = parseLong(scalar, number) && number == 1; bit = 1; }
+        else if (path == "version") { ok = parseLong(scalar, number) && (number == 1 || number == 2); configVersion = number; bit = 1; }
         else if (path == "system.hostname") { ok = parseString(scalar, parsed.system.hostname); bit = 2; }
         else if (path == "system.ntp_server") { ok = parseString(scalar, parsed.system.ntpServer); bit = 3; }
         else if (path == "system.timezone") { ok = parseString(scalar, parsed.system.timezone); bit = 4; }
@@ -150,14 +160,22 @@ bool importConfigurationYaml(const String& yaml, AppConfig& config, String& erro
         else if (path == "weather.latitude") { ok = parseDouble(scalar, decimal) && decimal >= -90 && decimal <= 90; parsed.weather.latitude = decimal; bit = 17; }
         else if (path == "weather.longitude") { ok = parseDouble(scalar, decimal) && decimal >= -180 && decimal <= 180; parsed.weather.longitude = decimal; bit = 18; }
         else if (path == "weather.interval_seconds") { ok = parseLong(scalar, number) && number >= 900 && number <= 21600; parsed.weather.pollIntervalSeconds = number; bit = 19; }
+        else if (path == "system.timezone_id") { ok = parseString(scalar, parsed.system.timezoneId); bit = 20; }
         else { error = "Unknown setting at line " + String(lineNumber); return false; }
         if (!ok || (seen & (1UL << bit))) { error = "Invalid or duplicate setting at line " + String(lineNumber); return false; }
         seen |= 1UL << bit;
     }
-    if (seen != RequiredMask || parsed.system.hostname.isEmpty() || parsed.system.hostname.length() > 32 ||
+
+    const uint32_t requiredMask = configVersion == 2 ? RequiredMaskV2 : RequiredMaskV1;
+    if (configVersion == 1 && !(seen & (1UL << 20))) {
+        parsed.system.timezoneId = inferTimezoneId(parsed.system.timezone);
+    }
+
+    if (seen != requiredMask || parsed.system.hostname.isEmpty() || parsed.system.hostname.length() > 32 ||
         parsed.system.ntpServer.isEmpty() || parsed.system.ntpServer.length() > 253 ||
-        parsed.system.timezone.isEmpty() || parsed.system.timezone.length() > 127 || (parsed.goodwe.enabled && parsed.goodwe.host.isEmpty()) || (parsed.azrouter.enabled && parsed.azrouter.host.isEmpty()) ||
-        invalidString(parsed.system.hostname) || invalidString(parsed.system.ntpServer) || invalidString(parsed.system.timezone) ||
+        parsed.system.timezone.isEmpty() || parsed.system.timezone.length() > 127 || parsed.system.timezoneId.length() > 64 ||
+        (parsed.goodwe.enabled && parsed.goodwe.host.isEmpty()) || (parsed.azrouter.enabled && parsed.azrouter.host.isEmpty()) ||
+        invalidString(parsed.system.hostname) || invalidString(parsed.system.ntpServer) || invalidString(parsed.system.timezone) || invalidString(parsed.system.timezoneId) ||
         invalidString(parsed.wifi.ssid) || invalidString(parsed.wifi.password) || invalidString(parsed.goodwe.host) || invalidString(parsed.azrouter.host) ||
         (parsed.weather.latitude == 0.0 && parsed.weather.longitude == 0.0)) {
         error = "YAML configuration is incomplete or invalid"; return false;
