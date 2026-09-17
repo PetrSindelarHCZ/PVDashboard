@@ -58,6 +58,7 @@ private:
     String _githubUpdateSha256;
     bool _timezoneUiEnabled = false;
 
+    void beginLegacy();
     void setupRoutes();
     void handleRoot();
     void handleExtendedRoot();
