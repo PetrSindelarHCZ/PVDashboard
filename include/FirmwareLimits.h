@@ -3,5 +3,5 @@
 #include <stddef.h>
 
 namespace FirmwareLimits {
-constexpr size_t MaxImageBytes = 0x140000; // Velikost app0/app1 v default.csv.
+constexpr size_t MaxImageBytes = 0x1E0000; // Velikost app0/app1 v min_spiffs.csv (1.875 MiB).
 }
