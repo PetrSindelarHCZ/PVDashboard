@@ -1,6 +1,7 @@
 #include "WifiManager.h"
 #include <ESPmDNS.h>
 #include <esp_wifi.h>
+#include <Preferences.h>
 
 WifiManager::WifiManager() : _connected(false) {
 }
@@ -25,6 +26,34 @@ void WifiManager::onStatusChange(WifiStatusCallback callback) {
 
 void WifiManager::onKnownNetworkLookup(KnownNetworkLookupCallback callback) {
     _knownNetworkLookupCallback = callback;
+
+    // Fallback nesmi byt zavisly pouze na vysledku scanu. Seznam znamych siti
+    // umime nacist i primo z NVS, kam jej uklada ConfigManager. Scan slouzi jen
+    // k prioritizaci viditelnych siti podle RSSI.
+    if (!_knownNetworkAtCallback) {
+        _knownNetworkAtCallback = [](size_t enabledIndex, String& ssid, String& password) -> bool {
+            Preferences preferences;
+            if (!preferences.begin("dashboard", true)) return false;
+
+            const uint8_t count = min<uint8_t>(preferences.getUChar("wifi_known_n", 0), MaxAutoJoinCandidates);
+            size_t enabled = 0;
+            for (uint8_t i = 0; i < count; ++i) {
+                const String ssidKey = "w_ssid" + String(i);
+                const String passKey = "w_pass" + String(i);
+                const String autoKey = "w_auto" + String(i);
+                const String candidateSsid = preferences.getString(ssidKey.c_str(), "");
+                if (candidateSsid.isEmpty() || !preferences.getBool(autoKey.c_str(), true)) continue;
+                if (enabled++ != enabledIndex) continue;
+
+                ssid = candidateSsid;
+                password = preferences.getString(passKey.c_str(), "");
+                preferences.end();
+                return true;
+            }
+            preferences.end();
+            return false;
+        };
+    }
 }
 
 void WifiManager::onKnownNetworkAt(KnownNetworkAtCallback callback) {
@@ -336,8 +365,8 @@ void WifiManager::processKnownNetworkScan(int16_t networkCount) {
         }
     }
 
-    // Scan je pouze prioritizace. I známou síť, kterou scan v AP+STA režimu
-    // právě nevrátil, následně přímo vyzkoušíme.
+    // Scan je pouze prioritizace. I znamou sit, kterou scan v AP+STA rezimu
+    // prave nevratil, nasledne primo vyzkousime.
     appendUnseenKnownNetworks();
 
     if (_autoJoinCandidateCount == 0) {
