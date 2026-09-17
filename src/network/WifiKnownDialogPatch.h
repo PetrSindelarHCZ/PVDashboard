@@ -17,6 +17,7 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
     .wifi-known-dialog-body { overflow:auto; padding:12px; }
     .wifi-known-dialog-body .wifi-known-list { border:0; background:transparent; padding:0; }
     .wifi-known-dialog-footer { color:var(--text-sub); font-size:.71rem; line-height:1.4; padding:10px 16px 13px; border-top:1px solid var(--card-border); }
+    .wifi-auto-off { display:inline-flex; margin-top:5px; padding:2px 6px; border-radius:999px; border:1px solid #7c5b19; background:#2d240b; color:#fcd34d; font-size:.67rem; font-weight:700; }
     @media(max-width:699px){.wifi-known-dialog-backdrop{padding:0;align-items:flex-end}.wifi-known-dialog{width:100%;max-height:82vh;border-radius:14px 14px 0 0;border-left:0;border-right:0;border-bottom:0}.wifi-known-dialog-body{padding-bottom:calc(12px + env(safe-area-inset-bottom))}}
 </style>
 <script>
@@ -52,6 +53,22 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
     const footer=document.createElement('div');footer.className='wifi-known-dialog-footer';footer.textContent='Ručně odpojená síť se automaticky nepoužije, dokud u ní znovu nestiskneš Připojit.';
     dialog.append(header,body,footer);backdrop.appendChild(dialog);document.body.appendChild(backdrop);
 
+    let annotationTimer=0;
+    async function annotateStates(){
+        try{
+            const response=await fetch('/api/wifi/known',{cache:'no-store'});if(!response.ok)return;
+            const networks=await response.json();const states=new Map(networks.map(n=>[n.ssid,n]));
+            knownList.querySelectorAll('.wifi-known-row').forEach(row=>{
+                const main=row.querySelector('.wifi-known-name');if(!main)return;
+                const ssid=main.firstChild&&main.firstChild.nodeType===Node.TEXT_NODE?main.firstChild.nodeValue:'';
+                const network=states.get((ssid||'').trim());
+                let badge=main.querySelector('.wifi-auto-off');
+                if(network&&network.autoConnect===false){if(!badge){badge=document.createElement('span');badge.className='wifi-auto-off';badge.textContent='automatika vypnuta';main.appendChild(badge);}}
+                else if(badge){badge.remove();}
+            });
+        }catch(_){}
+    }
+    function scheduleAnnotation(){clearTimeout(annotationTimer);annotationTimer=setTimeout(annotateStates,120);}
     function refreshCount(){
         const rows=knownList.querySelectorAll('.wifi-known-row').length;
         document.getElementById('wifiKnownCount').textContent=String(rows);
@@ -59,6 +76,7 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
         const sub=launch.querySelector('.wifi-known-launch-sub');
         if(empty&&rows===0) sub.textContent='Zatím není uložená žádná známá síť';
         else sub.textContent=rows===1?'1 uložená síť · otevřít správu':rows+' uložených sítí · otevřít správu';
+        scheduleAnnotation();
     }
     function openDialog(){backdrop.hidden=false;document.body.style.overflow='hidden';close.focus();refreshCount();}
     function closeDialog(){backdrop.hidden=true;document.body.style.overflow='';launch.focus();}
