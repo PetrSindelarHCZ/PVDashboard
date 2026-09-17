@@ -135,7 +135,7 @@ static const char LIVE_SETTINGS_UI_PATCH[] PROGMEM = R"livepatch(
     }
 
     function polishNetworkLabels() {
-        const title = document.querySelector('.system-network-card .network-mode-title');
+        const title = document.querySelector('.network-mode-title');
         if (title) title.textContent = 'Přidělení IP adresy';
     }
 
