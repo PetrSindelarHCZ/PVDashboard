@@ -1,0 +1,43 @@
+name: Apply responsive WebUI layout
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'scripts/apply-webui-responsive-layout.py'
+      - '.github/workflows/apply-webui-responsive-layout.yml'
+
+jobs:
+  apply-layout:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Apply responsive layout
+        run: python scripts/apply-webui-responsive-layout.py
+
+      - name: Validate markers
+        run: |
+          grep -q 'responsive-shell-v1' src/network/WebServer.cpp
+          grep -q "view-settings" src/network/WebServer.cpp
+          grep -q "appNavigation" src/network/WebServer.cpp
+
+      - name: Commit WebUI update
+        shell: bash
+        run: |
+          if git diff --quiet -- src/network/WebServer.cpp; then
+            echo 'No WebUI changes required.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/network/WebServer.cpp
+          git commit -m 'Redesign WebUI navigation and responsive layout'
+          git push origin master
