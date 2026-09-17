@@ -47,16 +47,13 @@ void DashboardApp::setup() {
     Serial.printf("  Build: %s\n", FIRMWARE_BUILD_DATE);
     Serial.println("==========================================");
 
-    // 1. Načíst konfiguraci
     _configManager.begin();
     const auto& cfg = _configManager.get();
 
-    // 2. Zaregistrovat obrazovky
     registerScreens();
     _screenManager.activateScreen(cfg.display.defaultScreen);
     _dataModel.system.currentScreenId = cfg.display.defaultScreen;
 
-    // 3. Připojení k Wi-Fi (před kreslením, abychom znali IP)
     _wifiManager.onStatusChange([this](bool connected, const String& ip) {
         Serial.printf("[APP] Wi-Fi zmena stavu -> Connected: %d, IP: %s\n", connected, ip.c_str());
         _dataModel.system.wifiConnected = connected;
@@ -69,10 +66,8 @@ void DashboardApp::setup() {
     _wifiManager.begin(cfg.wifi.ssid, cfg.wifi.password, cfg.system.hostname);
     bool wifiOk = _wifiManager.waitForConnection(8000);
 
-    // 4. Spustit NTP časovou službu
     _timeService.begin(cfg.system.timezone, cfg.system.ntpServer);
     if (wifiOk) {
-        // Krátké vyčkání na NTP synchronizaci
         unsigned long ntpWait = millis();
         while (!_timeService.isSynced() && (millis() - ntpWait < 2000)) {
             _timeService.loop();
@@ -80,7 +75,6 @@ void DashboardApp::setup() {
         }
     }
 
-    // 5. Aktualizovat data pro první vykreslení
     const bool previousAccessPoint = _dataModel.system.wifiAccessPoint;
     _dataModel.system.wifiAccessPoint = _wifiManager.isConfigAccessPoint();
     _dataModel.system.wifiConnected = _wifiManager.isConnected();
@@ -98,7 +92,6 @@ void DashboardApp::setup() {
     _dataModel.system.dateStr = _timeService.getDateStr();
     _dataModel.system.dayOfWeekStr = _timeService.getDayOfWeekStr();
 
-    // 6. Nastavit a spustit webový server
     _webServer.onScreenChange([this](const String& screenId) {
         onScreenSwitchRequested(screenId);
     });
@@ -114,16 +107,12 @@ void DashboardApp::setup() {
     _webServer.onSystemConfig([this](const SystemConfig& system) {
         const String previousHostname = _configManager.get().system.hostname;
         _configManager.setSystem(system);
-
-        // NTP a časové pásmo lze přenastavit přímo za běhu. Po změně
-        // schováme časové údaje do další potvrzené NTP synchronizace.
         _timeService.begin(system.timezone, system.ntpServer);
         _dataModel.system.ntpSynced = false;
         _dataModel.system.timeStr = "";
         _dataModel.system.dateStr = "";
         _dataModel.system.dayOfWeekStr = "";
 
-        // Hostname se aplikuje novým STA připojením, bez restartu ESP32.
         if (previousHostname != system.hostname) {
             const auto& current = _configManager.get();
             _wifiManager.begin(current.wifi.ssid, current.wifi.password, system.hostname);
@@ -142,6 +131,36 @@ void DashboardApp::setup() {
 
     _webServer.onWifiScan([this]() {
         return _wifiManager.scanNetworksJson();
+    });
+
+    _webServer.onWifiKnownNetworks([this]() {
+        return _configManager.getKnownWifiNetworksJson();
+    });
+
+    _webServer.onWifiConnectKnown([this](const String& ssid) {
+        String password;
+        if (!_configManager.getKnownWifiPassword(ssid, password)) return false;
+        _configManager.setWifi(ssid, password);
+        const auto& current = _configManager.get();
+        Serial.printf("[WIFI] Pripojuji znamou sit '%s'.\n", ssid.c_str());
+        _wifiManager.begin(ssid, password, current.system.hostname);
+        return true;
+    });
+
+    _webServer.onWifiDisconnect([this]() {
+        _wifiManager.disconnectToConfigAccessPoint();
+        requestAutomaticDisplayRefresh();
+    });
+
+    _webServer.onWifiForget([this](const String& ssid) {
+        const bool wasActive = _configManager.get().wifi.ssid == ssid;
+        if (!_configManager.forgetWifi(ssid)) return false;
+        if (wasActive) {
+            _wifiManager.disconnectToConfigAccessPoint();
+            requestAutomaticDisplayRefresh();
+        }
+        Serial.printf("[WIFI] Sit '%s' byla zapomenuta.\n", ssid.c_str());
+        return true;
     });
 
     _webServer.onSourceConfig([this](const GoodWeConfig& goodwe, const AZRouterConfig& azrouter) {
@@ -187,12 +206,9 @@ void DashboardApp::setup() {
         return _configManager.setUserConfiguration(config);
     });
 
-    // Timezone UI registruje vlastní root handler; u WebServer 2.0.0 má
-    // první registrovaná shoda prioritu, proto musí být před begin().
     _webServer.enableTimezoneUiExtension();
     _webServer.begin();
 
-    // 7. Inicializovat datové klienty (GoodWe UDP, AZRouter HTTP)
     if (cfg.goodwe.enabled) {
         _goodweClient.begin(cfg.goodwe.host, cfg.goodwe.port);
     }
@@ -202,8 +218,6 @@ void DashboardApp::setup() {
 
     _weatherWorker.begin(cfg.weather);
 
-    // 8. První čtení dat a inicializace displeje proběhnou až v hlavní smyčce.
-    // Web server tak může začít odpovídat ještě před pomalými síťovými a e-paper operacemi.
     _lastGoodweSync = millis();
     _lastAzrouterSync = millis();
     _displayInitNotBefore = millis() + 1500;
@@ -248,8 +262,6 @@ void DashboardApp::requestAutomaticDisplayRefresh() {
 
 void DashboardApp::onScreenSwitchRequested(const String& screenId) {
     Serial.printf("[APP][%lu ms] Pozadavek na prepnuti obrazovky: %s\n", millis(), screenId.c_str());
-    // Zmena celeho obsahu potrebuje plne vycisteni, aby se rozlozeni
-    // predchozi obrazovky nepropisovalo do nove.
     requestDisplayRefresh(true, 100);
 }
 
@@ -283,7 +295,6 @@ void DashboardApp::loop() {
     const String previousDateStr = _dataModel.system.dateStr;
     const String previousDayOfWeekStr = _dataModel.system.dayOfWeekStr;
 
-    // Aktualizace systémových údajů v datovém modelu
     const bool wasWifiConnected = _dataModel.system.wifiConnected;
     const bool previousAccessPoint = _dataModel.system.wifiAccessPoint;
     _dataModel.system.wifiAccessPoint = _wifiManager.isConfigAccessPoint();
@@ -326,8 +337,7 @@ void DashboardApp::loop() {
             requestAutomaticDisplayRefresh();
         }
     }
-    // Po aktualizaci času předat konzistentní snímek workeru. Pokud už kreslí,
-    // worker ponechá ve frontě nejnovější data a zachová požadavek na full refresh.
+
     if (displayStatus.ready && _pendingRefresh &&
         static_cast<long>(millis() - _displayRefreshNotBefore) >= 0) {
         if (_displayWorker.enqueue(_screenManager.getActiveScreen(), _dataModel, _pendingFullRefresh)) {
@@ -337,7 +347,6 @@ void DashboardApp::loop() {
         }
     }
 
-    // Periodické čtení dat podle intervalu každého zdroje.
     unsigned long now = millis();
     if (_wifiManager.isConnected()) {
         const auto& cfg = _configManager.get();
@@ -377,7 +386,6 @@ void DashboardApp::loop() {
             requestAutomaticDisplayRefresh();
         }
 
-        // Periodický částečný refresh displeje každou minutu.
         if (now - _lastDisplayUpdate >= 60000UL) {
             _lastDisplayUpdate = now;
             requestAutomaticDisplayRefresh();
