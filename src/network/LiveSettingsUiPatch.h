@@ -58,6 +58,57 @@ static const char LIVE_SETTINGS_UI_PATCH[] PROGMEM = R"livepatch(
             baseShowToast(replacements.get(message) || message);
         };
     }
+
+    // Kompatibilitní oprava načtení statické IP konfigurace.
+    // API používá klíče ipAddress/subnetMask/..., zatímco původní UI loader
+    // očekával IpAddress/SubnetMask/... a proto po reloadu zobrazil prázdná pole.
+    function patchNetworkConfigLoader() {
+        const ui = window.dashboardNetworkUi;
+        const mode = document.getElementById('networkAddressMode');
+        const staticFields = document.getElementById('networkStaticFields');
+        if (!ui || !mode || !staticFields || typeof ui.fetchConfig !== 'function') return false;
+        if (ui.__staticDisplayFixed) return true;
+
+        const fieldIds = {
+            ipAddress: 'networkIpAddress',
+            subnetMask: 'networkSubnetMask',
+            gateway: 'networkGateway',
+            dns1: 'networkDns1',
+            dns2: 'networkDns2'
+        };
+        const usable = value => !!value && value !== '0.0.0.0';
+
+        ui.load = async function() {
+            try {
+                const data = await ui.fetchConfig();
+                mode.value = data.dhcp === false ? 'static' : 'dhcp';
+                Object.entries(fieldIds).forEach(([key, id]) => {
+                    const input = document.getElementById(id);
+                    if (!input) return;
+                    const value = data[key] || '';
+                    input.value = usable(value) ? value : '';
+                });
+                staticFields.hidden = mode.value !== 'static';
+                return data;
+            } catch (_) {
+                return null;
+            }
+        };
+        ui.__staticDisplayFixed = true;
+        ui.load();
+        return true;
+    }
+
+    function installNetworkConfigFix(attempt = 0) {
+        if (patchNetworkConfigLoader()) return;
+        if (attempt < 10) setTimeout(() => installNetworkConfigFix(attempt + 1), 50);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => installNetworkConfigFix(), { once: true });
+    } else {
+        installNetworkConfigFix();
+    }
 })();
 </script>
 )livepatch";
