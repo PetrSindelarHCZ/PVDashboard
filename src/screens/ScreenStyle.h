@@ -7,7 +7,7 @@
 #include "../display/assets/SidebarIcons.h"
 #include "../data/DataModel.h"
 #include <Fonts/FreeSansBold18pt7b.h>
-#include <Fonts/FreeSansBold9pt7b.h>
+
 
 namespace ScreenStyle {
 
@@ -28,59 +28,85 @@ inline void useValue(IDisplay& d) { d.setTextColor(0); d.setUnicodeFont(DisplayF
 inline void useBody(IDisplay& d) { d.setTextColor(0); d.setUnicodeFont(DisplayFonts::body()); }
 inline void useStrongBody(IDisplay& d) { d.setTextColor(0); d.setUnicodeFont(DisplayFonts::strongBody()); }
 
-inline void drawCheck(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
-    d.drawLine(x, y + 4, x + 4, y + 8, c); d.drawLine(x + 4, y + 8, x + 11, y, c);
-    d.drawLine(x, y + 5, x + 4, y + 9, c); d.drawLine(x + 4, y + 9, x + 11, y + 1, c);
+// All header symbols occupy a 32 x 32 box. The disconnected slash has a
+// black outline so it stays distinct from the white strokes underneath.
+inline void drawDisconnected(IDisplay& d, int16_t x, int16_t y) {
+    for (int8_t offset = -3; offset <= 3; ++offset)
+        d.drawLine(x + 3, y + 3 + offset, x + 28, y + 28 + offset, 0);
+    for (int8_t offset = -1; offset <= 1; ++offset)
+        d.drawLine(x + 3, y + 3 + offset, x + 28, y + 28 + offset, 1);
 }
 
-inline void drawCross(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
-    d.drawLine(x, y, x + 9, y + 9, c); d.drawLine(x + 9, y, x, y + 9, c);
-    d.drawLine(x + 1, y, x + 9, y + 8, c); d.drawLine(x + 8, y, x, y + 8, c);
-}
-
-inline uint8_t wifiLevel(const DataModel& dm) {
-    if (!dm.system.wifiConnected) return 0;
-    if (dm.system.wifiRssi >= -55) return 4;
-    if (dm.system.wifiRssi >= -67) return 3;
-    if (dm.system.wifiRssi >= -75) return 2;
-    return 1;
-}
-
-inline void drawWifi(IDisplay& d, int16_t x, int16_t y, const DataModel& dm, uint16_t c) {
-    const uint8_t level = wifiLevel(dm);
-    d.fillCircle(x, y + 10, 2, c);
-    if (level >= 2) { d.drawLine(x - 5, y + 7, x, y + 3, c); d.drawLine(x, y + 3, x + 5, y + 7, c); }
-    if (level >= 3) { d.drawLine(x - 10, y + 3, x, y - 4, c); d.drawLine(x, y - 4, x + 10, y + 3, c); }
-    if (level >= 4) { d.drawLine(x - 15, y - 2, x, y - 12, c); d.drawLine(x, y - 12, x + 15, y - 2, c); }
-    if (!dm.system.wifiConnected) {
-        d.drawLine(x - 14, y - 11, x + 14, y + 12, c);
-        d.drawLine(x - 13, y - 12, x + 15, y + 11, c);
+inline void drawWifi(IDisplay& d, int16_t x, int16_t y, bool connected) {
+    // Rasterized circular bands, clipped to the upper 90-degree sector.
+    // Keep the familiar complete symbol even at weak signal strength.
+    for (int16_t dy = -23; dy <= -4; ++dy) {
+        for (int16_t dx = -23; dx <= 23; ++dx) {
+            if (abs(dx) > -dy) continue;
+            const int16_t r2 = dx * dx + dy * dy;
+            if ((r2 >= 20 * 20 && r2 <= 23 * 23) ||
+                (r2 >= 13 * 13 && r2 <= 16 * 16) ||
+                (r2 >= 6 * 6 && r2 <= 9 * 9))
+                d.drawPixel(x + 16 + dx, y + 27 + dy, 1);
+        }
     }
+    d.fillCircle(x + 16, y + 27, 2, 1);
+    if (!connected) drawDisconnected(d, x, y);
 }
 
-inline void drawSourceStatus(IDisplay& d, int16_t x, const char* label, bool available) {
-    d.setTextColor(1);
-    d.setFont(&FreeSansBold9pt7b);
-    d.setCursor(x, 31);
-    d.print(label);
-    if (available) drawCheck(d, x + 31, 18, 1); else drawCross(d, x + 32, 18, 1);
+inline void drawSolarStatus(IDisplay& d, int16_t x, int16_t y, bool available) {
+    // Solar panel with cells and a stand (GoodWe).
+    d.drawRoundRect(x + 2, y + 3, 28, 21, 2, 1);
+    d.drawRoundRect(x + 3, y + 4, 26, 19, 1, 1);
+    d.fillRect(x + 11, y + 5, 2, 17, 1);
+    d.fillRect(x + 20, y + 5, 2, 17, 1);
+    d.fillRect(x + 4, y + 12, 24, 2, 1);
+    d.fillRect(x + 15, y + 24, 2, 4, 1);
+    d.fillRect(x + 9, y + 28, 14, 2, 1);
+    if (!available) drawDisconnected(d, x, y);
+}
+
+inline void drawRouterStatus(IDisplay& d, int16_t x, int16_t y, bool available) {
+    // Heating element in a tank (AZRouter surplus-energy heating).
+    d.drawRoundRect(x + 3, y + 2, 26, 28, 5, 1);
+    d.drawRoundRect(x + 4, y + 3, 24, 26, 4, 1);
+    d.fillRect(x + 9, y + 8, 14, 2, 1);
+    d.fillRect(x + 21, y + 10, 2, 5, 1);
+    d.fillRect(x + 9, y + 14, 14, 2, 1);
+    d.fillRect(x + 9, y + 16, 2, 5, 1);
+    d.fillRect(x + 9, y + 20, 14, 2, 1);
+    if (!available) drawDisconnected(d, x, y);
 }
 
 inline void drawHeader(IDisplay& d, const DataModel& dm) {
     d.fillRect(0, 0, Width, HeaderHeight, 0);
-    drawWifi(d, 24, 25, dm, 1);
     const bool online = dm.system.wifiConnected;
-    drawSourceStatus(d, 55, "GW", online && dm.solar.status.available);
-    drawSourceStatus(d, 110, "AZ", online && dm.azrouter.status.available);
+    drawWifi(d, 8, 8, online);
+    drawSolarStatus(d, 56, 8, online && dm.solar.status.available);
+    drawRouterStatus(d, 104, 8, online && dm.azrouter.status.available);
 
     d.setTextColor(1);
-    d.setFont(&FreeSansBold9pt7b);
-    d.setCursor(400, 31);
-    d.print(dm.system.dateStr);
-
     d.setFont(&FreeSansBold18pt7b);
-    d.setCursor(690, 35);
+    const int16_t timeX = Width - 12 - d.textWidth(dm.system.timeStr);
+    d.setCursor(timeX, 35);
     d.print(dm.system.timeStr);
+
+    d.setUnicodeFont(DisplayFonts::strongBody());
+    String date = dm.system.dateStr;
+    constexpr int16_t dateLeft = 160;
+    const int16_t dateRight = timeX - 20;
+    const int16_t availableWidth = dateRight - dateLeft;
+    // Truncate only complete UTF-8 code points if a future label is too long.
+    if (d.textWidth(date) > availableWidth) {
+        while (date.length() && d.textWidth(date + "...") > availableWidth) {
+            unsigned int end = date.length() - 1;
+            while (end > 0 && (static_cast<uint8_t>(date[end]) & 0xC0) == 0x80) --end;
+            date.remove(end);
+        }
+        date += "...";
+    }
+    d.setCursor(dateRight - d.textWidth(date), 31);
+    d.print(date);
 }
 
 inline void drawBoldLine(IDisplay& d, int16_t x0, int16_t y0, int16_t x1, int16_t y1,

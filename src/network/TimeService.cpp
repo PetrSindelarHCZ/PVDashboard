@@ -53,14 +53,14 @@ String TimeService::getDateStr() {
     struct tm timeinfo;
     if (localtime_r(&nowTime, &timeinfo) && _synced) {
         static const char* dayAbbreviations[] = {
-            "Ne", "Po", "Ut", "St", "Ct", "Pa", "So"
+            "Ne", "Po", "Út", "St", "Čt", "Pá", "So"
         };
 
         const uint8_t day = static_cast<uint8_t>(timeinfo.tm_mday);
         const uint8_t month = static_cast<uint8_t>(timeinfo.tm_mon + 1);
         const char* nameday = CzechNamedays::get(day, month);
 
-        char buf[48];
+        char buf[96];
         if (nameday != nullptr && nameday[0] != '\0') {
             snprintf(buf, sizeof(buf), "%s %d.%d.%04d | %s",
                      dayAbbreviations[timeinfo.tm_wday % 7],
@@ -85,7 +85,7 @@ String TimeService::getDayOfWeekStr() {
     time(&nowTime);
     struct tm timeinfo;
     if (localtime_r(&nowTime, &timeinfo) && _synced) {
-        const char* days[] = {"Nedele", "Pondeli", "Utery", "Streda", "Ctvrtek", "Patek", "Sobota"};
+        const char* days[] = {"Neděle", "Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek", "Sobota"};
         return String(days[timeinfo.tm_wday % 7]);
     }
     return "";

@@ -47,13 +47,33 @@ Požadavek na plný refresh se při sloučení zachová.
 
 Všechny obrazovky používají společný ScreenStyle:
 
-- černé záhlaví a zápatí,
+- černé záhlaví,
 - bílý text v tmavých plochách,
-- název obrazovky vlevo,
-- datum a čas vpravo,
+- vlevo ikony Wi-Fi (oblouky), GoodWe (solární panel) a AZRouteru (topná spirála),
+- připojené zařízení má čistou ikonu, nedostupné šikmé přeškrtnutí přímo přes ikonu;
+  při odpojené Wi-Fi jsou přeškrtnuté také obě síťové integrace,
+- Wi-Fi ikona značí připojení; číselná síla signálu zůstává v diagnostice,
+- datum a svátek vpravo používají český Unicode font a lokální UTF-8 kalendář,
+- datum se zarovnává před hodiny podle šířky textu; případné zkrácení zachovává celé UTF-8 znaky,
+- velké hodiny zůstávají vpravo,
 - stejné fonty a vzhled karet.
 
 ## Známá omezení
+
+### České písmo na černém pozadí
+
+U8g2_for_Adafruit_GFX 1.8.0 při změně fontu resetuje průhlednost na 0.
+Proto `EpaperDisplay::setUnicodeFont()` vždy volá `setFontMode(1)` až po
+`setFont()`. Nastavení průhlednosti pouze při inicializaci nestačí: bílé písmo
+na implicitně bílém pozadí znaků vytváří bílé obdélníky v černém záhlaví.
+
+Ověřeno hostitelským rastrovým testem skutečné knihovny 1.8.0: všechny znaky
+361 položek kalendáře jsou ve fontu `t0_18b_te`; český text při bílé barvě na
+černém pozadí je přesným pixelovým opakem černého textu na bílém pozadí.
+Test bez opravy reprodukuje chybné obdélníky. Fyzický panel je nutné ověřit
+po nahrání firmwaru.
+
+### Refresh
 
 - Refresh běží v samostatné FreeRTOS úloze; jeho stav a délka jsou dostupné přes /api/status.
 - DisplayConfig.fullRefreshIntervalMinutes není zapojené do rozhodování.

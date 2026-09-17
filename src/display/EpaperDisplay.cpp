@@ -80,6 +80,9 @@ void EpaperDisplay::setFont(const GFXfont* f) {
 void EpaperDisplay::setUnicodeFont(const uint8_t* font) {
     _useUnicodeFont = true;
     _u8g2.setFont(font);
+    // U8g2 resets transparency when the font changes. Restore it AFTER
+    // setFont, otherwise white header glyphs get white rectangular backgrounds.
+    _u8g2.setFontMode(1);
 }
 
 void EpaperDisplay::setTextColor(uint16_t c) {
