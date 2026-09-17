@@ -1103,7 +1103,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 target = views.screens.grid;
             } else if (title === 'Systémový stav' || title === 'Údržba zařízení' ||
                        title.indexOf('Aktualizace z GitHubu') >= 0 || title.indexOf('Demonstrační data') >= 0 ||
-                       title.indexOf('Firmware') >= 0) {
+                       title.toLowerCase().indexOf('firmware') >= 0) {
                 target = views.system.grid;
             }
 
