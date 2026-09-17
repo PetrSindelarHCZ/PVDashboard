@@ -11,6 +11,7 @@ public:
 
     void begin(const String& ssid, const String& password, const String& hostname);
     bool waitForConnection(uint32_t timeoutMs = 8000);
+    void disconnectToConfigAccessPoint();
     void loop();
     bool isConnected() const;
     bool isConfigAccessPoint() const;
