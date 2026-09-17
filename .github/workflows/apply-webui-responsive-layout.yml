@@ -23,11 +23,31 @@ jobs:
       - name: Apply responsive layout
         run: python scripts/apply-webui-responsive-layout.py
 
+      - name: Keep firmware cards in System
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/network/WebServer.cpp')
+          text = path.read_text(encoding='utf-8')
+          old = "title.indexOf('Firmware') >= 0)"
+          new = "title.toLowerCase().indexOf('firmware') >= 0)"
+          if old in text:
+              text = text.replace(old, new, 1)
+              path.write_text(text, encoding='utf-8')
+              print('Updated firmware card classification')
+          elif new in text:
+              print('Firmware card classification already updated')
+          else:
+              raise SystemExit('Expected firmware classification expression not found')
+          PY
+
       - name: Validate markers
         run: |
           grep -q 'responsive-shell-v1' src/network/WebServer.cpp
           grep -q "view-settings" src/network/WebServer.cpp
           grep -q "appNavigation" src/network/WebServer.cpp
+          grep -q "toLowerCase().indexOf('firmware')" src/network/WebServer.cpp
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -50,5 +70,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/network/WebServer.cpp
-          git commit -m 'Redesign WebUI navigation and responsive layout'
+          git commit -m 'Refine responsive WebUI navigation'
           git push origin master
