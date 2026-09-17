@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -28,6 +30,10 @@ jobs:
 
       - name: Install pinned PlatformIO
         run: python -m pip install "platformio==${PLATFORMIO_CORE_VERSION}"
+
+      - name: Validate release version
+        if: github.ref_type == 'tag'
+        run: python scripts/set-release-version.py --tag "${GITHUB_REF_NAME}"
 
       - name: Build firmware
         run: pio run -e esp32dev
