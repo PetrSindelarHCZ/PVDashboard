@@ -873,7 +873,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         async function importConfiguration() {
             const file = document.getElementById('configImportFile').files[0];
             if (!file) { showToast('Nejprve vyberte YAML soubor'); return; }
-            if (file.size > 4096) { showToast('Soubor konfigurace je příliš velký'); return; }
+            if (file.size > 8192) { showToast('Soubor konfigurace je příliš velký'); return; }
             if (!confirm('Import přepíše Wi-Fi, zdroje i počasí a restartuje zařízení. Pokračovat?')) return;
             try {
                 const yaml = await file.text();
