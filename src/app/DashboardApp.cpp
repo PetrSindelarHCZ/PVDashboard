@@ -63,6 +63,17 @@ void DashboardApp::setup() {
         requestAutomaticDisplayRefresh();
     });
 
+    // Fallback v AP režimu pracuje pouze se sítěmi uloženými v ConfigManageru.
+    // Heslo se předává interně v RAM, nikdy přes WebUI/API.
+    _wifiManager.onKnownNetworkLookup([this](const String& ssid, String& password) {
+        return _configManager.getKnownWifiPassword(ssid, password);
+    });
+    _wifiManager.onAutoNetworkSelected([this](const String& ssid, const String& password) {
+        _configManager.setWifi(ssid, password);
+        Serial.printf("[WIFI] Automaticky obnovena znama sit '%s' a nastavena jako aktivni.\n", ssid.c_str());
+        requestAutomaticDisplayRefresh();
+    });
+
     _wifiManager.begin(cfg.wifi.ssid, cfg.wifi.password, cfg.system.hostname);
     bool wifiOk = _wifiManager.waitForConnection(8000);
 
