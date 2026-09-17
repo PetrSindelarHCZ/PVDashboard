@@ -1,0 +1,42 @@
+name: Apply OTA source migration
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'scripts/apply-ota-source-fix.py'
+      - '.github/workflows/apply-ota-source-fix.yml'
+  workflow_dispatch:
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Apply OTA source migration
+        run: python scripts/apply-ota-source-fix.py
+
+      - name: Validate patch
+        run: git diff --check
+
+      - name: Commit source update
+        shell: bash
+        run: |
+          if git diff --quiet -- src/network/WebServer.cpp; then
+            echo "OTA source migration is already applied."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/network/WebServer.cpp
+          git commit -m "Fix GitHub OTA versioning and manifest check"
+          git push origin HEAD:master
