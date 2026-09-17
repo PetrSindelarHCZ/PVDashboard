@@ -1,5 +1,6 @@
 #include "WebServer.h"
 #include "TimezoneUiPatch.h"
+#include "LiveSettingsUiPatch.h"
 #include "../diagnostics/Performance.h"
 #include "../config/ConfigBackup.h"
 #include <ArduinoJson.h>
@@ -36,10 +37,12 @@ void DashboardWebServer::handleExtendedRoot() {
         const size_t prefixLength = static_cast<size_t>(bodyEnd - INDEX_HTML);
         _server.sendContent_P(INDEX_HTML, prefixLength);
         _server.sendContent_P(TIMEZONE_UI_PATCH);
+        _server.sendContent_P(LIVE_SETTINGS_UI_PATCH);
         _server.sendContent_P(bodyEnd);
     } else {
         _server.sendContent_P(INDEX_HTML);
         _server.sendContent_P(TIMEZONE_UI_PATCH);
+        _server.sendContent_P(LIVE_SETTINGS_UI_PATCH);
     }
     _server.sendContent("");
 }
