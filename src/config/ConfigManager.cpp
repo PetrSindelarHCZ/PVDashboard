@@ -9,6 +9,85 @@ String inferTimezoneId(const String& timezone) {
     if (timezone == "EET-2EEST,M3.5.0/3,M10.5.0/4") return "Europe/Helsinki";
     return "";
 }
+
+void saveWeatherLocations(Preferences& preferences, const WeatherConfig& weather) {
+    const uint8_t count = min<uint8_t>(weather.locationCount, MaxWeatherLocations);
+    preferences.putUChar("wx_loc_n", count);
+    preferences.putString("wx_active", weather.activeLocationId);
+    for (uint8_t i = 0; i < MaxWeatherLocations; ++i) {
+        const String suffix = String(i);
+        const String idKey = "wx_loc_id" + suffix;
+        const String nameKey = "wx_loc_name" + suffix;
+        const String countryKey = "wx_loc_country" + suffix;
+        const String latKey = "wx_loc_lat" + suffix;
+        const String lonKey = "wx_loc_lon" + suffix;
+        if (i < count) {
+            const auto& location = weather.locations[i];
+            preferences.putString(idKey.c_str(), location.id);
+            preferences.putString(nameKey.c_str(), location.name);
+            preferences.putString(countryKey.c_str(), location.country);
+            preferences.putDouble(latKey.c_str(), location.latitude);
+            preferences.putDouble(lonKey.c_str(), location.longitude);
+        } else {
+            preferences.remove(idKey.c_str());
+            preferences.remove(nameKey.c_str());
+            preferences.remove(countryKey.c_str());
+            preferences.remove(latKey.c_str());
+            preferences.remove(lonKey.c_str());
+        }
+    }
+}
+
+void loadWeatherLocations(Preferences& preferences, WeatherConfig& weather) {
+    if (!preferences.isKey("wx_loc_n")) {
+        // Migrace starší konfigurace s jedinou dvojicí souřadnic.
+        const bool defaultPrague =
+            fabs(weather.latitude - 50.0755) < 0.00001 &&
+            fabs(weather.longitude - 14.4378) < 0.00001;
+        weather.locationCount = 1;
+        weather.locations[0].id = defaultPrague ? "praha" : "legacy";
+        weather.locations[0].name = defaultPrague ? "Praha" : "Původní místo";
+        weather.locations[0].country = defaultPrague ? "Česko" : "";
+        weather.locations[0].latitude = weather.latitude;
+        weather.locations[0].longitude = weather.longitude;
+        weather.activeLocationId = weather.locations[0].id;
+        saveWeatherLocations(preferences, weather);
+        return;
+    }
+
+    weather.locationCount = min<uint8_t>(preferences.getUChar("wx_loc_n", 0), MaxWeatherLocations);
+    for (uint8_t i = 0; i < weather.locationCount; ++i) {
+        const String suffix = String(i);
+        const String idKey = "wx_loc_id" + suffix;
+        const String nameKey = "wx_loc_name" + suffix;
+        const String countryKey = "wx_loc_country" + suffix;
+        const String latKey = "wx_loc_lat" + suffix;
+        const String lonKey = "wx_loc_lon" + suffix;
+        auto& location = weather.locations[i];
+        location.id = preferences.getString(idKey.c_str(), "");
+        location.name = preferences.getString(nameKey.c_str(), "");
+        location.country = preferences.getString(countryKey.c_str(), "");
+        location.latitude = preferences.getDouble(latKey.c_str(), 0.0);
+        location.longitude = preferences.getDouble(lonKey.c_str(), 0.0);
+    }
+    if (weather.locationCount == 0) {
+        weather.locationCount = 1;
+        weather.locations[0].id = "legacy";
+        weather.locations[0].name = "Původní místo";
+        weather.locations[0].latitude = weather.latitude;
+        weather.locations[0].longitude = weather.longitude;
+    }
+    weather.activeLocationId = preferences.getString("wx_active", weather.locations[0].id);
+    bool activeFound = false;
+    for (uint8_t i = 0; i < weather.locationCount; ++i) {
+        if (weather.locations[i].id == weather.activeLocationId) {
+            activeFound = true;
+            break;
+        }
+    }
+    if (!activeFound) weather.activeLocationId = weather.locations[0].id;
+    weather.syncActiveCoordinates();
+}
 }
 
 ConfigManager::ConfigManager() {
@@ -59,6 +138,7 @@ bool ConfigManager::begin() {
     _config.weather.latitude = preferences.getDouble("wx_lat", _config.weather.latitude);
     _config.weather.longitude = preferences.getDouble("wx_lon", _config.weather.longitude);
     _config.weather.pollIntervalSeconds = preferences.getUInt("wx_interval", _config.weather.pollIntervalSeconds);
+    loadWeatherLocations(preferences, _config.weather);
     preferences.end();
 
     if (!_config.wifi.ssid.isEmpty() && _config.wifi.ssid != "VASE_WIFI") {
@@ -73,6 +153,12 @@ bool ConfigManager::begin() {
     Serial.printf("  Timezone: %s (%s)\n", _config.system.timezoneId.c_str(), _config.system.timezone.c_str());
     Serial.printf("  GoodWe: %s (host: %s:%u)\n", _config.goodwe.enabled ? "Povoleno" : "Zakazano", _config.goodwe.host.c_str(), _config.goodwe.port);
     Serial.printf("  AZRouter: %s (host: %s:%u)\n", _config.azrouter.enabled ? "Povoleno" : "Zakazano", _config.azrouter.host.c_str(), _config.azrouter.port);
+    const WeatherLocation* activeWeatherLocation = _config.weather.activeLocation();
+    Serial.printf("  Pocasi: %s | mist: %u | aktivni: %s (%.5f, %.5f)\n",
+                  _config.weather.enabled ? "Povoleno" : "Zakazano",
+                  _config.weather.locationCount,
+                  activeWeatherLocation ? activeWeatherLocation->name.c_str() : "-",
+                  _config.weather.latitude, _config.weather.longitude);
     return true;
 }
 
@@ -206,9 +292,17 @@ void ConfigManager::setSources(const GoodWeConfig& goodwe, const AZRouterConfig&
 }
 
 void ConfigManager::setWeather(const WeatherConfig& weather) {
-    _config.weather = weather;
+    WeatherConfig normalized = weather;
+    normalized.syncActiveCoordinates();
+    _config.weather = normalized;
     Preferences preferences; preferences.begin("dashboard", false);
-    preferences.putBool("wx_enabled", weather.enabled); preferences.putString("wx_provider", weather.provider); preferences.putDouble("wx_lat", weather.latitude); preferences.putDouble("wx_lon", weather.longitude); preferences.putUInt("wx_interval", weather.pollIntervalSeconds); preferences.end();
+    preferences.putBool("wx_enabled", normalized.enabled);
+    preferences.putString("wx_provider", normalized.provider);
+    preferences.putDouble("wx_lat", normalized.latitude);
+    preferences.putDouble("wx_lon", normalized.longitude);
+    preferences.putUInt("wx_interval", normalized.pollIntervalSeconds);
+    saveWeatherLocations(preferences, normalized);
+    preferences.end();
 }
 
 bool ConfigManager::resetToFactoryDefaults() {
@@ -227,8 +321,16 @@ bool ConfigManager::setUserConfiguration(const AppConfig& config) {
     preferences.putBool("wifi_dhcp", config.wifi.dhcp); preferences.putString("wifi_ip", config.wifi.ipAddress); preferences.putString("wifi_mask", config.wifi.subnetMask); preferences.putString("wifi_gw", config.wifi.gateway); preferences.putString("wifi_dns1", config.wifi.dns1); preferences.putString("wifi_dns2", config.wifi.dns2);
     preferences.putBool("gw_enabled", config.goodwe.enabled); preferences.putString("gw_host", config.goodwe.host); preferences.putUShort("gw_port", config.goodwe.port); preferences.putUInt("gw_interval", config.goodwe.pollIntervalSeconds);
     preferences.putBool("az_enabled", config.azrouter.enabled); preferences.putString("az_host", config.azrouter.host); preferences.putUShort("az_port", config.azrouter.port); preferences.putUInt("az_interval", config.azrouter.pollIntervalSeconds);
-    preferences.putBool("wx_enabled", config.weather.enabled); preferences.putString("wx_provider", config.weather.provider); preferences.putDouble("wx_lat", config.weather.latitude); preferences.putDouble("wx_lon", config.weather.longitude); preferences.putUInt("wx_interval", config.weather.pollIntervalSeconds); preferences.end();
-    _config.system = config.system; _config.wifi = config.wifi; _config.goodwe = config.goodwe; _config.azrouter = config.azrouter; _config.weather = config.weather;
+    WeatherConfig normalizedWeather = config.weather;
+    normalizedWeather.syncActiveCoordinates();
+    preferences.putBool("wx_enabled", normalizedWeather.enabled);
+    preferences.putString("wx_provider", normalizedWeather.provider);
+    preferences.putDouble("wx_lat", normalizedWeather.latitude);
+    preferences.putDouble("wx_lon", normalizedWeather.longitude);
+    preferences.putUInt("wx_interval", normalizedWeather.pollIntervalSeconds);
+    saveWeatherLocations(preferences, normalizedWeather);
+    preferences.end();
+    _config.system = config.system; _config.wifi = config.wifi; _config.goodwe = config.goodwe; _config.azrouter = config.azrouter; _config.weather = normalizedWeather;
     rememberWifi(config.wifi.ssid, config.wifi.password, true);
     Serial.println("[CONFIG] YAML konfigurace importovana do NVS.");
     return true;
