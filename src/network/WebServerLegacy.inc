@@ -1584,6 +1584,7 @@ void DashboardWebServer::handleApiStatus() {
     weatherObj["enabled"] = _config.weather.enabled;
     weatherObj["available"] = _dataModel.weather.status.available;
     weatherObj["provider"] = _dataModel.weather.provider;
+    weatherObj["locationName"] = _dataModel.weather.locationName;
     weatherObj["lastError"] = _dataModel.weather.status.lastError;
     JsonArray forecastDays = weatherObj["forecastDays"].to<JsonArray>();
     for (uint8_t i = 0; i < _dataModel.weather.dailyCount; ++i) {
@@ -1613,6 +1614,19 @@ void DashboardWebServer::handleApiStatus() {
     sourceWeather["latitude"] = _config.weather.latitude;
     sourceWeather["longitude"] = _config.weather.longitude;
     sourceWeather["interval"] = _config.weather.pollIntervalSeconds;
+    sourceWeather["activeLocationId"] = _config.weather.activeLocationId;
+    const WeatherLocation* activeWeatherLocation = _config.weather.activeLocation();
+    sourceWeather["activeLocationName"] = activeWeatherLocation ? activeWeatherLocation->name : "";
+    JsonArray weatherLocations = sourceWeather["locations"].to<JsonArray>();
+    for (uint8_t i = 0; i < _config.weather.locationCount && i < MaxWeatherLocations; ++i) {
+        const auto& location = _config.weather.locations[i];
+        JsonObject item = weatherLocations.add<JsonObject>();
+        item["id"] = location.id;
+        item["name"] = location.name;
+        item["country"] = location.country;
+        item["latitude"] = location.latitude;
+        item["longitude"] = location.longitude;
+    }
 
     String response;
     serializeJson(doc, response);
@@ -1913,7 +1927,7 @@ void DashboardWebServer::handleApiUpdateComplete() {
 }
 
 void DashboardWebServer::handleApiWeatherConfig() {
-    const char* required[] = {"provider", "latitude", "longitude", "interval"};
+    const char* required[] = {"provider", "interval"};
     for (const char* name : required) {
         if (!_server.hasArg(name) || _server.arg(name).isEmpty()) {
             _server.send(400, "application/json",
@@ -1923,26 +1937,115 @@ void DashboardWebServer::handleApiWeatherConfig() {
     }
 
     const String provider = _server.arg("provider");
-    const double latitude = _server.arg("latitude").toDouble();
-    const double longitude = _server.arg("longitude").toDouble();
     const long interval = _server.arg("interval").toInt();
     if ((provider != "open-meteo" && provider != "met-no") ||
-        latitude < -90.0 || latitude > 90.0 ||
-        longitude < -180.0 || longitude > 180.0 ||
-        (latitude == 0.0 && longitude == 0.0) ||
         interval < 900 || interval > 21600) {
         _server.send(400, "application/json",
                      "{\"status\":\"error\",\"message\":\"Invalid weather setting\"}");
         return;
     }
 
-    if (_weatherConfigCallback) {
-        WeatherConfig weather;
-        weather.enabled = _server.arg("enabled") == "1";
-        weather.provider = provider;
+    WeatherConfig weather;
+    weather.enabled = _server.arg("enabled") == "1";
+    weather.provider = provider;
+    weather.pollIntervalSeconds = static_cast<uint32_t>(interval);
+
+    auto invalidText = [](const String& value, size_t maxLength, bool allowEmpty) {
+        if ((!allowEmpty && value.isEmpty()) || value.length() > maxLength) return true;
+        for (size_t i = 0; i < value.length(); ++i) {
+            if (static_cast<uint8_t>(value[i]) < 0x20) return true;
+        }
+        return false;
+    };
+
+    if (_server.hasArg("locations")) {
+        JsonDocument locationsDoc;
+        if (deserializeJson(locationsDoc, _server.arg("locations"))) {
+            _server.send(400, "application/json",
+                         "{\"status\":\"error\",\"message\":\"Invalid weather locations\"}");
+            return;
+        }
+        JsonArray locations = locationsDoc.as<JsonArray>();
+        if (locations.isNull() || locations.size() == 0 || locations.size() > MaxWeatherLocations ||
+            !_server.hasArg("activeLocationId")) {
+            _server.send(400, "application/json",
+                         "{\"status\":\"error\",\"message\":\"Invalid weather locations\"}");
+            return;
+        }
+
+        weather.locationCount = 0;
+        for (JsonObject item : locations) {
+            const String id = item["id"] | "";
+            const String name = item["name"] | "";
+            const String country = item["country"] | "";
+            const double latitude = item["latitude"] | 999.0;
+            const double longitude = item["longitude"] | 999.0;
+            if (invalidText(id, 32, false) || invalidText(name, 80, false) ||
+                invalidText(country, 64, true) ||
+                latitude < -90.0 || latitude > 90.0 ||
+                longitude < -180.0 || longitude > 180.0 ||
+                (latitude == 0.0 && longitude == 0.0)) {
+                _server.send(400, "application/json",
+                             "{\"status\":\"error\",\"message\":\"Invalid weather location\"}");
+                return;
+            }
+            for (uint8_t i = 0; i < weather.locationCount; ++i) {
+                if (weather.locations[i].id == id) {
+                    _server.send(400, "application/json",
+                                 "{\"status\":\"error\",\"message\":\"Duplicate weather location\"}");
+                    return;
+                }
+            }
+            auto& location = weather.locations[weather.locationCount++];
+            location.id = id;
+            location.name = name;
+            location.country = country;
+            location.latitude = latitude;
+            location.longitude = longitude;
+        }
+
+        weather.activeLocationId = _server.arg("activeLocationId");
+        bool activeFound = false;
+        for (uint8_t i = 0; i < weather.locationCount; ++i) {
+            if (weather.locations[i].id == weather.activeLocationId) {
+                activeFound = true;
+                break;
+            }
+        }
+        if (!activeFound) {
+            _server.send(400, "application/json",
+                         "{\"status\":\"error\",\"message\":\"Active weather location not found\"}");
+            return;
+        }
+        weather.syncActiveCoordinates();
+    } else {
+        // Kompatibilita se starším WebUI / API s jedinou lokalitou.
+        if (!_server.hasArg("latitude") || !_server.hasArg("longitude") ||
+            _server.arg("latitude").isEmpty() || _server.arg("longitude").isEmpty()) {
+            _server.send(400, "application/json",
+                         "{\"status\":\"error\",\"message\":\"Missing weather location\"}");
+            return;
+        }
+        const double latitude = _server.arg("latitude").toDouble();
+        const double longitude = _server.arg("longitude").toDouble();
+        if (latitude < -90.0 || latitude > 90.0 ||
+            longitude < -180.0 || longitude > 180.0 ||
+            (latitude == 0.0 && longitude == 0.0)) {
+            _server.send(400, "application/json",
+                         "{\"status\":\"error\",\"message\":\"Invalid weather location\"}");
+            return;
+        }
         weather.latitude = latitude;
         weather.longitude = longitude;
-        weather.pollIntervalSeconds = static_cast<uint32_t>(interval);
+        weather.locationCount = 1;
+        weather.locations[0].id = "legacy";
+        weather.locations[0].name = "Uložené místo";
+        weather.locations[0].latitude = latitude;
+        weather.locations[0].longitude = longitude;
+        weather.activeLocationId = weather.locations[0].id;
+    }
+
+    if (_weatherConfigCallback) {
         _server.send(200, "application/json", "{\"status\":\"saved\"}");
         _weatherConfigCallback(weather);
         return;
