@@ -10,23 +10,37 @@ constexpr uint8_t MaximumBackoffShift = 5;
 
 uint32_t pollDelayMs(uint32_t intervalSeconds, uint8_t failureStreak) {
     uint64_t baseMs = static_cast<uint64_t>(intervalSeconds) * 1000ULL;
-    if (baseMs < MinimumPollIntervalMs) {
-        baseMs = MinimumPollIntervalMs;
-    }
-
-    const uint8_t shift = failureStreak < MaximumBackoffShift
-        ? failureStreak
-        : MaximumBackoffShift;
+    if (baseMs < MinimumPollIntervalMs) baseMs = MinimumPollIntervalMs;
+    const uint8_t shift = failureStreak < MaximumBackoffShift ? failureStreak : MaximumBackoffShift;
     uint64_t delayMs = baseMs << shift;
     const uint64_t maximumMs = baseMs > MaximumBackoffMs ? baseMs : MaximumBackoffMs;
-    if (delayMs > maximumMs) {
-        delayMs = maximumMs;
-    }
+    if (delayMs > maximumMs) delayMs = maximumMs;
     return static_cast<uint32_t>(delayMs);
 }
 
 uint8_t nextFailureStreak(uint8_t current) {
     return current < MaximumBackoffShift ? current + 1 : MaximumBackoffShift;
+}
+
+bool applyWifiAddressing(const WifiConfig& wifi) {
+    if (wifi.dhcp) {
+        const bool ok = WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
+        Serial.printf("[WIFI] IP konfigurace: DHCP (%s)\n", ok ? "OK" : "CHYBA");
+        return ok;
+    }
+
+    IPAddress ip, gateway, subnet, dns1, dns2;
+    if (!ip.fromString(wifi.ipAddress) || !gateway.fromString(wifi.gateway) ||
+        !subnet.fromString(wifi.subnetMask) || !dns1.fromString(wifi.dns1)) {
+        Serial.println("[WIFI] Neplatna staticka IP konfigurace.");
+        return false;
+    }
+    if (!wifi.dns2.isEmpty()) dns2.fromString(wifi.dns2);
+    const bool ok = WiFi.config(ip, gateway, subnet, dns1, dns2);
+    Serial.printf("[WIFI] IP konfigurace: STATIC %s / %s | GW %s | DNS %s%s%s (%s)\n",
+                  wifi.ipAddress.c_str(), wifi.subnetMask.c_str(), wifi.gateway.c_str(), wifi.dns1.c_str(),
+                  wifi.dns2.isEmpty() ? "" : ", ", wifi.dns2.c_str(), ok ? "OK" : "CHYBA");
+    return ok;
 }
 }
 
@@ -49,6 +63,7 @@ void DashboardApp::setup() {
 
     _configManager.begin();
     const auto& cfg = _configManager.get();
+    applyWifiAddressing(cfg.wifi);
 
     registerScreens();
     _screenManager.activateScreen(cfg.display.defaultScreen);
@@ -57,14 +72,11 @@ void DashboardApp::setup() {
     _wifiManager.onStatusChange([this](bool connected, const String& ip) {
         Serial.printf("[APP] Wi-Fi zmena stavu -> Connected: %d, IP: %s\n", connected, ip.c_str());
         _dataModel.system.wifiConnected = connected;
-        _dataModel.system.wifiSignalLevel = _wifiSignalLevel.update(
-            connected, _wifiManager.getRssi(), millis());
+        _dataModel.system.wifiSignalLevel = _wifiSignalLevel.update(connected, _wifiManager.getRssi(), millis());
         _dataModel.system.ipAddress = ip;
         requestAutomaticDisplayRefresh();
     });
 
-    // Automaticky fallback smí použít jen známé sítě, které nejsou ručně odpojené.
-    // Heslo se předává interně v RAM, nikdy přes WebUI/API.
     _wifiManager.onKnownNetworkLookup([this](const String& ssid, String& password) {
         return _configManager.getAutoJoinWifiPassword(ssid, password);
     });
@@ -76,16 +88,14 @@ void DashboardApp::setup() {
 
     bool wifiOk = false;
     const bool hasConfiguredWifi = !cfg.wifi.ssid.isEmpty() && cfg.wifi.ssid != "VASE_WIFI";
-    const bool configuredWifiAllowed = hasConfiguredWifi &&
-        _configManager.isWifiAutoConnectEnabled(cfg.wifi.ssid);
+    const bool configuredWifiAllowed = hasConfiguredWifi && _configManager.isWifiAutoConnectEnabled(cfg.wifi.ssid);
 
     if (configuredWifiAllowed) {
         _wifiManager.begin(cfg.wifi.ssid, cfg.wifi.password, cfg.system.hostname);
         wifiOk = _wifiManager.waitForConnection(8000);
     } else {
         if (hasConfiguredWifi) {
-            Serial.printf("[WIFI] Sit '%s' byla rucne odpojena. Po restartu ji automaticky nezkousim.\n",
-                          cfg.wifi.ssid.c_str());
+            Serial.printf("[WIFI] Sit '%s' byla rucne odpojena. Po restartu ji automaticky nezkousim.\n", cfg.wifi.ssid.c_str());
         }
         _wifiManager.begin("", "", cfg.system.hostname);
     }
@@ -104,29 +114,17 @@ void DashboardApp::setup() {
     _dataModel.system.wifiConnected = _wifiManager.isConnected();
     _dataModel.system.wifiRssi = _wifiManager.getRssi();
     const uint8_t previousSignalLevel = _dataModel.system.wifiSignalLevel;
-    _dataModel.system.wifiSignalLevel = _wifiSignalLevel.update(
-        _dataModel.system.wifiConnected, _dataModel.system.wifiRssi, millis());
-    if (previousSignalLevel != _dataModel.system.wifiSignalLevel ||
-        previousAccessPoint != _dataModel.system.wifiAccessPoint) {
-        requestAutomaticDisplayRefresh();
-    }
+    _dataModel.system.wifiSignalLevel = _wifiSignalLevel.update(_dataModel.system.wifiConnected, _dataModel.system.wifiRssi, millis());
+    if (previousSignalLevel != _dataModel.system.wifiSignalLevel || previousAccessPoint != _dataModel.system.wifiAccessPoint) requestAutomaticDisplayRefresh();
     _dataModel.system.ipAddress = _wifiManager.getIpAddress();
     _dataModel.system.ntpSynced = _timeService.isSynced();
     _dataModel.system.timeStr = _timeService.getTimeStr();
     _dataModel.system.dateStr = _timeService.getDateStr();
     _dataModel.system.dayOfWeekStr = _timeService.getDayOfWeekStr();
 
-    _webServer.onScreenChange([this](const String& screenId) {
-        onScreenSwitchRequested(screenId);
-    });
-
-    _webServer.onRefresh([this](bool full) {
-        onRefreshRequested(full);
-    });
-
-    _webServer.onDisplayStatus([this]() {
-        return _displayWorker.getStatus();
-    });
+    _webServer.onScreenChange([this](const String& screenId) { onScreenSwitchRequested(screenId); });
+    _webServer.onRefresh([this](bool full) { onRefreshRequested(full); });
+    _webServer.onDisplayStatus([this]() { return _displayWorker.getStatus(); });
 
     _webServer.onSystemConfig([this](const SystemConfig& system) {
         const String previousHostname = _configManager.get().system.hostname;
@@ -136,46 +134,45 @@ void DashboardApp::setup() {
         _dataModel.system.timeStr = "";
         _dataModel.system.dateStr = "";
         _dataModel.system.dayOfWeekStr = "";
-
         if (previousHostname != system.hostname) {
             const auto& current = _configManager.get();
-            if (!current.wifi.ssid.isEmpty() &&
-                _configManager.isWifiAutoConnectEnabled(current.wifi.ssid)) {
+            applyWifiAddressing(current.wifi);
+            if (!current.wifi.ssid.isEmpty() && _configManager.isWifiAutoConnectEnabled(current.wifi.ssid))
                 _wifiManager.begin(current.wifi.ssid, current.wifi.password, system.hostname);
-            } else {
-                _wifiManager.begin("", "", system.hostname);
-            }
+            else _wifiManager.begin("", "", system.hostname);
         }
-
         requestAutomaticDisplayRefresh();
         Serial.println("[CONFIG] System ulozen a aplikovan za behu.");
     });
 
     _webServer.onWifiConfig([this](const String& ssid, const String& password) {
-        // Uložit a připojit je explicitní volba uživatele, proto auto-connect znovu povolí.
         _configManager.setWifi(ssid, password);
         const auto& current = _configManager.get();
+        applyWifiAddressing(current.wifi);
         Serial.println("[CONFIG] Wi-Fi ulozena, prepojuji bez restartu...");
         _wifiManager.begin(ssid, password, current.system.hostname);
     });
 
-    _webServer.onWifiScan([this]() {
-        return _wifiManager.scanNetworksJson();
+    _webServer.onWifiNetworkConfig([this](const WifiConfig& wifi) {
+        _configManager.setWifiNetworkConfig(wifi);
+        const auto& current = _configManager.get();
+        applyWifiAddressing(current.wifi);
+        Serial.printf("[CONFIG] IP rezim ulozen: %s. Obnovuji Wi-Fi pripojeni.\n", current.wifi.dhcp ? "DHCP" : "STATIC");
+        if (!current.wifi.ssid.isEmpty() && _configManager.isWifiAutoConnectEnabled(current.wifi.ssid))
+            _wifiManager.begin(current.wifi.ssid, current.wifi.password, current.system.hostname);
+        else _wifiManager.begin("", "", current.system.hostname);
     });
 
-    _webServer.onWifiKnownNetworks([this]() {
-        return _configManager.getKnownWifiNetworksJson();
-    });
+    _webServer.onWifiScan([this]() { return _wifiManager.scanNetworksJson(); });
+    _webServer.onWifiKnownNetworks([this]() { return _configManager.getKnownWifiNetworksJson(); });
 
     _webServer.onWifiConnectKnown([this](const String& ssid) {
         String password;
         if (!_configManager.getKnownWifiPassword(ssid, password)) return false;
-
-        // Ruční Připojit je jediná akce, která zruší stav ručního odpojení.
         _configManager.setWifi(ssid, password);
         const auto& current = _configManager.get();
-        Serial.printf("[WIFI] Rucne pripojuji znamou sit '%s'; auto-connect je znovu povolen.\n",
-                      ssid.c_str());
+        applyWifiAddressing(current.wifi);
+        Serial.printf("[WIFI] Rucne pripojuji znamou sit '%s'; auto-connect je znovu povolen.\n", ssid.c_str());
         _wifiManager.begin(ssid, password, current.system.hostname);
         return true;
     });
@@ -183,10 +180,8 @@ void DashboardApp::setup() {
     _webServer.onWifiDisconnect([this]() {
         const String activeSsid = _configManager.get().wifi.ssid;
         if (!activeSsid.isEmpty() && activeSsid != "VASE_WIFI") {
-            if (_configManager.setWifiAutoConnectEnabled(activeSsid, false)) {
-                Serial.printf("[WIFI] Sit '%s' byla rucne odpojena a zustane vyradena z auto-connectu do rucniho Pripojit.\n",
-                              activeSsid.c_str());
-            }
+            if (_configManager.setWifiAutoConnectEnabled(activeSsid, false))
+                Serial.printf("[WIFI] Sit '%s' byla rucne odpojena a zustane vyradena z auto-connectu do rucniho Pripojit.\n", activeSsid.c_str());
         }
         _wifiManager.disconnectToConfigAccessPoint();
         requestAutomaticDisplayRefresh();
@@ -195,74 +190,44 @@ void DashboardApp::setup() {
     _webServer.onWifiForget([this](const String& ssid) {
         const bool wasActive = _configManager.get().wifi.ssid == ssid;
         if (!_configManager.forgetWifi(ssid)) return false;
-        if (wasActive) {
-            _wifiManager.disconnectToConfigAccessPoint();
-            requestAutomaticDisplayRefresh();
-        }
+        if (wasActive) { _wifiManager.disconnectToConfigAccessPoint(); requestAutomaticDisplayRefresh(); }
         Serial.printf("[WIFI] Sit '%s' byla zapomenuta.\n", ssid.c_str());
         return true;
     });
 
     _webServer.onSourceConfig([this](const GoodWeConfig& goodwe, const AZRouterConfig& azrouter) {
         _configManager.setSources(goodwe, azrouter);
-
-        if (goodwe.enabled) {
-            _goodweClient.begin(goodwe.host, goodwe.port);
-        } else {
-            _dataModel.solar.status.recordError("Disabled");
-        }
-        if (azrouter.enabled) {
-            _azrouterClient.begin(azrouter.host, azrouter.port);
-        } else {
-            _dataModel.azrouter.status.recordError("Disabled");
-        }
-
-        _goodweFailureStreak = 0;
-        _azrouterFailureStreak = 0;
+        if (goodwe.enabled) _goodweClient.begin(goodwe.host, goodwe.port); else _dataModel.solar.status.recordError("Disabled");
+        if (azrouter.enabled) _azrouterClient.begin(azrouter.host, azrouter.port); else _dataModel.azrouter.status.recordError("Disabled");
+        _goodweFailureStreak = 0; _azrouterFailureStreak = 0;
         _lastGoodweSync = millis() - goodwe.pollIntervalSeconds * 1000UL;
         _lastAzrouterSync = millis() - azrouter.pollIntervalSeconds * 1000UL;
-        _dataModel.updateSystemMetrics();
-        requestAutomaticDisplayRefresh();
+        _dataModel.updateSystemMetrics(); requestAutomaticDisplayRefresh();
         Serial.println("[CONFIG] Datove zdroje ulozeny a aplikovany za behu.");
     });
 
     _webServer.onWeatherConfig([this](const WeatherConfig& weather) {
         _configManager.setWeather(weather);
-        if (!_weatherWorker.reconfigure(weather)) {
-            Serial.println("[CONFIG] Nepodarilo se aplikovat konfiguraci pocasi za behu.");
-        }
-        if (!weather.enabled) {
-            _dataModel.weather.status.recordError("Weather disabled");
-        }
+        if (!_weatherWorker.reconfigure(weather)) Serial.println("[CONFIG] Nepodarilo se aplikovat konfiguraci pocasi za behu.");
+        if (!weather.enabled) _dataModel.weather.status.recordError("Weather disabled");
         requestAutomaticDisplayRefresh();
         Serial.println("[CONFIG] Pocasi ulozeno a aplikovano za behu.");
     });
 
-    _webServer.onFactoryReset([this]() {
-        return _configManager.resetToFactoryDefaults();
-    });
-
-    _webServer.onConfigImport([this](const AppConfig& config) {
-        return _configManager.setUserConfiguration(config);
-    });
+    _webServer.onFactoryReset([this]() { return _configManager.resetToFactoryDefaults(); });
+    _webServer.onConfigImport([this](const AppConfig& config) { return _configManager.setUserConfiguration(config); });
 
     _webServer.enableTimezoneUiExtension();
     _webServer.begin();
 
-    if (cfg.goodwe.enabled) {
-        _goodweClient.begin(cfg.goodwe.host, cfg.goodwe.port);
-    }
-    if (cfg.azrouter.enabled) {
-        _azrouterClient.begin(cfg.azrouter.host, cfg.azrouter.port);
-    }
-
+    if (cfg.goodwe.enabled) _goodweClient.begin(cfg.goodwe.host, cfg.goodwe.port);
+    if (cfg.azrouter.enabled) _azrouterClient.begin(cfg.azrouter.host, cfg.azrouter.port);
     _weatherWorker.begin(cfg.weather);
 
     _lastGoodweSync = millis();
     _lastAzrouterSync = millis();
     _displayInitNotBefore = millis() + 1500;
     requestDisplayRefresh(true);
-
     Serial.println("[APP] Inicializace uspesne dokoncena.");
 }
 
@@ -271,21 +236,15 @@ void DashboardApp::registerScreens() {
     _screenManager.registerScreen(&_solarScreen);
     _screenManager.registerScreen(&_poolScreen);
     _screenManager.registerScreen(&_weatherScreen);
-    for (auto& screen : _weatherHourlyScreens) {
-        _screenManager.registerScreen(&screen);
-    }
+    for (auto& screen : _weatherHourlyScreens) _screenManager.registerScreen(&screen);
     _screenManager.registerScreen(&_diagnosticsScreen);
 }
 
 void DashboardApp::requestDisplayRefresh(bool full, unsigned long delayMs) {
     _pendingRefresh = true;
     _pendingFullRefresh = _pendingFullRefresh || full;
-
     const unsigned long requestedAt = millis() + delayMs;
-    if (_displayRefreshNotBefore == 0 ||
-        static_cast<long>(requestedAt - _displayRefreshNotBefore) > 0) {
-        _displayRefreshNotBefore = requestedAt;
-    }
+    if (_displayRefreshNotBefore == 0 || static_cast<long>(requestedAt - _displayRefreshNotBefore) > 0) _displayRefreshNotBefore = requestedAt;
 }
 
 void DashboardApp::requestAutomaticDisplayRefresh() {
@@ -293,9 +252,7 @@ void DashboardApp::requestAutomaticDisplayRefresh() {
     if (_lastScreenRender != 0) {
         const unsigned long elapsed = millis() - _lastScreenRender;
         constexpr unsigned long CoalesceWindowMs = 5000;
-        if (elapsed < CoalesceWindowMs) {
-            delayMs = CoalesceWindowMs - elapsed;
-        }
+        if (elapsed < CoalesceWindowMs) delayMs = CoalesceWindowMs - elapsed;
     }
     requestDisplayRefresh(false, delayMs);
 }
@@ -320,9 +277,7 @@ void DashboardApp::loop() {
     const bool displayInitFallbackElapsed = static_cast<long>(millis() - _displayInitNotBefore) >= 5000;
     if (!_displayWorkerStarted && displayInitDelayElapsed && (_timeService.isSynced() || displayInitFallbackElapsed)) {
         _displayWorkerStarted = _displayWorker.begin();
-        if (_displayWorkerStarted) {
-            _lastDisplayUpdate = millis();
-        }
+        if (_displayWorkerStarted) _lastDisplayUpdate = millis();
     }
 
     const DisplayTaskStatus displayStatus = _displayWorker.getStatus();
@@ -341,12 +296,8 @@ void DashboardApp::loop() {
     _dataModel.system.wifiConnected = _wifiManager.isConnected();
     _dataModel.system.wifiRssi = _wifiManager.getRssi();
     const uint8_t previousSignalLevel = _dataModel.system.wifiSignalLevel;
-    _dataModel.system.wifiSignalLevel = _wifiSignalLevel.update(
-        _dataModel.system.wifiConnected, _dataModel.system.wifiRssi, millis());
-    if (previousSignalLevel != _dataModel.system.wifiSignalLevel ||
-        previousAccessPoint != _dataModel.system.wifiAccessPoint) {
-        requestAutomaticDisplayRefresh();
-    }
+    _dataModel.system.wifiSignalLevel = _wifiSignalLevel.update(_dataModel.system.wifiConnected, _dataModel.system.wifiRssi, millis());
+    if (previousSignalLevel != _dataModel.system.wifiSignalLevel || previousAccessPoint != _dataModel.system.wifiAccessPoint) requestAutomaticDisplayRefresh();
     _dataModel.system.ipAddress = _wifiManager.getIpAddress();
     _dataModel.system.ntpSynced = _timeService.isSynced();
     _dataModel.system.timeStr = _timeService.getTimeStr();
@@ -361,29 +312,19 @@ void DashboardApp::loop() {
         requestAutomaticDisplayRefresh();
     }
 
-    const bool timeChanged = previousTimeStr != _dataModel.system.timeStr ||
-                             previousDateStr != _dataModel.system.dateStr ||
-                             previousDayOfWeekStr != _dataModel.system.dayOfWeekStr;
-    if (timeChanged) {
-        requestAutomaticDisplayRefresh();
-    }
+    const bool timeChanged = previousTimeStr != _dataModel.system.timeStr || previousDateStr != _dataModel.system.dateStr || previousDayOfWeekStr != _dataModel.system.dayOfWeekStr;
+    if (timeChanged) requestAutomaticDisplayRefresh();
 
     WeatherData weatherUpdate;
     if (_weatherWorker.takeLatest(weatherUpdate)) {
-        const bool changed = weatherUpdate.status.available != _dataModel.weather.status.available ||
-                             weatherUpdate.lastUpdateMs != _dataModel.weather.lastUpdateMs;
+        const bool changed = weatherUpdate.status.available != _dataModel.weather.status.available || weatherUpdate.lastUpdateMs != _dataModel.weather.lastUpdateMs;
         _dataModel.weather = weatherUpdate;
-        if (changed) {
-            requestAutomaticDisplayRefresh();
-        }
+        if (changed) requestAutomaticDisplayRefresh();
     }
 
-    if (displayStatus.ready && _pendingRefresh &&
-        static_cast<long>(millis() - _displayRefreshNotBefore) >= 0) {
+    if (displayStatus.ready && _pendingRefresh && static_cast<long>(millis() - _displayRefreshNotBefore) >= 0) {
         if (_displayWorker.enqueue(_screenManager.getActiveScreen(), _dataModel, _pendingFullRefresh)) {
-            _pendingRefresh = false;
-            _pendingFullRefresh = false;
-            _displayRefreshNotBefore = 0;
+            _pendingRefresh = false; _pendingFullRefresh = false; _displayRefreshNotBefore = 0;
         }
     }
 
@@ -391,7 +332,6 @@ void DashboardApp::loop() {
     if (_wifiManager.isConnected()) {
         const auto& cfg = _configManager.get();
         bool availabilityChanged = false;
-
         const uint32_t goodweDelayMs = pollDelayMs(cfg.goodwe.pollIntervalSeconds, _goodweFailureStreak);
         if (cfg.goodwe.enabled && now - _lastGoodweSync >= goodweDelayMs) {
             const bool wasAvailable = _dataModel.solar.status.available;
@@ -399,11 +339,7 @@ void DashboardApp::loop() {
             _lastGoodweSync = millis();
             _goodweFailureStreak = success ? 0 : nextFailureStreak(_goodweFailureStreak);
             availabilityChanged |= wasAvailable != _dataModel.solar.status.available;
-            if (!success) {
-                Serial.printf("[GOODWE] Další pokus za %lu ms (chyby v řadě: %u)\n",
-                              pollDelayMs(cfg.goodwe.pollIntervalSeconds, _goodweFailureStreak),
-                              _goodweFailureStreak);
-            }
+            if (!success) Serial.printf("[GOODWE] Dalsi pokus za %lu ms (chyby v rade: %u)\n", pollDelayMs(cfg.goodwe.pollIntervalSeconds, _goodweFailureStreak), _goodweFailureStreak);
         }
 
         now = millis();
@@ -414,22 +350,12 @@ void DashboardApp::loop() {
             _lastAzrouterSync = millis();
             _azrouterFailureStreak = success ? 0 : nextFailureStreak(_azrouterFailureStreak);
             availabilityChanged |= wasAvailable != _dataModel.azrouter.status.available;
-            if (!success) {
-                Serial.printf("[AZROUTER] Další pokus za %lu ms (chyby v řadě: %u)\n",
-                              pollDelayMs(cfg.azrouter.pollIntervalSeconds, _azrouterFailureStreak),
-                              _azrouterFailureStreak);
-            }
+            if (!success) Serial.printf("[AZROUTER] Dalsi pokus za %lu ms (chyby v rade: %u)\n", pollDelayMs(cfg.azrouter.pollIntervalSeconds, _azrouterFailureStreak), _azrouterFailureStreak);
         }
 
         _dataModel.updateSystemMetrics();
-        if (availabilityChanged) {
-            requestAutomaticDisplayRefresh();
-        }
-
-        if (now - _lastDisplayUpdate >= 60000UL) {
-            _lastDisplayUpdate = now;
-            requestAutomaticDisplayRefresh();
-        }
+        if (availabilityChanged) requestAutomaticDisplayRefresh();
+        if (now - _lastDisplayUpdate >= 60000UL) { _lastDisplayUpdate = now; requestAutomaticDisplayRefresh(); }
     }
 
     delay(20);
