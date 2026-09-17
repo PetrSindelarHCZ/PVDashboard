@@ -128,7 +128,6 @@ public:
             _wifiNetworkConfigCallback(wifi);
         });
 
-        // Ruční diagnostika používá hodnoty právě zadané do formuláře a nic neukládá.
         _server.on("/api/sources/test", HTTP_POST, [this]() {
             if (!_server.hasArg("source") || !_server.hasArg("host") || !_server.hasArg("port")) {
                 _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Chybi zdroj, host nebo port\"}");
@@ -172,6 +171,25 @@ public:
             _server.sendHeader("Cache-Control", "no-store");
             _server.send(200, "application/json", response);
         });
+
+        if (!_systemNetworkConfigCallback) {
+            onSystemNetworkConfig([this](const SystemConfig& system, const WifiConfig& wifi) {
+                const auto& currentSystem = _config.system;
+                const auto& currentWifi = _config.wifi;
+                const bool systemChanged = currentSystem.hostname != system.hostname ||
+                                           currentSystem.ntpServer != system.ntpServer ||
+                                           currentSystem.timezone != system.timezone ||
+                                           currentSystem.timezoneId != system.timezoneId;
+                const bool networkChanged = currentWifi.dhcp != wifi.dhcp ||
+                                            currentWifi.ipAddress != wifi.ipAddress ||
+                                            currentWifi.subnetMask != wifi.subnetMask ||
+                                            currentWifi.gateway != wifi.gateway ||
+                                            currentWifi.dns1 != wifi.dns1 ||
+                                            currentWifi.dns2 != wifi.dns2;
+                if (networkChanged && _wifiNetworkConfigCallback) _wifiNetworkConfigCallback(wifi);
+                if (systemChanged && _systemConfigCallback) _systemConfigCallback(system);
+            });
+        }
     }
 
     void onSystemNetworkConfig(SystemNetworkConfigCallback callback) {
