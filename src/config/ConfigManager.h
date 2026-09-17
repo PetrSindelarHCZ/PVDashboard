@@ -26,7 +26,11 @@ private:
     struct KnownWifiNetwork {
         String ssid;
         String password;
-        bool autoConnect = true;
+        bool autoConnect;
+
+        KnownWifiNetwork(const String& networkSsid, const String& networkPassword, bool networkAutoConnect = true)
+            : ssid(networkSsid), password(networkPassword), autoConnect(networkAutoConnect) {
+        }
     };
 
     static constexpr size_t MaxKnownWifiNetworks = 8;
