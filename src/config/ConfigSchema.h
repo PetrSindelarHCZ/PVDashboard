@@ -38,16 +38,56 @@ struct AZRouterConfig {
     uint32_t pollIntervalSeconds = 10;
 };
 
+constexpr uint8_t MaxWeatherLocations = 8;
+
+struct WeatherLocation {
+    String id = "";
+    String name = "";
+    String country = "";
+    double latitude = 0.0;
+    double longitude = 0.0;
+};
+
 struct WeatherConfig {
     bool enabled = false;
     String provider = "open-meteo";
+
+    // latitude/longitude zůstávají jako efektivní souřadnice aktivního místa,
+    // aby poskytovatelé počasí nemuseli znát seznam lokalit.
     double latitude = 50.0755;
     double longitude = 14.4378;
     uint32_t pollIntervalSeconds = 1800;
+
+    WeatherLocation locations[MaxWeatherLocations];
+    uint8_t locationCount = 1;
+    String activeLocationId = "praha";
+
+    WeatherConfig() {
+        locations[0].id = "praha";
+        locations[0].name = "Praha";
+        locations[0].country = "Česko";
+        locations[0].latitude = latitude;
+        locations[0].longitude = longitude;
+    }
+
+    const WeatherLocation* activeLocation() const {
+        for (uint8_t i = 0; i < locationCount && i < MaxWeatherLocations; ++i) {
+            if (locations[i].id == activeLocationId) return &locations[i];
+        }
+        return locationCount > 0 ? &locations[0] : nullptr;
+    }
+
+    void syncActiveCoordinates() {
+        const WeatherLocation* location = activeLocation();
+        if (!location) return;
+        latitude = location->latitude;
+        longitude = location->longitude;
+        if (activeLocationId.isEmpty()) activeLocationId = location->id;
+    }
 };
 
 struct AppConfig {
-    uint8_t schemaVersion = 4;
+    uint8_t schemaVersion = 5;
     SystemConfig system;
     WifiConfig wifi;
     DisplayConfig display;
