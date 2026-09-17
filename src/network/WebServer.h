@@ -19,6 +19,7 @@ public:
     using SystemConfigCallback = std::function<void(const SystemConfig& system)>;
     using WifiConfigCallback = std::function<void(const String& ssid, const String& password)>;
     using WifiNetworkConfigCallback = std::function<void(const WifiConfig& wifi)>;
+    using SystemNetworkConfigCallback = std::function<void(const SystemConfig& system, const WifiConfig& wifi)>;
     using WifiScanCallback = std::function<String()>;
     using WifiKnownNetworksCallback = std::function<String()>;
     using WifiKnownNetworkActionCallback = std::function<bool(const String& ssid)>;
@@ -172,6 +173,106 @@ public:
             _server.send(200, "application/json", response);
         });
     }
+
+    void onSystemNetworkConfig(SystemNetworkConfigCallback callback) {
+        _systemNetworkConfigCallback = callback;
+        _server.on("/api/config/system-network", HTTP_POST, [this]() {
+            if (!_systemNetworkConfigCallback) {
+                _server.send(503, "application/json", "{\"status\":\"error\",\"message\":\"System configuration unavailable\"}");
+                return;
+            }
+
+            const char* required[] = {"hostname", "ntpServer", "timezone", "timezoneId", "mode"};
+            for (const char* name : required) {
+                if (!_server.hasArg(name) || _server.arg(name).isEmpty()) {
+                    _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Chybi povinne nastaveni\"}");
+                    return;
+                }
+            }
+
+            SystemConfig system = _config.system;
+            system.hostname = _server.arg("hostname");
+            system.ntpServer = _server.arg("ntpServer");
+            system.timezone = _server.arg("timezone");
+            system.timezoneId = _server.arg("timezoneId");
+            system.hostname.trim(); system.ntpServer.trim(); system.timezone.trim(); system.timezoneId.trim();
+
+            auto hasControl = [](const String& value) {
+                for (size_t i = 0; i < value.length(); ++i) if (static_cast<uint8_t>(value[i]) < 0x20) return true;
+                return false;
+            };
+            bool hostnameValid = !system.hostname.isEmpty() && system.hostname.length() <= 32 &&
+                                 system.hostname[0] != '-' && !system.hostname.endsWith("-");
+            for (size_t i = 0; hostnameValid && i < system.hostname.length(); ++i) {
+                const char c = system.hostname[i];
+                hostnameValid = isAlphaNumeric(c) || c == '-';
+            }
+            bool ntpValid = !system.ntpServer.isEmpty() && system.ntpServer.length() <= 253;
+            for (size_t i = 0; ntpValid && i < system.ntpServer.length(); ++i) {
+                const char c = system.ntpServer[i];
+                ntpValid = isAlphaNumeric(c) || c == '.' || c == '-' || c == ':' || c == '[' || c == ']';
+            }
+            const bool timezoneValid = !system.timezone.isEmpty() && system.timezone.length() <= 127 && !hasControl(system.timezone);
+            const bool timezoneIdValid = !system.timezoneId.isEmpty() && system.timezoneId.length() <= 64 &&
+                                         !hasControl(system.timezoneId) &&
+                                         (system.timezoneId.startsWith("manual:") || system.timezoneId.indexOf('/') > 0);
+            if (!hostnameValid || !ntpValid || hasControl(system.ntpServer) || !timezoneValid || !timezoneIdValid) {
+                _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Neplatne systemove nastaveni\"}");
+                return;
+            }
+
+            WifiConfig wifi = _config.wifi;
+            const String mode = _server.arg("mode");
+            if (mode != "dhcp" && mode != "static") {
+                _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Neplatny rezim IP konfigurace\"}");
+                return;
+            }
+            wifi.dhcp = mode == "dhcp";
+            wifi.ipAddress = _server.arg("ipAddress");
+            wifi.subnetMask = _server.arg("subnetMask");
+            wifi.gateway = _server.arg("gateway");
+            wifi.dns1 = _server.arg("dns1");
+            wifi.dns2 = _server.arg("dns2");
+            wifi.ipAddress.trim(); wifi.subnetMask.trim(); wifi.gateway.trim(); wifi.dns1.trim(); wifi.dns2.trim();
+
+            auto validIp = [](const String& value, bool allowEmpty) {
+                if (value.isEmpty()) return allowEmpty;
+                IPAddress address;
+                return address.fromString(value) && address != IPAddress(0, 0, 0, 0);
+            };
+            auto validMask = [](const String& value, bool allowEmpty) {
+                if (value.isEmpty()) return allowEmpty;
+                IPAddress mask;
+                if (!mask.fromString(value)) return false;
+                bool zeroSeen = false;
+                bool oneSeen = false;
+                for (int octet = 0; octet < 4; ++octet) {
+                    const uint8_t byte = mask[octet];
+                    for (int bit = 7; bit >= 0; --bit) {
+                        const bool one = (byte & (1 << bit)) != 0;
+                        if (one) {
+                            oneSeen = true;
+                            if (zeroSeen) return false;
+                        } else zeroSeen = true;
+                    }
+                }
+                return oneSeen;
+            };
+            const bool networkValid = wifi.dhcp
+                ? validIp(wifi.ipAddress, true) && validMask(wifi.subnetMask, true) &&
+                  validIp(wifi.gateway, true) && validIp(wifi.dns1, true) && validIp(wifi.dns2, true)
+                : validIp(wifi.ipAddress, false) && validMask(wifi.subnetMask, false) &&
+                  validIp(wifi.gateway, false) && validIp(wifi.dns1, false) && validIp(wifi.dns2, true);
+            if (!networkValid) {
+                _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Neplatna staticka IPv4 konfigurace\"}");
+                return;
+            }
+
+            _server.send(200, "application/json", "{\"status\":\"saved\"}");
+            _systemNetworkConfigCallback(system, wifi);
+        });
+    }
+
     void onWifiScan(WifiScanCallback callback);
     void onWifiKnownNetworks(WifiKnownNetworksCallback callback);
     void onWifiConnectKnown(WifiKnownNetworkActionCallback callback);
@@ -193,6 +294,7 @@ private:
     SystemConfigCallback _systemConfigCallback;
     WifiConfigCallback _wifiConfigCallback;
     WifiNetworkConfigCallback _wifiNetworkConfigCallback;
+    SystemNetworkConfigCallback _systemNetworkConfigCallback;
     WifiScanCallback _wifiScanCallback;
     WifiKnownNetworksCallback _wifiKnownNetworksCallback;
     WifiKnownNetworkActionCallback _wifiConnectKnownCallback;
