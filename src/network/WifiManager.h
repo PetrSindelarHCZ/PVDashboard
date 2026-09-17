@@ -21,6 +21,7 @@ public:
     String scanNetworksJson();
     int8_t getRssi() const;
     String getIpAddress() const;
+    String getSsid() const { return _ssid; }
     void onStatusChange(WifiStatusCallback callback);
     void onKnownNetworkLookup(KnownNetworkLookupCallback callback);
     void onKnownNetworkAt(KnownNetworkAtCallback callback);
