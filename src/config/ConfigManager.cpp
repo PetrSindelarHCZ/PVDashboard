@@ -12,8 +12,6 @@ String inferTimezoneId(const String& timezone) {
 }
 
 ConfigManager::ConfigManager() {
-    // Inicializace výchozí konfigurace dle ConfigSchema.h
-    // _config již obsahuje výchozí hodnoty z definice struct AppConfig
 }
 
 bool ConfigManager::begin() {
@@ -30,6 +28,12 @@ bool ConfigManager::begin() {
     if (preferences.isKey("sys_ntp")) _config.system.ntpServer = preferences.getString("sys_ntp", _config.system.ntpServer);
     if (preferences.isKey("wifi_ssid")) _config.wifi.ssid = preferences.getString("wifi_ssid", _config.wifi.ssid);
     if (preferences.isKey("wifi_password")) _config.wifi.password = preferences.getString("wifi_password", _config.wifi.password);
+    _config.wifi.dhcp = preferences.getBool("wifi_dhcp", _config.wifi.dhcp);
+    if (preferences.isKey("wifi_ip")) _config.wifi.ipAddress = preferences.getString("wifi_ip", _config.wifi.ipAddress);
+    if (preferences.isKey("wifi_mask")) _config.wifi.subnetMask = preferences.getString("wifi_mask", _config.wifi.subnetMask);
+    if (preferences.isKey("wifi_gw")) _config.wifi.gateway = preferences.getString("wifi_gw", _config.wifi.gateway);
+    if (preferences.isKey("wifi_dns1")) _config.wifi.dns1 = preferences.getString("wifi_dns1", _config.wifi.dns1);
+    if (preferences.isKey("wifi_dns2")) _config.wifi.dns2 = preferences.getString("wifi_dns2", _config.wifi.dns2);
 
     _knownWifiNetworks.clear();
     const uint8_t knownCount = min<uint8_t>(preferences.getUChar("wifi_known_n", 0), MaxKnownWifiNetworks);
@@ -39,11 +43,7 @@ bool ConfigManager::begin() {
         const String autoKey = "w_auto" + String(i);
         const String ssid = preferences.getString(ssidKey.c_str(), "");
         if (ssid.isEmpty()) continue;
-        _knownWifiNetworks.push_back({
-            ssid,
-            preferences.getString(passKey.c_str(), ""),
-            preferences.getBool(autoKey.c_str(), true)
-        });
+        _knownWifiNetworks.push_back({ssid, preferences.getString(passKey.c_str(), ""), preferences.getBool(autoKey.c_str(), true)});
     }
 
     _config.goodwe.enabled = preferences.getBool("gw_enabled", _config.goodwe.enabled);
@@ -61,38 +61,22 @@ bool ConfigManager::begin() {
     _config.weather.pollIntervalSeconds = preferences.getUInt("wx_interval", _config.weather.pollIntervalSeconds);
     preferences.end();
 
-    // Migrace ze starší konfigurace s jedinou Wi-Fi sítí do seznamu známých sítí.
     if (!_config.wifi.ssid.isEmpty() && _config.wifi.ssid != "VASE_WIFI") {
         String storedPassword;
-        if (!getKnownWifiPassword(_config.wifi.ssid, storedPassword)) {
-            rememberWifi(_config.wifi.ssid, _config.wifi.password, true);
-        }
+        if (!getKnownWifiPassword(_config.wifi.ssid, storedPassword)) rememberWifi(_config.wifi.ssid, _config.wifi.password, true);
     }
 
-    Serial.printf("[CONFIG] Načtena konfigurace (Schema v%u):\n", _config.schemaVersion);
-    Serial.printf("  Wi-Fi SSID: '%s' | známých sítí: %u\n",
-                  _config.wifi.ssid.c_str(), static_cast<unsigned>(_knownWifiNetworks.size()));
+    Serial.printf("[CONFIG] Nactena konfigurace (Schema v%u):\n", _config.schemaVersion);
+    Serial.printf("  Wi-Fi SSID: '%s' | znamych siti: %u | IP: %s\n",
+                  _config.wifi.ssid.c_str(), static_cast<unsigned>(_knownWifiNetworks.size()),
+                  _config.wifi.dhcp ? "DHCP" : _config.wifi.ipAddress.c_str());
     Serial.printf("  Timezone: %s (%s)\n", _config.system.timezoneId.c_str(), _config.system.timezone.c_str());
-    Serial.printf("  GoodWe: %s (host: %s:%u)\n",
-                  _config.goodwe.enabled ? "Povoleno" : "Zakázáno",
-                  _config.goodwe.host.c_str(),
-                  _config.goodwe.port);
-    Serial.printf("  AZRouter: %s (host: %s:%u)\n",
-                  _config.azrouter.enabled ? "Povoleno" : "Zakázáno",
-                  _config.azrouter.host.c_str(),
-                  _config.azrouter.port);
-    Serial.printf("  Pocasi: %s (%s, %.5f, %.5f, interval %lu s)\n",
-                  _config.weather.enabled ? "Povoleno" : "Zakazano",
-                  _config.weather.provider.c_str(),
-                  _config.weather.latitude,
-                  _config.weather.longitude,
-                  _config.weather.pollIntervalSeconds);
+    Serial.printf("  GoodWe: %s (host: %s:%u)\n", _config.goodwe.enabled ? "Povoleno" : "Zakazano", _config.goodwe.host.c_str(), _config.goodwe.port);
+    Serial.printf("  AZRouter: %s (host: %s:%u)\n", _config.azrouter.enabled ? "Povoleno" : "Zakazano", _config.azrouter.host.c_str(), _config.azrouter.port);
     return true;
 }
 
-const AppConfig& ConfigManager::get() const {
-    return _config;
-}
+const AppConfig& ConfigManager::get() const { return _config; }
 
 void ConfigManager::setSystem(const SystemConfig& system) {
     _config.system = system;
@@ -107,7 +91,6 @@ void ConfigManager::setSystem(const SystemConfig& system) {
 
 void ConfigManager::rememberWifi(const String& ssid, const String& password, bool enableAutoConnect) {
     if (ssid.isEmpty() || ssid == "VASE_WIFI") return;
-
     for (auto& network : _knownWifiNetworks) {
         if (network.ssid == ssid) {
             network.password = password;
@@ -116,10 +99,7 @@ void ConfigManager::rememberWifi(const String& ssid, const String& password, boo
             return;
         }
     }
-
-    if (_knownWifiNetworks.size() >= MaxKnownWifiNetworks) {
-        _knownWifiNetworks.erase(_knownWifiNetworks.begin());
-    }
+    if (_knownWifiNetworks.size() >= MaxKnownWifiNetworks) _knownWifiNetworks.erase(_knownWifiNetworks.begin());
     _knownWifiNetworks.push_back({ssid, password, enableAutoConnect});
     saveKnownWifiNetworks();
 }
@@ -127,20 +107,15 @@ void ConfigManager::rememberWifi(const String& ssid, const String& password, boo
 void ConfigManager::saveKnownWifiNetworks() {
     Preferences preferences;
     if (!preferences.begin("dashboard", false)) return;
-
     preferences.putUChar("wifi_known_n", static_cast<uint8_t>(_knownWifiNetworks.size()));
     for (size_t i = 0; i < MaxKnownWifiNetworks; ++i) {
-        const String ssidKey = "w_ssid" + String(i);
-        const String passKey = "w_pass" + String(i);
-        const String autoKey = "w_auto" + String(i);
+        const String ssidKey = "w_ssid" + String(i), passKey = "w_pass" + String(i), autoKey = "w_auto" + String(i);
         if (i < _knownWifiNetworks.size()) {
             preferences.putString(ssidKey.c_str(), _knownWifiNetworks[i].ssid);
             preferences.putString(passKey.c_str(), _knownWifiNetworks[i].password);
             preferences.putBool(autoKey.c_str(), _knownWifiNetworks[i].autoConnect);
         } else {
-            preferences.remove(ssidKey.c_str());
-            preferences.remove(passKey.c_str());
-            preferences.remove(autoKey.c_str());
+            preferences.remove(ssidKey.c_str()); preferences.remove(passKey.c_str()); preferences.remove(autoKey.c_str());
         }
     }
     preferences.end();
@@ -149,56 +124,54 @@ void ConfigManager::saveKnownWifiNetworks() {
 void ConfigManager::setWifi(const String& ssid, const String& password) {
     _config.wifi.ssid = ssid;
     _config.wifi.password = password;
-
     Preferences preferences;
     preferences.begin("dashboard", false);
     preferences.putString("wifi_ssid", ssid);
     preferences.putString("wifi_password", password);
     preferences.end();
-
-    // Explicitní výběr nebo úspěšný fallback síť znovu povoluje pro auto-connect.
     rememberWifi(ssid, password, true);
 }
 
+void ConfigManager::setWifiNetworkConfig(const WifiConfig& wifi) {
+    _config.wifi.dhcp = wifi.dhcp;
+    _config.wifi.ipAddress = wifi.ipAddress;
+    _config.wifi.subnetMask = wifi.subnetMask;
+    _config.wifi.gateway = wifi.gateway;
+    _config.wifi.dns1 = wifi.dns1;
+    _config.wifi.dns2 = wifi.dns2;
+    Preferences preferences;
+    preferences.begin("dashboard", false);
+    preferences.putBool("wifi_dhcp", wifi.dhcp);
+    preferences.putString("wifi_ip", wifi.ipAddress);
+    preferences.putString("wifi_mask", wifi.subnetMask);
+    preferences.putString("wifi_gw", wifi.gateway);
+    preferences.putString("wifi_dns1", wifi.dns1);
+    preferences.putString("wifi_dns2", wifi.dns2);
+    preferences.end();
+}
+
 String ConfigManager::getKnownWifiNetworksJson() const {
-    JsonDocument doc;
-    JsonArray array = doc.to<JsonArray>();
+    JsonDocument doc; JsonArray array = doc.to<JsonArray>();
     for (const auto& network : _knownWifiNetworks) {
         JsonObject item = array.add<JsonObject>();
-        item["ssid"] = network.ssid;
-        item["hasPassword"] = !network.password.isEmpty();
-        item["active"] = network.ssid == _config.wifi.ssid;
-        item["autoConnect"] = network.autoConnect;
+        item["ssid"] = network.ssid; item["hasPassword"] = !network.password.isEmpty();
+        item["active"] = network.ssid == _config.wifi.ssid; item["autoConnect"] = network.autoConnect;
     }
-    String response;
-    serializeJson(doc, response);
-    return response;
+    String response; serializeJson(doc, response); return response;
 }
 
 bool ConfigManager::getKnownWifiPassword(const String& ssid, String& password) const {
-    for (const auto& network : _knownWifiNetworks) {
-        if (network.ssid == ssid) {
-            password = network.password;
-            return true;
-        }
-    }
+    for (const auto& network : _knownWifiNetworks) if (network.ssid == ssid) { password = network.password; return true; }
     return false;
 }
 
 bool ConfigManager::getAutoJoinWifiPassword(const String& ssid, String& password) const {
-    for (const auto& network : _knownWifiNetworks) {
-        if (network.ssid == ssid && network.autoConnect) {
-            password = network.password;
-            return true;
-        }
-    }
+    for (const auto& network : _knownWifiNetworks) if (network.ssid == ssid && network.autoConnect) { password = network.password; return true; }
     return false;
 }
 
 bool ConfigManager::isWifiAutoConnectEnabled(const String& ssid) const {
-    for (const auto& network : _knownWifiNetworks) {
-        if (network.ssid == ssid) return network.autoConnect;
-    }
+    for (const auto& network : _knownWifiNetworks) if (network.ssid == ssid) return network.autoConnect;
     return false;
 }
 
@@ -206,9 +179,7 @@ bool ConfigManager::setWifiAutoConnectEnabled(const String& ssid, bool enabled) 
     for (auto& network : _knownWifiNetworks) {
         if (network.ssid != ssid) continue;
         if (network.autoConnect == enabled) return true;
-        network.autoConnect = enabled;
-        saveKnownWifiNetworks();
-        return true;
+        network.autoConnect = enabled; saveKnownWifiNetworks(); return true;
     }
     return false;
 }
@@ -216,18 +187,11 @@ bool ConfigManager::setWifiAutoConnectEnabled(const String& ssid, bool enabled) 
 bool ConfigManager::forgetWifi(const String& ssid) {
     for (auto it = _knownWifiNetworks.begin(); it != _knownWifiNetworks.end(); ++it) {
         if (it->ssid != ssid) continue;
-
-        _knownWifiNetworks.erase(it);
-        saveKnownWifiNetworks();
-
+        _knownWifiNetworks.erase(it); saveKnownWifiNetworks();
         if (_config.wifi.ssid == ssid) {
-            _config.wifi.ssid = "";
-            _config.wifi.password = "";
-            Preferences preferences;
-            preferences.begin("dashboard", false);
-            preferences.putString("wifi_ssid", "");
-            preferences.putString("wifi_password", "");
-            preferences.end();
+            _config.wifi.ssid = ""; _config.wifi.password = "";
+            Preferences preferences; preferences.begin("dashboard", false);
+            preferences.putString("wifi_ssid", ""); preferences.putString("wifi_password", ""); preferences.end();
         }
         return true;
     }
@@ -235,86 +199,36 @@ bool ConfigManager::forgetWifi(const String& ssid) {
 }
 
 void ConfigManager::setSources(const GoodWeConfig& goodwe, const AZRouterConfig& azrouter) {
-    _config.goodwe = goodwe;
-    _config.azrouter = azrouter;
-
-    Preferences preferences;
-    preferences.begin("dashboard", false);
-    preferences.putBool("gw_enabled", goodwe.enabled);
-    preferences.putString("gw_host", goodwe.host);
-    preferences.putUShort("gw_port", goodwe.port);
-    preferences.putUInt("gw_interval", goodwe.pollIntervalSeconds);
-    preferences.putBool("az_enabled", azrouter.enabled);
-    preferences.putString("az_host", azrouter.host);
-    preferences.putUShort("az_port", azrouter.port);
-    preferences.putUInt("az_interval", azrouter.pollIntervalSeconds);
-    preferences.end();
+    _config.goodwe = goodwe; _config.azrouter = azrouter;
+    Preferences preferences; preferences.begin("dashboard", false);
+    preferences.putBool("gw_enabled", goodwe.enabled); preferences.putString("gw_host", goodwe.host); preferences.putUShort("gw_port", goodwe.port); preferences.putUInt("gw_interval", goodwe.pollIntervalSeconds);
+    preferences.putBool("az_enabled", azrouter.enabled); preferences.putString("az_host", azrouter.host); preferences.putUShort("az_port", azrouter.port); preferences.putUInt("az_interval", azrouter.pollIntervalSeconds); preferences.end();
 }
 
 void ConfigManager::setWeather(const WeatherConfig& weather) {
     _config.weather = weather;
-
-    Preferences preferences;
-    preferences.begin("dashboard", false);
-    preferences.putBool("wx_enabled", weather.enabled);
-    preferences.putString("wx_provider", weather.provider);
-    preferences.putDouble("wx_lat", weather.latitude);
-    preferences.putDouble("wx_lon", weather.longitude);
-    preferences.putUInt("wx_interval", weather.pollIntervalSeconds);
-    preferences.end();
+    Preferences preferences; preferences.begin("dashboard", false);
+    preferences.putBool("wx_enabled", weather.enabled); preferences.putString("wx_provider", weather.provider); preferences.putDouble("wx_lat", weather.latitude); preferences.putDouble("wx_lon", weather.longitude); preferences.putUInt("wx_interval", weather.pollIntervalSeconds); preferences.end();
 }
 
 bool ConfigManager::resetToFactoryDefaults() {
     Preferences preferences;
-    if (!preferences.begin("dashboard", false)) {
-        Serial.println("[CONFIG] Nelze otevrit NVS pro tovarni reset.");
-        return false;
-    }
-
-    const bool cleared = preferences.clear();
-    preferences.end();
-    if (!cleared) {
-        Serial.println("[CONFIG] Tovarni reset NVS selhal.");
-        return false;
-    }
-
-    _config = AppConfig{};
-    _knownWifiNetworks.clear();
-    Serial.println("[CONFIG] NVS vymazano, obnovena tovarni konfigurace.");
-    return true;
+    if (!preferences.begin("dashboard", false)) return false;
+    const bool cleared = preferences.clear(); preferences.end();
+    if (!cleared) return false;
+    _config = AppConfig{}; _knownWifiNetworks.clear(); return true;
 }
 
 bool ConfigManager::setUserConfiguration(const AppConfig& config) {
     Preferences preferences;
-    if (!preferences.begin("dashboard", false)) {
-        Serial.println("[CONFIG] Nelze otevrit NVS pro import.");
-        return false;
-    }
-    preferences.putString("sys_hostname", config.system.hostname);
-    preferences.putString("sys_timezone", config.system.timezone);
-    preferences.putString("sys_tzid", config.system.timezoneId);
-    preferences.putString("sys_ntp", config.system.ntpServer);
-    preferences.putString("wifi_ssid", config.wifi.ssid);
-    preferences.putString("wifi_password", config.wifi.password);
-    preferences.putBool("gw_enabled", config.goodwe.enabled);
-    preferences.putString("gw_host", config.goodwe.host);
-    preferences.putUShort("gw_port", config.goodwe.port);
-    preferences.putUInt("gw_interval", config.goodwe.pollIntervalSeconds);
-    preferences.putBool("az_enabled", config.azrouter.enabled);
-    preferences.putString("az_host", config.azrouter.host);
-    preferences.putUShort("az_port", config.azrouter.port);
-    preferences.putUInt("az_interval", config.azrouter.pollIntervalSeconds);
-    preferences.putBool("wx_enabled", config.weather.enabled);
-    preferences.putString("wx_provider", config.weather.provider);
-    preferences.putDouble("wx_lat", config.weather.latitude);
-    preferences.putDouble("wx_lon", config.weather.longitude);
-    preferences.putUInt("wx_interval", config.weather.pollIntervalSeconds);
-    preferences.end();
-    _config.system = config.system;
-    _config.wifi = config.wifi;
-    _config.goodwe = config.goodwe;
-    _config.azrouter = config.azrouter;
-    _config.weather = config.weather;
+    if (!preferences.begin("dashboard", false)) return false;
+    preferences.putString("sys_hostname", config.system.hostname); preferences.putString("sys_timezone", config.system.timezone); preferences.putString("sys_tzid", config.system.timezoneId); preferences.putString("sys_ntp", config.system.ntpServer);
+    preferences.putString("wifi_ssid", config.wifi.ssid); preferences.putString("wifi_password", config.wifi.password);
+    preferences.putBool("wifi_dhcp", config.wifi.dhcp); preferences.putString("wifi_ip", config.wifi.ipAddress); preferences.putString("wifi_mask", config.wifi.subnetMask); preferences.putString("wifi_gw", config.wifi.gateway); preferences.putString("wifi_dns1", config.wifi.dns1); preferences.putString("wifi_dns2", config.wifi.dns2);
+    preferences.putBool("gw_enabled", config.goodwe.enabled); preferences.putString("gw_host", config.goodwe.host); preferences.putUShort("gw_port", config.goodwe.port); preferences.putUInt("gw_interval", config.goodwe.pollIntervalSeconds);
+    preferences.putBool("az_enabled", config.azrouter.enabled); preferences.putString("az_host", config.azrouter.host); preferences.putUShort("az_port", config.azrouter.port); preferences.putUInt("az_interval", config.azrouter.pollIntervalSeconds);
+    preferences.putBool("wx_enabled", config.weather.enabled); preferences.putString("wx_provider", config.weather.provider); preferences.putDouble("wx_lat", config.weather.latitude); preferences.putDouble("wx_lon", config.weather.longitude); preferences.putUInt("wx_interval", config.weather.pollIntervalSeconds); preferences.end();
+    _config.system = config.system; _config.wifi = config.wifi; _config.goodwe = config.goodwe; _config.azrouter = config.azrouter; _config.weather = config.weather;
     rememberWifi(config.wifi.ssid, config.wifi.password, true);
     Serial.println("[CONFIG] YAML konfigurace importovana do NVS.");
     return true;
