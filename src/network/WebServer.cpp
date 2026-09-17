@@ -1,17 +1,22 @@
 #include "WebServer.h"
 #include "TimezoneUiPatch.h"
+#include "NtpUiPatch.h"
 #include "LiveSettingsUiPatch.h"
 #include "WifiUiPatch.h"
+#include "WifiKnownDialogPatch.h"
+#include "TimeService.h"
 #include "../diagnostics/Performance.h"
 #include "../config/ConfigBackup.h"
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <Update.h>
+#include <Preferences.h>
 #include <mbedtls/sha256.h>
 #include "../../include/Version.h"
 #include "../../include/FirmwareLimits.h"
 #include <cstring>
+#include <vector>
 
 // Původní implementaci zachováváme beze změny. Rozšířené routy
 // se registrují explicitně z DashboardApp ještě před begin().
@@ -27,6 +32,70 @@ bool jsonContainsKnownSsid(const String& json, const String& ssid) {
     }
     return false;
 }
+
+constexpr uint8_t MaxCustomNtpServers = 8;
+const char* BasicNtpServers[] = {
+    "pool.ntp.org",
+    "cz.pool.ntp.org",
+    "europe.pool.ntp.org",
+    "time.cloudflare.com",
+    "time.google.com",
+    "time.windows.com"
+};
+
+bool isBasicNtpServer(const String& server) {
+    for (const char* basic : BasicNtpServers) {
+        if (server.equalsIgnoreCase(basic)) return true;
+    }
+    return false;
+}
+
+bool isValidNtpServer(String server) {
+    server.trim();
+    if (server.isEmpty() || server.length() > 253) return false;
+    for (size_t i = 0; i < server.length(); ++i) {
+        const char c = server[i];
+        const bool valid = isAlphaNumeric(c) || c == '.' || c == '-' || c == ':' || c == '[' || c == ']';
+        if (!valid) return false;
+    }
+    return true;
+}
+
+std::vector<String> loadCustomNtpServers() {
+    std::vector<String> servers;
+    Preferences preferences;
+    if (!preferences.begin("dashboard", true)) return servers;
+    const uint8_t count = min<uint8_t>(preferences.getUChar("ntp_custom_n", 0), MaxCustomNtpServers);
+    for (uint8_t i = 0; i < count; ++i) {
+        const String key = "ntp_c" + String(i);
+        const String server = preferences.getString(key.c_str(), "");
+        if (!server.isEmpty()) servers.push_back(server);
+    }
+    preferences.end();
+    return servers;
+}
+
+bool saveCustomNtpServers(const std::vector<String>& servers) {
+    Preferences preferences;
+    if (!preferences.begin("dashboard", false)) return false;
+    preferences.putUChar("ntp_custom_n", static_cast<uint8_t>(servers.size()));
+    for (uint8_t i = 0; i < MaxCustomNtpServers; ++i) {
+        const String key = "ntp_c" + String(i);
+        if (i < servers.size()) preferences.putString(key.c_str(), servers[i]);
+        else preferences.remove(key.c_str());
+    }
+    preferences.end();
+    return true;
+}
+
+String customNtpServersJson(const std::vector<String>& servers) {
+    JsonDocument doc;
+    JsonArray array = doc.to<JsonArray>();
+    for (const auto& server : servers) array.add(server);
+    String response;
+    serializeJson(doc, response);
+    return response;
+}
 }
 
 void DashboardWebServer::enableTimezoneUiExtension() {
@@ -38,6 +107,73 @@ void DashboardWebServer::enableTimezoneUiExtension() {
     _server.on("/", HTTP_GET, [this]() { handleExtendedRoot(); });
     _server.on("/api/config/timezone", HTTP_GET, [this]() { handleApiTimezoneConfig(); });
     _server.on("/api/config/system-v2", HTTP_POST, [this]() { handleApiSystemConfigV2(); });
+
+    _server.on("/api/ntp/status", HTTP_GET, [this]() {
+        _server.sendHeader("Cache-Control", "no-store");
+        _server.send(200, "application/json", TimeService::getNtpStatusJson(_dataModel.system.wifiConnected));
+    });
+
+    _server.on("/api/ntp/custom", HTTP_GET, [this]() {
+        _server.sendHeader("Cache-Control", "no-store");
+        _server.send(200, "application/json", customNtpServersJson(loadCustomNtpServers()));
+    });
+
+    _server.on("/api/ntp/custom", HTTP_POST, [this]() {
+        if (!_server.hasArg("action") || !_server.hasArg("server")) {
+            _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Missing NTP setting\"}");
+            return;
+        }
+
+        const String action = _server.arg("action");
+        String server = _server.arg("server");
+        server.trim();
+        if (!isValidNtpServer(server)) {
+            _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid NTP server\"}");
+            return;
+        }
+
+        auto servers = loadCustomNtpServers();
+        if (action == "add") {
+            if (!isBasicNtpServer(server)) {
+                bool exists = false;
+                for (const auto& item : servers) {
+                    if (item.equalsIgnoreCase(server)) {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists) {
+                    if (servers.size() >= MaxCustomNtpServers) {
+                        _server.send(409, "application/json", "{\"status\":\"error\",\"message\":\"Maximum custom NTP servers reached\"}");
+                        return;
+                    }
+                    servers.push_back(server);
+                }
+            }
+        } else if (action == "delete") {
+            for (auto it = servers.begin(); it != servers.end(); ++it) {
+                if (!it->equalsIgnoreCase(server)) continue;
+                servers.erase(it);
+                break;
+            }
+        } else {
+            _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Unknown NTP action\"}");
+            return;
+        }
+
+        if (!saveCustomNtpServers(servers)) {
+            _server.send(500, "application/json", "{\"status\":\"error\",\"message\":\"Failed to save NTP servers\"}");
+            return;
+        }
+
+        JsonDocument doc;
+        doc["status"] = "ok";
+        JsonArray array = doc["servers"].to<JsonArray>();
+        for (const auto& item : servers) array.add(item);
+        String response;
+        serializeJson(doc, response);
+        _server.send(200, "application/json", response);
+    });
 
     // Bezpečný Wi-Fi endpoint nikdy nevrací uložené heslo.
     _server.on("/api/config/wifi", HTTP_GET, [this]() {
@@ -176,14 +312,18 @@ void DashboardWebServer::handleExtendedRoot() {
         const size_t prefixLength = static_cast<size_t>(bodyEnd - INDEX_HTML);
         _server.sendContent_P(INDEX_HTML, prefixLength);
         _server.sendContent_P(TIMEZONE_UI_PATCH);
+        _server.sendContent_P(NTP_UI_PATCH);
         _server.sendContent_P(LIVE_SETTINGS_UI_PATCH);
         _server.sendContent_P(WIFI_UI_PATCH);
+        _server.sendContent_P(WIFI_KNOWN_DIALOG_PATCH);
         _server.sendContent_P(bodyEnd);
     } else {
         _server.sendContent_P(INDEX_HTML);
         _server.sendContent_P(TIMEZONE_UI_PATCH);
+        _server.sendContent_P(NTP_UI_PATCH);
         _server.sendContent_P(LIVE_SETTINGS_UI_PATCH);
         _server.sendContent_P(WIFI_UI_PATCH);
+        _server.sendContent_P(WIFI_KNOWN_DIALOG_PATCH);
     }
     _server.sendContent("");
 }
@@ -233,7 +373,7 @@ void DashboardWebServer::handleApiSystemConfigV2() {
                                   system.timezoneId.indexOf('/') > 0);
 
     if (!hostnameValid ||
-        system.ntpServer.length() > 253 ||
+        !isValidNtpServer(system.ntpServer) ||
         system.timezone.length() > 127 ||
         !timezoneIdValid ||
         hasControl(system.ntpServer) ||
