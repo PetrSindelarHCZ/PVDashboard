@@ -99,8 +99,8 @@ struct PoolData {
 
 struct SystemData {
     String currentScreenId = "home";
-    String timeStr = "--:--";
-    String dateStr = "--.--.----";
+    String timeStr = "";
+    String dateStr = "";
     String dayOfWeekStr = "";
     bool wifiConnected = false;
     bool wifiAccessPoint = false;

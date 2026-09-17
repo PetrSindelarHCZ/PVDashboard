@@ -17,5 +17,4 @@ private:
     String _timezone;
     String _ntpServer;
     bool _synced = false;
-    unsigned long _lastSyncCheck = 0;
 };

@@ -62,6 +62,11 @@ Všechny obrazovky používají společný ScreenStyle:
 - datum a svátek vpravo používají český Unicode font a lokální UTF-8 kalendář,
 - datum se zarovnává před hodiny podle šířky textu; případné zkrácení zachovává celé UTF-8 znaky,
 - velké hodiny zůstávají vpravo,
+- čas, datum a svátek se zobrazí až po skutečné NTP synchronizaci od posledního
+  startu/inicializace časové služby; samotný zachovaný RTC čas nestačí,
+- bez synchronizace (např. po resetu do AP) je časová část záhlaví prázdná;
+  první refresh po startu smaže původní údaje. Po úspěšné synchronizaci
+  krátký výpadek Wi-Fi již nastavené hodiny neskrývá,
 - stejné fonty a vzhled karet.
 
 ## Známá omezení

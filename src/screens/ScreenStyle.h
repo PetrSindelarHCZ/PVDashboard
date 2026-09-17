@@ -100,6 +100,9 @@ inline void drawHeader(IDisplay& d, const DataModel& dm) {
     drawSolarStatus(d, 56, 8, online && dm.solar.status.available);
     drawRouterStatus(d, 104, 8, online && dm.azrouter.status.available);
 
+    // The header was cleared above, so invalid time also erases old e-ink text.
+    if (!dm.system.ntpSynced) return;
+
     d.setTextColor(1);
     d.setFont(&FreeSansBold18pt7b);
     const int16_t timeX = Width - 12 - d.textWidth(dm.system.timeStr);
