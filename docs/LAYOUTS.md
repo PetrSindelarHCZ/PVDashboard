@@ -100,3 +100,20 @@ plochu, příliš malé widgety a překryv viditelných widgetů.
 
 Formát YAML zálohy je od této fáze verze 6 a obsahuje `layout.home_json`.
 Starší zálohy se importují s výchozím automatickým Home layoutem.
+
+
+## D3 — grafický editor Home layoutu
+
+WebUI na stránce Obrazovky obsahuje první interaktivní editor Home layoutu.
+
+- editor pracuje s draftem pouze v prohlížeči; NVS se zapisuje až tlačítkem Uložit,
+- widget lze tažením přesouvat a rohovými úchyty měnit jeho velikost,
+- mřížka je volitelná v krocích 5, 10, 20 a 25 px,
+- magnetismus lze vypnout; při zapnutí se souřadnice přichytávají k mřížce
+  zarovnané na obsahovou plochu Home,
+- editor zobrazuje X/Y/šířku/výšku vybraného widgetu,
+- překrývající se widgety jsou označeny jako neplatné a nelze je uložit,
+- jednotlivé widgety lze skrýt,
+- tlačítko Výchozí používá REST reset z D2,
+- tlačítko Zobrazit Home přepne fyzický displej/náhled na Home pouze na výslovný
+  požadavek uživatele.
