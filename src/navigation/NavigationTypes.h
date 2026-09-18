@@ -79,7 +79,10 @@ struct NavigationLayout {
         if (count >= MaxElements || id.isEmpty() || width <= 0 || height <= 0) return false;
         NavigationElement& element = elements[count++];
         element.id = id;
-        element.bounds = {x, y, width, height};
+        element.bounds.x = x;
+        element.bounds.y = y;
+        element.bounds.width = width;
+        element.bounds.height = height;
         element.enabled = enabled;
         return true;
     }
