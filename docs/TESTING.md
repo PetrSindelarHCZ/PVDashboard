@@ -36,7 +36,7 @@ Kontroluje se zejména:
 - SHA-256 firmware,
 - vytvoření manifestu.
 
-GitHub release tag vX.Y.Z musí odpovídat FIRMWARE_VERSION.
+GitHub release tag používá formát **v1.YY.denRoku.pořadí** (např. **v1.26.261.1**) a musí odpovídat FIRMWARE_VERSION.
 
 ## Měření odezvy
 
