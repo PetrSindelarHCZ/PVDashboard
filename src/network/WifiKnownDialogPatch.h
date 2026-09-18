@@ -49,7 +49,7 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
     .settings-collapse-toggle { width:100%; appearance:none; border:0; background:transparent; color:inherit; padding:0; display:flex; align-items:center; justify-content:flex-start; gap:7px; cursor:pointer; text-align:left; }
     .settings-collapse-title { font-size:.85rem; text-transform:uppercase; letter-spacing:.05em; color:var(--text-sub); font-weight:700; }
     .settings-collapse-chevron { color:var(--text-sub); font-size:1.18rem; line-height:1; flex:0 0 auto; width:1.3rem; text-align:center; }
-    .settings-collapse-chevron::before { content:'◀'; }
+    .settings-collapse-chevron::before { content:'▶'; }
     .settings-collapse-toggle[aria-expanded="true"] .settings-collapse-chevron::before { content:'▼'; }
     .settings-collapsible-body { display:flex; flex-direction:column; gap:12px; min-width:0; }
 
