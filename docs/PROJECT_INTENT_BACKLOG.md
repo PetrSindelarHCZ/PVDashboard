@@ -475,31 +475,28 @@ dočasný workaround ani otevřený bod.
 
 ---
 
-## 17. Vypínatelný modul počasí — ČÁSTEČNĚ
+## 17. Vypínatelný modul počasí — ROZHODNUTO / IMPLEMENTOVÁNO NA VĚTVI
 
-Počasí má být možné vypnout bez ztráty uložené konfigurace. Původní požadavek
-byl, aby vypnutí odstranilo jeho aktivní runtime části z uživatelského pohledu:
+Počasí má být možné vypnout bez ztráty uložené konfigurace. Cílové chování je:
 
-- obrazovku Počasí a hodinové podobrazovky,
-- navigační položku,
-- blok počasí z hlavního dashboardu,
-- aktivní získávání dat,
-- přičemž uložené lokality/provider/nastavení zůstanou zachované.
+- odstranit obrazovku Počasí a hodinové podobrazovky,
+- skrýt navigační položku,
+- odstranit weather blok z hlavního dashboardu,
+- zastavit aktivní získávání dat,
+- **nevytvářet ani nedržet WeatherWorker task, mutex a cache**, pokud je modul
+  vypnutý,
+- zachovat provider, lokality a ostatní nastavení v NVS.
 
-Aktuální master již:
+Při vypnutí za běhu se worker nesmí ukončit násilným `vTaskDelete()` z jiného
+tasku. Dostane stop request, případnou právě běžící HTTP/TLS operaci bezpečně
+dokončí a poté sám uvolní cache, mutex a svůj stack.
 
-- ukládá `weather.enabled`,
-- odregistruje weather obrazovky,
-- skryje položku v e-ink menu,
-- odstraní weather kartu z hlavního zobrazení,
-- při disabled stavu neposílá HTTPS dotazy,
-- zachovává konfiguraci.
+Při opětovném zapnutí se WeatherWorker znovu vytvoří z uložené konfigurace.
 
-Technická odchylka: `WeatherWorker` FreeRTOS task se i při vypnutém modulu
-vytvoří a následně čeká bez časového limitu na notifikaci. Původní formulace
-„vypnutí odstraní worker“ tedy není doslova splněná. Je potřeba rozhodnout, zda
-je dormantní task přijatelný, nebo zda má být worker skutečně vytvořen/zrušen
-podle `weather.enabled`.
+Toto rozhodnutí je implementováno na větvi
+`feature/weather-worker-lifecycle`. Release workflow úspěšně sestavilo firmware
+a validovalo release artefakty. Před sloučením do masteru zbývá provozní test na
+fyzickém zařízení.
 
 ---
 
