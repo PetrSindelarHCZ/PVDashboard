@@ -1367,11 +1367,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         width = Math.min(width, widget.width - 16);
         height = Math.min(height, widget.height - 48);
 
-        const position = findElementPosition(widget, width, height);
-        if (!position) {
-            editorMessage('Ve widgetu není pro nový prvek dost volného místa.', 'error');
-            return;
-        }
+        const position = findElementPosition(widget, width, height) || {x: 8, y: 40};
 
         const elementId = uniqueElementId(widget, type);
         const sources = (apiState?.customWidget?.dataSources || [])
