@@ -59,9 +59,10 @@ bool applyWifiAddressing(const WifiConfig& wifi) {
 
 DashboardApp::DashboardApp()
     : _epaperDisplay(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY, EPD_SCK, EPD_MISO, EPD_MOSI),
-      _displayManager(_epaperDisplay),
+      _displayPreview(),
+      _displayManager(_epaperDisplay, &_displayPreview),
       _displayWorker(_displayManager),
-    _webServer(80, _dataModel, _screenManager, _configManager.get()) {
+      _webServer(80, _dataModel, _screenManager, _configManager.get()) {
 }
 
 void DashboardApp::setup() {
@@ -156,6 +157,7 @@ void DashboardApp::setup() {
     _webServer.onScreenChange([this](const String& screenId) { onScreenSwitchRequested(screenId); });
     _webServer.onRefresh([this](bool full) { onRefreshRequested(full); });
     _webServer.onDisplayStatus([this]() { return _displayWorker.getStatus(); });
+    _webServer.setDisplayPreview(&_displayPreview);
 
     _webServer.onSystemConfig([this](const SystemConfig& system) {
         const String previousHostname = _configManager.get().system.hostname;
