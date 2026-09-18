@@ -11,6 +11,8 @@ public:
         return _forecastDay < 0 ? String("Počasí") : String("Počasí - den ") + String(_forecastDay + 1);
     }
     void render(IDisplay& display, const DataModel& dataModel) override;
+    bool isSidebarEntry() const override { return _forecastDay < 0; }
+    String getSidebarParentId() const override { return "weather"; }
 
 private:
     int8_t _forecastDay;
