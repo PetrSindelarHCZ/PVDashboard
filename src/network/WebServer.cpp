@@ -7,6 +7,7 @@
 #include "WeatherSettingsUiPatch.h"
 #include "DisplayPreviewUiPatch.h"
 #include "NavigationUiPatch.h"
+#include "LayoutEditorUiPatch.h"
 #include "../display/DisplayPreview.h"
 #include "../navigation/NavigationController.h"
 #include "TimeService.h"
@@ -748,6 +749,7 @@ void DashboardWebServer::handleExtendedRoot() {
         _server.sendContent_P(WEATHER_SETTINGS_UI_PATCH);
         _server.sendContent_P(DISPLAY_PREVIEW_UI_PATCH);
         _server.sendContent_P(NAVIGATION_UI_PATCH);
+        _server.sendContent_P(LAYOUT_EDITOR_UI_PATCH);
         _server.sendContent_P(bodyEnd);
     } else {
         _server.sendContent_P(INDEX_HTML);
@@ -759,6 +761,7 @@ void DashboardWebServer::handleExtendedRoot() {
         _server.sendContent_P(WEATHER_SETTINGS_UI_PATCH);
         _server.sendContent_P(DISPLAY_PREVIEW_UI_PATCH);
         _server.sendContent_P(NAVIGATION_UI_PATCH);
+        _server.sendContent_P(LAYOUT_EDITOR_UI_PATCH);
     }
     _server.sendContent("");
 }
