@@ -1,6 +1,7 @@
 #include "HomeScreen.h"
 #include "ScreenStyle.h"
 #include "../layout/HomeLayout.h"
+#include "../layout/CustomWidgetRenderer.h"
 
 namespace {
 
@@ -217,6 +218,13 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
                 break;
             case LayoutWidgetType::HomeIndoorCard:
                 drawIndoorCard(display, dm, widget);
+                break;
+            case LayoutWidgetType::HomeCustomCard:
+                if (_layoutConfig != nullptr) {
+                    const HomeLayoutWidgetConfig* config =
+                        HomeLayout::findWidget(*_layoutConfig, widget.id);
+                    if (config != nullptr) CustomWidgetRenderer::draw(display, dm, *config);
+                }
                 break;
         }
     }
