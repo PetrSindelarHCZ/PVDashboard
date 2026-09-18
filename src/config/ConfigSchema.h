@@ -19,9 +19,28 @@ struct WifiConfig {
     String dns2 = "";
 };
 
+constexpr uint8_t MaxHomeLayoutWidgets = 3;
+
+struct HomeLayoutWidgetConfig {
+    String id = "";
+    String type = "";
+    bool visible = true;
+    int16_t x = 0;
+    int16_t y = 0;
+    int16_t width = 0;
+    int16_t height = 0;
+};
+
+struct HomeLayoutConfig {
+    bool customized = false;
+    uint8_t widgetCount = 0;
+    HomeLayoutWidgetConfig widgets[MaxHomeLayoutWidgets];
+};
+
 struct DisplayConfig {
     String defaultScreen = "home";
     uint32_t fullRefreshIntervalMinutes = 1440;
+    HomeLayoutConfig homeLayout;
 };
 
 struct GoodWeConfig {
@@ -94,7 +113,7 @@ struct PoolConfig {
 };
 
 struct AppConfig {
-    uint8_t schemaVersion = 6;
+    uint8_t schemaVersion = 7;
     SystemConfig system;
     WifiConfig wifi;
     DisplayConfig display;

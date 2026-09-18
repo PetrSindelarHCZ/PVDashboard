@@ -50,12 +50,12 @@ před zapojením je nutné znovu ověřit boot-strapping a vazby konkrétní des
 
 Cílem je datový layout, nikoli obecný HTML/CSS framework v ESP32.
 
-- [ ] definovat podporovanou množinu widgetů,
-- [ ] navrhnout datový popis pozice, velikosti a parametrů,
-- [ ] renderovat stejný popis na fyzickém e-inku,
+- [x] definovat podporovanou množinu widgetů,
+- [x] navrhnout datový popis pozice, velikosti a parametrů,
+- [x] renderovat stejný popis na fyzickém e-inku,
 - [ ] vytvořit editor layoutu ve WebUI s využitím existujícího preview,
-- [ ] zahrnout layout do exportu/importu konfigurace,
-- [ ] umožnit reset jednotlivé obrazovky na výchozí šablonu.
+- [x] zahrnout layout do exportu/importu konfigurace,
+- [x] umožnit reset jednotlivé obrazovky na výchozí šablonu.
 
 ## E — vzdálená čidla
 

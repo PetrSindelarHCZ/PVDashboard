@@ -22,6 +22,7 @@ public:
     void setSources(const GoodWeConfig& goodwe, const AZRouterConfig& azrouter);
     void setPool(const PoolConfig& pool);
     void setWeather(const WeatherConfig& weather);
+    bool setHomeLayout(const HomeLayoutConfig& layout);
     bool resetToFactoryDefaults();
     bool setUserConfiguration(const AppConfig& config);
 

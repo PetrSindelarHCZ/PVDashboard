@@ -120,6 +120,7 @@ void DashboardApp::setup() {
 
     _displayPreview.init(); // tiled preview; komprimovany snapshot se drzi mimo TLS DRAM
     const auto& cfg = _configManager.get();
+    _homeScreen.setLayoutConfig(&cfg.display.homeLayout);
     applyWifiAddressing(cfg.wifi);
 
     _dataModel.solar.enabled = cfg.goodwe.enabled;
@@ -362,6 +363,14 @@ void DashboardApp::setup() {
         Serial.println("[CONFIG] Bazen ulozen a aplikovan za behu.");
     });
 
+    _webServer.onHomeLayoutConfig([this](const HomeLayoutConfig& layout) {
+        if (!_configManager.setHomeLayout(layout)) return false;
+        _navigationController.syncToActiveScreen(false);
+        requestDisplayRefresh(true, 100);
+        Serial.println("[CONFIG] Home layout ulozen a aplikovan za behu.");
+        return true;
+    });
+
     _webServer.onWeatherConfig([this](const WeatherConfig& weather) {
         const WeatherConfig previous = _configManager.get().weather;
         const bool enabledChanged = previous.enabled != weather.enabled;
@@ -558,6 +567,7 @@ void DashboardApp::selectWeatherDisplayLocation(
     if (!weather.enabled || count == 0) {
         _weatherDisplayLocationId = "";
         _weatherDisplayLocationIndex = 0;
+        _dataModel.weather.enabled = false;
         _dataModel.weather.locationId = "";
         _dataModel.weather.locationName = "";
         _dataModel.weather.locationIndex = 0;
