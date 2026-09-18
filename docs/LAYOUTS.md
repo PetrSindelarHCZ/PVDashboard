@@ -189,3 +189,42 @@ Výchozí hodnoty zachovávají chování starších custom layoutů:
 Dlouhý text, popisek nebo KPI hodnota se na e-paperu ořízne na šířku elementu
 a doplní `...`, aby nepřetékal do sousedního prvku. WebUI načítá podporované
 volby stylů z `GET /api/layout/home`.
+
+
+### Vrstvy, překryvy a vzhled karty
+
+Vnitřní elementy custom widgetu se mohou překrývat. Pořadí v poli
+`elements[]` je zároveň Z-order:
+
+- první element je nejníže,
+- poslední element je nejvýše.
+
+WebUI nabízí pro vybraný prvek `Duplikovat`, posun o vrstvu nahoru/dolů a
+přesun úplně navrch/dospodu. Překryv již není validační chyba; firmware stále
+odmítá duplicitní ID, neplatnou geometrii, nepodporovaný zdroj nebo prvek mimo
+hranice karty.
+
+Pro budoucí partial refresh platí konzervativní pravidlo: změna libovolného
+elementu custom widgetu invaliduje celý obdélník této custom karty. Karta se
+znovu složí od pozadí přes všechny vrstvy ve správném pořadí. Tím jsou překryvy
+bezpečné i bez složitého výpočtu průniků jednotlivých prvků.
+
+Každý Home panel má společné parametry vzhledu:
+
+- `showFrame` — zapnutí/vypnutí rámečku,
+- `background` — `white | black`,
+- `inverseText` — bílý/inverzní obsah.
+
+Tyto parametry fungují u vlastních i předdefinovaných Home panelů. WebUI při
+volbě černého pozadí automaticky zapne inverzní text jako bezpečný výchozí stav;
+uživatel jej může následně změnit.
+
+Předdefinované panely `Počasí`, `Energie` a `Uvnitř` lze znovu vybrat,
+měnit jejich geometrii a vzhled a samostatně je vrátit na aktuální automatickou
+výchozí geometrii/styl tlačítkem `Výchozí` u daného panelu. Jejich interní
+obsah zůstává zatím pevně definovaný rendererem; skládání vlastních KPI/textů
+probíhá přes custom widgety.
+
+Vnořený editor custom widgetu zobrazuje browserový živý náhled textu, KPI,
+progress baru a grafu včetně zvoleného zarovnání, velikosti písma, pozadí a
+inverze. Skutečný fyzický render po uložení zůstává autoritativní.
