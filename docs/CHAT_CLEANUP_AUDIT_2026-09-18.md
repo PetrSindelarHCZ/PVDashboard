@@ -42,11 +42,11 @@ Hlavní záchytné dokumenty:
 | 17. 9. | **Probuzení ESP přes 433MHz** | **SMAZAT** | Myšlenka wake přes 433 MHz je zachycená jako volitelná v PROJECT_INTENT_BACKLOG. |
 | 18. 9. | **Změna šipky karet** | **SMAZAT** | Hotová čistě vizuální změna WebUI; branch byla ukončená a výsledek je v masteru. |
 | 18. 9. | **Nový branch pro WebUI e ink preview** | **SMAZAT** | Preview je v masteru přes `/api/display.bmp`; zásada „náhled na stránce Obrazovky“ je zachycená v backlogu. |
-| 18. 9. | **Oprava pádu weather tasku** | **PONECHAT** | Aktuální debugging. Nechat minimálně do uzavření chyby a ověření na zařízení. |
+| 18. 9. | **Oprava pádu weather tasku** | **SMAZAT** | Chyba byla opravena, ověřena na zařízení a sloučena do masteru v `f909c05`; technická příčina a řešení jsou zachycené v `DISPLAY.md` a v kódu. |
 
 ### První bezpečná vlna
 
-Můžeš hned ručně smazat těchto **15 chatů**:
+Můžeš hned ručně smazat těchto **16 chatů**:
 
 1. Návrh hlavní jednotky
 2. Posouzení eink displejů
@@ -63,10 +63,9 @@ Můžeš hned ručně smazat těchto **15 chatů**:
 13. Probuzení ESP přes 433MHz
 14. Změna šipky karet
 15. Nový branch pro WebUI e ink preview
+16. Oprava pádu weather tasku
 
-Po této vlně má z uvedených projektových chatů zůstat minimálně:
-
-- Oprava pádu weather tasku
+Po této vlně už z výše uvedených přímo auditovaných projektových chatů nemusí zůstat žádný pouze kvůli nedokončené opravě.
 
 ---
 
@@ -163,15 +162,19 @@ Wi-Fi/NTP/živém nastavení zbývá už jen rozhodnutí, zda při vypnutém po�
 WeatherWorker zůstat jako dormantní task, nebo se má skutečně rušit/vytvářet
 podle stavu modulu.
 
-### Weather crash
+### Weather crash — UZAVŘENO
 
-Chat **Oprava pádu weather tasku** lze smazat až tehdy, když:
+Chat **Oprava pádu weather tasku** je nyní bezpečně ke smazání:
 
-- příčina je známá,
-- oprava je v masteru,
-- build projde,
-- firmware proběhne na zařízení bez opakování pádu,
-- relevantní omezení/příčina je případně zapsaná do kódu nebo dokumentace.
+- oprava je sloučená do masteru v `f909c05`,
+- změny byly ověřené na zařízení,
+- release příprava/commit pro verzi `1.26.261.1` je v historii masteru,
+- technická příčina a řešení jsou zachycené v `docs/DISPLAY.md` a v kódu.
+
+GitHub Releases API v okamžiku tohoto auditu ještě nevracelo tag
+`v1.26.261.1`, přestože master už obsahoval release commity. Pro rozhodnutí o
+mazání chatu je rozhodující ověřená a sloučená oprava; vydání release navíc
+potvrdil uživatel.
 
 ---
 
@@ -202,9 +205,9 @@ než historický chat.
 3. Simulátorové chaty už lze smazat; autoritativním zdrojem je
    `PetrSindelarHCZ/Dashboard.DeviceSimulator`.
 4. Nechat Wi-Fi/NTP chat už jen do rozhodnutí chování WeatherWorkeru při vypnutém počasí.
-5. Nechat aktuální weather-crash chat do dokončení opravy.
-6. Po těchto zbývajících kontrolách provést další vlnu a znovu aktualizovat tento
-   dokument.
+5. Weather-crash chat je uzavřený a lze jej smazat.
+6. Po zbývajícím rozhodnutí o dormantním WeatherWorkeru lze uzavřít i poslední
+   Wi-Fi/NTP/počasí návrhový chat.
 
 Po první vlně bude historie výrazně čistší a přitom zůstanou zachované chaty,
 které ještě skutečně nesou riziko ztráty informace.
