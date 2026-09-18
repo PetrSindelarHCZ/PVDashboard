@@ -13,6 +13,7 @@
 Hlavní záchytné dokumenty:
 
 - `README.md`
+- `docs/PROJECT_STATUS.md`
 - `docs/PV_DASHBOARD_SPEC.md`
 - `docs/ARCHITECTURE.md`
 - `docs/DISPLAY.md`
@@ -44,10 +45,12 @@ Hlavní záchytné dokumenty:
 | 18. 9. | **Změna šipky karet** | **SMAZAT** | Hotová čistě vizuální změna WebUI; branch byla ukončená a výsledek je v masteru. |
 | 18. 9. | **Nový branch pro WebUI e ink preview** | **SMAZAT** | Preview je v masteru přes `/api/display.bmp`; zásada „náhled na stránce Obrazovky“ je zachycená v backlogu. |
 | 18. 9. | **Oprava pádu weather tasku** | **SMAZAT** | Chyba byla opravena, ověřena na zařízení a sloučena do masteru v `f909c05`; technická příčina a řešení jsou zachycené v `DISPLAY.md` a v kódu. |
+| 18. 9. | **Příprava navigace WebUI** | **SMAZAT** | Softwarová navigace Sidebar/Pager/Page, virtuální joystick, Weather pager a pořadí lokalit jsou sloučené přes PR #7 a popsané v PROJECT_STATUS, ARCHITECTURE a PROJECT_INTENT_BACKLOG. |
+| 18. 9. | **Nastavení viditelnosti FVE** | **SMAZAT** | Nezávislá aktivace GoodWe/AZRouteru, dynamická FVE obrazovka/sidebar a adaptivní layout jsou sloučené přes PR #9 a zachycené v PROJECT_STATUS a FVE_INTEGRATION_HANDOFF. |
 
 ### První bezpečná vlna
 
-Můžeš hned ručně smazat těchto **17 chatů**:
+Můžeš hned ručně smazat těchto **19 chatů**:
 
 1. Návrh hlavní jednotky
 2. Posouzení eink displejů
@@ -66,6 +69,8 @@ Můžeš hned ručně smazat těchto **17 chatů**:
 15. Nový branch pro WebUI e ink preview
 16. Oprava pádu weather tasku
 17. Sloučení a release
+18. Příprava navigace WebUI
+19. Nastavení viditelnosti FVE
 
 Po této vlně už z výše uvedených přímo auditovaných projektových chatů nemusí zůstat žádný pouze kvůli nedokončené opravě.
 
