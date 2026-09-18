@@ -563,6 +563,83 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         });
     }
 
+    function resetPredefinedWidget(id) {
+        const template = defaultWidgetById(id);
+        if (!template) {
+            editorMessage('Pro tento panel teď není dostupná výchozí šablona.', 'error');
+            return;
+        }
+        const replacement = ensureWidgetStyle({...clone(template), visible: true});
+        const index = draft.findIndex(widget => widget.id === id);
+        if (index >= 0) draft[index] = replacement;
+        else draft.push(replacement);
+        selectedId = id;
+        selectedElementId = '';
+        renderDraft();
+        editorMessage('Panel ' + widgetLabel(replacement) + ' byl vrácen na výchozí geometrii a vzhled. Změnu potvrď Uložit.', 'ok');
+    }
+
+    function editPredefinedWidget(id) {
+        let widget = byId(id);
+        if (!widget) {
+            const template = defaultWidgetById(id);
+            if (!template) {
+                editorMessage('Panel není v aktuální automatické šabloně dostupný.', 'error');
+                return;
+            }
+            widget = ensureWidgetStyle({...clone(template), visible: true});
+            draft.push(widget);
+        }
+        selectedId = id;
+        selectedElementId = '';
+        renderDraft();
+        document.getElementById('cardStylePanel')?.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+
+    function renderCardStyleEditor() {
+        const panel = document.getElementById('cardStylePanel');
+        if (!panel) return;
+        const widget = byId(selectedId);
+        if (!widget) {
+            panel.hidden = true;
+            return;
+        }
+        ensureWidgetStyle(widget);
+        panel.hidden = false;
+
+        const title = document.getElementById('cardStyleTitle');
+        if (title) title.textContent = 'Vzhled: ' + widgetLabel(widget);
+
+        const frame = document.getElementById('cardShowFrame');
+        const background = document.getElementById('cardBackground');
+        const inverse = document.getElementById('cardInverseText');
+        const reset = document.getElementById('cardResetSelected');
+        if (frame) frame.checked = widget.showFrame !== false;
+        if (background) background.value = widget.background || 'white';
+        if (inverse) inverse.checked = widget.inverseText === true;
+
+        if (reset) {
+            reset.hidden = widget.type === 'custom';
+            reset.disabled = widget.type !== 'custom' && !defaultWidgetById(widget.id);
+            reset.onclick = () => resetPredefinedWidget(widget.id);
+        }
+
+        if (frame) frame.onchange = () => {
+            widget.showFrame = frame.checked;
+            renderDraft();
+        };
+        if (background) background.onchange = () => {
+            widget.background = background.value;
+            // Sensible e-paper default; user can still override the checkbox afterwards.
+            widget.inverseText = widget.background === 'black';
+            renderDraft();
+        };
+        if (inverse) inverse.onchange = () => {
+            widget.inverseText = inverse.checked;
+            renderDraft();
+        };
+    }
+
     function renderWidgetList() {
         const list = document.getElementById('layoutEditorWidgetList');
         if (!list) return;
@@ -578,10 +655,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <div class="layout-widget-row-title">${labels[supported.id] || supported.id}</div>
                     <div class="layout-widget-row-meta">min. ${supported.minWidth} × ${supported.minHeight} px</div>
                 </div>
-                <label class="toggle">
-                    <input type="checkbox" data-layout-visible="${supported.id}" ${visible ? 'checked' : ''}>
-                    <span class="slider"></span>
-                </label>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                    <label class="toggle">
+                        <input type="checkbox" data-layout-visible="${supported.id}" ${visible ? 'checked' : ''}>
+                        <span class="slider"></span>
+                    </label>
+                    <button class="btn btn-secondary" type="button" data-layout-edit="${supported.id}" style="width:auto;min-height:0;padding:6px 9px">Upravit</button>
+                    <button class="btn btn-secondary" type="button" data-layout-reset-one="${supported.id}" style="width:auto;min-height:0;padding:6px 9px">Výchozí</button>
+                </div>
             `;
             list.appendChild(row);
         });
@@ -603,6 +684,13 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 if (widget.visible) selectedId = widget.id;
                 renderDraft();
             });
+        });
+
+        list.querySelectorAll('[data-layout-edit]').forEach(button => {
+            button.addEventListener('click', () => editPredefinedWidget(button.dataset.layoutEdit));
+        });
+        list.querySelectorAll('[data-layout-reset-one]').forEach(button => {
+            button.addEventListener('click', () => resetPredefinedWidget(button.dataset.layoutResetOne));
         });
 
         draft.filter(widget => widget.type === 'custom').forEach(widget => {
@@ -674,7 +762,15 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 (widget.id === selectedId ? ' selected' : '') +
                 (invalid.has(widget.id) ? ' invalid' : '');
             box.dataset.widgetId = widget.id;
+            ensureWidgetStyle(widget);
             cssRect(box, widget);
+            if (widget.background === 'black') {
+                box.style.background = 'rgba(0,0,0,.68)';
+                box.style.color = widget.inverseText ? '#fff' : '#111';
+            } else {
+                box.style.background = 'rgba(255,255,255,.28)';
+                box.style.color = widget.inverseText ? '#fff' : '#111';
+            }
             box.innerHTML = `
                 <div class="layout-widget-label">${escapeHtml(widgetLabel(widget))} · ${widget.width}×${widget.height}</div>
                 <span class="layout-resize-handle nw" data-handle="nw"></span>
@@ -690,6 +786,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         renderInspector();
         renderWidgetList();
         updateGrid();
+        renderCardStyleEditor();
         renderCustomEditor();
 
         const customInvalid = draft.some(widget =>
@@ -1588,6 +1685,31 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <div class="status-item"><div class="status-label">Y</div><div class="status-value" id="layoutInspectY">—</div></div>
                     <div class="status-item"><div class="status-label">Šířka</div><div class="status-value" id="layoutInspectW">—</div></div>
                     <div class="status-item"><div class="status-label">Výška</div><div class="status-value" id="layoutInspectH">—</div></div>
+                </div>
+            </div>
+
+            <div class="card-style-panel" id="cardStylePanel" hidden>
+                <div class="card-title" id="cardStyleTitle">Vzhled panelu</div>
+                <div class="field-help" style="margin-bottom:10px">Nastavení se používá stejně v Preview i na fyzickém e-inku.</div>
+                <div class="card-style-grid">
+                    <div class="field">
+                        <label>Rámeček</label>
+                        <label class="toggle"><input id="cardShowFrame" type="checkbox" checked><span class="slider"></span></label>
+                    </div>
+                    <div class="field">
+                        <label for="cardBackground">Pozadí</label>
+                        <select id="cardBackground">
+                            <option value="white">Bílé</option>
+                            <option value="black">Černé</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Inverzní text</label>
+                        <label class="toggle"><input id="cardInverseText" type="checkbox"><span class="slider"></span></label>
+                    </div>
+                    <div class="field">
+                        <button class="btn btn-secondary" type="button" id="cardResetSelected" style="width:auto">Obnovit tento panel</button>
+                    </div>
                 </div>
             </div>
 
