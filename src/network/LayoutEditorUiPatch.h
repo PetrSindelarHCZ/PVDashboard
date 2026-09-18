@@ -733,6 +733,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 if (a.type === 'progress' && !(Number(a.max) > Number(a.min))) ids.add(a.id);
             }
             for (let j = i + 1; j < elements.length; j++) {
+                if (a.id === elements[j].id) {
+                    ids.add(a.id);
+                    ids.add(elements[j].id);
+                }
                 if (elementOverlap(a, elements[j])) {
                     ids.add(a.id);
                     ids.add(elements[j].id);
@@ -855,9 +859,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             if (source) {
                 current.source = source.value;
                 const info = sourceInfo(current.source);
-                if (label && !label.value) current.label = info.label || '';
-                if (unit && !unit.value) current.unit = info.unit || '';
-                if (decimals) current.decimals = Number(info.decimals ?? decimals.value);
+                if (label && !label.value) label.value = info.label || '';
+                if (unit && !unit.value) unit.value = info.unit || '';
+                if (decimals) decimals.value = String(Number(info.decimals ?? decimals.value));
             }
             if (label) current.label = label.value;
             if (unit) current.unit = unit.value;
@@ -1198,6 +1202,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             editorMessage('Nejdřív odstraň překryvy widgetů.', 'error');
             return;
         }
+        if (draft.some(widget => widget.type === 'custom' && customWidgetHasErrors(widget))) {
+            editorMessage('Nejdřív oprav prvky uvnitř vlastních widgetů.', 'error');
+            return;
+        }
 
         const payload = {
             customized: true,
@@ -1240,6 +1248,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             apiState = state;
             draft = draftFromApi(state);
             selectedId = draft.find(w => w.visible)?.id || '';
+            selectedElementId = '';
             renderDraft();
             editorMessage('Výchozí automatický layout obnoven.', 'ok');
             if (typeof loadDisplayPreview === 'function') {
@@ -1415,6 +1424,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             if (widget?.type === 'custom') renderCustomElements(widget);
         });
         stageObserver.observe(stage);
+        stageObserver.observe(customStage);
 
         loadLayoutEditor().then(() => {
             if (!apiState) return;
