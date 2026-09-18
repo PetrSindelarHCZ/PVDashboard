@@ -243,7 +243,6 @@ akční seznam, aby se následující funkce neztratily při úklidu starých ch
 - [ ] nezávislá cloudová vrstva pro historii bez závislosti základních funkcí na cloudu,
 - [ ] zachovat možnost samostatného hostu/portu GoodWe a AZRouteru i když simulátor běží na jedné IP,
 - [ ] Home Assistant ponechat pouze jako volitelné budoucí rozšíření.
-- [ ] rozhodnout, zda ruční Wi-Fi `Odpojit` blokuje SSID jen do restartu, nebo persistentně až do ručního `Připojit`,
 - [ ] rozhodnout, zda při vypnutém počasí může WeatherWorker zůstat jako dormantní task, nebo se má skutečně odstranit.
 
 
