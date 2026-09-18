@@ -171,3 +171,20 @@ Vnořený editor:
 
 Vnější rozměr custom widgetu nelze zmenšit pod prostor potřebný pro jeho
 aktuální vnitřní elementy.
+
+
+### Stylování vlastních prvků
+
+Vlastní elementy mají společné volitelné parametry:
+
+- `fontSize`: `auto | small | normal | large` — používá se pro statický text a hlavní KPI hodnotu,
+- `align`: `left | center | right` — zarovnání textu nebo popisku uvnitř šířky elementu,
+- `showLabel`: možnost skrýt popisek u KPI, progress baru a grafu,
+- `graphStyle`: `line | bars` pro sparkline.
+
+Výchozí hodnoty zachovávají chování starších custom layoutů:
+`fontSize=auto`, `align=left`, `showLabel=true`, `graphStyle=line`.
+
+Dlouhý text, popisek nebo KPI hodnota se na e-paperu ořízne na šířku elementu
+a doplní `...`, aby nepřetékal do sousedního prvku. WebUI načítá podporované
+volby stylů z `GET /api/layout/home`.
