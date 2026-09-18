@@ -1,7 +1,11 @@
 # Roadmapa
 
-Roadmapa navazuje na stabilizovaný základ verze 0.1.4. Prioritou je provozní stabilita; další datové zdroje a funkce následují
-až po odstranění blokování WebUI.
+> Stav aktualizován 18. 9. 2026. Rychlý přehled aktuálního masteru je v
+> [PROJECT_STATUS.md](PROJECT_STATUS.md).
+
+Původní etapy P0–P6 zachovávají historii stabilizace projektu. Většina jejich
+kritických bodů je už hotová; aktuální priority jsou dlouhodobé ověření refresh
+politiky, testy, fyzický joystick a reálná čidla.
 
 ## P0 — uzavřít současný základ
 
@@ -148,13 +152,14 @@ Akceptace:
 - [x] ověřit stažení GitHub release a odmítnutí nesprávného SHA-256,
 - [x] ověřit instalaci novějšího GitHub release se správným SHA-256,
 - [x] zdokumentovat návrat ke známé funkční verzi,
-- [x] hlídat velikost firmware vůči 1 310 720 B OTA partition.
+- [x] hlídat velikost firmware vůči aktuálnímu OTA slotu **1 966 080 B**.
 
 Ověření na zařízení 15. 9. 2026: platný ruční upload o velikosti 1 152 560 B
 prošel s odpovídajícím SHA-256 a po restartu zůstala zachována konfigurace.
 Firmware s poškozeným bajtem uvnitř obrazu skončil HTTP 400 na neshodě SHA-256.
 Stejně byly bez restartu odmítnuty chybějící checksum a obraz o velikosti
-1 310 721 B. GitHub OTA stáhla release 0.1.3, při úmyslně chybném SHA-256 jej
+1 310 721 B. Tento konkrétní test proběhl ještě s původním 1,25MiB OTA slotem;
+aktuální `min_spiffs.csv` používá dva sloty po **1 966 080 B**. GitHub OTA stáhla release 0.1.3, při úmyslně chybném SHA-256 jej
 odmítla před aktivací oddílu a běžící verze 0.1.4 pokračovala. Release v0.1.4 obsahuje firmware, SHA-256 a manifest s commitem 46c721b.
 GitHub OTA tohoto release skončila HTTP 200, restartovala zařízení a zachovala
 konfiguraci zdrojů.
@@ -197,8 +202,8 @@ Priorita byla stanovena takto:
 
 Ověření 15. 9. 2026: Forecast API pro čtyři dny a 96 hodin vrátilo pro testovací
 místo odpověď 4 956 B. Firmware ukládá pouze čtyři denní a osm tříhodinových
-bodů prvního dne. JavaScript WebUI prošel kontrolou syntaxe a release build
-využívá 31,0 % RAM a 89,7 % OTA partition. Na zařízení načetl Open-Meteo pro
+bodů prvního dne. JavaScript WebUI prošel kontrolou syntaxe a release build v tehdejším partition layoutu
+využíval 31,0 % RAM a 89,7 % tehdejšího OTA slotu. Na zařízení načetl Open-Meteo pro
 Český Brod, konfigurace přežila restart a 12 požadavků /api/status mělo při
 online GoodWe i AZRouteru odezvu 30–70 ms, průměrně 47,2 ms.
 Ověření MET Norway 15. 9. 2026: odpověď Locationforecast Compact pro testovací
@@ -214,19 +219,24 @@ s datem i časem. Open-Meteo načetl osm tříhodinových bodů pro každý ze �
 MET Norway načetl 21 dostupných bodů; první den je neúplný a vzdálenější body
 má API po šesti hodinách. Všechny čtyři podobrazovky byly aktivovány na zařízení,
 přepnutí používá plný refresh (přibližně 7,1 s). GoodWe a AZRouter zůstaly
-dostupné. Build využívá 31,9 % statické RAM a 92,0 % OTA partition; při
+dostupné. Build využíval 31,9 % statické RAM a 92,0 % tehdejšího OTA slotu; při
 vykreslování zůstalo přibližně 146 kB volné haldy. JavaScript WebUI prošel
 kontrolou syntaxe. Pro větší snímky modelu byly zvětšeny zásobníky display
 workeru a weather workeru.
 
 ## P7 — testy a údržba
 
-- host-side testy GoodWe CRC, délky rámce a mapování registrů,
-- testy variant a chybných JSON odpovědí AZRouteru,
-- testy validace konfigurace a porovnání verzí,
-- automatický build a kontrola velikosti firmware,
-- aktualizace README a changelogu při každém release.
+- [ ] host-side testy GoodWe CRC, délky rámce a mapování registrů,
+- [ ] testy variant a chybných JSON odpovědí AZRouteru,
+- [ ] testy validace konfigurace a porovnání verzí,
+- [x] host-side test logiky stabilizace Wi-Fi RSSI,
+- [x] automatický release build a kontrola maximální velikosti firmware,
+- [x] validace shody release tagu s `FIRMWARE_VERSION`,
+- [ ] doplnit samostatný běžný CI test job pro host-side testy,
+- [ ] zavést pravidelnou aktualizaci changelogu/release notes podle zvolené release politiky.
 
+Aktuálně je v `tests/native` pouze test `wifi_signal_level.cpp`; integrační
+parsery a konfigurace tedy stále potřebují širší automatické pokrytí.
 
 ## P8 — zachycené budoucí funkce z projektových diskusí
 
@@ -235,7 +245,8 @@ Podrobné důvody, omezení a původní návrhová rozhodnutí jsou zachovány v
 akční seznam, aby se následující funkce neztratily při úklidu starých chatů.
 
 - [ ] konfigurovatelný layout e-ink obrazovek a editor ve WebUI,
-- [ ] fyzická navigace mezi obrazovkami (minimálně předchozí/následující),
+- [x] společná softwarová navigace Sidebar / Pager / Page a virtuální joystick ve WebUI,
+- [ ] fyzické připojení pětisměrného joysticku, debounce a long-press/auto-repeat,
 - [ ] reálné vnitřní čidlo BME280 a pozdější výběr CO2 senzoru,
 - [ ] reálná bazénová čidla; první prototyp počítá s DS18B20 a Wi-Fi uzlem,
 - [ ] 433MHz/CC1101 gateway pro vzdálená čidla,
@@ -244,14 +255,34 @@ akční seznam, aby se následující funkce neztratily při úklidu starých ch
 - [ ] zachovat možnost samostatného hostu/portu GoodWe a AZRouteru i když simulátor běží na jedné IP,
 - [ ] Home Assistant ponechat pouze jako volitelné budoucí rozšíření.
 - [x] lifecycle WeatherWorkeru + memory-heavy gate mezi Display/TLS ověřeny na zařízení: vypnout/zapnout funguje, všechny lokality se načtou a `SSL - Memory allocation failed` se neopakuje.
+- [x] dynamická viditelnost počasí, bazénu a FVE podle `enabled` konfigurace,
+- [x] pořadí Weather lokalit se persistuje a používá obecný pager obrazovky,
+- [x] serverový e-ink preview je součástí WebUI.
 
+
+## P9 — dynamické moduly a navigace — HOTOVO 18. 9. 2026
+
+- [x] společný NavigationController pro WebUI a budoucí HW ovladač,
+- [x] geometrická navigace focusovatelných prvků,
+- [x] obecný Pager a Weather lokality jako podstránky,
+- [x] změna pořadí Weather lokalit ve WebUI i na e-inku,
+- [x] persistentní a runtime přepínač Bazén,
+- [x] nezávislé zapnutí/vypnutí GoodWe a AZRouteru,
+- [x] odstranění FVE ze sidebaru při vypnutí obou zdrojů,
+- [x] adaptivní FVE/Home layout bez prázdných karet vypnutých modulů,
+- [x] dynamická registrace/odregistrace obrazovek a následná synchronizace navigace.
+
+Zůstává pouze drobný UI dluh: stručný stavový panel WebUI zatím u explicitně
+vypnutého GoodWe/AZRouteru používá text **Offline** místo **Vypnuto**.
 
 ## Doporučené pořadí nejbližší práce
 
-1. P0: uzavřít současný vzhled a refresh strategii.
-2. P1: timeouty, fail-fast a backoff.
-3. P2: displej ve vlastní úloze a stav refreshu ve WebUI.
-4. P3: Sjednotit UI: stavové záhlaví, levé ikonové menu a odstranění zápatí.
-5. P5: ověřit OTA a připnout toolchain.
-6. P4: 24hodinový test panelu a doladění refresh politiky.
-7. P6 a P7 podle zvolených dalších datových zdrojů.
+1. **P4:** provést alespoň 24hodinový test současné partial/full refresh politiky
+   a podle výsledku odstranit nebo využít `fullRefreshIntervalMinutes`.
+2. **P7:** rozšířit host-side testy GoodWe, AZRouteru, konfigurace a verzování.
+3. Dokončit drobnou konzistenci WebUI stavu **Vypnuto vs. Offline**.
+4. Zvolit finální GPIO a připojit fyzický pětisměrný joystick nad hotový
+   NavigationController.
+5. **P6:** připojit první reálné čidlo (BME280) a následně bazénový DS18B20 uzel.
+6. Teprve potom otevírat větší budoucí celky: editor layoutu, 433MHz gateway,
+   historii KPI/cloud a případný ČHMÚ adaptér.
