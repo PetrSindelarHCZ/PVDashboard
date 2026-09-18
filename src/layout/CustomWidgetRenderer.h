@@ -84,6 +84,22 @@ inline int16_t baselineOffset(const CustomWidgetElementConfig& element, bool val
     return valueFont ? 24 : 18;
 }
 
+inline String fitText(IDisplay& display, const String& input, int16_t width) {
+    if (width <= 0 || display.textWidth(input) <= width) return input;
+
+    String text = input;
+    const String ellipsis = "...";
+    if (display.textWidth(ellipsis) > width) return String();
+
+    while (text.length() && display.textWidth(text + ellipsis) > width) {
+        unsigned int end = text.length() - 1;
+        while (end > 0 && (static_cast<uint8_t>(text[end]) & 0xC0) == 0x80) --end;
+        text.remove(end);
+    }
+    text += ellipsis;
+    return text;
+}
+
 inline int16_t alignedX(IDisplay& display, int16_t x, int16_t width,
                         const String& text, const String& align) {
     if (align == "center") return x + (width - display.textWidth(text)) / 2;
@@ -100,9 +116,10 @@ inline void useElementFont(IDisplay& display, const CustomWidgetElementConfig& e
 inline void drawText(IDisplay& display, int16_t x, int16_t y,
                      const CustomWidgetElementConfig& element) {
     useElementFont(display, element, false);
-    const int16_t textX = alignedX(display, x, element.width, element.text, element.align);
+    const String text = fitText(display, element.text, element.width);
+    const int16_t textX = alignedX(display, x, element.width, text, element.align);
     display.setCursor(textX, y + baselineOffset(element, false));
-    display.print(element.text);
+    display.print(text);
 }
 
 inline void drawKpi(IDisplay& display, const DataModel& dm, int16_t x, int16_t y,
@@ -110,18 +127,20 @@ inline void drawKpi(IDisplay& display, const DataModel& dm, int16_t x, int16_t y
     int16_t valueY = y;
     if (element.showLabel && !element.label.isEmpty()) {
         ScreenStyle::useBody(display);
-        const int16_t labelX = alignedX(display, x, element.width, element.label, element.align);
+        const String label = fitText(display, element.label, element.width);
+        const int16_t labelX = alignedX(display, x, element.width, label, element.align);
         display.setCursor(labelX, y + 16);
-        display.print(element.label);
+        display.print(label);
         valueY += 20;
     }
 
     float value = 0.0f;
     const bool available = resolveValue(dm, element.source, value);
-    const String valueText = available
+    String valueText = available
         ? formatValue(value, element.decimals, element.unit)
         : String("--");
     useElementFont(display, element, true);
+    valueText = fitText(display, valueText, element.width);
     const int16_t valueX = alignedX(display, x, element.width, valueText, element.align);
     display.setCursor(valueX, valueY + baselineOffset(element, true));
     display.print(valueText);
@@ -134,8 +153,9 @@ inline void drawProgress(IDisplay& display, const DataModel& dm, int16_t x, int1
 
     int16_t barY = y + 4;
     if (element.showLabel) {
-        const String labelText = !element.label.isEmpty() ? element.label : element.source;
         ScreenStyle::useBody(display);
+        const String rawLabel = !element.label.isEmpty() ? element.label : element.source;
+        const String labelText = fitText(display, rawLabel, element.width);
         const int16_t labelX = alignedX(display, x, element.width, labelText, element.align);
         display.setCursor(labelX, y + 15);
         display.print(labelText);
@@ -167,9 +187,10 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
     int16_t graphY = y + 2;
     if (element.showLabel && !element.label.isEmpty()) {
         ScreenStyle::useBody(display);
-        const int16_t labelX = alignedX(display, x, element.width, element.label, element.align);
+        const String label = fitText(display, element.label, element.width);
+        const int16_t labelX = alignedX(display, x, element.width, label, element.align);
         display.setCursor(labelX, y + 15);
-        display.print(element.label);
+        display.print(label);
         graphY = y + 20;
     }
 
