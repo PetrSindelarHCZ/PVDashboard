@@ -182,7 +182,7 @@ String homeLayoutResponseJson(const HomeLayoutConfig& config, const DataModel& d
 
     JsonArray sources = custom["dataSources"].to<JsonArray>();
     auto addSource = [&sources](const char* id, const char* label, const char* unit,
-                                uint8_t decimals, bool history = false) {
+                                uint8_t decimals, bool history) {
         JsonObject item = sources.add<JsonObject>();
         item["id"] = id;
         item["label"] = label;
@@ -192,29 +192,29 @@ String homeLayoutResponseJson(const HomeLayoutConfig& config, const DataModel& d
     };
     addSource("solar.productionPowerW", "Výroba FVE", "W", 0, true);
     addSource("solar.houseConsumptionW", "Spotřeba domu", "W", 0, true);
-    addSource("solar.gridPowerW", "Distribuce", "W", 0);
-    addSource("solar.energyTodayKWh", "Výroba dnes", "kWh", 1);
-    addSource("solar.batterySocPercent", "Baterie", "%", 0);
-    addSource("solar.batteryPowerW", "Výkon baterie", "W", 0);
-    addSource("azrouter.gridPowerW", "AZRouter síť", "W", 0);
-    addSource("azrouter.routedPowerW", "AZRouter výkon", "W", 0);
-    addSource("azrouter.routedEnergyTodayKWh", "AZRouter energie dnes", "kWh", 1);
-    addSource("azrouter.boilerTempC", "Bojler", "°C", 1);
-    addSource("weather.outdoorTempC", "Venkovní teplota", "°C", 1);
-    addSource("weather.outdoorHumidityPercent", "Venkovní vlhkost", "%", 0);
-    addSource("weather.surfacePressureHpa", "Tlak", "hPa", 0);
-    addSource("weather.windSpeedKmh", "Vítr", "km/h", 1);
-    addSource("inside.livingRoomTempC", "Obývák", "°C", 1);
-    addSource("inside.bedroomTempC", "Ložnice", "°C", 1);
-    addSource("inside.poolTempC", "Bazén uvnitř modelu", "°C", 1);
-    addSource("pool.waterTempC", "Bazén voda", "°C", 1);
-    addSource("pool.targetTempC", "Bazén cíl", "°C", 1);
-    addSource("pool.ph", "Bazén pH", "", 1);
-    addSource("pool.freeChlorineMgL", "Volný chlor", "mg/l", 2);
-    addSource("pool.airTempC", "Bazén vzduch", "°C", 1);
-    addSource("pool.airHumidityPercent", "Bazén vlhkost", "%", 0);
-    addSource("system.wifiRssi", "Wi-Fi RSSI", "dBm", 0);
-    addSource("system.uptimeSeconds", "Uptime", "s", 0);
+    addSource("solar.gridPowerW", "Distribuce", "W", 0, false);
+    addSource("solar.energyTodayKWh", "Výroba dnes", "kWh", 1, false);
+    addSource("solar.batterySocPercent", "Baterie", "%", 0, false);
+    addSource("solar.batteryPowerW", "Výkon baterie", "W", 0, false);
+    addSource("azrouter.gridPowerW", "AZRouter síť", "W", 0, false);
+    addSource("azrouter.routedPowerW", "AZRouter výkon", "W", 0, false);
+    addSource("azrouter.routedEnergyTodayKWh", "AZRouter energie dnes", "kWh", 1, false);
+    addSource("azrouter.boilerTempC", "Bojler", "°C", 1, false);
+    addSource("weather.outdoorTempC", "Venkovní teplota", "°C", 1, false);
+    addSource("weather.outdoorHumidityPercent", "Venkovní vlhkost", "%", 0, false);
+    addSource("weather.surfacePressureHpa", "Tlak", "hPa", 0, false);
+    addSource("weather.windSpeedKmh", "Vítr", "km/h", 1, false);
+    addSource("inside.livingRoomTempC", "Obývák", "°C", 1, false);
+    addSource("inside.bedroomTempC", "Ložnice", "°C", 1, false);
+    addSource("inside.poolTempC", "Bazén uvnitř modelu", "°C", 1, false);
+    addSource("pool.waterTempC", "Bazén voda", "°C", 1, false);
+    addSource("pool.targetTempC", "Bazén cíl", "°C", 1, false);
+    addSource("pool.ph", "Bazén pH", "", 1, false);
+    addSource("pool.freeChlorineMgL", "Volný chlor", "mg/l", 2, false);
+    addSource("pool.airTempC", "Bazén vzduch", "°C", 1, false);
+    addSource("pool.airHumidityPercent", "Bazén vlhkost", "%", 0, false);
+    addSource("system.wifiRssi", "Wi-Fi RSSI", "dBm", 0, false);
+    addSource("system.uptimeSeconds", "Uptime", "s", 0, false);
 
     String response;
     serializeJson(doc, response);
