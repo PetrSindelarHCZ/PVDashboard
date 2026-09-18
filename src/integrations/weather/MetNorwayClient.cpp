@@ -177,7 +177,7 @@ bool MetNorwayClient::update(const WeatherConfig& config, WeatherData& weatherDa
 
     const char* headerKeys[] = {"Last-Modified", "Expires", "Date", "X-ErrorClass"};
     http.collectHeaders(headerKeys, 4);
-    if (!_lastModified.isEmpty()) {
+    if (!_lastModified.isEmpty() && cacheMatches) {
         http.addHeader("If-Modified-Since", _lastModified);
     }
 
