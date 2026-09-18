@@ -48,9 +48,10 @@ Při zavedení editoru musí firmware validovat alespoň:
 
 ## D2 — persistence a REST API
 
-Home layout je uložen v `AppConfig.display.homeLayout` a v NVS pod klíčem
-`layout_home`. Pokud `customized=false`, renderer používá původní automatickou
-šablonu podle dostupnosti Počasí a FVE.
+Home layout je uložen v `AppConfig.display.homeLayout` a v NVS jako blob
+`layout_blob`. Starší string `layout_home` se při načtení automaticky migruje.
+Pokud `customized=false`, renderer používá původní automatickou šablonu podle
+dostupnosti Počasí a FVE.
 
 REST rozhraní (D2):
 
