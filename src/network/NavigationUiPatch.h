@@ -167,12 +167,12 @@ static const char NAVIGATION_UI_PATCH[] PROGMEM = R"rawliteral(
                         <div class="status-item"><div class="status-label">Focus prvku</div><div class="status-value" id="navStateFocus">—</div></div>
                     </div>
                     <div class="navigation-hint">
-                        Sidebar: ↑/↓ vybírá položku, OK ji načte a → vstoupí do zobrazené stránky.
-                        U stránky s více podstránkami ←/→ přepíná podstránky, ↑ se kdykoli vrátí
-                        o úroveň výš do sidebaru a OK teprve vstoupí do prvků aktuální podstránky.
-                        Při navigaci mezi prvky vrátí ← bez dalšího prvku vlevo o úroveň výš
-                        (na pager, nebo přímo do sidebaru u běžné stránky). OK nad prvkem je zatím
-                        rezervované. Klávesnice: šipky + Enter.
+                        Sidebar: ↑/↓ vybírá položku a OK ji načte a současně vstoupí do stránky.
+                        U stránky s více podstránkami se tím vstoupí do pageru; ←/→ přepíná
+                        podstránky a OK vstoupí do prvků aktuální podstránky. Z prvků vrátí ←
+                        bez dalšího prvku vlevo do pageru a z první podstránky další ← do sidebaru.
+                        U běžné stránky vrací ← z levého okraje přímo do sidebaru. OK nad prvkem je
+                        zatím rezervované. Klávesnice: šipky + Enter.
                     </div>
                 </div>
             </div>
