@@ -62,6 +62,7 @@ DashboardApp::DashboardApp()
       _displayPreview(),
       _displayManager(_epaperDisplay, &_displayPreview),
       _displayWorker(_displayManager),
+      _navigationController(_screenManager, _dataModel),
       _webServer(80, _dataModel, _screenManager, _configManager.get()) {
 }
 
@@ -95,6 +96,7 @@ void DashboardApp::setup() {
         _screenManager.activateScreen("home");
     }
     _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
+    _navigationController.syncToActiveScreen();
     _dataModel.weather.enabled = cfg.weather.enabled;
     const WeatherLocation* initialWeatherLocation = cfg.weather.activeLocation();
     _dataModel.weather.locationName = initialWeatherLocation ? initialWeatherLocation->name : "";
@@ -165,10 +167,15 @@ void DashboardApp::setup() {
     _dataModel.system.dateStr = _timeService.getDateStr();
     _dataModel.system.dayOfWeekStr = _timeService.getDayOfWeekStr();
 
+    _navigationController.onChange([this](bool fullRefresh) {
+        requestDisplayRefresh(fullRefresh, 50);
+    });
+
     _webServer.onScreenChange([this](const String& screenId) { onScreenSwitchRequested(screenId); });
     _webServer.onRefresh([this](bool full) { onRefreshRequested(full); });
     _webServer.onDisplayStatus([this]() { return _displayWorker.getStatus(); });
     _webServer.setDisplayPreview(&_displayPreview);
+    _webServer.setNavigationController(&_navigationController);
 
     _webServer.onSystemConfig([this](const SystemConfig& system) {
         const String previousHostname = _configManager.get().system.hostname;
@@ -344,6 +351,7 @@ void DashboardApp::setWeatherScreensEnabled(bool enabled) {
     if (enabled) {
         _screenManager.registerScreen(&_weatherScreen);
         for (auto& screen : _weatherHourlyScreens) _screenManager.registerScreen(&screen);
+        _navigationController.syncToActiveScreen(false);
         return;
     }
 
@@ -357,6 +365,7 @@ void DashboardApp::setWeatherScreensEnabled(bool enabled) {
         _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
         requestDisplayRefresh(true, 100);
     }
+    _navigationController.syncToActiveScreen(false);
 }
 
 void DashboardApp::requestDisplayRefresh(bool full, unsigned long delayMs) {
@@ -377,6 +386,7 @@ void DashboardApp::requestAutomaticDisplayRefresh() {
 }
 
 void DashboardApp::onScreenSwitchRequested(const String& screenId) {
+    _navigationController.syncToActiveScreen(false);
     Serial.printf("[APP][%lu ms] Pozadavek na prepnuti obrazovky: %s\n", millis(), screenId.c_str());
     requestDisplayRefresh(true, 100);
 }
