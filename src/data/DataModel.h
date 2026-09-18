@@ -101,6 +101,13 @@ struct PoolData {
 
 struct SystemData {
     String currentScreenId = "home";
+
+    // Runtime UI focus. This is intentionally separate from persisted
+    // configuration; it is copied into display snapshots so e-ink and WebUI
+    // preview render the same navigation state.
+    String navigationArea = "sidebar";
+    String navigationSidebarScreenId = "home";
+    String navigationFocusId = "";
     String timeStr = "";
     String dateStr = "";
     String dayOfWeekStr = "";
