@@ -207,16 +207,6 @@ bool NavigationController::movePager(
         }
 
         case NavigationAction::Up:
-            // Pager is a hierarchy level between sidebar and page elements.
-            // UP always moves one level toward the parent, regardless of the
-            // currently selected subpage, so the user never has to traverse
-            // back to the first dot just to leave the pager.
-            _state.area = NavigationArea::Sidebar;
-            _state.focusId = "";
-            _state.sidebarScreenId = sidebarIdForActiveScreen();
-            ensureSidebarSelection();
-            return true;
-
         case NavigationAction::Down:
             return false;
     }
@@ -393,13 +383,24 @@ bool NavigationController::handleAction(NavigationAction action) {
                 changed = enterPage(screenChanged, subpageChanged);
                 break;
             case NavigationAction::Ok:
-                if (!_state.sidebarScreenId.isEmpty() &&
-                    !_screenManager.getActiveScreenId().equalsIgnoreCase(_state.sidebarScreenId) &&
-                    _screenManager.activateScreen(_state.sidebarScreenId)) {
-                    _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
-                    _state.subpageIndex = activeInitialSubpage();
-                    screenChanged = true;
-                    changed = true;
+                if (!_state.sidebarScreenId.isEmpty()) {
+                    bool canEnter = true;
+
+                    if (!_screenManager.getActiveScreenId().equalsIgnoreCase(_state.sidebarScreenId)) {
+                        canEnter = _screenManager.activateScreen(_state.sidebarScreenId);
+                        if (canEnter) {
+                            _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
+                            _state.subpageIndex = activeInitialSubpage();
+                            screenChanged = true;
+                        }
+                    }
+
+                    if (canEnter) {
+                        bool ignoredScreenChanged = false;
+                        const bool entered =
+                            enterPage(ignoredScreenChanged, subpageChanged);
+                        changed = entered || screenChanged;
+                    }
                 }
                 break;
             case NavigationAction::Left:
