@@ -163,6 +163,7 @@ int NavigationController::findNeighbour(
         bool inDirection = false;
         bool orthogonalOverlap = false;
         int32_t primaryGap = 0;
+        int32_t primaryCenterDistance = 0;
         int32_t crossDistance = 0;
 
         switch (action) {
@@ -172,6 +173,7 @@ int NavigationController::findNeighbour(
                     const int32_t gap = candidate.x - (current.x + current.width);
                     primaryGap = gap > 0 ? gap : 0;
                 }
+                primaryCenterDistance = abs(candidateCx - currentCx);
                 crossDistance = abs(candidateCy - currentCy);
                 orthogonalOverlap =
                     candidate.y < current.y + current.height &&
@@ -194,6 +196,7 @@ int NavigationController::findNeighbour(
                     const int32_t gap = candidate.y - (current.y + current.height);
                     primaryGap = gap > 0 ? gap : 0;
                 }
+                primaryCenterDistance = abs(candidateCy - currentCy);
                 crossDistance = abs(candidateCx - currentCx);
                 orthogonalOverlap =
                     candidate.x < current.x + current.width &&
@@ -215,6 +218,11 @@ int NavigationController::findNeighbour(
         }
 
         if (!inDirection) continue;
+
+        // Do not jump almost perpendicular to the pressed direction. Diagonal
+        // navigation is allowed when the candidate still lies inside a 90°
+        // directional cone, while aligned rows/columns always remain valid.
+        if (!orthogonalOverlap && crossDistance > primaryCenterDistance) continue;
 
         // Prefer an element that visually overlaps the current row/column.
         // Only when there is no such candidate do diagonal elements compete.
