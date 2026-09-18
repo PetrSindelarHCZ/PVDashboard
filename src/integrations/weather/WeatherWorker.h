@@ -27,6 +27,7 @@ private:
     TaskHandle_t _task = nullptr;
     WeatherData _latest;
     bool _hasLatest = false;
+    uint32_t _configGeneration = 0;
 
     static void taskEntry(void* parameter);
     void taskLoop();
