@@ -1063,6 +1063,42 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         box.style.height = (element.height / widget.height * 100) + '%';
     }
 
+    function changeElementType(element, newType) {
+        if (!element || element.type === newType) return;
+        const oldType = element.type;
+        element.type = newType;
+
+        const typeInfo = elementTypeInfo(newType);
+        element.width = Math.max(Number(typeInfo.minWidth || 20), Number(element.width || 0));
+        element.height = Math.max(Number(typeInfo.minHeight || 20), Number(element.height || 0));
+
+        if (newType === 'text') {
+            if (!element.text) element.text = oldType === 'text' ? element.text : (element.label || 'Nový text');
+            element.source = '';
+            element.label = '';
+            element.unit = '';
+            element.graphStyle = 'line';
+            element.showLabel = true;
+        } else {
+            const sources = (apiState?.customWidget?.dataSources || [])
+                .filter(source => newType !== 'sparkline' || source.history);
+            const currentSource = sources.find(source => source.id === element.source);
+            const source = currentSource || sources[0] || {};
+            element.source = source.id || '';
+            if (!element.label || oldType === 'text') element.label = source.label || '';
+            if (!element.unit || oldType === 'text') element.unit = source.unit || '';
+            element.decimals = Number(source.decimals ?? element.decimals ?? 1);
+            element.text = '';
+            element.showLabel = element.showLabel !== false;
+            element.graphStyle = newType === 'sparkline' ? (element.graphStyle || 'line') : 'line';
+            if (newType === 'progress' && !(Number(element.max) > Number(element.min))) {
+                element.min = 0;
+                element.max = source.unit === '%' ? 100 : 100;
+            }
+        }
+        normalizeElement(byId(selectedId), element);
+    }
+
     function renderCustomElementForm(widget) {
         const form = document.getElementById('customElementForm');
         if (!form) return;
@@ -1096,7 +1132,12 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         form.innerHTML = `
             <div class="field full">
                 <label>Typ prvku</label>
-                <input value="${escapeHtml(element.type)}" disabled>
+                <select id="customFieldType">
+                    ${(apiState?.customWidget?.elementTypes || []).map(item => {
+                        const names = {text:'Text', kpi:'KPI', progress:'Progress', sparkline:'Graf'};
+                        return `<option value="${escapeHtml(item.type)}" ${item.type === element.type ? 'selected' : ''}>${names[item.type] || item.type}</option>`;
+                    }).join('')}
+                </select>
             </div>
             ${element.type === 'text' ? `
                 <div class="field full">
@@ -1171,6 +1212,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const commit = () => {
             const current = (widget.elements || []).find(item => item.id === selectedElementId);
             if (!current) return;
+            const type = document.getElementById('customFieldType');
             const text = document.getElementById('customFieldText');
             const source = document.getElementById('customFieldSource');
             const label = document.getElementById('customFieldLabel');
@@ -1207,8 +1249,28 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             renderDraft();
         };
 
+        document.getElementById('customFieldType')?.addEventListener('change', event => {
+            const current = (widget.elements || []).find(item => item.id === selectedElementId);
+            if (!current) return;
+            changeElementType(current, event.target.value);
+            renderDraft();
+        });
         form.querySelectorAll('input,select').forEach(control => {
+            if (control.id === 'customFieldType') return;
             control.addEventListener('change', commit);
+        });
+        // Text changes should be visible immediately while typing, but only in the browser draft.
+        document.getElementById('customFieldText')?.addEventListener('input', event => {
+            const current = (widget.elements || []).find(item => item.id === selectedElementId);
+            if (!current) return;
+            current.text = event.target.value;
+            renderCustomElements(widget);
+        });
+        document.getElementById('customFieldLabel')?.addEventListener('input', event => {
+            const current = (widget.elements || []).find(item => item.id === selectedElementId);
+            if (!current) return;
+            current.label = event.target.value;
+            renderCustomElements(widget);
         });
         document.getElementById('customDuplicateElement')?.addEventListener('click', () => {
             duplicateSelectedElement(widget);
@@ -1285,7 +1347,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const list = document.getElementById('customElementList');
         if (list) {
             list.innerHTML = '';
-            (widget.elements || []).forEach(element => {
+            (widget.elements || []).forEach((element, elementIndex) => {
                 const row = document.createElement('div');
                 row.className = 'custom-element-row' +
                     (element.id === selectedElementId ? ' selected' : '') +
