@@ -444,38 +444,24 @@ rozhodnutí, které není zachycené zde nebo v jiné aktuální dokumentaci.
 
 ---
 
-## 16. Wi-Fi správa známých sítí — HOTOVO S JEDNÍM ROZPOREM K OVĚŘENÍ
+## 16. Wi-Fi správa známých sítí — HOTOVO
 
-Projekt se posunul od jediné uložené Wi-Fi k seznamu známých sítí. Dlouhodobý
-záměr je:
+Projekt se posunul od jediné uložené Wi-Fi k seznamu známých sítí. Platné cílové
+chování je:
 
 - uchovávat více známých sítí,
 - v AP+STA fallbacku je průběžně hledat,
 - viditelné kandidáty prioritizovat podle signálu,
 - při selhání jedné sítě zkoušet další,
-- ruční `Připojit` má explicitně zvolenou síť znovu povolit,
-- ruční `Odpojit` nesmí způsobit okamžité automatické připojení zpět ke stejné
-  síti, zatímco ostatní známé sítě mohou zůstat kandidáty.
+- ruční `Připojit` explicitně zvolenou síť znovu povolí,
+- ruční `Odpojit` dané SSID trvale vyřadí z auto-connectu,
+- ručně odpojené SSID se po restartu samo znovu nepovolí,
+- znovu se povolí až ruční akcí `Připojit`,
+- ostatní známé sítě mohou zůstat kandidáty pro automatické připojení.
 
-Aktuální master implementuje seznam známých sítí, AP+STA fallback a automatické
-hledání dalších kandidátů.
-
-### Rozpor k rozhodnutí
-
-Původně odsouhlasené chování ručního **Odpojit** bylo: blokovat právě odpojené
-SSID **do restartu nebo do ručního Připojit**.
-
-Aktuální implementace ukládá pro toto SSID `autoConnect=false` do NVS. Tím je
-blokace persistentní i přes restart a síť se znovu automaticky povolí až ručním
-připojením.
-
-Tento rozdíl se nesmí ztratit při mazání starých chatů. Před uzavřením Wi-Fi
-části je potřeba výslovně rozhodnout, zda:
-
-1. restart blokaci zruší podle původního požadavku, nebo
-2. současné persistentní chování bude přijato jako nové pravidlo.
-
-Do té doby je bod považován za otevřený.
+Aktuální master toto chování implementuje pomocí persistentního
+`autoConnect=false` uloženého v NVS. Toto je správné a záměrné chování, nikoli
+dočasný workaround ani otevřený bod.
 
 ---
 
