@@ -36,8 +36,10 @@ před zapojením je nutné znovu ověřit boot-strapping a vazby konkrétní des
 ### Vnitřní prostředí
 
 - [ ] připojit BME280 pro teplotu, vlhkost a tlak,
-- [ ] napojit hodnoty do DataModelu,
-- [ ] později vybrat a doplnit CO2 senzor.
+- [ ] napojit hodnoty do DataModelu.
+
+Měření CO₂ **není součástí roadmapy**. Je ponechané pouze jako možná budoucí
+úvaha, pokud by se později rozšiřoval rozsah monitorování vnitřního prostředí.
 
 ### Bazén
 
