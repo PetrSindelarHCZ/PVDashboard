@@ -141,11 +141,11 @@ inline bool validateCustomWidget(const HomeLayoutWidgetConfig& widget, String* e
     };
 
     if (widget.title.length() > 40) return fail("Custom widget title is too long");
-    if (widget.elementCount == 0 || widget.elementCount > MaxCustomWidgetElements) {
+    if (widget.elements.size() == 0 || widget.elements.size() > MaxCustomWidgetElements) {
         return fail("Custom widget must contain 1 to 8 elements");
     }
 
-    for (uint8_t i = 0; i < widget.elementCount; ++i) {
+    for (uint8_t i = 0; i < widget.elements.size(); ++i) {
         const CustomWidgetElementConfig& element = widget.elements[i];
 
         if (!validIdentifier(element.id)) return fail("Invalid custom element id");
@@ -227,7 +227,7 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
         if (widget.type == "custom") {
             String customError;
             if (!validateCustomWidget(widget, &customError)) return fail(customError);
-        } else if (widget.elementCount != 0 || !widget.title.isEmpty()) {
+        } else if (widget.elements.size() != 0 || !widget.title.isEmpty()) {
             return fail("Predefined widget cannot contain custom elements");
         }
 
@@ -283,7 +283,7 @@ inline String serializeJson(const HomeLayoutConfig& config) {
         if (widget.type == "custom") {
             item["title"] = widget.title;
             JsonArray elements = item["elements"].to<JsonArray>();
-            for (uint8_t e = 0; e < widget.elementCount && e < MaxCustomWidgetElements; ++e) {
+            for (uint8_t e = 0; e < widget.elements.size() && e < MaxCustomWidgetElements; ++e) {
                 serializeElement(elements.add<JsonObject>(), widget.elements[e]);
             }
         }
@@ -353,7 +353,7 @@ inline bool parseJson(const String& json, HomeLayoutConfig& config, String* erro
                     return false;
                 }
                 for (JsonObject elementItem : elements) {
-                    parseElement(elementItem, widget.elements[widget.elementCount++]);
+                    parseElement(elementItem, widget.elements[widget.elements.size()++]);
                 }
             }
         }
