@@ -30,6 +30,7 @@ public:
     using SourceConfigCallback = std::function<void(const GoodWeConfig& goodwe, const AZRouterConfig& azrouter)>;
     using PoolConfigCallback = std::function<void(const PoolConfig& pool)>;
     using WeatherConfigCallback = std::function<void(const WeatherConfig& weather)>;
+    using HomeLayoutConfigCallback = std::function<bool(const HomeLayoutConfig& layout)>;
     using FactoryResetCallback = std::function<bool()>;
     using ConfigImportCallback = std::function<bool(const AppConfig& config)>;
 
@@ -305,6 +306,7 @@ public:
     void onSourceConfig(SourceConfigCallback callback);
     void onPoolConfig(PoolConfigCallback callback);
     void onWeatherConfig(WeatherConfigCallback callback);
+    void onHomeLayoutConfig(HomeLayoutConfigCallback callback);
     void onFactoryReset(FactoryResetCallback callback);
     void onConfigImport(ConfigImportCallback callback);
 
@@ -330,6 +332,7 @@ private:
     SourceConfigCallback _sourceConfigCallback;
     PoolConfigCallback _poolConfigCallback;
     WeatherConfigCallback _weatherConfigCallback;
+    HomeLayoutConfigCallback _homeLayoutConfigCallback;
     FactoryResetCallback _factoryResetCallback;
     ConfigImportCallback _configImportCallback;
     OtaManager _otaManager;
