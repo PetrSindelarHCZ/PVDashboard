@@ -109,6 +109,10 @@ void WeatherScreen::render(IDisplay& display, const DataModel& dm) {
         ScreenStyle::useBody(display);
         display.setCursor(387, 145);
         display.print("Předpověď zatím není k dispozici.");
+
+        NavigationLayout navigationLayout;
+        buildNavigationLayout(dm, navigationLayout);
+        ScreenStyle::drawPageNavigationFocus(display, dm, navigationLayout);
         return;
     }
 
@@ -140,6 +144,20 @@ void WeatherScreen::render(IDisplay& display, const DataModel& dm) {
         display.setCursor(590, y + 52);
         display.printf("Vítr max %.0f km/h", day.windMaxKmh);
     }
+
+    NavigationLayout navigationLayout;
+    buildNavigationLayout(dm, navigationLayout);
+    ScreenStyle::drawPageNavigationFocus(display, dm, navigationLayout);
+}
+
+void WeatherScreen::buildNavigationLayout(const DataModel&, NavigationLayout& layout) const {
+    layout.clear();
+    if (_forecastDay >= 0) {
+        layout.add("hourly-panel", 85, 135, 690, 315);
+        return;
+    }
+    layout.add("current-card", 75, 63, 282, 402);
+    layout.add("forecast-card", 367, 63, 418, 402);
 }
 
 void WeatherScreen::renderHourly(IDisplay& display, const DataModel& dm) {
