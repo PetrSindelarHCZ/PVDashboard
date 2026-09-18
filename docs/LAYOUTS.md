@@ -153,6 +153,21 @@ Vlastní widgety se ukládají ve stejném layout JSON jako předdefinované wid
 NVS persistence používá blob `layout_blob`; starší D2/D3 string
 `layout_home` se při načtení automaticky migruje.
 
-WebUI nyní umí vytvořit nový vlastní kontejner s výchozím textovým placeholderem
-a upravovat jeho vnější geometrii. Samostatný editor vnitřních elementů je další
-krok.
+WebUI umí vytvořit nový vlastní kontejner, upravovat jeho vnější geometrii
+a po jeho výběru otevře vnořený editor obsahu.
+
+Vnořený editor:
+
+- používá stejnou volbu mřížky 5/10/20/25 px a stejný přepínač magnetismu,
+- zarovnává vnitřní prvky od relativního počátku `x=8, y=40`,
+- umí přidat `Text`, `KPI`, `Progress` a `Graf`,
+- umožňuje drag/resize každého prvku a zároveň přesné zadání X/Y/šířky/výšky,
+- u dynamických prvků nabízí zdroje z katalogu firmware,
+- u `sparkline` nabízí pouze zdroje s historií,
+- u KPI dovoluje změnit popisek, jednotku a počet desetinných míst,
+- u progress baru navíc dovoluje nastavit minimum a maximum,
+- zvýrazňuje neplatné/překrývající se prvky a blokuje hlavní uložení,
+- zapisuje do NVS až při hlavním tlačítku `Uložit`.
+
+Vnější rozměr custom widgetu nelze zmenšit pod prostor potřebný pro jeho
+aktuální vnitřní elementy.
