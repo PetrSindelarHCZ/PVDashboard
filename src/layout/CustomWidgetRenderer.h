@@ -106,13 +106,16 @@ inline void drawProgress(IDisplay& display, const DataModel& dm, int16_t x, int1
     }
 
     const int16_t barY = y + 21;
-    const int16_t barH = max<int16_t>(10, min<int16_t>(18, element.height - 22));
+    int16_t barH = element.height - 22;
+    if (barH < 10) barH = 10;
+    if (barH > 18) barH = 18;
     display.drawRect(x, barY, element.width, barH, 0);
 
     if (!available) return;
 
     float ratio = (value - element.minValue) / (element.maxValue - element.minValue);
-    ratio = max(0.0f, min(1.0f, ratio));
+    if (ratio < 0.0f) ratio = 0.0f;
+    if (ratio > 1.0f) ratio = 1.0f;
     const int16_t fillWidth = static_cast<int16_t>((element.width - 4) * ratio);
     if (fillWidth > 0) display.fillRect(x + 2, barY + 2, fillWidth, barH - 4, 0);
 }
@@ -133,7 +136,8 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
     }
 
     const int16_t graphY = y + 20;
-    const int16_t graphH = max<int16_t>(20, element.height - 22);
+    int16_t graphH = element.height - 22;
+    if (graphH < 20) graphH = 20;
     display.drawRect(x, graphY, element.width, graphH, 0);
 
     const uint8_t count = dm.solar.historyCount;
@@ -148,8 +152,10 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
 
     const int16_t left = x + 2;
     const int16_t top = graphY + 2;
-    const int16_t plotW = max<int16_t>(1, element.width - 4);
-    const int16_t plotH = max<int16_t>(1, graphH - 4);
+    int16_t plotW = element.width - 4;
+    int16_t plotH = graphH - 4;
+    if (plotW < 1) plotW = 1;
+    if (plotH < 1) plotH = 1;
 
     int16_t previousX = left;
     int16_t previousY = top + plotH - 1;
@@ -159,7 +165,9 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
         float value = 0.0f;
         if (!historyValue(dm.solar.history[i], element.source, value)) return;
         const int16_t px = left + static_cast<int16_t>((static_cast<uint32_t>(i) * (plotW - 1)) / (count - 1));
-        const float normalized = max(0.0f, min(1.0f, value / maxValue));
+        float normalized = value / maxValue;
+        if (normalized < 0.0f) normalized = 0.0f;
+        if (normalized > 1.0f) normalized = 1.0f;
         const int16_t py = top + plotH - 1 - static_cast<int16_t>(normalized * (plotH - 1));
         if (previousValid) display.drawLine(previousX, previousY, px, py, 0);
         previousX = px;
