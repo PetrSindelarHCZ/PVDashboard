@@ -176,11 +176,24 @@ inline void drawMenuItem(IDisplay& d, int16_t y, const char* id,
 
 inline void drawSidebar(IDisplay& d, const DataModel& dm) {
     d.drawLine(SidebarWidth, HeaderHeight, SidebarWidth, Height - 1, 0);
-    drawMenuItem(d, 88,  "home",        dm, SidebarIcons::Icon::Home);
-    drawMenuItem(d, 170, "solar",       dm, SidebarIcons::Icon::Solar);
-    drawMenuItem(d, 252, "pool",        dm, SidebarIcons::Icon::Pool);
-    drawMenuItem(d, 334, "weather",     dm, SidebarIcons::Icon::Weather);
-    drawMenuItem(d, 416, "diagnostics", dm, SidebarIcons::Icon::Settings);
+
+    // Horní položky skládáme těsně pod sebe od horního okraje sidebaru.
+    // Dlaždice mají výšku 58 px; 2 px mezera dává krok 60 px.
+    constexpr int16_t firstCenterY = HeaderHeight + 2 + 29;
+    constexpr int16_t itemStep = 60;
+    int16_t y = firstCenterY;
+
+    drawMenuItem(d, y, "home",  dm, SidebarIcons::Icon::Home);  y += itemStep;
+    drawMenuItem(d, y, "solar", dm, SidebarIcons::Icon::Solar); y += itemStep;
+    drawMenuItem(d, y, "pool",  dm, SidebarIcons::Icon::Pool);  y += itemStep;
+
+    if (dm.weather.enabled) {
+        drawMenuItem(d, y, "weather", dm, SidebarIcons::Icon::Weather);
+    }
+
+    // Nastavení / diagnostika zůstává vždy zarovnané ke spodnímu okraji.
+    constexpr int16_t settingsCenterY = Height - 1 - 29;
+    drawMenuItem(d, settingsCenterY, "diagnostics", dm, SidebarIcons::Icon::Settings);
 }
 
 inline void drawChrome(IDisplay& d, const DataModel& dm) {
