@@ -168,11 +168,11 @@ static const char NAVIGATION_UI_PATCH[] PROGMEM = R"rawliteral(
                     </div>
                     <div class="navigation-hint">
                         Sidebar: ↑/↓ vybírá položku, OK ji načte a → vstoupí do zobrazené stránky.
-                        U stránky s více podstránkami pak ←/→ přepíná podstránky a OK teprve vstoupí
-                        do jejich prvků. Z první podstránky vrátí ← focus do sidebaru. Při navigaci
-                        mezi prvky vrátí ← bez dalšího prvku vlevo o úroveň výš (na pager, nebo přímo
-                        do sidebaru u běžné stránky). OK nad prvkem je zatím rezervované. Klávesnice:
-                        šipky + Enter.
+                        U stránky s více podstránkami ←/→ přepíná podstránky, ↑ se kdykoli vrátí
+                        o úroveň výš do sidebaru a OK teprve vstoupí do prvků aktuální podstránky.
+                        Při navigaci mezi prvky vrátí ← bez dalšího prvku vlevo o úroveň výš
+                        (na pager, nebo přímo do sidebaru u běžné stránky). OK nad prvkem je zatím
+                        rezervované. Klávesnice: šipky + Enter.
                     </div>
                 </div>
             </div>
