@@ -109,7 +109,7 @@ Projektové rozhodnutí je nyní zachycené v `PROJECT_INTENT_BACKLOG.md`.
 Konkrétní cloudová platforma nebyla definitivně zvolena a má se při implementaci
 znovu posoudit podle aktuálních podmínek.
 
-### Chat z 17. 9. o Wi-Fi/NTP/živém nastavení — PONECHAT UŽ JEN KVŮLI WEATHER WORKERU
+### Chat z 17. 9. o Wi-Fi/NTP/živém nastavení — SMAZAT
 
 Poznávací body:
 
@@ -126,12 +126,13 @@ nastavit `autoConnect=false` a dané SSID se nesmí automaticky připojit ani po
 restartu. Znovu se povolí až ruční akcí **Připojit**. Současný master je tedy
 správně.
 
-Zůstává už jen jeden otevřený bod: původní požadavek říkal, že vypnuté počasí
-odstraní worker; aktuální master ponechá WeatherWorker task vytvořený, ale
-dormantní a bez HTTPS requestů. Tento bod je zachycený v
-`PROJECT_INTENT_BACKLOG.md` a `ROADMAP.md`.
+WeatherWorker rozhodnutí je nyní uzavřené: při vypnutém modulu se task nemá
+držet dormantní. Má se korektně ukončit a uvolnit cache, mutex i stack; při
+opětovném zapnutí se vytvoří znovu. Implementace je uložená na větvi
+`feature/weather-worker-lifecycle`, build i validace release artefaktů prošly
+v GitHub Actions a rozhodnutí je zachycené v dokumentaci.
 
-Chat lze smazat po uzavření tohoto jediného WeatherWorker rozhodnutí.
+Tím už chat neobsahuje žádné unikátní projektové rozhodnutí a lze jej smazat.
 
 ---
 
@@ -155,12 +156,12 @@ Obsahuje:
 Oba chaty **Simulace AZRouteru a střídače** a **Příprava simulátoru projektu**
 jsou proto bezpečně zařazené do **SMAZAT**.
 
-### Weather runtime
+### Weather runtime — ROZHODNUTO
 
-Wi-Fi část je uzavřená a odpovídá aktuálnímu masteru. Pro chat o
-Wi-Fi/NTP/živém nastavení zbývá už jen rozhodnutí, zda při vypnutém počasí může
-WeatherWorker zůstat jako dormantní task, nebo se má skutečně rušit/vytvářet
-podle stavu modulu.
+Wi-Fi část i lifecycle WeatherWorkeru jsou rozhodnuté a zachycené v repozitáři.
+Chat o Wi-Fi/NTP/živém nastavení už není potřeba držet kvůli projektovému
+rozhodnutí. Samotná lifecycle implementace ještě čeká na provozní test na
+zařízení před sloučením do masteru.
 
 ### Weather crash — UZAVŘENO
 
@@ -204,10 +205,10 @@ než historický chat.
    kvůli jiným tématům mimo Dashboard.
 3. Simulátorové chaty už lze smazat; autoritativním zdrojem je
    `PetrSindelarHCZ/Dashboard.DeviceSimulator`.
-4. Nechat Wi-Fi/NTP chat už jen do rozhodnutí chování WeatherWorkeru při vypnutém počasí.
+4. Wi-Fi/NTP chat lze smazat; WeatherWorker rozhodnutí i implementace jsou zachycené v repozitáři.
 5. Weather-crash chat je uzavřený a lze jej smazat.
-6. Po zbývajícím rozhodnutí o dormantním WeatherWorkeru lze uzavřít i poslední
-   Wi-Fi/NTP/počasí návrhový chat.
+6. Z hlediska zachování návrhových informací je audit uzavřen; další ponechání
+   chatů má smysl jen pro aktuálně rozpracovanou práci, ne kvůli chybějící dokumentaci.
 
 Po první vlně bude historie výrazně čistší a přitom zůstanou zachované chaty,
 které ještě skutečně nesou riziko ztráty informace.
