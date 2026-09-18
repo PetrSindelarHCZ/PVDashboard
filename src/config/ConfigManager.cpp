@@ -2,6 +2,7 @@
 #include <math.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
+#include <memory>
 #include "../layout/HomeLayout.h"
 
 namespace {
@@ -90,6 +91,47 @@ void loadWeatherLocations(Preferences& preferences, WeatherConfig& weather) {
     if (!activeFound) weather.activeLocationId = weather.locations[0].id;
     weather.syncActiveCoordinates();
 }
+
+bool saveHomeLayout(Preferences& preferences, const HomeLayoutConfig& layout) {
+    const String json = HomeLayout::serializeJson(layout);
+    const size_t written = preferences.putBytes("layout_blob", json.c_str(), json.length());
+    if (written != json.length()) return false;
+    if (preferences.isKey("layout_home")) preferences.remove("layout_home");
+    return true;
+}
+
+bool loadHomeLayout(Preferences& preferences, HomeLayoutConfig& layout, String& error) {
+    String json;
+
+    const size_t blobLength = preferences.getBytesLength("layout_blob");
+    if (blobLength > 0) {
+        std::unique_ptr<char[]> buffer(new (std::nothrow) char[blobLength + 1]);
+        if (!buffer) {
+            error = "Not enough memory for Home layout";
+            return false;
+        }
+        if (preferences.getBytes("layout_blob", buffer.get(), blobLength) != blobLength) {
+            error = "Cannot read Home layout blob";
+            return false;
+        }
+        buffer[blobLength] = '\0';
+        json = String(buffer.get());
+    } else if (preferences.isKey("layout_home")) {
+        // D2/D3 migration path: older firmware stored the same JSON as NVS string.
+        json = preferences.getString("layout_home", "");
+    } else {
+        return false;
+    }
+
+    if (!HomeLayout::parseJson(json, layout, &error)) return false;
+
+    if (blobLength == 0 && !json.isEmpty()) {
+        // Best-effort migration; a read-valid old layout remains usable even if
+        // migration cannot be written during this boot.
+        saveHomeLayout(preferences, layout);
+    }
+    return true;
+}
 }
 
 ConfigManager::ConfigManager() {
@@ -143,15 +185,15 @@ bool ConfigManager::begin() {
     _config.weather.pollIntervalSeconds = preferences.getUInt("wx_interval", _config.weather.pollIntervalSeconds);
     loadWeatherLocations(preferences, _config.weather);
 
-    if (preferences.isKey("layout_home")) {
+    if (preferences.isKey("layout_blob") || preferences.isKey("layout_home")) {
         HomeLayoutConfig layout;
         String layoutError;
-        const String json = preferences.getString("layout_home", "");
-        if (HomeLayout::parseJson(json, layout, &layoutError)) {
+        if (loadHomeLayout(preferences, layout, layoutError)) {
             _config.display.homeLayout = layout;
         } else {
             Serial.printf("[CONFIG] Ignoruji neplatny Home layout v NVS: %s\n", layoutError.c_str());
-            preferences.remove("layout_home");
+            if (preferences.isKey("layout_blob")) preferences.remove("layout_blob");
+            if (preferences.isKey("layout_home")) preferences.remove("layout_home");
         }
     }
     preferences.end();
@@ -338,9 +380,9 @@ bool ConfigManager::setHomeLayout(const HomeLayoutConfig& layout) {
 
     Preferences preferences;
     if (!preferences.begin("dashboard", false)) return false;
-    const size_t written = preferences.putString("layout_home", HomeLayout::serializeJson(layout));
+    const bool saved = saveHomeLayout(preferences, layout);
     preferences.end();
-    if (written == 0) return false;
+    if (!saved) return false;
 
     _config.display.homeLayout = layout;
     Serial.printf("[CONFIG] Home layout ulozen (%s, %u widgetu).\n",
@@ -374,8 +416,9 @@ bool ConfigManager::setUserConfiguration(const AppConfig& config) {
     preferences.putDouble("wx_lon", normalizedWeather.longitude);
     preferences.putUInt("wx_interval", normalizedWeather.pollIntervalSeconds);
     saveWeatherLocations(preferences, normalizedWeather);
-    preferences.putString("layout_home", HomeLayout::serializeJson(config.display.homeLayout));
+    const bool layoutSaved = saveHomeLayout(preferences, config.display.homeLayout);
     preferences.end();
+    if (!layoutSaved) return false;
     _config.system = config.system; _config.wifi = config.wifi; _config.display = config.display; _config.goodwe = config.goodwe; _config.azrouter = config.azrouter; _config.pool = config.pool; _config.weather = normalizedWeather;
     rememberWifi(config.wifi.ssid, config.wifi.password, true);
     Serial.println("[CONFIG] YAML konfigurace importovana do NVS.");
