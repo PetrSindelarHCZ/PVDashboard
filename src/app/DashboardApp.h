@@ -80,6 +80,7 @@ private:
     uint8_t _weatherDisplayLocationIndex = 0;
 
     void registerScreens();
+    void setSolarScreenEnabled(bool enabled);
     void setPoolScreenEnabled(bool enabled);
     void setWeatherScreensEnabled(bool enabled);
     void requestDisplayRefresh(bool full, unsigned long delayMs = 0);

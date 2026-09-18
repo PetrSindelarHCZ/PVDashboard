@@ -98,8 +98,15 @@ inline void drawHeader(IDisplay& d, const DataModel& dm) {
     d.fillRect(0, 0, Width, HeaderHeight, 0);
     const bool online = dm.system.wifiConnected;
     drawWifi(d, 8, 8, online, dm.system.wifiSignalLevel, dm.system.wifiAccessPoint);
-    drawSolarStatus(d, 56, 8, online && dm.solar.status.available);
-    drawRouterStatus(d, 104, 8, online && dm.azrouter.status.available);
+
+    int16_t sourceX = 56;
+    if (dm.solar.enabled) {
+        drawSolarStatus(d, sourceX, 8, online && dm.solar.status.available);
+        sourceX += 48;
+    }
+    if (dm.azrouter.enabled) {
+        drawRouterStatus(d, sourceX, 8, online && dm.azrouter.status.available);
+    }
 
     // The header was cleared above, so invalid time also erases old e-ink text.
     if (!dm.system.ntpSynced) return;
@@ -195,8 +202,14 @@ inline void drawSidebar(IDisplay& d, const DataModel& dm) {
     constexpr int16_t itemStep = 60;
     int16_t y = firstCenterY;
 
-    drawMenuItem(d, y, "home",  dm, SidebarIcons::Icon::Home);  y += itemStep;
-    drawMenuItem(d, y, "solar", dm, SidebarIcons::Icon::Solar); y += itemStep;
+    drawMenuItem(d, y, "home", dm, SidebarIcons::Icon::Home);
+    y += itemStep;
+
+    if (dm.solar.enabled || dm.azrouter.enabled) {
+        drawMenuItem(d, y, "solar", dm, SidebarIcons::Icon::Solar);
+        y += itemStep;
+    }
+
     if (dm.pool.enabled) {
         drawMenuItem(d, y, "pool", dm, SidebarIcons::Icon::Pool);
         y += itemStep;

@@ -31,19 +31,31 @@ void DataModel::updateSystemMetrics() {
         }
     }
 
-    if (solar.status.available && azrouter.status.available) {
-        system.statusMessage = "Vse v poradku";
-    } else if (!solar.status.available && !azrouter.status.available) {
-        system.statusMessage = "GoodWe a AZRouter nedostupne";
-    } else if (!solar.status.available) {
-        system.statusMessage = "GoodWe nedostupne";
+    if (!solar.enabled && !azrouter.enabled) {
+        system.statusMessage = "Fotovoltaika vypnuta";
+    } else if (solar.enabled && azrouter.enabled) {
+        if (solar.status.available && azrouter.status.available) {
+            system.statusMessage = "Vse v poradku";
+        } else if (!solar.status.available && !azrouter.status.available) {
+            system.statusMessage = "GoodWe a AZRouter nedostupne";
+        } else if (!solar.status.available) {
+            system.statusMessage = "GoodWe nedostupne";
+        } else {
+            system.statusMessage = "AZRouter nedostupny";
+        }
+    } else if (solar.enabled) {
+        system.statusMessage = solar.status.available
+            ? "GoodWe data dostupna"
+            : "GoodWe nedostupne";
     } else {
-        system.statusMessage = "AZRouter nedostupny";
+        system.statusMessage = azrouter.status.available
+            ? "AZRouter data dostupna"
+            : "AZRouter nedostupny";
     }
 }
 
 void DataModel::sampleSolarHistory(uint16_t minuteOfDay) {
-    if (!solar.status.available || minuteOfDay >= 24U * 60U) return;
+    if (!solar.enabled || !solar.status.available || minuteOfDay >= 24U * 60U) return;
 
     const uint16_t bucketMinute =
         static_cast<uint16_t>((minuteOfDay / SolarHistoryIntervalMinutes) * SolarHistoryIntervalMinutes);

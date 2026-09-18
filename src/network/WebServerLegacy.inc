@@ -751,6 +751,11 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
             if (button) button.hidden = !enabled;
         }
 
+        function setSolarScreenVisibility(goodweEnabled, azrouterEnabled) {
+            const button = document.querySelector(`button[onclick="activate('solar')"]`);
+            if (button) button.hidden = !(goodweEnabled || azrouterEnabled);
+        }
+
         async function updateStatus() {
             if (statusRequestInFlight || githubUpdateBusy) return;
             statusRequestInFlight = true;
@@ -760,6 +765,13 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 const res = await fetch('/api/status', { signal: controller.signal });
                 if (!res.ok) throw new Error('Status HTTP ' + res.status);
                 const data = await res.json();
+
+                if (data.sources) {
+                    setSolarScreenVisibility(
+                        data.sources.goodwe?.enabled !== false,
+                        data.sources.azrouter?.enabled !== false
+                    );
+                }
 
                 document.getElementById('fwVer').innerText = 'v' + data.firmware;
                 document.getElementById('githubCurrentVersion').innerText = 'v' + data.firmware;
@@ -1066,6 +1078,12 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 headers: {'Content-Type': 'application/x-www-form-urlencoded'},
                 body
             });
+            if (response.ok) {
+                setSolarScreenVisibility(
+                    document.getElementById('gwEnabled').checked,
+                    document.getElementById('azEnabled').checked
+                );
+            }
             showToast(response.ok ? 'Zdroje uloženy, zařízení se restartuje' : 'Zdroje se nepodařilo uložit');
         }
 

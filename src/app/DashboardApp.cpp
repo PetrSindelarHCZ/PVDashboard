@@ -122,6 +122,8 @@ void DashboardApp::setup() {
     const auto& cfg = _configManager.get();
     applyWifiAddressing(cfg.wifi);
 
+    _dataModel.solar.enabled = cfg.goodwe.enabled;
+    _dataModel.azrouter.enabled = cfg.azrouter.enabled;
     registerScreens();
     if (!_screenManager.activateScreen(cfg.display.defaultScreen)) {
         _screenManager.activateScreen("home");
@@ -313,13 +315,39 @@ void DashboardApp::setup() {
     });
 
     _webServer.onSourceConfig([this](const GoodWeConfig& goodwe, const AZRouterConfig& azrouter) {
+        const bool visibilityChanged =
+            _configManager.get().goodwe.enabled != goodwe.enabled ||
+            _configManager.get().azrouter.enabled != azrouter.enabled;
+
         _configManager.setSources(goodwe, azrouter);
-        if (goodwe.enabled) _goodweClient.begin(goodwe.host, goodwe.port); else _dataModel.solar.status.recordError("Disabled");
-        if (azrouter.enabled) _azrouterClient.begin(azrouter.host, azrouter.port); else _dataModel.azrouter.status.recordError("Disabled");
-        _goodweFailureStreak = 0; _azrouterFailureStreak = 0;
+        _dataModel.solar.enabled = goodwe.enabled;
+        _dataModel.azrouter.enabled = azrouter.enabled;
+
+        if (goodwe.enabled) {
+            _goodweClient.begin(goodwe.host, goodwe.port);
+        } else {
+            _dataModel.solar.status.recordError("Disabled");
+            _dataModel.solar.historyCount = 0;
+        }
+
+        if (azrouter.enabled) {
+            _azrouterClient.begin(azrouter.host, azrouter.port);
+        } else {
+            _dataModel.azrouter.status.recordError("Disabled");
+        }
+
+        setSolarScreenEnabled(goodwe.enabled || azrouter.enabled);
+        _navigationController.syncToActiveScreen(false);
+
+        _goodweFailureStreak = 0;
+        _azrouterFailureStreak = 0;
         _lastGoodweSync = millis() - goodwe.pollIntervalSeconds * 1000UL;
         _lastAzrouterSync = millis() - azrouter.pollIntervalSeconds * 1000UL;
-        _dataModel.updateSystemMetrics(); requestAutomaticDisplayRefresh();
+        _dataModel.updateSystemMetrics();
+
+        if (visibilityChanged) requestDisplayRefresh(true, 100);
+        else requestAutomaticDisplayRefresh();
+
         Serial.println("[CONFIG] Datove zdroje ulozeny a aplikovany za behu.");
     });
 
@@ -411,7 +439,9 @@ void DashboardApp::setup() {
 
 void DashboardApp::registerScreens() {
     _screenManager.registerScreen(&_homeScreen);
-    _screenManager.registerScreen(&_solarScreen);
+    if (_configManager.get().goodwe.enabled || _configManager.get().azrouter.enabled) {
+        _screenManager.registerScreen(&_solarScreen);
+    }
     if (_configManager.get().pool.enabled) {
         _screenManager.registerScreen(&_poolScreen);
     }
@@ -420,6 +450,28 @@ void DashboardApp::registerScreens() {
         for (auto& screen : _weatherHourlyScreens) _screenManager.registerScreen(&screen);
     }
     _screenManager.registerScreen(&_diagnosticsScreen);
+}
+
+void DashboardApp::setSolarScreenEnabled(bool enabled) {
+    const bool solarWasActive = _screenManager.getActiveScreenId() == "solar";
+
+    if (enabled) {
+        // Solar belongs directly after Home in the visual sidebar. Inserting it
+        // at the canonical position keeps UP/DOWN navigation aligned even when
+        // the page is re-enabled at runtime.
+        _screenManager.registerScreenAt(&_solarScreen, 1);
+        _navigationController.syncToActiveScreen(false);
+        return;
+    }
+
+    _screenManager.unregisterScreen("solar");
+
+    if (solarWasActive) {
+        _screenManager.activateScreen("home");
+        _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
+        requestDisplayRefresh(true, 100);
+    }
+    _navigationController.syncToActiveScreen(false);
 }
 
 void DashboardApp::setPoolScreenEnabled(bool enabled) {
