@@ -645,12 +645,15 @@ void WeatherWorker::taskLoop() {
                 // immediate fetch opportunity. This does not change the
                 // persisted active location used by Home.
                 if (!_priorityLocationId.isEmpty()) {
+                    const String priorityLocationId = _priorityLocationId;
+                    _priorityLocationId = "";
+
                     for (uint8_t i = 0;
                          i < config.locationCount &&
                          i < MaxWeatherLocations;
                          ++i) {
                         const auto& location = config.locations[i];
-                        if (location.id != _priorityLocationId) continue;
+                        if (location.id != priorityLocationId) continue;
 
                         const int index = findCacheEntryLocked(
                             location.id,
@@ -663,8 +666,6 @@ void WeatherWorker::taskLoop() {
                             targetIsActive =
                                 location.id == config.activeLocationId;
                         }
-
-                        _priorityLocationId = "";
                         break;
                     }
                 }
