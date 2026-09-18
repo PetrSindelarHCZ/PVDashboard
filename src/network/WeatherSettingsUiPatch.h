@@ -600,6 +600,7 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         }
 
         configSaveBusy = true;
+        let savedOk = false;
         updateDirtyState();
 
         try {
@@ -610,6 +611,7 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
             }
 
             baseline = stateKey(state);
+            savedOk = true;
 
             // Pokud se UI během ukládání nezměnilo, načteme potvrzený stav z ESP.
             // Při další rozpracované změně pole nepřepisujeme a necháme ji hned uložit.
@@ -624,7 +626,8 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
             configSaveBusy = false;
             updateDirtyState();
 
-            const needsAnotherSave = configSaveQueued || (initialized && stateKey() !== baseline);
+            const needsAnotherSave =
+                configSaveQueued || (savedOk && initialized && stateKey() !== baseline);
             configSaveQueued = false;
             if (needsAnotherSave) setTimeout(() => applyWeatherConfig(false), 0);
         }
