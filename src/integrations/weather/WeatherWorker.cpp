@@ -76,7 +76,6 @@ bool WeatherWorker::reconfigure(const WeatherConfig& config) {
     const uint32_t generation = _configGeneration;
 
     if (providerChanged || locationChanged) {
-        _metNorwayClient.resetCache();
         _latest = WeatherData();
         _hasLatest = false;
     }
@@ -111,6 +110,10 @@ void WeatherWorker::taskEntry(void* parameter) {
 
 void WeatherWorker::taskLoop() {
     uint8_t failureStreak = 0;
+    bool havePreviousConfig = false;
+    String previousProvider;
+    double previousLatitude = 0.0;
+    double previousLongitude = 0.0;
 
     for (;;) {
         WeatherConfig config;
@@ -122,6 +125,24 @@ void WeatherWorker::taskLoop() {
             generation = _configGeneration;
             xSemaphoreGive(_mutex);
         }
+
+        const bool providerChanged =
+            havePreviousConfig && previousProvider != config.provider;
+        const bool locationChanged =
+            havePreviousConfig &&
+            (fabs(previousLatitude - config.latitude) > 0.00001 ||
+             fabs(previousLongitude - config.longitude) > 0.00001);
+
+        if (providerChanged || locationChanged) {
+            // Cache provideru spravuje výhradně weather task, aby nedošlo
+            // k souběhu s právě probíhajícím HTTPS/JSON zpracováním.
+            _metNorwayClient.resetCache();
+            failureStreak = 0;
+        }
+        previousProvider = config.provider;
+        previousLatitude = config.latitude;
+        previousLongitude = config.longitude;
+        havePreviousConfig = true;
 
         // Každý pokus začíná čistým objektem. Data z jiného providera nebo
         // předchozí lokality se tak nemohou omylem přenést do nového výsledku.
