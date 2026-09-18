@@ -2,6 +2,7 @@
 #include <math.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
+#include "../layout/HomeLayout.h"
 
 namespace {
 String inferTimezoneId(const String& timezone) {
@@ -141,6 +142,18 @@ bool ConfigManager::begin() {
     _config.weather.longitude = preferences.getDouble("wx_lon", _config.weather.longitude);
     _config.weather.pollIntervalSeconds = preferences.getUInt("wx_interval", _config.weather.pollIntervalSeconds);
     loadWeatherLocations(preferences, _config.weather);
+
+    if (preferences.isKey("layout_home")) {
+        HomeLayoutConfig layout;
+        String layoutError;
+        const String json = preferences.getString("layout_home", "");
+        if (HomeLayout::parseJson(json, layout, &layoutError)) {
+            _config.display.homeLayout = layout;
+        } else {
+            Serial.printf("[CONFIG] Ignoruji neplatny Home layout v NVS: %s\n", layoutError.c_str());
+            preferences.remove("layout_home");
+        }
+    }
     preferences.end();
 
     if (!_config.wifi.ssid.isEmpty() && _config.wifi.ssid != "VASE_WIFI") {
@@ -316,6 +329,26 @@ void ConfigManager::setWeather(const WeatherConfig& weather) {
     preferences.end();
 }
 
+bool ConfigManager::setHomeLayout(const HomeLayoutConfig& layout) {
+    String error;
+    if (!HomeLayout::validate(layout, &error)) {
+        Serial.printf("[CONFIG] Home layout odmitnut: %s\n", error.c_str());
+        return false;
+    }
+
+    Preferences preferences;
+    if (!preferences.begin("dashboard", false)) return false;
+    const size_t written = preferences.putString("layout_home", HomeLayout::serializeJson(layout));
+    preferences.end();
+    if (written == 0) return false;
+
+    _config.display.homeLayout = layout;
+    Serial.printf("[CONFIG] Home layout ulozen (%s, %u widgetu).\n",
+                  layout.customized ? "vlastni" : "vychozi",
+                  static_cast<unsigned>(layout.widgetCount));
+    return true;
+}
+
 bool ConfigManager::resetToFactoryDefaults() {
     Preferences preferences;
     if (!preferences.begin("dashboard", false)) return false;
@@ -341,8 +374,9 @@ bool ConfigManager::setUserConfiguration(const AppConfig& config) {
     preferences.putDouble("wx_lon", normalizedWeather.longitude);
     preferences.putUInt("wx_interval", normalizedWeather.pollIntervalSeconds);
     saveWeatherLocations(preferences, normalizedWeather);
+    preferences.putString("layout_home", HomeLayout::serializeJson(config.display.homeLayout));
     preferences.end();
-    _config.system = config.system; _config.wifi = config.wifi; _config.goodwe = config.goodwe; _config.azrouter = config.azrouter; _config.pool = config.pool; _config.weather = normalizedWeather;
+    _config.system = config.system; _config.wifi = config.wifi; _config.display = config.display; _config.goodwe = config.goodwe; _config.azrouter = config.azrouter; _config.pool = config.pool; _config.weather = normalizedWeather;
     rememberWifi(config.wifi.ssid, config.wifi.password, true);
     Serial.println("[CONFIG] YAML konfigurace importovana do NVS.");
     return true;
