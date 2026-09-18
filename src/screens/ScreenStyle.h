@@ -234,10 +234,10 @@ inline void drawPageNavigationFocus(IDisplay& d, const DataModel& dm, const Navi
     // physical e-paper renderer and the tiled WebUI preview.
     d.drawRoundRect(bounds.x + 3, bounds.y + 3,
                     bounds.width - 6, bounds.height - 6,
-                    max<int16_t>(1, CardRadius - 2), 0);
+                    CardRadius > 2 ? CardRadius - 2 : 1, 0);
     d.drawRoundRect(bounds.x + 4, bounds.y + 4,
                     bounds.width - 8, bounds.height - 8,
-                    max<int16_t>(1, CardRadius - 3), 0);
+                    CardRadius > 3 ? CardRadius - 3 : 1, 0);
 }
 
 } // namespace ScreenStyle
