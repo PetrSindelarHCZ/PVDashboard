@@ -3,6 +3,7 @@
 #include <Preferences.h>
 #include <ArduinoJson.h>
 #include <memory>
+#include <new>
 #include "../layout/HomeLayout.h"
 
 namespace {
