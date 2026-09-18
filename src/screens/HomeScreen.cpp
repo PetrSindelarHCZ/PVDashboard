@@ -103,6 +103,13 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
         display.print(dm.weather.status.lastError);
     }
 
+    if (!dm.weather.provider.isEmpty()) {
+        ScreenStyle::useBody(display);
+        const String providerLabel = "Data: " + dm.weather.provider;
+        display.setCursor(290 - display.textWidth(providerLabel), 445);
+        display.print(providerLabel);
+    }
+
     ScreenStyle::drawCard(display, 315, 63, 225, 402, "ENERGIE");
     ScreenStyle::useBody(display);
     display.setCursor(330, 125);
