@@ -392,7 +392,9 @@ void WeatherWorker::storeFetchResult(
                 _config.pollIntervalSeconds),
             MinimumRetrySeconds);
         entry.nextAttemptMs =
-            now + entry.validForSeconds * 1000UL;
+            entry.data != nullptr
+                ? now + entry.validForSeconds * 1000UL
+                : now + MinimumRetrySeconds * 1000UL;
         entry.failureStreak = 0;
 
         // Aktivní místo publikujeme i tehdy, kdyby jeho dlouhodobá cache
