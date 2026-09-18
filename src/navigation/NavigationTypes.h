@@ -66,13 +66,8 @@ struct NavigationLayout {
     NavigationElement elements[MaxElements];
     uint8_t count = 0;
 
-    // Optional. When empty or invalid, the controller derives the entry point
-    // from geometry (left-most, then top-most element).
-    String entryPointId;
-
     void clear() {
         count = 0;
-        entryPointId = "";
     }
 
     bool add(const String& id, int16_t x, int16_t y, int16_t width, int16_t height, bool enabled = true) {
@@ -94,10 +89,10 @@ struct NavigationLayout {
         return -1;
     }
 
-    String resolveEntryPoint() const {
-        const int explicitIndex = find(entryPointId);
-        if (explicitIndex >= 0) return elements[explicitIndex].id;
-
+    String resolveInitialFocus() const {
+        // Entering from the sidebar starts at the focusable element nearest
+        // the left edge; top-most wins when several elements share that edge.
+        // This is only the initial focus, not a dedicated entry/exit node.
         int best = -1;
         for (uint8_t i = 0; i < count; ++i) {
             if (!elements[i].enabled) continue;
