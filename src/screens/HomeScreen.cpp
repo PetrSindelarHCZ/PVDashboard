@@ -137,19 +137,12 @@ void drawIndoorCard(IDisplay& display, const DataModel& dm, int16_t x, int16_t w
         display.setCursor(leftX, 260);
         display.printf("%.1f °C", dm.inside.bedroomTempC);
 
-        ScreenStyle::useBody(display);
-        display.setCursor(rightX, 125);
-        display.print("CO2 v místnosti");
-        ScreenStyle::useValue(display);
-        display.setCursor(rightX, 150);
-        display.printf("%d ppm", dm.inside.co2Ppm);
-
         if (dm.pool.enabled) {
             ScreenStyle::useBody(display);
-            display.setCursor(rightX, 235);
+            display.setCursor(rightX, 125);
             display.print("Bazén");
             ScreenStyle::useValue(display);
-            display.setCursor(rightX, 260);
+            display.setCursor(rightX, 150);
             display.printf("%.1f °C", dm.inside.poolTempC);
         }
         return;
@@ -171,19 +164,12 @@ void drawIndoorCard(IDisplay& display, const DataModel& dm, int16_t x, int16_t w
     display.setCursor(valueX, 220);
     display.printf("%.1f °C", dm.inside.bedroomTempC);
 
-    ScreenStyle::useBody(display);
-    display.setCursor(valueX, 265);
-    display.print("CO2 v místnosti");
-    ScreenStyle::useValue(display);
-    display.setCursor(valueX, 290);
-    display.printf("%d ppm", dm.inside.co2Ppm);
-
     if (dm.pool.enabled) {
         ScreenStyle::useBody(display);
-        display.setCursor(valueX, 335);
+        display.setCursor(valueX, 265);
         display.print("Bazén");
         ScreenStyle::useValue(display);
-        display.setCursor(valueX, 360);
+        display.setCursor(valueX, 290);
         display.printf("%.1f °C", dm.inside.poolTempC);
     }
 }
