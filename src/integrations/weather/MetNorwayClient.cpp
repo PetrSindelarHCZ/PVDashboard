@@ -138,28 +138,12 @@ bool MetNorwayClient::update(const WeatherConfig& config, WeatherData& weatherDa
         return false;
     }
 
-    const bool cacheMatches =
-        _hasCachedData &&
-        fabs(_cachedLatitude - config.latitude) <= 0.00001 &&
-        fabs(_cachedLongitude - config.longitude) <= 0.00001;
-    const uint32_t effectiveCacheSeconds =
-        max<uint32_t>(_cacheSeconds, MinimumCacheSeconds);
-    if (cacheMatches && _cacheStoredMs != 0 &&
-        millis() - _cacheStoredMs < effectiveCacheSeconds * 1000UL) {
-        weatherData = _cachedData;
-        weatherData.enabled = config.enabled;
-        const WeatherLocation* activeLocation = config.activeLocation();
-        weatherData.locationName = activeLocation ? activeLocation->name : "";
-        weatherData.provider = "MET Norway";
-        weatherData.status.recordSuccess();
-        Serial.printf("[WEATHER] MET Norway: pouzita lokalni cache (%lu s stara)\n",
-                      static_cast<unsigned long>((millis() - _cacheStoredMs) / 1000UL));
-        return true;
-    }
-
     const String url =
         "https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=" +
         String(config.latitude, 4) + "&lon=" + String(config.longitude, 4);
+
+    Serial.printf("[WEATHER] MET heap pred TLS: free=%u, maxBlock=%u\n",
+                  ESP.getFreeHeap(), ESP.getMaxAllocHeap());
 
     WiFiClientSecure client;
     configureWeatherTls(client);
@@ -169,41 +153,17 @@ bool MetNorwayClient::update(const WeatherConfig& config, WeatherData& weatherDa
         weatherData.status.recordError("HTTPS begin failed");
         return false;
     }
+
     http.setConnectTimeout(ConnectTimeoutMs);
     http.setTimeout(ResponseTimeoutMs);
     http.useHTTP10(true);
     http.setUserAgent(
         "PVDashboard/" FIRMWARE_VERSION " (+https://github.com/PetrSindelarHCZ/PVDashboard)");
 
-    const char* headerKeys[] = {"Last-Modified", "Expires", "Date", "X-ErrorClass"};
-    http.collectHeaders(headerKeys, 4);
-    if (!_lastModified.isEmpty() && cacheMatches) {
-        http.addHeader("If-Modified-Since", _lastModified);
-    }
+    const char* headerKeys[] = {"Expires", "Date", "X-ErrorClass"};
+    http.collectHeaders(headerKeys, 3);
 
     const int httpCode = http.GET();
-    if (httpCode == HTTP_CODE_NOT_MODIFIED) {
-        updateCachePolicy(http.header("Date"), http.header("Expires"));
-        if (!cacheMatches) {
-            http.end();
-            _lastModified = "";
-            weatherData.status.recordError("MET 304 without matching cache");
-            Serial.println("[WEATHER] MET Norway: 304 bez odpovidajici cache, vynucuji dalsi plny dotaz.");
-            return false;
-        }
-
-        weatherData = _cachedData;
-        weatherData.enabled = config.enabled;
-        const WeatherLocation* activeLocation = config.activeLocation();
-        weatherData.locationName = activeLocation ? activeLocation->name : "";
-        weatherData.provider = "MET Norway";
-        weatherData.lastUpdateMs = millis();
-        weatherData.status.recordSuccess();
-        _cacheStoredMs = millis();
-        http.end();
-        Serial.println("[WEATHER] MET Norway: 304 Not Modified, pouzita vlastni MET cache");
-        return true;
-    }
     if (httpCode != HTTP_CODE_OK) {
         String detail = "HTTP " + String(httpCode);
         const String errorClass = http.header("X-ErrorClass");
@@ -213,26 +173,31 @@ bool MetNorwayClient::update(const WeatherConfig& config, WeatherData& weatherDa
         responseBody.replace("\r", " ");
         responseBody.replace("\n", " ");
         responseBody.trim();
-        if (responseBody.length() > 160) responseBody = responseBody.substring(0, 160);
+        if (responseBody.length() > 160) {
+            responseBody = responseBody.substring(0, 160);
+        }
         if (!responseBody.isEmpty()) detail += ": " + responseBody;
 
         weatherData.status.recordError(detail);
-        Serial.printf("[WEATHER] MET Norway chyba: %s\n", detail.c_str());
+        Serial.printf("[WEATHER] MET Norway chyba: %s | free=%u, maxBlock=%u\n",
+                      detail.c_str(), ESP.getFreeHeap(), ESP.getMaxAllocHeap());
         http.end();
         return false;
     }
 
     WeatherData parsedData = weatherData;
     String parseError;
-    const bool success = parseResponse(http.getStream(), parsedData, parseError);
+    const bool success =
+        parseResponse(http.getStream(), parsedData, parseError);
     if (success) {
-        _lastModified = http.header("Last-Modified");
         updateCachePolicy(http.header("Date"), http.header("Expires"));
     }
     http.end();
 
     if (!success) {
         weatherData.status.recordError(parseError);
+        Serial.printf("[WEATHER] MET parse chyba: %s | free=%u, maxBlock=%u\n",
+                      parseError.c_str(), ESP.getFreeHeap(), ESP.getMaxAllocHeap());
         return false;
     }
 
@@ -241,28 +206,19 @@ bool MetNorwayClient::update(const WeatherConfig& config, WeatherData& weatherDa
     weatherData.lastUpdateMs = millis();
     weatherData.status.recordSuccess();
 
-    _cachedData = weatherData;
-    _cacheStoredMs = millis();
-    _cachedLatitude = config.latitude;
-    _cachedLongitude = config.longitude;
-    _hasCachedData = true;
-
-    Serial.printf("[WEATHER] MET Norway: %.1f C, %d %%, %u dnu, %u hodinovych bodu\n",
-                  weatherData.outdoorTempC,
-                  weatherData.outdoorHumidityPercent,
-                  weatherData.dailyCount,
-                  weatherData.hourlyCount);
+    Serial.printf(
+        "[WEATHER] MET Norway: %.1f C, %d %%, %u dnu, %u hodinovych bodu | "
+        "free=%u, maxBlock=%u\n",
+        weatherData.outdoorTempC,
+        weatherData.outdoorHumidityPercent,
+        weatherData.dailyCount,
+        weatherData.hourlyCount,
+        ESP.getFreeHeap(),
+        ESP.getMaxAllocHeap());
     return true;
 }
-
 void MetNorwayClient::resetCache() {
-    _lastModified = "";
     _cacheSeconds = 0;
-    _cacheStoredMs = 0;
-    _cachedData = WeatherData();
-    _hasCachedData = false;
-    _cachedLatitude = 0.0;
-    _cachedLongitude = 0.0;
 }
 
 uint32_t MetNorwayClient::recommendedPollIntervalSeconds(uint32_t configuredSeconds) const {
