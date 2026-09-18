@@ -1,5 +1,6 @@
 #include "HomeScreen.h"
 #include "ScreenStyle.h"
+#include "../layout/HomeLayout.h"
 
 namespace {
 
@@ -192,23 +193,10 @@ void drawIndoorCard(IDisplay& display, const DataModel& dm, const LayoutWidget& 
 } // namespace
 
 void HomeScreen::buildLayout(const DataModel& dm, ScreenLayout& layout) const {
-    layout.clear();
-
-    const bool showWeather = dm.weather.enabled;
-    const bool showEnergy = dm.solar.enabled;
-
-    if (showWeather && showEnergy) {
-        layout.add("weather-card", LayoutWidgetType::HomeWeatherCard, 75, 63, 225, 402);
-        layout.add("energy-card", LayoutWidgetType::HomeEnergyCard, 315, 63, 225, 402);
-        layout.add("indoor-card", LayoutWidgetType::HomeIndoorCard, 555, 63, 230, 402);
-    } else if (showWeather) {
-        layout.add("weather-card", LayoutWidgetType::HomeWeatherCard, 75, 63, 345, 402);
-        layout.add("indoor-card", LayoutWidgetType::HomeIndoorCard, 435, 63, 350, 402);
-    } else if (showEnergy) {
-        layout.add("energy-card", LayoutWidgetType::HomeEnergyCard, 75, 63, 465, 402);
-        layout.add("indoor-card", LayoutWidgetType::HomeIndoorCard, 555, 63, 230, 402);
+    if (_layoutConfig != nullptr) {
+        HomeLayout::buildResolved(*_layoutConfig, dm, layout);
     } else {
-        layout.add("indoor-card", LayoutWidgetType::HomeIndoorCard, 75, 63, 710, 402);
+        HomeLayout::buildDefault(dm, layout);
     }
 }
 
