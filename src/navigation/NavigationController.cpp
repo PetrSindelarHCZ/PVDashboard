@@ -168,7 +168,10 @@ int NavigationController::findNeighbour(
         switch (action) {
             case NavigationAction::Right:
                 inDirection = candidateCx > currentCx;
-                primaryGap = max<int32_t>(0, candidate.x - (current.x + current.width));
+                {
+                    const int32_t gap = candidate.x - (current.x + current.width);
+                    primaryGap = gap > 0 ? gap : 0;
+                }
                 crossDistance = abs(candidateCy - currentCy);
                 orthogonalOverlap =
                     candidate.y < current.y + current.height &&
@@ -176,7 +179,10 @@ int NavigationController::findNeighbour(
                 break;
             case NavigationAction::Left:
                 inDirection = candidateCx < currentCx;
-                primaryGap = max<int32_t>(0, current.x - (candidate.x + candidate.width));
+                {
+                    const int32_t gap = current.x - (candidate.x + candidate.width);
+                    primaryGap = gap > 0 ? gap : 0;
+                }
                 crossDistance = abs(candidateCy - currentCy);
                 orthogonalOverlap =
                     candidate.y < current.y + current.height &&
@@ -184,7 +190,10 @@ int NavigationController::findNeighbour(
                 break;
             case NavigationAction::Down:
                 inDirection = candidateCy > currentCy;
-                primaryGap = max<int32_t>(0, candidate.y - (current.y + current.height));
+                {
+                    const int32_t gap = candidate.y - (current.y + current.height);
+                    primaryGap = gap > 0 ? gap : 0;
+                }
                 crossDistance = abs(candidateCx - currentCx);
                 orthogonalOverlap =
                     candidate.x < current.x + current.width &&
@@ -192,7 +201,10 @@ int NavigationController::findNeighbour(
                 break;
             case NavigationAction::Up:
                 inDirection = candidateCy < currentCy;
-                primaryGap = max<int32_t>(0, current.y - (candidate.y + candidate.height));
+                {
+                    const int32_t gap = current.y - (candidate.y + candidate.height);
+                    primaryGap = gap > 0 ? gap : 0;
+                }
                 crossDistance = abs(candidateCx - currentCx);
                 orthogonalOverlap =
                     candidate.x < current.x + current.width &&
