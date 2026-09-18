@@ -5,6 +5,8 @@
 #include "WifiUiPatch.h"
 #include "WifiKnownDialogPatch.h"
 #include "WeatherSettingsUiPatch.h"
+#include "DisplayPreviewUiPatch.h"
+#include "../display/DisplayPreview.h"
 #include "TimeService.h"
 #include "NetworkDiagnostics.h"
 #include "../diagnostics/Performance.h"
@@ -110,6 +112,30 @@ void DashboardWebServer::enableTimezoneUiExtension() {
     _server.on("/", HTTP_GET, [this]() { handleExtendedRoot(); });
     _server.on("/api/config/timezone", HTTP_GET, [this]() { handleApiTimezoneConfig(); });
     _server.on("/api/config/system-v2", HTTP_POST, [this]() { handleApiSystemConfigV2(); });
+
+    _server.on("/api/display", HTTP_GET, [this]() {
+        if (_displayPreview == nullptr) {
+            _server.send(503, "application/json", "{\"ready\":false,\"reason\":\"preview_unavailable\"}");
+            return;
+        }
+        _server.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+        _server.send(200, "application/json", _displayPreview->metadataJson());
+    });
+
+    _server.on("/api/display.bmp", HTTP_GET, [this]() {
+        if (_displayPreview == nullptr || !_displayPreview->ready()) {
+            _server.send(503, "application/json", "{\"status\":\"error\",\"message\":\"Display preview is not ready\"}");
+            return;
+        }
+
+        _server.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+        _server.setContentLength(_displayPreview->bmpSize());
+        _server.send(200, "image/bmp", "");
+        WiFiClient client = _server.client();
+        if (!_displayPreview->writeBmp(client)) {
+            Serial.println("[WEB] Prenos BMP nahledu displeje selhal.");
+        }
+    });
 
     _server.on("/api/ntp/status", HTTP_GET, [this]() {
         _server.sendHeader("Cache-Control", "no-store");
@@ -553,6 +579,7 @@ void DashboardWebServer::handleExtendedRoot() {
         _server.sendContent_P(WIFI_UI_PATCH);
         _server.sendContent_P(WIFI_KNOWN_DIALOG_PATCH);
         _server.sendContent_P(WEATHER_SETTINGS_UI_PATCH);
+        _server.sendContent_P(DISPLAY_PREVIEW_UI_PATCH);
         _server.sendContent_P(bodyEnd);
     } else {
         _server.sendContent_P(INDEX_HTML);
@@ -562,6 +589,7 @@ void DashboardWebServer::handleExtendedRoot() {
         _server.sendContent_P(WIFI_UI_PATCH);
         _server.sendContent_P(WIFI_KNOWN_DIALOG_PATCH);
         _server.sendContent_P(WEATHER_SETTINGS_UI_PATCH);
+        _server.sendContent_P(DISPLAY_PREVIEW_UI_PATCH);
     }
     _server.sendContent("");
 }
