@@ -200,10 +200,6 @@ inline bool validateCustomWidget(const HomeLayoutWidgetConfig& widget, String* e
         for (uint8_t j = 0; j < i; ++j) {
             const CustomWidgetElementConfig& previous = widget.elements[j];
             if (element.id == previous.id) return fail("Duplicate custom element id");
-            if (rectanglesIntersect(element.x, element.y, element.width, element.height,
-                                    previous.x, previous.y, previous.width, previous.height)) {
-                return fail("Custom elements overlap");
-            }
         }
     }
 
@@ -229,6 +225,9 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
     for (uint8_t i = 0; i < config.widgetCount; ++i) {
         const HomeLayoutWidgetConfig& widget = config.widgets[i];
         if (!knownWidget(widget.id, widget.type)) return fail("Unknown Home widget");
+        if (!(widget.background == "white" || widget.background == "black")) {
+            return fail("Unknown Home widget background");
+        }
 
         if (widget.width < minWidth(widget.type) ||
             widget.height < minHeight(widget.type)) {
@@ -300,6 +299,9 @@ inline String serializeJson(const HomeLayoutConfig& config) {
         item["y"] = widget.y;
         item["width"] = widget.width;
         item["height"] = widget.height;
+        item["showFrame"] = widget.showFrame;
+        item["background"] = widget.background;
+        item["inverseText"] = widget.inverseText;
 
         if (widget.type == "custom") {
             item["title"] = widget.title;
@@ -368,6 +370,9 @@ inline bool parseJson(const String& json, HomeLayoutConfig& config, String* erro
         widget.y = item["y"] | 0;
         widget.width = item["width"] | 0;
         widget.height = item["height"] | 0;
+        widget.showFrame = item["showFrame"] | true;
+        widget.background = String(item["background"] | "white");
+        widget.inverseText = item["inverseText"] | false;
 
         if (widget.type == "custom") {
             widget.title = String(item["title"] | "");
