@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include <vector>
 
 struct SystemConfig {
     String hostname = "dashboard";
@@ -49,8 +50,7 @@ struct HomeLayoutWidgetConfig {
 
     // Used only by type == "custom". Predefined widgets keep these empty.
     String title = "";
-    uint8_t elementCount = 0;
-    CustomWidgetElementConfig elements[MaxCustomWidgetElements];
+    std::vector<CustomWidgetElementConfig> elements;
 };
 
 struct HomeLayoutConfig {
