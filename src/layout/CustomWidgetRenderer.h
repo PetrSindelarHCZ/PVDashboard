@@ -180,7 +180,7 @@ inline void draw(IDisplay& display, const DataModel& dm, const HomeLayoutWidgetC
     ScreenStyle::drawCard(display, widget.x, widget.y, widget.width, widget.height,
                           widget.title.isEmpty() ? "VLASTNÍ" : widget.title.c_str());
 
-    for (uint8_t i = 0; i < widget.elementCount && i < MaxCustomWidgetElements; ++i) {
+    for (uint8_t i = 0; i < widget.elements.size() && i < MaxCustomWidgetElements; ++i) {
         const CustomWidgetElementConfig& element = widget.elements[i];
         const int16_t x = widget.x + element.x;
         const int16_t y = widget.y + element.y;
