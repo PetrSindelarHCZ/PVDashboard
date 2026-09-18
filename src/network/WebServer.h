@@ -12,6 +12,7 @@
 #include "NetworkDiagnostics.h"
 
 class DisplayPreview;
+class NavigationController;
 
 class DashboardWebServer {
 public:
@@ -40,6 +41,7 @@ public:
     void onRefresh(RefreshCallback callback);
     void onDisplayStatus(DisplayStatusCallback callback);
     void setDisplayPreview(DisplayPreview* preview) { _displayPreview = preview; }
+    void setNavigationController(NavigationController* controller) { _navigationController = controller; }
     void onSystemConfig(SystemConfigCallback callback);
     void onWifiConfig(WifiConfigCallback callback);
     void onWifiNetworkConfig(WifiNetworkConfigCallback callback) {
@@ -313,6 +315,7 @@ private:
     RefreshCallback _refreshCallback;
     DisplayStatusCallback _displayStatusCallback;
     DisplayPreview* _displayPreview = nullptr;
+    NavigationController* _navigationController = nullptr;
     SystemConfigCallback _systemConfigCallback;
     WifiConfigCallback _wifiConfigCallback;
     WifiNetworkConfigCallback _wifiNetworkConfigCallback;
@@ -343,6 +346,8 @@ private:
     void handleApiScreens();
     void handleApiActivateScreen(const String& screenId);
     void handleApiRefresh(bool full);
+    void handleApiNavigationState();
+    void handleApiNavigationAction();
     void handleApiRestart();
     void handleApiFactoryReset();
     void handleApiConfigExport();
