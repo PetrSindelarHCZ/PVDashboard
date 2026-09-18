@@ -61,6 +61,10 @@ void WeatherScreen::render(IDisplay& display, const DataModel& dm) {
         return;
     }
     ScreenStyle::drawChrome(display, dm);
+    ScreenStyle::drawSubpageDots(
+        display,
+        dm.weather.locationIndex,
+        dm.weather.locationCount);
 
     ScreenStyle::drawCard(display, 75, 63, 282, 402, "AKTUÁLNĚ");
     if (!dm.weather.status.available) {
