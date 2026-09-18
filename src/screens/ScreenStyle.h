@@ -22,12 +22,12 @@ constexpr int16_t ContentTop = 63;
 constexpr int16_t ContentBottom = 465;
 constexpr int16_t CardRadius = 6;
 
-inline void useTitle(IDisplay& d) { d.setTextColor(0); d.setUnicodeFont(DisplayFonts::title()); }
-inline void useSectionTitle(IDisplay& d) { d.setTextColor(0); d.setUnicodeFont(DisplayFonts::sectionTitle()); }
-inline void useMetric(IDisplay& d) { d.setTextColor(0); d.setUnicodeFont(DisplayFonts::metric()); }
-inline void useValue(IDisplay& d) { d.setTextColor(0); d.setUnicodeFont(DisplayFonts::value()); }
-inline void useBody(IDisplay& d) { d.setTextColor(0); d.setUnicodeFont(DisplayFonts::body()); }
-inline void useStrongBody(IDisplay& d) { d.setTextColor(0); d.setUnicodeFont(DisplayFonts::strongBody()); }
+inline void useTitle(IDisplay& d, uint16_t color = 0) { d.setTextColor(color); d.setUnicodeFont(DisplayFonts::title()); }
+inline void useSectionTitle(IDisplay& d, uint16_t color = 0) { d.setTextColor(color); d.setUnicodeFont(DisplayFonts::sectionTitle()); }
+inline void useMetric(IDisplay& d, uint16_t color = 0) { d.setTextColor(color); d.setUnicodeFont(DisplayFonts::metric()); }
+inline void useValue(IDisplay& d, uint16_t color = 0) { d.setTextColor(color); d.setUnicodeFont(DisplayFonts::value()); }
+inline void useBody(IDisplay& d, uint16_t color = 0) { d.setTextColor(color); d.setUnicodeFont(DisplayFonts::body()); }
+inline void useStrongBody(IDisplay& d, uint16_t color = 0) { d.setTextColor(color); d.setUnicodeFont(DisplayFonts::strongBody()); }
 
 // All header symbols occupy a 32 x 32 box. The disconnected slash has a
 // black outline so it stays distinct from the white strokes underneath.
@@ -229,12 +229,24 @@ inline void drawChrome(IDisplay& d, const DataModel& dm) {
     drawSidebar(d, dm);
 }
 
-inline void drawCard(IDisplay& d, int16_t x, int16_t y, int16_t w, int16_t h, const char* title) {
-    d.drawRoundRect(x, y, w, h, CardRadius, 0);
-    useSectionTitle(d);
+inline void drawStyledCard(IDisplay& d, int16_t x, int16_t y, int16_t w, int16_t h,
+                           const char* title, bool showFrame = true,
+                           bool blackBackground = false, bool inverseText = false) {
+    const uint16_t backgroundColor = blackBackground ? 0 : 1;
+    const uint16_t textColor = inverseText ? 1 : 0;
+    const uint16_t frameColor = blackBackground ? 1 : 0;
+
+    d.fillRoundRect(x, y, w, h, CardRadius, backgroundColor);
+    if (showFrame) d.drawRoundRect(x, y, w, h, CardRadius, frameColor);
+
+    useSectionTitle(d, textColor);
     d.setCursor(x + 12, y + 27);
     d.print(title);
-    d.drawLine(x + 10, y + 34, x + w - 10, y + 34, 0);
+    d.drawLine(x + 10, y + 34, x + w - 10, y + 34, textColor);
+}
+
+inline void drawCard(IDisplay& d, int16_t x, int16_t y, int16_t w, int16_t h, const char* title) {
+    drawStyledCard(d, x, y, w, h, title, true, false, false);
 }
 
 inline void drawSubpageDots(
