@@ -688,6 +688,13 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
             status.classList.add('ok');
         } else if (
             enabled &&
+            String(weather.lastError || '').toLowerCase().includes('aktualizuji pocasi')
+        ) {
+            label = 'Čekám…';
+            state = 'Načítám čerstvá data pro novou konfiguraci';
+            status.classList.add('syncing');
+        } else if (
+            enabled &&
             (age === null || age === undefined) &&
             Number(data?.uptime || 0) <= interval + 15
         ) {
