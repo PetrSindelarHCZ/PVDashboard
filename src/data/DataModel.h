@@ -16,6 +16,7 @@ struct SolarHistorySample {
 };
 
 struct SolarData {
+    bool enabled = true;
     DataSourceStatus status;
     float productionPowerW = 0.0f;
     float houseConsumptionW = 0.0f;
@@ -29,6 +30,7 @@ struct SolarData {
 };
 
 struct AZRouterData {
+    bool enabled = true;
     DataSourceStatus status;
     float gridPowerW = 0.0f;
     float routedPowerW = 0.0f;
