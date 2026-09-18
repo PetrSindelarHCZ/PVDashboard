@@ -136,31 +136,18 @@ Krátké testy a chování fronty jsou ověřené. Stále chybí dlouhodobý ale
 24hodinový test ghostingu při běžném minutovém provozu. Konfigurační položka
 `DisplayConfig.fullRefreshIntervalMinutes` je stále definovaná, ale nepoužívá se.
 
-## Otevřené / plánované
+## Nejbližší otevřené body
 
-- [ ] 24hodinový test e-paper refresh strategie a ghostingu,
-- [ ] odstranit nebo znovu smysluplně zapojit `fullRefreshIntervalMinutes`,
-- [ ] fyzický joystick včetně GPIO, debounce a long-press/auto-repeat,
-- [ ] definovat akce `OK` nad konkrétními prvky,
-- [ ] reálný BME280 a později CO2,
-- [ ] reálná bazénová čidla a samostatný uzel,
-- [ ] ČHMÚ weather provider, pokud půjde bezpečně omezit objem regionálních dat,
-- [ ] rozšířit host-side testy GoodWe, AZRouteru, konfigurace a verzování,
-- [ ] případně rozšířit YAML backup i o celý seznam známých Wi-Fi sítí a `autoConnect`,
-- [ ] konfigurovatelný layout obrazovek a editor ve WebUI,
-- [ ] 433MHz/CC1101 gateway pro vzdálená čidla,
-- [ ] historie KPI, agregace a případná nezávislá cloudová vrstva.
+Nejbližší práce je dlouhodobý test ghostingu, rozšíření host-side testů,
+fyzický joystick a napojení prvních reálných čidel. Úplný budoucí plán je
+v [ROADMAP.md](ROADMAP.md).
 
-## Autoritativní dokumenty
+## Dokumentace
 
-- [Specifikace](PV_DASHBOARD_SPEC.md)
-- [Architektura](ARCHITECTURE.md)
+- [Architektura a provozní principy](ARCHITECTURE.md)
 - [Displej a refresh strategie](DISPLAY.md)
-- [GoodWe a AZRouter](FVE_INTEGRATION_HANDOFF.md)
-- [Počasí](WEATHER_PROVIDERS.md)
+- [Externí integrace](INTEGRATIONS.md)
+- [Testování a diagnostika](TESTING.md)
 - [Roadmapa](ROADMAP.md)
-- [Projektové záměry a backlog](PROJECT_INTENT_BACKLOG.md)
 
-Soubory `PERFORMANCE_RESULTS_2026-09-14.md` a
-`PERFORMANCE_SOURCES_ONLINE_2026-09-14.md` jsou záměrně historické snímky
-konkrétních měření a nemají být přepisovány podle pozdějšího stavu firmware.
+Git historie je archivem starších specifikací, měření a jednorázových auditů.
