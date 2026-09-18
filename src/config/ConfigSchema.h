@@ -37,6 +37,10 @@ struct CustomWidgetElementConfig {
     uint8_t decimals = 1;
     float minValue = 0.0f;
     float maxValue = 100.0f;
+    String fontSize = "auto";   // auto | small | normal | large
+    String align = "left";      // left | center | right
+    bool showLabel = true;
+    String graphStyle = "line"; // line | bars (sparkline only)
 };
 
 struct HomeLayoutWidgetConfig {
@@ -135,7 +139,7 @@ struct PoolConfig {
 };
 
 struct AppConfig {
-    uint8_t schemaVersion = 8;
+    uint8_t schemaVersion = 9;
     SystemConfig system;
     WifiConfig wifi;
     DisplayConfig display;
