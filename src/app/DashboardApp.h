@@ -12,6 +12,7 @@
 #include "../screens/PoolScreen.h"
 #include "../screens/WeatherScreen.h"
 #include "../screens/DiagnosticsScreen.h"
+#include "../navigation/NavigationController.h"
 #include "../network/WifiManager.h"
 #include "../network/WifiSignalLevel.h"
 #include "../network/TimeService.h"
@@ -36,6 +37,7 @@ private:
     DisplayManager _displayManager;
     DisplayWorker _displayWorker;
     ScreenManager _screenManager;
+    NavigationController _navigationController;
 
     HomeScreen _homeScreen;
     SolarScreen _solarScreen;
