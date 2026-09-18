@@ -440,3 +440,149 @@ Následující původní témata již nemusejí přežívat jen jako staré chat
 Při dalším auditu projektových chatů je možné tento dokument použít jako kontrolní
 seznam: chat je kandidát na odstranění, pokud neobsahuje další technické
 rozhodnutí, které není zachycené zde nebo v jiné aktuální dokumentaci.
+
+
+---
+
+## 16. Wi-Fi správa známých sítí — HOTOVO S JEDNÍM ROZPOREM K OVĚŘENÍ
+
+Projekt se posunul od jediné uložené Wi-Fi k seznamu známých sítí. Dlouhodobý
+záměr je:
+
+- uchovávat více známých sítí,
+- v AP+STA fallbacku je průběžně hledat,
+- viditelné kandidáty prioritizovat podle signálu,
+- při selhání jedné sítě zkoušet další,
+- ruční `Připojit` má explicitně zvolenou síť znovu povolit,
+- ruční `Odpojit` nesmí způsobit okamžité automatické připojení zpět ke stejné
+  síti, zatímco ostatní známé sítě mohou zůstat kandidáty.
+
+Aktuální master implementuje seznam známých sítí, AP+STA fallback a automatické
+hledání dalších kandidátů.
+
+### Rozpor k rozhodnutí
+
+Původně odsouhlasené chování ručního **Odpojit** bylo: blokovat právě odpojené
+SSID **do restartu nebo do ručního Připojit**.
+
+Aktuální implementace ukládá pro toto SSID `autoConnect=false` do NVS. Tím je
+blokace persistentní i přes restart a síť se znovu automaticky povolí až ručním
+připojením.
+
+Tento rozdíl se nesmí ztratit při mazání starých chatů. Před uzavřením Wi-Fi
+části je potřeba výslovně rozhodnout, zda:
+
+1. restart blokaci zruší podle původního požadavku, nebo
+2. současné persistentní chování bude přijato jako nové pravidlo.
+
+Do té doby je bod považován za otevřený.
+
+---
+
+## 17. Vypínatelný modul počasí — ČÁSTEČNĚ
+
+Počasí má být možné vypnout bez ztráty uložené konfigurace. Původní požadavek
+byl, aby vypnutí odstranilo jeho aktivní runtime části z uživatelského pohledu:
+
+- obrazovku Počasí a hodinové podobrazovky,
+- navigační položku,
+- blok počasí z hlavního dashboardu,
+- aktivní získávání dat,
+- přičemž uložené lokality/provider/nastavení zůstanou zachované.
+
+Aktuální master již:
+
+- ukládá `weather.enabled`,
+- odregistruje weather obrazovky,
+- skryje položku v e-ink menu,
+- odstraní weather kartu z hlavního zobrazení,
+- při disabled stavu neposílá HTTPS dotazy,
+- zachovává konfiguraci.
+
+Technická odchylka: `WeatherWorker` FreeRTOS task se i při vypnutém modulu
+vytvoří a následně čeká bez časového limitu na notifikaci. Původní formulace
+„vypnutí odstraní worker“ tedy není doslova splněná. Je potřeba rozhodnout, zda
+je dormantní task přijatelný, nebo zda má být worker skutečně vytvořen/zrušen
+podle `weather.enabled`.
+
+---
+
+## 18. Vlastní EInkGraph — HOTOVO
+
+Pro grafy na e-inku byl zvolen vlastní lehký renderer bez velké chart knihovny.
+Aktuální master obsahuje `src/display/EInkGraph.*` a používá jej minimálně pro
+počasí a FVE.
+
+Toto rozhodnutí platí i pro budoucí historické grafy:
+
+- FVE,
+- baterie,
+- AZRouter,
+- bazén,
+- další časové řady.
+
+Preferuje se jednoduché kreslení přes existující `IDisplay`, aby se zachovala
+kontrola nad pamětí, vzhledem a kompatibilitou s e-paperem.
+
+---
+
+## 19. GPIO rezerva současné Waveshare desky — PLÁN / HARDWAROVÁ POZNÁMKA
+
+Aktuální e-paper zapojení v masteru používá:
+
+- MOSI GPIO14,
+- SCK GPIO13,
+- CS GPIO15,
+- DC GPIO27,
+- RST GPIO26,
+- BUSY GPIO25,
+- MISO GPIO12.
+
+Pro budoucí I²C čidla byl navržen standardní pár:
+
+- SDA GPIO21,
+- SCL GPIO22.
+
+V dřívější hardwarové úvaze byly pro fyzická tlačítka/joystick zvažovány
+GPIO16, 17, 18, 19, 23, 32 a 33. **Nejde zatím o schválený finální pinout.**
+Před zapojením se musí znovu ověřit konkrétní revize Waveshare boardu,
+boot-strapping piny a případné interní vazby desky.
+
+Tato poznámka má zabránit tomu, aby se při budoucím návrhu začínalo s GPIO
+inventurou znovu od nuly.
+
+---
+
+## 20. Možná budoucí migrace kontroleru — VOLITELNÉ
+
+Pokud by limity současného ESP32-WROOM-32 (flash/RAM/bez PSRAM) začaly brzdit
+editor obrazovek, historii, grafiku nebo další integrace, byla diskutována
+migrace na ESP32-S3 s výrazně větší flash a PSRAM, například třída
+**N32R16V (32 MB flash / 16 MB PSRAM)**.
+
+Pro zachování současného 7,5" 800×480 raw e-paper panelu byla diskutována
+samostatná driver deska typu DESPI-C02 / odpovídající Waveshare HAT. U DESPI-C02
+je nutné před případným použitím znovu ověřit nastavení hardware pro konkrétní
+panel; v dřívější diskusi byla zmíněna konfigurace RESE 0,47 Ω.
+
+Jako další možnost byl prověřován 7,5" 800×480 panel s dotykem přes GT911/I²C,
+který by mohl časem nahradit fyzický joystick. Toto **není současný plán
+migrace**, pouze zachycená varianta pro případ, že narazíme na limity současné
+platformy.
+
+---
+
+## 21. NTP provozní politika — ZACHYCENÝ ZÁMĚR
+
+Vedle pravidla „nezobrazovat čas/datum/svátek před první validní synchronizací
+od bootu“ byl diskutován i provozní interval synchronizace:
+
+- synchronizace při startu,
+- okamžitý pokus po návratu Wi-Fi,
+- běžně přibližně každých 6 hodin,
+- při neúspěchu kratší retry přibližně 5–15 minut.
+
+Přesné intervaly se mohou měnit podle implementace, ale důležité pravidlo je,
+že krátký výpadek Wi-Fi po již úspěšné synchronizaci nemá skrýt běžící lokální
+čas. Naopak po restartu bez validního NTP se časová část záhlaví nesmí tvářit
+jako aktuální jen díky zachovanému RTC času.
