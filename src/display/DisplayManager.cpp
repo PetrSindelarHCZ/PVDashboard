@@ -1,14 +1,15 @@
 #include "DisplayManager.h"
 #include "../diagnostics/Performance.h"
 
-DisplayManager::DisplayManager(IDisplay& display)
-    : _display(display), _forceFullRefresh(true) {
+DisplayManager::DisplayManager(IDisplay& display, DisplayPreview* preview)
+    : _display(display), _preview(preview), _forceFullRefresh(true) {
 }
 
 void DisplayManager::init() {
     Performance::Scope timing(Performance::DisplayInit);
     Serial.println("[DISPLAY] Inicializace displeje...");
     _display.init();
+    if (_preview != nullptr) _preview->init();
     Serial.println("[DISPLAY] Displej inicializovan.");
 }
 
@@ -55,5 +56,6 @@ void DisplayManager::renderScreen(IScreen* screen, const DataModel& dataModel, b
     _forceFullRefresh = false;
 
     _display.powerOff();
+    if (_preview != nullptr) _preview->capture(*screen, dataModel, full);
     Serial.printf("[DISPLAY][%lu ms] Vykresleni dokonceno za %lu ms.\n", millis(), millis() - renderStarted);
 }
