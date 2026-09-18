@@ -451,7 +451,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         if (widget?.type === 'custom') {
             let minW = Number(apiState?.customWidget?.minWidth || 160);
             let minH = Number(apiState?.customWidget?.minHeight || 120);
-            (widget.elements || []).forEach(element => {
+            (widget.elements || []).forEach((element, elementIndex) => {
                 minW = Math.max(minW, Number(element.x || 0) + Number(element.width || 0) + 8);
                 minH = Math.max(minH, Number(element.y || 0) + Number(element.height || 0) + 8);
             });
@@ -789,6 +789,89 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         return element.label || sourceInfo(element.source).label || element.source || element.type;
     }
 
+    function elementPreviewHtml(element) {
+        const align = escapeHtml(element.align || 'left');
+        const fontSize = escapeHtml(element.fontSize || 'auto');
+        const label = escapeHtml(element.label || sourceInfo(element.source).label || '');
+        const unit = escapeHtml(element.unit || sourceInfo(element.source).unit || '');
+        const classes = `custom-element-preview align-${align} font-${fontSize}`;
+
+        if (element.type === 'text') {
+            return `<div class="${classes}">${escapeHtml(element.text || 'Text')}</div>`;
+        }
+        if (element.type === 'kpi') {
+            return `<div class="${classes}">
+                ${element.showLabel !== false && label ? `<div class="preview-label">${label}</div>` : ''}
+                <div class="preview-value">--${unit ? ' ' + unit : ''}</div>
+            </div>`;
+        }
+        if (element.type === 'progress') {
+            return `<div class="${classes}">
+                ${element.showLabel !== false && label ? `<div class="preview-label">${label}</div>` : ''}
+                <div class="preview-progress"><span></span></div>
+            </div>`;
+        }
+        if (element.type === 'sparkline') {
+            const graph = (element.graphStyle || 'line') === 'bars'
+                ? `<svg viewBox="0 0 100 35" preserveAspectRatio="none">
+                     <rect class="bar" x="5" y="20" width="9" height="13"/>
+                     <rect class="bar" x="20" y="12" width="9" height="21"/>
+                     <rect class="bar" x="35" y="18" width="9" height="15"/>
+                     <rect class="bar" x="50" y="6" width="9" height="27"/>
+                     <rect class="bar" x="65" y="14" width="9" height="19"/>
+                     <rect class="bar" x="80" y="9" width="9" height="24"/>
+                   </svg>`
+                : `<svg viewBox="0 0 100 35" preserveAspectRatio="none">
+                     <polyline points="2,29 18,20 34,24 50,9 66,17 82,5 98,12" stroke-width="2"/>
+                   </svg>`;
+            return `<div class="${classes}">
+                ${element.showLabel !== false && label ? `<div class="preview-label">${label}</div>` : ''}
+                ${graph}
+            </div>`;
+        }
+        return `<div class="${classes}">${escapeHtml(element.type)}</div>`;
+    }
+
+    function uniqueElementId(widget, type) {
+        let sequence = 1;
+        while ((widget.elements || []).some(element => element.id === type + '-' + sequence)) sequence++;
+        return type + '-' + sequence;
+    }
+
+    function duplicateSelectedElement(widget) {
+        const source = (widget.elements || []).find(item => item.id === selectedElementId);
+        if (!source) return;
+        if (widget.elements.length >= Number(apiState?.customWidget?.maxElements || 8)) {
+            editorMessage('Vlastní widget už má maximální počet prvků.', 'error');
+            return;
+        }
+        const copy = clone(source);
+        copy.id = uniqueElementId(widget, source.type);
+        copy.x += gridStep || 5;
+        copy.y += gridStep || 5;
+        normalizeElement(widget, copy);
+        widget.elements.push(copy);
+        selectedElementId = copy.id;
+        renderDraft();
+    }
+
+    function moveSelectedLayer(widget, action) {
+        const elements = widget.elements || [];
+        const index = elements.findIndex(item => item.id === selectedElementId);
+        if (index < 0) return;
+
+        let target = index;
+        if (action === 'up') target = Math.min(elements.length - 1, index + 1);
+        else if (action === 'down') target = Math.max(0, index - 1);
+        else if (action === 'top') target = elements.length - 1;
+        else if (action === 'bottom') target = 0;
+        if (target === index) return;
+
+        const [element] = elements.splice(index, 1);
+        elements.splice(target, 0, element);
+        renderDraft();
+    }
+
     function elementOverlap(a, b) {
         return a.x < b.x + b.width &&
                a.x + a.width > b.x &&
@@ -977,7 +1060,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             <div class="field"><label>Šířka</label><input id="customFieldW" type="number" value="${element.width}"></div>
             <div class="field"><label>Výška</label><input id="customFieldH" type="number" value="${element.height}"></div>
             <div class="field full">
-                <button class="btn btn-secondary" type="button" id="customDeleteElement" style="width:auto">Smazat prvek</button>
+                <div class="layer-actions">
+                    <button class="btn btn-secondary" type="button" id="customDuplicateElement">Duplikovat</button>
+                    <button class="btn btn-secondary" type="button" data-layer-action="down">↓ Dolů</button>
+                    <button class="btn btn-secondary" type="button" data-layer-action="up">↑ Nahoru</button>
+                    <button class="btn btn-secondary" type="button" data-layer-action="bottom">Dospodu</button>
+                    <button class="btn btn-secondary" type="button" data-layer-action="top">Navrch</button>
+                    <button class="btn btn-secondary" type="button" id="customDeleteElement">Smazat</button>
+                </div>
             </div>
         `;
 
@@ -1023,6 +1113,12 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         form.querySelectorAll('input,select').forEach(control => {
             control.addEventListener('change', commit);
         });
+        document.getElementById('customDuplicateElement')?.addEventListener('click', () => {
+            duplicateSelectedElement(widget);
+        });
+        form.querySelectorAll('[data-layer-action]').forEach(button => {
+            button.addEventListener('click', () => moveSelectedLayer(widget, button.dataset.layerAction));
+        });
         document.getElementById('customDeleteElement')?.addEventListener('click', () => {
             widget.elements = (widget.elements || []).filter(item => item.id !== selectedElementId);
             selectedElementId = widget.elements?.[0]?.id || '';
@@ -1038,10 +1134,25 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const header = document.getElementById('customWidgetHeaderZone');
         if (!stage || !layer || !grid || !header) return;
 
+        ensureWidgetStyle(widget);
+        const blackBackground = widget.background === 'black';
+        const inverse = widget.inverseText === true;
+        const foreground = inverse ? '#fff' : '#111';
         stage.style.aspectRatio = widget.width + ' / ' + widget.height;
-        if (title) title.textContent = widget.title || widget.id;
+        stage.style.background = blackBackground ? '#111' : '#fff';
+        stage.style.color = foreground;
+        stage.style.border = widget.showFrame
+            ? '2px solid ' + (blackBackground ? '#fff' : '#111')
+            : '1px dashed #9ca3af';
+        if (title) {
+            title.textContent = widget.title || widget.id;
+            title.style.color = foreground;
+        }
         header.style.height = (40 / widget.height * 100) + '%';
+        header.style.background = 'transparent';
+        header.style.borderBottomColor = foreground;
 
+        grid.style.filter = blackBackground ? 'invert(1)' : 'none';
         grid.style.left = (8 / widget.width * 100) + '%';
         grid.style.top = (40 / widget.height * 100) + '%';
         grid.style.width = ((widget.width - 16) / widget.width * 100) + '%';
@@ -1054,15 +1165,17 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
         const invalid = elementInvalidIds(widget);
         layer.innerHTML = '';
-        (widget.elements || []).forEach(element => {
+        (widget.elements || []).forEach((element, elementIndex) => {
             const box = document.createElement('div');
             box.className = 'custom-element-box' +
                 (element.id === selectedElementId ? ' selected' : '') +
                 (invalid.has(element.id) ? ' invalid' : '');
             box.dataset.elementId = element.id;
+            box.style.zIndex = String(10 + elementIndex);
             elementCssRect(box, widget, element);
             box.innerHTML = `
-                <div class="custom-element-label">${escapeHtml(customElementLabel(element))} · ${element.width}×${element.height}</div>
+                ${elementPreviewHtml(element)}
+                <div class="custom-element-label">vrstva ${elementIndex + 1}/${widget.elements.length} · ${escapeHtml(customElementLabel(element))}</div>
                 <span class="custom-element-handle nw" data-element-handle="nw"></span>
                 <span class="custom-element-handle ne" data-element-handle="ne"></span>
                 <span class="custom-element-handle sw" data-element-handle="sw"></span>
@@ -1083,7 +1196,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 row.innerHTML = `
                     <div>
                         <div class="custom-element-row-title">${escapeHtml(customElementLabel(element))}</div>
-                        <div class="custom-element-row-meta">${escapeHtml(element.type)} · x${element.x} y${element.y} · ${element.width}×${element.height}</div>
+                        <div class="custom-element-row-meta">vrstva ${elementIndex + 1}/${widget.elements.length} · ${escapeHtml(element.type)} · x${element.x} y${element.y} · ${element.width}×${element.height}</div>
                     </div>
                 `;
                 row.addEventListener('click', () => {
@@ -1163,13 +1276,12 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             return;
         }
 
-        let sequence = 1;
-        while ((widget.elements || []).some(element => element.id === type + '-' + sequence)) sequence++;
+        const elementId = uniqueElementId(widget, type);
         const sources = (apiState?.customWidget?.dataSources || [])
             .filter(source => type !== 'sparkline' || source.history);
         const source = sources[0] || {};
         const element = {
-            id: type + '-' + sequence,
+            id: elementId,
             type,
             source: type === 'text' ? '' : (source.id || ''),
             label: type === 'text' ? '' : (source.label || ''),
@@ -1273,10 +1385,11 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     }
 
     function draftFromApi(state) {
-        if (state.customized && state.widgets?.length) {
-            return clone(state.widgets);
-        }
-        return clone(state.effectiveWidgets || []).map(widget => ({...widget, visible: true}));
+        const widgets = state.customized && state.widgets?.length
+            ? clone(state.widgets)
+            : clone(state.effectiveWidgets || []).map(widget => ({...widget, visible: true}));
+        widgets.forEach(ensureWidgetStyle);
+        return widgets;
     }
 
     function addCustomWidget() {
@@ -1301,6 +1414,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             y: bounds.y,
             width: 300,
             height: 180,
+            showFrame: true,
+            background: 'white',
+            inverseText: false,
             title: 'Vlastní ' + sequence,
             elements: [{
                 id: 'text-1',
