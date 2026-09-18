@@ -125,9 +125,10 @@ Navigace rozlišuje dvě oblasti:
 - **Page bez podstránek** — `UP/DOWN/LEFT/RIGHT` se pohybuje mezi
   focusovatelnými prvky. `LEFT` bez dalšího prvku vlevo vrátí focus do sidebaru.
 - **Page s více podstránkami** — po `RIGHT` ze sidebaru se nejdřív vstoupí do
-  obecné pager vrstvy. `LEFT/RIGHT` přepíná podstránky a `OK` teprve vstoupí
-  do navigace prvků aktuální podstránky. `LEFT` z prvku bez souseda vlevo vrací
-  focus z prvků zpět do pageru. Z první podstránky vrací další `LEFT` do sidebaru.
+  obecné pager vrstvy. `LEFT/RIGHT` přepíná podstránky, `UP` se z libovolné
+  podstránky vrátí do sidebaru a `OK` teprve vstoupí do navigace prvků aktuální
+  podstránky. `LEFT` z prvku bez souseda vlevo vrací focus z prvků zpět do pageru.
+  Na první podstránce zůstává `LEFT` také možností návratu do sidebaru.
 - `OK` nad konkrétním prvkem je zatím rezervované pro budoucí práci s prvkem,
   editaci nebo potvrzení.
 
