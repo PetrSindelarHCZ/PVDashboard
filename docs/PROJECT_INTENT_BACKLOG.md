@@ -120,11 +120,12 @@ ekvivalent ve WebUI.
 
 Navigace rozlišuje dvě oblasti:
 
-- **Sidebar** — výchozí stav. `UP/DOWN` prochází položky, `LEFT` se ignoruje a
-  `RIGHT` vstoupí do vybrané stránky.
+- **Sidebar** — výchozí stav. `UP/DOWN` prochází položky, `OK` aktivuje a načte
+  vybranou stránku, `LEFT` se ignoruje a `RIGHT` vstoupí do právě zobrazené stránky.
 - **Page** — `UP/DOWN/LEFT/RIGHT` se pohybuje mezi focusovatelnými prvky.
   `LEFT` na vstupním bodu stránky vrátí focus do sidebaru.
-- `OK` je zatím rezervované pro budoucí práci s prvkem, editaci nebo potvrzení.
+- `OK` uvnitř stránky je zatím rezervované pro budoucí práci s prvkem, editaci
+  nebo potvrzení.
 
 WebUI na kartě **Obrazovky** používá stejné navigační akce jako budoucí fyzický
 joystick. Neobsahuje vlastní logiku přepínání.
