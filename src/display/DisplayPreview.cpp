@@ -46,6 +46,14 @@ bool DisplayPreview::available() const {
     return _canvas != nullptr && _canvas->getBuffer() != nullptr && _mutex != nullptr;
 }
 
+bool DisplayPreview::ready() {
+    if (!available()) return false;
+    if (xSemaphoreTake(_mutex, pdMS_TO_TICKS(50)) != pdTRUE) return false;
+    const bool result = _hasCapture;
+    xSemaphoreGive(_mutex);
+    return result;
+}
+
 void DisplayPreview::capture(IScreen& screen, const DataModel& dataModel, bool fullRefresh) {
     if (!available()) return;
     if (xSemaphoreTake(_mutex, pdMS_TO_TICKS(500)) != pdTRUE) {
