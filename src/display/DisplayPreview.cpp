@@ -27,7 +27,10 @@ void DisplayPreview::init() {
     }
 
     Serial.printf(
-        "[DISPLAY-PREVIEW] Lazy preview pripraven: canvas %u B se alokuje jen pri capture.\n",
+        "[DISPLAY-PREVIEW] Tiled preview pripraven: pracovni canvas %u B (%dx%d), raw frame %u B.\n",
+        static_cast<unsigned>(TileBytes),
+        Width,
+        TileHeight,
         static_cast<unsigned>(BitmapBytes));
 }
 
@@ -53,11 +56,11 @@ bool DisplayPreview::ensureCanvas() {
 
     releaseCanvas();
 
-    _canvas = new (std::nothrow) GFXcanvas1(Width, Height);
+    _canvas = new (std::nothrow) GFXcanvas1(Width, TileHeight);
     if (_canvas == nullptr || _canvas->getBuffer() == nullptr) {
         Serial.printf(
-            "[DISPLAY-PREVIEW] Nelze docasne alokovat %u B canvas. free=%u maxBlock=%u\n",
-            static_cast<unsigned>(BitmapBytes),
+            "[DISPLAY-PREVIEW] Nelze docasne alokovat %u B tiled canvas. free=%u maxBlock=%u\n",
+            static_cast<unsigned>(TileBytes),
             ESP.getFreeHeap(),
             ESP.getMaxAllocHeap());
         releaseCanvas();
@@ -203,19 +206,27 @@ void DisplayPreview::capture(
     }
 
     if (!ensureCanvas()) {
-        // Posledni uspesny snapshot ponechame dostupny. Selhani noveho
-        // capture nesmi zneplatnit nahled, ktery uz v pameti mame.
+        // Posledni uspesny snapshot ponechame dostupny.
         xSemaphoreGive(_mutex);
         return;
     }
 
-    _canvas->fillScreen(1);
-    _useUnicodeFont = false;
-    screen.render(*this, dataModel);
+    // 1. pruchod: po 60px pruzich pouze spocitame vyslednou RLE velikost.
+    // Peak alokace je tak jen 6kB canvas a nemusime mit 48kB souvisly blok.
+    size_t encodedBytes = 0;
+    for (int16_t tileY = 0; tileY < Height; tileY += TileHeight) {
+        _tileY = tileY;
+        _canvas->fillScreen(1);
+        _useUnicodeFont = false;
+        screen.render(*this, dataModel);
 
-    const uint8_t* bitmap = _canvas->getBuffer();
-    const size_t encodedBytes =
-        packedSize(bitmap, BitmapBytes);
+        encodedBytes +=
+            packedSize(
+                _canvas->getBuffer(),
+                TileBytes);
+
+        if (encodedBytes > MaxStoredBytes) break;
+    }
 
     uint8_t* nextPacked = nullptr;
     bool stored = false;
@@ -226,13 +237,47 @@ void DisplayPreview::capture(
             new (std::nothrow) uint8_t[encodedBytes];
 
         if (nextPacked != nullptr) {
-            stored = pack(
-                bitmap,
-                BitmapBytes,
-                nextPacked,
-                encodedBytes);
+            // 2. pruchod: stejne pruhy znovu vyrenderujeme a rovnou ulozime
+            // do jedineho komprimovaneho snapshotu.
+            size_t outputOffset = 0;
+            stored = true;
+
+            for (int16_t tileY = 0;
+                 tileY < Height && stored;
+                 tileY += TileHeight) {
+                _tileY = tileY;
+                _canvas->fillScreen(1);
+                _useUnicodeFont = false;
+                screen.render(*this, dataModel);
+
+                const size_t tilePackedBytes =
+                    packedSize(
+                        _canvas->getBuffer(),
+                        TileBytes);
+
+                if (outputOffset + tilePackedBytes >
+                    encodedBytes) {
+                    stored = false;
+                    break;
+                }
+
+                stored =
+                    pack(
+                        _canvas->getBuffer(),
+                        TileBytes,
+                        nextPacked + outputOffset,
+                        tilePackedBytes);
+
+                outputOffset += tilePackedBytes;
+            }
+
+            stored =
+                stored &&
+                outputOffset == encodedBytes;
         }
     }
+
+    _tileY = 0;
 
     if (stored) {
         delete[] _packed;
@@ -535,7 +580,7 @@ void DisplayPreview::drawPixel(
     if (_canvas) {
         _canvas->drawPixel(
             x,
-            y,
+            y - _tileY,
             normalizeColor(color));
     }
 }
@@ -549,9 +594,9 @@ void DisplayPreview::drawLine(
     if (_canvas) {
         _canvas->drawLine(
             x0,
-            y0,
+            y0 - _tileY,
             x1,
-            y1,
+            y1 - _tileY,
             normalizeColor(color));
     }
 }
@@ -565,7 +610,7 @@ void DisplayPreview::drawRect(
     if (_canvas) {
         _canvas->drawRect(
             x,
-            y,
+            y - _tileY,
             w,
             h,
             normalizeColor(color));
@@ -581,7 +626,7 @@ void DisplayPreview::fillRect(
     if (_canvas) {
         _canvas->fillRect(
             x,
-            y,
+            y - _tileY,
             w,
             h,
             normalizeColor(color));
@@ -598,7 +643,7 @@ void DisplayPreview::drawRoundRect(
     if (_canvas) {
         _canvas->drawRoundRect(
             x,
-            y,
+            y - _tileY,
             w,
             h,
             r,
@@ -616,7 +661,7 @@ void DisplayPreview::fillRoundRect(
     if (_canvas) {
         _canvas->fillRoundRect(
             x,
-            y,
+            y - _tileY,
             w,
             h,
             r,
@@ -632,7 +677,7 @@ void DisplayPreview::drawCircle(
     if (_canvas) {
         _canvas->drawCircle(
             x,
-            y,
+            y - _tileY,
             r,
             normalizeColor(color));
     }
@@ -646,7 +691,7 @@ void DisplayPreview::fillCircle(
     if (_canvas) {
         _canvas->fillCircle(
             x,
-            y,
+            y - _tileY,
             r,
             normalizeColor(color));
     }
@@ -662,7 +707,7 @@ void DisplayPreview::drawBitmap(
     if (_canvas) {
         _canvas->drawBitmap(
             x,
-            y,
+            y - _tileY,
             bitmap,
             w,
             h,
@@ -697,7 +742,7 @@ void DisplayPreview::drawInvertedBitmap(
             if (!(byte & 0x80)) {
                 _canvas->drawPixel(
                     x + i,
-                    y + j,
+                    y + j - _tileY,
                     normalizeColor(color));
             }
         }
@@ -730,9 +775,9 @@ void DisplayPreview::setCursor(
     int16_t x,
     int16_t y) {
     if (_useUnicodeFont) {
-        _u8g2.setCursor(x, y);
+        _u8g2.setCursor(x, y - _tileY);
     } else if (_canvas) {
-        _canvas->setCursor(x, y);
+        _canvas->setCursor(x, y - _tileY);
     }
 }
 
