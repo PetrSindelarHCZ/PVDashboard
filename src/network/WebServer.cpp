@@ -128,6 +128,9 @@ String homeLayoutResponseJson(const HomeLayoutConfig& config, const DataModel& d
         item["y"] = widget.y;
         item["width"] = widget.width;
         item["height"] = widget.height;
+        item["showFrame"] = widget.showFrame;
+        item["background"] = widget.background;
+        item["inverseText"] = widget.inverseText;
         if (widget.type == "custom") {
             item["title"] = widget.title;
             JsonArray elements = item["elements"].to<JsonArray>();
@@ -163,6 +166,29 @@ String homeLayoutResponseJson(const HomeLayoutConfig& config, const DataModel& d
         item["minWidth"] = HomeLayout::minWidth(types[i]);
         item["minHeight"] = HomeLayout::minHeight(types[i]);
     }
+
+    JsonArray defaultWidgets = doc["defaultWidgets"].to<JsonArray>();
+    const char* defaultIds[] = {"weather-card", "energy-card", "indoor-card"};
+    for (const char* id : defaultIds) {
+        HomeLayoutWidgetConfig widget;
+        if (!HomeLayout::buildDefaultWidget(dataModel, id, widget)) continue;
+        JsonObject item = defaultWidgets.add<JsonObject>();
+        item["id"] = widget.id;
+        item["type"] = widget.type;
+        item["visible"] = widget.visible;
+        item["x"] = widget.x;
+        item["y"] = widget.y;
+        item["width"] = widget.width;
+        item["height"] = widget.height;
+        item["showFrame"] = widget.showFrame;
+        item["background"] = widget.background;
+        item["inverseText"] = widget.inverseText;
+    }
+
+    JsonObject appearance = doc["cardAppearance"].to<JsonObject>();
+    JsonArray backgrounds = appearance["backgrounds"].to<JsonArray>();
+    backgrounds.add("white");
+    backgrounds.add("black");
 
     JsonObject custom = doc["customWidget"].to<JsonObject>();
     custom["type"] = "custom";
