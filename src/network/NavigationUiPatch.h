@@ -65,7 +65,8 @@ static const char NAVIGATION_UI_PATCH[] PROGMEM = R"rawliteral(
 
     const navigationLabels = {
         sidebar: 'Sidebar',
-        page: 'Stránka'
+        pager: 'Podstránky',
+        page: 'Prvky stránky'
     };
 
     function isTextEntry(target) {
@@ -87,6 +88,10 @@ static const char NAVIGATION_UI_PATCH[] PROGMEM = R"rawliteral(
         document.getElementById('navStateActive').textContent = state.activeTitle || state.activeScreen || '—';
         document.getElementById('navStateSidebar').textContent = state.sidebarTitle || state.sidebarScreen || '—';
         document.getElementById('navStateFocus').textContent = state.focus || '—';
+        const count = Number(state.subpageCount || 1);
+        const index = Number(state.subpageIndex || 0);
+        document.getElementById('navStateSubpage').textContent =
+            count > 1 ? ((index + 1) + ' / ' + count) : '—';
     }
 
     async function loadNavigationState() {
@@ -158,14 +163,16 @@ static const char NAVIGATION_UI_PATCH[] PROGMEM = R"rawliteral(
                         <div class="status-item"><div class="status-label">Režim</div><div class="status-value" id="navStateArea">—</div></div>
                         <div class="status-item"><div class="status-label">Aktivní stránka</div><div class="status-value" id="navStateActive">—</div></div>
                         <div class="status-item"><div class="status-label">Kurzor sidebaru</div><div class="status-value" id="navStateSidebar">—</div></div>
+                        <div class="status-item"><div class="status-label">Podstránka</div><div class="status-value" id="navStateSubpage">—</div></div>
                         <div class="status-item"><div class="status-label">Focus prvku</div><div class="status-value" id="navStateFocus">—</div></div>
                     </div>
                     <div class="navigation-hint">
-                        Sidebar: ↑/↓ vybírá položku, OK načte vybranou stránku, ← se ignoruje
-                        a → vstoupí do právě zobrazené stránky. Ve stránce fungují všechny směry.
-                        Pokud při stisku ← už není žádný prvek vlevo, focus se vrátí do sidebaru.
-                        OK uvnitř stránky je zatím rezervované pro budoucí práci s prvky.
-                        Klávesnice: šipky + Enter.
+                        Sidebar: ↑/↓ vybírá položku, OK ji načte a → vstoupí do zobrazené stránky.
+                        U stránky s více podstránkami pak ←/→ přepíná podstránky a OK teprve vstoupí
+                        do jejich prvků. Z první podstránky vrátí ← focus do sidebaru. Při navigaci
+                        mezi prvky vrátí ← bez dalšího prvku vlevo o úroveň výš (na pager, nebo přímo
+                        do sidebaru u běžné stránky). OK nad prvkem je zatím rezervované. Klávesnice:
+                        šipky + Enter.
                     </div>
                 </div>
             </div>
