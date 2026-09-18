@@ -139,9 +139,13 @@ sítě.
 Tovární reset smaže celý namespace `dashboard`; po restartu se použijí hodnoty
 z `ConfigSchema.h`. Aktuální `AppConfig::schemaVersion` je 6, ale tato hodnota
 je zatím runtime metadata a není samostatně ukládaná ani migrovaná v NVS.
-YAML záloha používá vlastní formát `pvdashboard-config` verze 1, obsahuje Wi-Fi
-hesla v čitelné podobě a před zápisem validuje úplné schéma. Import se aplikuje
-jako celek a zařízení se po něm restartuje.
+YAML záloha používá vlastní formát `pvdashboard-config` **verze 5**, obsahuje
+heslo aktuálně zvolené Wi-Fi v čitelné podobě a před zápisem validuje povinné
+položky dané verze. Záloha obsahuje systém, aktuální Wi-Fi/IP konfiguraci,
+GoodWe, AZRouter, bazén a počasí včetně seznamu lokalit. Samostatný seznam všech
+známých Wi-Fi sítí a jejich `autoConnect` příznaky se do YAML zatím neexportují.
+Import se aplikuje jako celek a zařízení se po něm restartuje; importovaná
+aktuální Wi-Fi se zároveň uloží mezi známé sítě.
 
 `DisplayConfig.fullRefreshIntervalMinutes` je stále definované, ale současná
 refresh politika ho nepoužívá.
