@@ -69,6 +69,29 @@ Všechny obrazovky používají společný ScreenStyle:
   krátký výpadek Wi-Fi již nastavené hodiny neskrývá,
 - stejné fonty a vzhled karet.
 
+
+## Stabilita preview a WeatherWorkeru — opraveno 18. 9. 2026
+
+Při prvním provedení vzdáleného náhledu e-inku mohl preview framebuffer a jeho
+snapshot výrazně zmenšit nebo fragmentovat běžnou interní DRAM potřebnou pro
+HTTPS/mbedTLS ve WeatherWorkeru. Problém se projevil pádem při práci počasí.
+
+Opravené řešení:
+
+- preview se renderuje po vodorovných pruzích 800 × 60 px místo souvislého
+  800 × 480 canvasu,
+- pracovní canvas má přibližně 6 kB místo 48 kB,
+- komprimovaný snapshot je ukládán do vhodného interního 32bit/IRAM heapu, aby
+  nesnižoval souvislý blok běžné DRAM potřebný pro TLS,
+- při neúspěšném novém capture zůstává dostupný poslední platný náhled,
+- BMP se do Wi-Fi klienta odesílá po větších blocích místo stovek malých write(),
+- WeatherWorker má zvětšený stack z 8 kB na 12 kB.
+
+Oprava byla sloučena do masteru v commitu `f909c05` („Merge tested weather and
+display preview fixes“) a následně ověřena na zařízení. Historický debugging chat
+proto není potřeba uchovávat jako jediný zdroj této informace.
+
+
 ## Známá omezení
 
 ### České písmo na černém pozadí
