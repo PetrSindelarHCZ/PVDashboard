@@ -154,6 +154,8 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
     let initialized = false;
     let statusRefreshTimer = null;
     let locationBusy = false;
+    let configSaveBusy = false;
+    let configSaveQueued = false;
     let searchResults = [];
     let searchTimer = null;
     let searchController = null;
@@ -221,25 +223,21 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
     }
 
     function updateDirtyState() {
-        const save = document.getElementById('weatherSave');
         const refresh = document.getElementById('weatherRefreshNow');
         const dirty = initialized && stateKey() !== baseline;
+        const enabled = !!document.getElementById('weatherEnabled')?.checked;
 
-        if (save) save.disabled = !dirty;
         if (refresh) {
-            refresh.disabled = dirty || !document.getElementById('weatherEnabled')?.checked;
-            refresh.title = dirty
-                ? 'Nejprve uložte změny počasí'
-                : 'Okamžitě načíst počasí pro uloženou konfiguraci';
+            refresh.disabled = configSaveBusy || dirty || !enabled;
+            refresh.title = configSaveBusy
+                ? 'Probíhá ukládání nastavení počasí'
+                : (dirty
+                    ? 'Čekám na automatické uložení změny'
+                    : 'Okamžitě načíst počasí pro uloženou konfiguraci');
         }
 
         const card = document.querySelector('.weather-settings-card');
-        if (card) {
-            card.classList.toggle(
-                'is-disabled',
-                !document.getElementById('weatherEnabled')?.checked
-            );
-        }
+        if (card) card.classList.toggle('is-disabled', !enabled);
     }
 
     function syncLegacyCoordinates() {
@@ -587,8 +585,13 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         });
     }
 
-    window.saveWeather = async function(event) {
-        if (event) event.preventDefault();
+    async function applyWeatherConfig(showMessage = true) {
+        if (!initialized) return;
+
+        if (configSaveBusy) {
+            configSaveQueued = true;
+            return;
+        }
 
         const state = stateFromUi();
         if (!state.locations.length || !state.activeLocationId) {
@@ -596,11 +599,8 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
             return;
         }
 
-        const save = document.getElementById('weatherSave');
-        if (save) {
-            save.disabled = true;
-            save.textContent = 'Ukládám…';
-        }
+        configSaveBusy = true;
+        updateDirtyState();
 
         try {
             const response = await postState(state);
@@ -609,20 +609,35 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
                 throw new Error(result.message || ('HTTP ' + response.status));
             }
 
-            await new Promise(resolve => setTimeout(resolve, 120));
-            await refreshFromStatus(true, true);
-            showToast('Počasí uloženo a použito');
+            baseline = stateKey(state);
+
+            // Pokud se UI během ukládání nezměnilo, načteme potvrzený stav z ESP.
+            // Při další rozpracované změně pole nepřepisujeme a necháme ji hned uložit.
+            const unchanged = stateKey() === baseline;
+            await new Promise(resolve => setTimeout(resolve, 80));
+            await refreshFromStatus(true, unchanged);
+
+            if (showMessage && unchanged) showToast('Počasí nastaveno');
         } catch (error) {
-            showToast('Počasí se nepodařilo uložit: ' + (error.message || 'chyba'));
+            showToast('Nastavení počasí se nepodařilo uložit: ' + (error.message || 'chyba'));
         } finally {
-            if (save) save.textContent = 'Uložit počasí';
+            configSaveBusy = false;
             updateDirtyState();
+
+            const needsAnotherSave = configSaveQueued || (initialized && stateKey() !== baseline);
+            configSaveQueued = false;
+            if (needsAnotherSave) setTimeout(() => applyWeatherConfig(false), 0);
         }
+    }
+
+    window.saveWeather = function(event) {
+        if (event) event.preventDefault();
+        applyWeatherConfig(true);
     };
 
     async function refreshNow() {
-        if (!initialized || stateKey() !== baseline) {
-            showToast('Nejprve uložte změny počasí');
+        if (!initialized || configSaveBusy || stateKey() !== baseline) {
+            showToast('Počkejte na dokončení automatického uložení');
             return;
         }
 
@@ -880,19 +895,9 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         hiddenLon.type = 'hidden';
         hiddenLon.id = 'weatherLongitude';
 
-        const saveRow = document.createElement('div');
-        saveRow.className = 'weather-save-row';
-
-        const save = document.createElement('button');
-        save.type = 'submit';
-        save.id = 'weatherSave';
-        save.className = 'btn btn-secondary source-save settings-save';
-        save.textContent = 'Uložit počasí';
-        save.disabled = true;
-
-        saveRow.appendChild(save);
-        form.replaceChildren(configGrid, hiddenLat, hiddenLon, saveRow);
+        form.replaceChildren(configGrid, hiddenLat, hiddenLon);
         form.classList.add('settings-form');
+        form.addEventListener('submit', event => event.preventDefault());
 
         const picker = document.getElementById('weatherLocationPicker');
         const pickerButton = document.getElementById('weatherLocationPickerButton');
@@ -920,8 +925,15 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         });
 
         ['weatherProvider','weatherInterval','weatherEnabled'].forEach(id => {
-            document.getElementById(id)
-                .addEventListener('change', updateDirtyState);
+            document.getElementById(id).addEventListener('change', () => {
+                updateDirtyState();
+                if (id === 'weatherEnabled') {
+                    setWeatherScreenVisibility(
+                        !!document.getElementById('weatherEnabled').checked
+                    );
+                }
+                applyWeatherConfig(true);
+            });
         });
 
         refreshFromStatus(true, true);
