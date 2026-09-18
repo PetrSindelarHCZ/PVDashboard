@@ -20,6 +20,7 @@ public:
     bool setWifiAutoConnectEnabled(const String& ssid, bool enabled);
     bool forgetWifi(const String& ssid);
     void setSources(const GoodWeConfig& goodwe, const AZRouterConfig& azrouter);
+    void setPool(const PoolConfig& pool);
     void setWeather(const WeatherConfig& weather);
     bool resetToFactoryDefaults();
     bool setUserConfiguration(const AppConfig& config);
