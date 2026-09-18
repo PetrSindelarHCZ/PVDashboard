@@ -49,14 +49,44 @@ bool NavigationController::ensureSidebarSelection() {
     return true;
 }
 
+uint8_t NavigationController::activeSubpageCount() const {
+    IScreen* active = _screenManager.getActiveScreen();
+    if (active == nullptr) return 1;
+    const uint8_t count = active->getNavigationSubpageCount(_dataModel);
+    return count == 0 ? 1 : count;
+}
+
+uint8_t NavigationController::activeInitialSubpage() const {
+    IScreen* active = _screenManager.getActiveScreen();
+    if (active == nullptr) return 0;
+    const uint8_t count = activeSubpageCount();
+    const uint8_t initial = active->getInitialNavigationSubpage(_dataModel);
+    return initial < count ? initial : 0;
+}
+
 void NavigationController::publishState() {
+    const uint8_t subpageCount = activeSubpageCount();
+    if (_state.subpageIndex >= subpageCount) {
+        _state.subpageIndex = subpageCount - 1;
+    }
+
     _dataModel.system.navigationArea = navigationAreaName(_state.area);
     _dataModel.system.navigationSidebarScreenId = _state.sidebarScreenId;
     _dataModel.system.navigationFocusId = _state.focusId;
+    _dataModel.system.navigationSubpageIndex = _state.subpageIndex;
+    _dataModel.system.navigationSubpageCount = subpageCount;
 }
 
 void NavigationController::notifyChange(bool fullRefresh) {
     if (_changeCallback) _changeCallback(fullRefresh);
+}
+
+void NavigationController::notifySubpageChange() {
+    if (_subpageChangeCallback) {
+        _subpageChangeCallback(
+            _screenManager.getActiveScreenId(),
+            _state.subpageIndex);
+    }
 }
 
 void NavigationController::syncToActiveScreen(bool notify) {
@@ -64,6 +94,7 @@ void NavigationController::syncToActiveScreen(bool notify) {
     _state.area = NavigationArea::Sidebar;
     _state.focusId = "";
     _state.sidebarScreenId = sidebarIdForActiveScreen();
+    _state.subpageIndex = activeInitialSubpage();
     ensureSidebarSelection();
     publishState();
 
@@ -102,15 +133,26 @@ void NavigationController::buildCurrentLayout(NavigationLayout& layout) const {
     if (active != nullptr) active->buildNavigationLayout(_dataModel, layout);
 }
 
-bool NavigationController::enterPage(bool& screenChanged) {
+bool NavigationController::enterPage(bool& screenChanged, bool& subpageChanged) {
     screenChanged = false;
+    subpageChanged = false;
     ensureSidebarSelection();
     if (_state.sidebarScreenId.isEmpty()) return false;
 
     // RIGHT only enters the page that is already displayed. Changing the
-    // displayed page is an explicit OK action in sidebar mode.
+    // displayed page remains an explicit OK action in sidebar mode.
     if (!_screenManager.getActiveScreenId().equalsIgnoreCase(_state.sidebarScreenId)) {
         return false;
+    }
+
+    const uint8_t subpageCount = activeSubpageCount();
+    _state.subpageIndex = activeInitialSubpage();
+    _state.focusId = "";
+
+    if (subpageCount > 1) {
+        _state.area = NavigationArea::Pager;
+        subpageChanged = true;
+        return true;
     }
 
     NavigationLayout layout;
@@ -120,10 +162,68 @@ bool NavigationController::enterPage(bool& screenChanged) {
     return true;
 }
 
+bool NavigationController::movePager(
+    NavigationAction action,
+    bool& subpageChanged) {
+    subpageChanged = false;
+    if (_state.area != NavigationArea::Pager) return false;
+
+    const uint8_t count = activeSubpageCount();
+    if (count <= 1) {
+        _state.area = NavigationArea::Page;
+        NavigationLayout layout;
+        buildCurrentLayout(layout);
+        _state.focusId = layout.resolveInitialFocus();
+        return true;
+    }
+
+    switch (action) {
+        case NavigationAction::Left:
+            if (_state.subpageIndex > 0) {
+                --_state.subpageIndex;
+                subpageChanged = true;
+                return true;
+            }
+            _state.area = NavigationArea::Sidebar;
+            _state.focusId = "";
+            _state.sidebarScreenId = sidebarIdForActiveScreen();
+            ensureSidebarSelection();
+            return true;
+
+        case NavigationAction::Right:
+            if (_state.subpageIndex + 1 < count) {
+                ++_state.subpageIndex;
+                subpageChanged = true;
+                return true;
+            }
+            return false;
+
+        case NavigationAction::Ok: {
+            NavigationLayout layout;
+            buildCurrentLayout(layout);
+            _state.area = NavigationArea::Page;
+            _state.focusId = layout.resolveInitialFocus();
+            return true;
+        }
+
+        case NavigationAction::Up:
+        case NavigationAction::Down:
+            return false;
+    }
+
+    return false;
+}
+
 bool NavigationController::leavePage() {
     if (_state.area != NavigationArea::Page) return false;
-    _state.area = NavigationArea::Sidebar;
+
     _state.focusId = "";
+    if (activeSubpageCount() > 1) {
+        _state.area = NavigationArea::Pager;
+        return true;
+    }
+
+    _state.area = NavigationArea::Sidebar;
     _state.sidebarScreenId = sidebarIdForActiveScreen();
     ensureSidebarSelection();
     return true;
@@ -270,6 +370,7 @@ bool NavigationController::handleAction(NavigationAction action) {
 
     bool changed = false;
     bool screenChanged = false;
+    bool subpageChanged = false;
 
     if (_state.area == NavigationArea::Sidebar) {
         switch (action) {
@@ -280,13 +381,14 @@ bool NavigationController::handleAction(NavigationAction action) {
                 changed = moveSidebar(1);
                 break;
             case NavigationAction::Right:
-                changed = enterPage(screenChanged);
+                changed = enterPage(screenChanged, subpageChanged);
                 break;
             case NavigationAction::Ok:
                 if (!_state.sidebarScreenId.isEmpty() &&
                     !_screenManager.getActiveScreenId().equalsIgnoreCase(_state.sidebarScreenId) &&
                     _screenManager.activateScreen(_state.sidebarScreenId)) {
                     _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
+                    _state.subpageIndex = activeInitialSubpage();
                     screenChanged = true;
                     changed = true;
                 }
@@ -294,6 +396,8 @@ bool NavigationController::handleAction(NavigationAction action) {
             case NavigationAction::Left:
                 break;
         }
+    } else if (_state.area == NavigationArea::Pager) {
+        changed = movePager(action, subpageChanged);
     } else {
         switch (action) {
             case NavigationAction::Up:
@@ -311,11 +415,15 @@ bool NavigationController::handleAction(NavigationAction action) {
     if (!changed && !screenChanged) return false;
 
     publishState();
+    if (subpageChanged) notifySubpageChange();
+
     Serial.printf(
-        "[NAV] action=%s area=%s sidebar=%s focus=%s screen=%s%s\n",
+        "[NAV] action=%s area=%s sidebar=%s subpage=%u/%u focus=%s screen=%s%s\n",
         navigationActionName(action),
         navigationAreaName(_state.area),
         _state.sidebarScreenId.c_str(),
+        static_cast<unsigned>(_state.subpageIndex + 1),
+        static_cast<unsigned>(activeSubpageCount()),
         _state.focusId.c_str(),
         _screenManager.getActiveScreenId().c_str(),
         screenChanged ? " [screen-change]" : "");
