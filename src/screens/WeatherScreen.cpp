@@ -76,6 +76,7 @@ void WeatherScreen::render(IDisplay& display, const DataModel& dm) {
         // overflowing the current-weather card title.
         ScreenStyle::useSectionTitle(display);
         constexpr int16_t MaxPagerTitleWidth = 250;
+        bool truncated = false;
         while (currentCardTitle.length() > 4 &&
                display.textWidth(currentCardTitle) > MaxPagerTitleWidth) {
             unsigned int end = currentCardTitle.length() - 1;
@@ -84,10 +85,18 @@ void WeatherScreen::render(IDisplay& display, const DataModel& dm) {
                 --end;
             }
             currentCardTitle.remove(end);
+            truncated = true;
         }
-        if (display.textWidth(currentCardTitle) > MaxPagerTitleWidth) {
-            currentCardTitle = "MÍSTO";
-        } else if (!currentCardTitle.endsWith(dm.weather.locationName)) {
+        if (truncated) {
+            while (currentCardTitle.length() > 4 &&
+                   display.textWidth(currentCardTitle + "...") > MaxPagerTitleWidth) {
+                unsigned int end = currentCardTitle.length() - 1;
+                while (end > 0 &&
+                       (static_cast<uint8_t>(currentCardTitle[end]) & 0xC0) == 0x80) {
+                    --end;
+                }
+                currentCardTitle.remove(end);
+            }
             currentCardTitle += "...";
         }
     }
