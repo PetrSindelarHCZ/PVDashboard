@@ -76,7 +76,7 @@ void DashboardApp::setup() {
     Serial.println("==========================================");
 
     _configManager.begin();
-    _displayPreview.init(); // rezervovat 1bit 800x480 framebuffer drive, nez se heap fragmentuje
+    _displayPreview.init(); // tiled preview; komprimovany snapshot se drzi mimo TLS DRAM
     const auto& cfg = _configManager.get();
     applyWifiAddressing(cfg.wifi);
 
