@@ -207,6 +207,16 @@ bool NavigationController::movePager(
         }
 
         case NavigationAction::Up:
+            // Pager is a hierarchy level between sidebar and page elements.
+            // UP always moves one level toward the parent, regardless of the
+            // currently selected subpage, so the user never has to traverse
+            // back to the first dot just to leave the pager.
+            _state.area = NavigationArea::Sidebar;
+            _state.focusId = "";
+            _state.sidebarScreenId = sidebarIdForActiveScreen();
+            ensureSidebarSelection();
+            return true;
+
         case NavigationAction::Down:
             return false;
     }
