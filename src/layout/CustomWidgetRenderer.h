@@ -195,7 +195,8 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
     if (plotH < 1) plotH = 1;
 
     if (element.graphStyle == "bars") {
-        const int16_t barWidth = count > 0 ? max<int16_t>(1, plotW / count) : 1;
+        int16_t barWidth = count > 0 ? plotW / count : 1;
+        if (barWidth < 1) barWidth = 1;
         for (uint8_t i = 0; i < count; ++i) {
             float value = 0.0f;
             if (!historyValue(dm.solar.history[i], element.source, value)) return;
