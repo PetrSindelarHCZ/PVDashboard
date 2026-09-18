@@ -7,9 +7,9 @@
 
 ## Jak dokument používat
 
-Tento soubor není náhradou za `ROADMAP.md`, `ARCHITECTURE.md` ani technickou
-dokumentaci konkrétních integrací. Slouží jako záchytný seznam původních
-projektových záměrů.
+Tento soubor není náhradou za `PROJECT_STATUS.md`, `ROADMAP.md`,
+`ARCHITECTURE.md` ani technickou dokumentaci konkrétních integrací. Slouží jako
+záchytný seznam původních projektových záměrů.
 
 Stavy:
 
@@ -118,7 +118,7 @@ ekvivalent ve WebUI.
 
 ### Schválený model navigace
 
-Navigace rozlišuje dvě oblasti:
+Navigace rozlišuje tři oblasti:
 
 - **Sidebar** — výchozí stav. `UP/DOWN` prochází položky. `OK` aktivuje/načte
   vybranou stránku a rovnou vstoupí do její navigace: u běžné stránky přímo na
@@ -200,6 +200,12 @@ zatím nebyl definitivně vybrán. Proto zůstává samostatným budoucím bodem
 ## 5. Bazén — ČÁSTEČNĚ
 
 Obrazovka `pool` a datový model existují, ale hodnoty jsou stále demonstrační.
+
+Od 18. 9. 2026 je hotová provozní konfigurace viditelnosti bazénového modulu:
+`pool.enabled` se ukládá do NVS, je součástí YAML exportu/importu a změna se
+aplikuje za běhu. Při vypnutí zmizí Pool obrazovka, položka sidebaru i bazénové
+informace; pokud byla Pool právě aktivní, dashboard se vrátí na Home. Reálná
+bazénová data tím ale ještě implementovaná nejsou.
 
 ### Původní cílový rozsah
 
@@ -393,14 +399,14 @@ Je nutné zachovat tyto otevřené body:
 - odstranění nepoužívaného `fullRefreshIntervalMinutes` ze schématu, pokud
   definitivně nebude součástí politiky.
 
-### Pozor na starší dokumentaci
+### Stav dokumentace po auditu 18. 9. 2026
 
-Starší texty mohou obsahovat historické tvrzení, že se po určitém počtu partial
-refreshů automaticky vynutí full refresh. Aktuální roadmapa naopak uvádí, že
-počet partial refreshů již full refresh automaticky nevynucuje.
+Historické tvrzení, že se po pěti partial refreshech automaticky vynutí full
+refresh, bylo z aktuální dokumentace odstraněno. Platný stav je: full při startu,
+změně obrazovky a ručním požadavku; běžné aktualizace stejné obrazovky jsou
+partial a jejich počet sám o sobě full refresh nevyvolá.
 
-Při dalším auditu je potřeba tento rozpor sjednotit podle aktuální implementace
-a ověření na fyzickém panelu.
+Otevřený zůstává dlouhodobý 24hodinový test ghostingu této politiky.
 
 ---
 
@@ -613,3 +619,28 @@ Přesné intervaly se mohou měnit podle implementace, ale důležité pravidlo 
 že krátký výpadek Wi-Fi po již úspěšné synchronizaci nemá skrýt běžící lokální
 čas. Naopak po restartu bez validního NTP se časová část záhlaví nesmí tvářit
 jako aktuální jen díky zachovanému RTC času.
+
+
+---
+
+## 22. Dynamická viditelnost energetických zdrojů — HOTOVO
+
+GoodWe a AZRouter lze v Nastavení → Fotovoltaika zapínat nezávisle. Stav se
+persistuje a změna se aplikuje za běhu.
+
+Platné chování:
+
+- vypnutý zdroj se nepolluje,
+- stavová ikona vypnutého zdroje se nezobrazuje v záhlaví,
+- FVE obrazovka je registrovaná, pokud je zapnutý alespoň jeden zdroj,
+- při vypnutí obou zdrojů se FVE odstraní ze sidebaru a ScreenManageru,
+- pokud byla FVE aktivní, po vypnutí obou zdrojů se přejde na Home,
+- SolarScreen skládá obsah podle kombinace GoodWe/AZRouter a nenechává zbytečné
+  prázdné karty,
+- navigace se po změně dostupných obrazovek synchronizuje,
+- Home energetická karta je v současném layoutu navázaná na GoodWe; AZRouter-only
+  režim je dostupný na FVE obrazovce.
+
+Drobný zbytkový UI dluh: stručný status panel WebUI zatím zobrazuje vypnutý
+GoodWe/AZRouter jako „Offline“. Runtime chování, e-ink diagnostika a dynamická
+viditelnost už stav `enabled` respektují.
