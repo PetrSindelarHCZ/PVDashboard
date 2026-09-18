@@ -11,6 +11,8 @@
 #include "../update/OtaManager.h"
 #include "NetworkDiagnostics.h"
 
+class DisplayPreview;
+
 class DashboardWebServer {
 public:
     using ScreenChangeCallback = std::function<void(const String& screenId)>;
@@ -37,6 +39,7 @@ public:
     void onScreenChange(ScreenChangeCallback callback);
     void onRefresh(RefreshCallback callback);
     void onDisplayStatus(DisplayStatusCallback callback);
+    void setDisplayPreview(DisplayPreview* preview) { _displayPreview = preview; }
     void onSystemConfig(SystemConfigCallback callback);
     void onWifiConfig(WifiConfigCallback callback);
     void onWifiNetworkConfig(WifiNetworkConfigCallback callback) {
@@ -309,6 +312,7 @@ private:
     ScreenChangeCallback _screenCallback;
     RefreshCallback _refreshCallback;
     DisplayStatusCallback _displayStatusCallback;
+    DisplayPreview* _displayPreview = nullptr;
     SystemConfigCallback _systemConfigCallback;
     WifiConfigCallback _wifiConfigCallback;
     WifiNetworkConfigCallback _wifiNetworkConfigCallback;
