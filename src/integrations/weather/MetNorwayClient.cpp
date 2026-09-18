@@ -140,7 +140,7 @@ bool MetNorwayClient::update(const WeatherConfig& config, WeatherData& weatherDa
 
     const String url =
         "https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=" +
-        String(config.latitude, 5) + "&lon=" + String(config.longitude, 5);
+        String(config.latitude, 4) + "&lon=" + String(config.longitude, 4);
 
     WiFiClientSecure client;
     configureWeatherTls(client);
@@ -154,10 +154,10 @@ bool MetNorwayClient::update(const WeatherConfig& config, WeatherData& weatherDa
     http.setTimeout(ResponseTimeoutMs);
     http.useHTTP10(true);
     http.setUserAgent(
-        "PVDashboard/" FIRMWARE_VERSION " github.com/PetrSindelarHCZ/PVDashboard");
+        "PVDashboard/" FIRMWARE_VERSION " (+https://github.com/PetrSindelarHCZ/PVDashboard)");
 
-    const char* headerKeys[] = {"Last-Modified", "Expires", "Date"};
-    http.collectHeaders(headerKeys, 3);
+    const char* headerKeys[] = {"Last-Modified", "Expires", "Date", "X-ErrorClass"};
+    http.collectHeaders(headerKeys, 4);
     if (!_lastModified.isEmpty()) {
         http.addHeader("If-Modified-Since", _lastModified);
     }
@@ -190,7 +190,19 @@ bool MetNorwayClient::update(const WeatherConfig& config, WeatherData& weatherDa
         return true;
     }
     if (httpCode != HTTP_CODE_OK) {
-        weatherData.status.recordError("HTTP " + String(httpCode));
+        String detail = "HTTP " + String(httpCode);
+        const String errorClass = http.header("X-ErrorClass");
+        if (!errorClass.isEmpty()) detail += " " + errorClass;
+
+        String responseBody = http.getString();
+        responseBody.replace("\r", " ");
+        responseBody.replace("\n", " ");
+        responseBody.trim();
+        if (responseBody.length() > 160) responseBody = responseBody.substring(0, 160);
+        if (!responseBody.isEmpty()) detail += ": " + responseBody;
+
+        weatherData.status.recordError(detail);
+        Serial.printf("[WEATHER] MET Norway chyba: %s\n", detail.c_str());
         http.end();
         return false;
     }
