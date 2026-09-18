@@ -112,9 +112,10 @@ Na větvi `feature/weather-worker-lifecycle` je proto společný FreeRTOS mutex
 - display a TLS se díky tomu nemohou rozběhnout současně.
 
 GitHub Actions release workflow po této změně úspěšně sestavil firmware a
-validoval release artefakty. Zbývá ověření na fyzickém ESP32 stejným scénářem
-vypnout → zapnout Weather a sledovat, že background lokality už nehlásí TLS
-allocation failure.
+validoval release artefakty. Následný test na fyzickém ESP32 potvrdil správné
+čekání v obou směrech (Display čeká na Weather TLS i Weather na Display),
+korektní vypnutí/zapnutí workeru a úspěšné načtení všech tří lokalit bez
+`SSL - Memory allocation failed`.
 
 ## Známá omezení
 
