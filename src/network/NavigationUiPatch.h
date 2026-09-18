@@ -87,7 +87,6 @@ static const char NAVIGATION_UI_PATCH[] PROGMEM = R"rawliteral(
         document.getElementById('navStateActive').textContent = state.activeTitle || state.activeScreen || '—';
         document.getElementById('navStateSidebar').textContent = state.sidebarTitle || state.sidebarScreen || '—';
         document.getElementById('navStateFocus').textContent = state.focus || '—';
-        document.getElementById('navStateEntry').textContent = state.entryPoint || '—';
     }
 
     async function loadNavigationState() {
@@ -160,13 +159,13 @@ static const char NAVIGATION_UI_PATCH[] PROGMEM = R"rawliteral(
                         <div class="status-item"><div class="status-label">Aktivní stránka</div><div class="status-value" id="navStateActive">—</div></div>
                         <div class="status-item"><div class="status-label">Kurzor sidebaru</div><div class="status-value" id="navStateSidebar">—</div></div>
                         <div class="status-item"><div class="status-label">Focus prvku</div><div class="status-value" id="navStateFocus">—</div></div>
-                        <div class="status-item"><div class="status-label">Vstupní bod</div><div class="status-value" id="navStateEntry">—</div></div>
                     </div>
                     <div class="navigation-hint">
                         Sidebar: ↑/↓ vybírá položku, OK načte vybranou stránku, ← se ignoruje
-                        a → vstoupí do právě zobrazené stránky. Ve stránce fungují všechny směry;
-                        ← na vstupním bodu se vrátí do sidebaru. OK uvnitř stránky je zatím
-                        rezervované pro budoucí práci s prvky. Klávesnice: šipky + Enter.
+                        a → vstoupí do právě zobrazené stránky. Ve stránce fungují všechny směry.
+                        Pokud při stisku ← už není žádný prvek vlevo, focus se vrátí do sidebaru.
+                        OK uvnitř stránky je zatím rezervované pro budoucí práci s prvky.
+                        Klávesnice: šipky + Enter.
                     </div>
                 </div>
             </div>
