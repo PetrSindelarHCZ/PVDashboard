@@ -650,7 +650,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
             </form>
         </div>
 
-        <div class="card pool-settings-card">
+        <div class="card pool-settings-card wide-card">
             <div class="card-title">Bazén</div>
             <form onsubmit="savePool(event)">
                 <section class="source-device-card">
