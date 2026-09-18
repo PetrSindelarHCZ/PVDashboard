@@ -221,6 +221,26 @@ inline void drawCard(IDisplay& d, int16_t x, int16_t y, int16_t w, int16_t h, co
     d.drawLine(x + 10, y + 34, x + w - 10, y + 34, 0);
 }
 
+inline void drawSubpageDots(
+    IDisplay& d,
+    uint8_t currentIndex,
+    uint8_t count,
+    int16_t y = Height - 6) {
+    if (count <= 1) return;
+
+    constexpr int16_t spacing = 14;
+    constexpr int16_t radius = 3;
+    const int16_t centerX = SidebarWidth + (Width - SidebarWidth) / 2;
+    const int16_t totalWidth = static_cast<int16_t>((count - 1) * spacing);
+    const int16_t startX = centerX - totalWidth / 2;
+
+    for (uint8_t i = 0; i < count; ++i) {
+        const int16_t x = startX + static_cast<int16_t>(i * spacing);
+        if (i == currentIndex) d.fillCircle(x, y, radius, 0);
+        else d.drawCircle(x, y, radius, 0);
+    }
+}
+
 inline void drawPageNavigationFocus(IDisplay& d, const DataModel& dm, const NavigationLayout& layout) {
     if (dm.system.navigationArea != "page" || dm.system.navigationFocusId.isEmpty()) return;
 
