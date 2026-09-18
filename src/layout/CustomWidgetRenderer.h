@@ -108,14 +108,14 @@ inline int16_t alignedX(IDisplay& display, int16_t x, int16_t width,
 }
 
 inline void useElementFont(IDisplay& display, const CustomWidgetElementConfig& element,
-                           bool valueFont = false) {
-    display.setTextColor(0);
+                           bool valueFont = false, uint16_t color = 0) {
+    display.setTextColor(color);
     display.setUnicodeFont(fontFor(element, valueFont));
 }
 
 inline void drawText(IDisplay& display, int16_t x, int16_t y,
-                     const CustomWidgetElementConfig& element) {
-    useElementFont(display, element, false);
+                     const CustomWidgetElementConfig& element, uint16_t textColor) {
+    useElementFont(display, element, false, textColor);
     const String text = fitText(display, element.text, element.width);
     const int16_t textX = alignedX(display, x, element.width, text, element.align);
     display.setCursor(textX, y + baselineOffset(element, false));
@@ -123,10 +123,10 @@ inline void drawText(IDisplay& display, int16_t x, int16_t y,
 }
 
 inline void drawKpi(IDisplay& display, const DataModel& dm, int16_t x, int16_t y,
-                    const CustomWidgetElementConfig& element) {
+                    const CustomWidgetElementConfig& element, uint16_t textColor) {
     int16_t valueY = y;
     if (element.showLabel && !element.label.isEmpty()) {
-        ScreenStyle::useBody(display);
+        ScreenStyle::useBody(display, textColor);
         const String label = fitText(display, element.label, element.width);
         const int16_t labelX = alignedX(display, x, element.width, label, element.align);
         display.setCursor(labelX, y + 16);
@@ -139,7 +139,7 @@ inline void drawKpi(IDisplay& display, const DataModel& dm, int16_t x, int16_t y
     String valueText = available
         ? formatValue(value, element.decimals, element.unit)
         : String("--");
-    useElementFont(display, element, true);
+    useElementFont(display, element, true, textColor);
     valueText = fitText(display, valueText, element.width);
     const int16_t valueX = alignedX(display, x, element.width, valueText, element.align);
     display.setCursor(valueX, valueY + baselineOffset(element, true));
@@ -147,13 +147,13 @@ inline void drawKpi(IDisplay& display, const DataModel& dm, int16_t x, int16_t y
 }
 
 inline void drawProgress(IDisplay& display, const DataModel& dm, int16_t x, int16_t y,
-                         const CustomWidgetElementConfig& element) {
+                         const CustomWidgetElementConfig& element, uint16_t textColor) {
     float value = 0.0f;
     const bool available = resolveValue(dm, element.source, value);
 
     int16_t barY = y + 4;
     if (element.showLabel) {
-        ScreenStyle::useBody(display);
+        ScreenStyle::useBody(display, textColor);
         const String rawLabel = !element.label.isEmpty() ? element.label : element.source;
         const String labelText = fitText(display, rawLabel, element.width);
         const int16_t labelX = alignedX(display, x, element.width, labelText, element.align);
@@ -164,7 +164,7 @@ inline void drawProgress(IDisplay& display, const DataModel& dm, int16_t x, int1
     int16_t barH = element.height - 22;
     if (barH < 10) barH = 10;
     if (barH > 18) barH = 18;
-    display.drawRect(x, barY, element.width, barH, 0);
+    display.drawRect(x, barY, element.width, barH, textColor);
 
     if (!available) return;
 
@@ -172,7 +172,7 @@ inline void drawProgress(IDisplay& display, const DataModel& dm, int16_t x, int1
     if (ratio < 0.0f) ratio = 0.0f;
     if (ratio > 1.0f) ratio = 1.0f;
     const int16_t fillWidth = static_cast<int16_t>((element.width - 4) * ratio);
-    if (fillWidth > 0) display.fillRect(x + 2, barY + 2, fillWidth, barH - 4, 0);
+    if (fillWidth > 0) display.fillRect(x + 2, barY + 2, fillWidth, barH - 4, textColor);
 }
 
 inline bool historyValue(const SolarHistorySample& sample, const String& source, float& value) {
@@ -183,10 +183,10 @@ inline bool historyValue(const SolarHistorySample& sample, const String& source,
 }
 
 inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int16_t y,
-                          const CustomWidgetElementConfig& element) {
+                          const CustomWidgetElementConfig& element, uint16_t textColor) {
     int16_t graphY = y + 2;
     if (element.showLabel && !element.label.isEmpty()) {
-        ScreenStyle::useBody(display);
+        ScreenStyle::useBody(display, textColor);
         const String label = fitText(display, element.label, element.width);
         const int16_t labelX = alignedX(display, x, element.width, label, element.align);
         display.setCursor(labelX, y + 15);
@@ -196,7 +196,7 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
 
     int16_t graphH = element.height - (graphY - y) - 2;
     if (graphH < 20) graphH = 20;
-    display.drawRect(x, graphY, element.width, graphH, 0);
+    display.drawRect(x, graphY, element.width, graphH, textColor);
 
     const uint8_t count = dm.solar.historyCount;
     if (count < 2) return;
@@ -228,7 +228,7 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
             const int16_t px = left + static_cast<int16_t>((static_cast<uint32_t>(i) * plotW) / count);
             if (barH > 0) {
                 const int16_t w = barWidth > 1 ? barWidth - 1 : 1;
-                display.fillRect(px, top + plotH - barH, w, barH, 0);
+                display.fillRect(px, top + plotH - barH, w, barH, textColor);
             }
         }
         return;
@@ -246,7 +246,7 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
         if (normalized < 0.0f) normalized = 0.0f;
         if (normalized > 1.0f) normalized = 1.0f;
         const int16_t py = top + plotH - 1 - static_cast<int16_t>(normalized * (plotH - 1));
-        if (previousValid) display.drawLine(previousX, previousY, px, py, 0);
+        if (previousValid) display.drawLine(previousX, previousY, px, py, textColor);
         previousX = px;
         previousY = py;
         previousValid = true;
@@ -254,18 +254,23 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
 }
 
 inline void draw(IDisplay& display, const DataModel& dm, const HomeLayoutWidgetConfig& widget) {
-    ScreenStyle::drawCard(display, widget.x, widget.y, widget.width, widget.height,
-                          widget.title.isEmpty() ? "VLASTNÍ" : widget.title.c_str());
+    const bool blackBackground = widget.background == "black";
+    const uint16_t textColor = widget.inverseText ? 1 : 0;
+    ScreenStyle::drawStyledCard(
+        display, widget.x, widget.y, widget.width, widget.height,
+        widget.title.isEmpty() ? "VLASTNÍ" : widget.title.c_str(),
+        widget.showFrame, blackBackground, widget.inverseText);
 
+    // elements[] is the Z-order: first is bottom, last is top.
     for (uint8_t i = 0; i < widget.elements.size() && i < MaxCustomWidgetElements; ++i) {
         const CustomWidgetElementConfig& element = widget.elements[i];
         const int16_t x = widget.x + element.x;
         const int16_t y = widget.y + element.y;
 
-        if (element.type == "text") drawText(display, x, y, element);
-        else if (element.type == "kpi") drawKpi(display, dm, x, y, element);
-        else if (element.type == "progress") drawProgress(display, dm, x, y, element);
-        else if (element.type == "sparkline") drawSparkline(display, dm, x, y, element);
+        if (element.type == "text") drawText(display, x, y, element, textColor);
+        else if (element.type == "kpi") drawKpi(display, dm, x, y, element, textColor);
+        else if (element.type == "progress") drawProgress(display, dm, x, y, element, textColor);
+        else if (element.type == "sparkline") drawSparkline(display, dm, x, y, element, textColor);
     }
 }
 
