@@ -724,6 +724,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 a.y + a.height > widget.height - 8) {
                 ids.add(a.id);
             }
+            const fontSizes = apiState?.customWidget?.fontSizes || ['auto','small','normal','large'];
+            const alignments = apiState?.customWidget?.alignments || ['left','center','right'];
+            const graphStyles = apiState?.customWidget?.graphStyles || ['line','bars'];
+            if (!fontSizes.includes(a.fontSize || 'auto')) ids.add(a.id);
+            if (!alignments.includes(a.align || 'left')) ids.add(a.id);
+            if (!graphStyles.includes(a.graphStyle || 'line')) ids.add(a.id);
+            if (a.type !== 'sparkline' && (a.graphStyle || 'line') !== 'line') ids.add(a.id);
+
             if (a.type === 'text') {
                 if (!a.text) ids.add(a.id);
             } else {
@@ -801,6 +809,21 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const sourceOptions = sources.map(source =>
             `<option value="${escapeHtml(source.id)}" ${source.id === element.source ? 'selected' : ''}>${escapeHtml(source.label)} (${escapeHtml(source.id)})</option>`
         ).join('');
+        const fontOptions = (apiState?.customWidget?.fontSizes || ['auto','small','normal','large'])
+            .map(value => {
+                const names = {auto:'Automatická', small:'Malá', normal:'Normální', large:'Velká'};
+                return `<option value="${value}" ${value === (element.fontSize || 'auto') ? 'selected' : ''}>${names[value] || value}</option>`;
+            }).join('');
+        const alignOptions = (apiState?.customWidget?.alignments || ['left','center','right'])
+            .map(value => {
+                const names = {left:'Vlevo', center:'Na střed', right:'Vpravo'};
+                return `<option value="${value}" ${value === (element.align || 'left') ? 'selected' : ''}>${names[value] || value}</option>`;
+            }).join('');
+        const graphStyleOptions = (apiState?.customWidget?.graphStyles || ['line','bars'])
+            .map(value => {
+                const names = {line:'Čára', bars:'Sloupce'};
+                return `<option value="${value}" ${value === (element.graphStyle || 'line') ? 'selected' : ''}>${names[value] || value}</option>`;
+            }).join('');
 
         form.innerHTML = `
             <div class="field full">
@@ -836,6 +859,31 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <div class="field"><label>Maximum</label><input id="customFieldMax" type="number" step="any" value="${Number(element.max ?? 100)}"></div>
                 ` : ''}
             `}
+            ${(element.type === 'text' || element.type === 'kpi') ? `
+                <div class="field">
+                    <label>Velikost písma</label>
+                    <select id="customFieldFontSize">${fontOptions}</select>
+                </div>
+            ` : ''}
+            <div class="field">
+                <label>Zarovnání</label>
+                <select id="customFieldAlign">${alignOptions}</select>
+            </div>
+            ${element.type !== 'text' ? `
+                <div class="field full">
+                    <label class="toggle" style="display:flex;gap:8px;align-items:center">
+                        <input id="customFieldShowLabel" type="checkbox" ${element.showLabel !== false ? 'checked' : ''}>
+                        <span class="slider"></span>
+                        <span>Zobrazit popisek</span>
+                    </label>
+                </div>
+            ` : ''}
+            ${element.type === 'sparkline' ? `
+                <div class="field full">
+                    <label>Styl grafu</label>
+                    <select id="customFieldGraphStyle">${graphStyleOptions}</select>
+                </div>
+            ` : ''}
             <div class="field"><label>X</label><input id="customFieldX" type="number" value="${element.x}"></div>
             <div class="field"><label>Y</label><input id="customFieldY" type="number" value="${element.y}"></div>
             <div class="field"><label>Šířka</label><input id="customFieldW" type="number" value="${element.width}"></div>
@@ -855,6 +903,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             const decimals = document.getElementById('customFieldDecimals');
             const min = document.getElementById('customFieldMin');
             const max = document.getElementById('customFieldMax');
+            const fontSize = document.getElementById('customFieldFontSize');
+            const align = document.getElementById('customFieldAlign');
+            const showLabel = document.getElementById('customFieldShowLabel');
+            const graphStyle = document.getElementById('customFieldGraphStyle');
             if (text) current.text = text.value;
             if (source) {
                 current.source = source.value;
@@ -868,6 +920,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             if (decimals) current.decimals = Number(decimals.value);
             if (min) current.min = Number(min.value);
             if (max) current.max = Number(max.value);
+            current.fontSize = fontSize ? fontSize.value : (current.fontSize || 'auto');
+            current.align = align ? align.value : (current.align || 'left');
+            current.showLabel = showLabel ? showLabel.checked : (current.showLabel !== false);
+            current.graphStyle = graphStyle ? graphStyle.value : (current.graphStyle || 'line');
             current.x = Number(document.getElementById('customFieldX')?.value ?? current.x);
             current.y = Number(document.getElementById('customFieldY')?.value ?? current.y);
             current.width = Number(document.getElementById('customFieldW')?.value ?? current.width);
@@ -1037,7 +1093,11 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             height,
             decimals: Number(source.decimals ?? 1),
             min: 0,
-            max: type === 'progress' && source.unit === '%' ? 100 : 100
+            max: 100,
+            fontSize: 'auto',
+            align: 'left',
+            showLabel: true,
+            graphStyle: 'line'
         };
         widget.elements = widget.elements || [];
         widget.elements.push(element);
@@ -1167,7 +1227,11 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 height: 30,
                 decimals: 1,
                 min: 0,
-                max: 100
+                max: 100,
+                fontSize: 'auto',
+                align: 'left',
+                showLabel: true,
+                graphStyle: 'line'
             }]
         };
         normalizeWidget(widget);
