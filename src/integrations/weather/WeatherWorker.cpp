@@ -53,11 +53,54 @@ IWeatherProvider* WeatherWorker::providerFor(const String& providerName) {
     return nullptr;
 }
 
+void WeatherWorker::setMemoryHeavyGate(SemaphoreHandle_t gate) {
+    _memoryHeavyGate = gate;
+}
+
+bool WeatherWorker::takeMemoryHeavyGate() {
+    if (_memoryHeavyGate == nullptr) return true;
+
+    bool waitingLogged = false;
+    while (!_stopRequested) {
+        if (xSemaphoreTake(
+                _memoryHeavyGate,
+                pdMS_TO_TICKS(250)) == pdTRUE) {
+            if (waitingLogged) {
+                Serial.println("[WEATHER] Memory gate ziskan, TLS muze zacit.");
+            }
+            return true;
+        }
+
+        if (!waitingLogged) {
+            Serial.println("[WEATHER] Cekam na memory gate pred TLS...");
+            waitingLogged = true;
+        }
+    }
+
+    return false;
+}
+
 bool WeatherWorker::begin(const WeatherConfig& config) {
     if (_task != nullptr) return reconfigure(config);
 
     _config = config;
     _provider = providerFor(_config.provider);
+    _configGeneration = 0;
+    _providerGeneration = 0;
+    _cacheProvider = "";
+
+    if (!_config.enabled) {
+        _provider = nullptr;
+        _latest = WeatherData();
+        _hasLatest = false;
+        Serial.printf(
+            "[WEATHER] Modul je vypnuty; worker se nevytvari. free=%u, maxBlock=%u\n",
+            ESP.getFreeHeap(),
+            ESP.getMaxAllocHeap());
+        return true;
+    }
+
+    _stopRequested = false;
     _configGeneration = 1;
     _providerGeneration = 1;
     _cacheProvider = _config.provider;
@@ -99,6 +142,23 @@ bool WeatherWorker::begin(const WeatherConfig& config) {
 }
 
 bool WeatherWorker::reconfigure(const WeatherConfig& config) {
+    if (!config.enabled) {
+        const bool stopped = stop();
+        if (!stopped) return false;
+
+        _config = config;
+        _provider = nullptr;
+        _latest = WeatherData();
+        _hasLatest = false;
+
+        Serial.printf(
+            "[WEATHER] Modul vypnut; task, cache a mutex uvolneny. "
+            "free=%u, maxBlock=%u\n",
+            ESP.getFreeHeap(),
+            ESP.getMaxAllocHeap());
+        return true;
+    }
+
     if (_mutex == nullptr || _task == nullptr) return begin(config);
 
     if (xSemaphoreTake(_mutex, pdMS_TO_TICKS(1000)) != pdTRUE) {
@@ -109,7 +169,6 @@ bool WeatherWorker::reconfigure(const WeatherConfig& config) {
     const bool providerChanged = _config.provider != config.provider;
     const bool activeChanged =
         _config.activeLocationId != config.activeLocationId;
-    const bool enabledChanged = _config.enabled != config.enabled;
 
     _config = config;
     _provider = providerFor(_config.provider);
@@ -117,13 +176,7 @@ bool WeatherWorker::reconfigure(const WeatherConfig& config) {
     if (providerChanged) ++_providerGeneration;
 
     reconcileCacheLocked(_config, providerChanged);
-
-    if (_config.enabled) {
-        publishCachedActiveLocked(_config);
-    } else {
-        _latest = WeatherData();
-        _hasLatest = false;
-    }
+    publishCachedActiveLocked(_config);
 
     uint8_t validCount = 0;
     for (const auto& entry : _cache) {
@@ -136,20 +189,48 @@ bool WeatherWorker::reconfigure(const WeatherConfig& config) {
 
     Serial.printf(
         "[WEATHER] Konfigurace za behu: gen=%lu providerGen=%lu, %s, "
-        "active=%s, interval=%lu s, enabled=%d, cache=%u/%u%s%s%s\n",
+        "active=%s, interval=%lu s, cache=%u/%u%s%s\n",
         static_cast<unsigned long>(generation),
         static_cast<unsigned long>(providerGeneration),
         _config.provider.c_str(),
         _config.activeLocationId.c_str(),
         static_cast<unsigned long>(_config.pollIntervalSeconds),
-        _config.enabled,
         validCount,
         static_cast<unsigned>(_config.locationCount),
         providerChanged ? " provider-change" : "",
-        activeChanged ? " active-change" : "",
-        enabledChanged ? " enabled-change" : "");
+        activeChanged ? " active-change" : "");
 
     xTaskNotifyGive(_task);
+    return true;
+}
+
+bool WeatherWorker::stop(uint32_t timeoutMs) {
+    TaskHandle_t task = _task;
+    if (task == nullptr) {
+        return true;
+    }
+
+    Serial.println("[WEATHER] Pozadavek na korektni zastaveni workeru...");
+    _stopRequested = true;
+    xTaskNotifyGive(task);
+
+    const uint32_t started = millis();
+    while (_task != nullptr &&
+           millis() - started < timeoutMs) {
+        delay(10);
+    }
+
+    if (_task != nullptr) {
+        Serial.printf(
+            "[WEATHER] Worker se nepodarilo zastavit do %lu ms; "
+            "task nebyl nasilne ukoncen.\n",
+            static_cast<unsigned long>(timeoutMs));
+        return false;
+    }
+
+    Serial.printf(
+        "[WEATHER] Worker zastaven korektne za %lu ms.\n",
+        static_cast<unsigned long>(millis() - started));
     return true;
 }
 
@@ -470,6 +551,8 @@ void WeatherWorker::taskLoop() {
     bool waitingForClockLogged = false;
 
     for (;;) {
+        if (_stopRequested) break;
+
         WeatherConfig config;
         IWeatherProvider* provider = nullptr;
         uint32_t providerGeneration = 0;
@@ -566,12 +649,7 @@ void WeatherWorker::taskLoop() {
             xSemaphoreGive(_mutex);
         }
 
-        if (!config.enabled) {
-            ulTaskNotifyTake(
-                pdTRUE,
-                portMAX_DELAY);
-            continue;
-        }
+        if (_stopRequested) break;
 
         if (!haveTarget) {
             ulTaskNotifyTake(
@@ -621,6 +699,8 @@ void WeatherWorker::taskLoop() {
             working.status.recordError(
                 "Unsupported provider");
         } else {
+            if (!takeMemoryHeavyGate()) break;
+
             Serial.printf(
                 "[WEATHER] Fetch %s: %s (%.5f, %.5f)%s | "
                 "free=%u, maxBlock=%u\n",
@@ -638,7 +718,15 @@ void WeatherWorker::taskLoop() {
                 provider->update(
                     targetConfig,
                     working);
+
+            if (_memoryHeavyGate != nullptr) {
+                xSemaphoreGive(_memoryHeavyGate);
+            }
         }
+
+        // Pokud prisel stop behem HTTP/TLS operace, nedotykame se uz cache.
+        // Task se uklidi a ukonci sam, aby nebyl zrusen uprostred knihovny.
+        if (_stopRequested) break;
 
         uint32_t validForSeconds =
             config.pollIntervalSeconds;
@@ -667,4 +755,40 @@ void WeatherWorker::taskLoop() {
             pdTRUE,
             pdMS_TO_TICKS(BackgroundFetchGapMs));
     }
+
+    cleanupTaskResources();
+    vTaskDelete(nullptr);
+}
+
+void WeatherWorker::cleanupTaskResources() {
+    SemaphoreHandle_t mutex = _mutex;
+
+    if (mutex != nullptr &&
+        xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
+        clearCacheLocked();
+        _latest = WeatherData();
+        _hasLatest = false;
+        _provider = nullptr;
+        _cacheProvider = "";
+        _configGeneration = 0;
+        _providerGeneration = 0;
+        xSemaphoreGive(mutex);
+    }
+
+    _mutex = nullptr;
+    if (mutex != nullptr) {
+        vSemaphoreDelete(mutex);
+    }
+
+    _stopRequested = false;
+
+    // _task nulujeme az po kompletnim uklidu. stop() se tak vrati teprve
+    // ve chvili, kdy uz hlavni task muze bezpecne pokracovat.
+    _task = nullptr;
+
+    Serial.printf(
+        "[WEATHER] Task ukoncen a runtime prostredky uvolneny. "
+        "free=%u, maxBlock=%u\n",
+        ESP.getFreeHeap(),
+        ESP.getMaxAllocHeap());
 }

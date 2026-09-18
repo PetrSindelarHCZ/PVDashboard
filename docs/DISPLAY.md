@@ -92,6 +92,31 @@ display preview fixes“) a následně ověřena na zařízení. Historický deb
 proto není potřeba uchovávat jako jediný zdroj této informace.
 
 
+## Koordinace renderu a Weather TLS
+
+Test lifecycle WeatherWorkeru 18. 9. 2026 ukázal, že po opětovném zapnutí
+počasí se worker vytvořil správně a aktivní lokalita se načetla. Následné
+background fetchy ale mohly selhat na `SSL - Memory allocation failed`, pokud
+se překryly s full/partial renderem e-paperu a tvorbou preview.
+
+Nešlo o restart zařízení. Uptime pokračoval plynule a problém byl způsoben
+současným tlakem na souvislou interní DRAM.
+
+Na větvi `feature/weather-worker-lifecycle` je proto společný FreeRTOS mutex
+(memory-heavy gate):
+
+- `DisplayWorker` ho drží během inicializace a celého renderu včetně preview,
+- `WeatherWorker` ho drží pouze během HTTPS/TLS fetchu,
+- weather task při čekání na gate kontroluje stop request každých 250 ms,
+- při vypnutí se task nikdy násilně nemaže uprostřed TLS operace,
+- display a TLS se díky tomu nemohou rozběhnout současně.
+
+GitHub Actions release workflow po této změně úspěšně sestavil firmware a
+validoval release artefakty. Následný test na fyzickém ESP32 potvrdil správné
+čekání v obou směrech (Display čeká na Weather TLS i Weather na Display),
+korektní vypnutí/zapnutí workeru a úspěšné načtení všech tří lokalit bez
+`SSL - Memory allocation failed`.
+
 ## Známá omezení
 
 ### České písmo na černém pozadí

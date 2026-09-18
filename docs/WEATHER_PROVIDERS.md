@@ -23,6 +23,25 @@ API.
 - API nemusí poskytnout pravděpodobnost srážek. V takovém případě se zobrazuje
   pouze dostupné množství srážek.
 
+
+## Životní cyklus WeatherWorkeru
+
+Při vypnutém modulu počasí nemá WeatherWorker držet runtime prostředky:
+
+- při startu s `weather.enabled=false` se FreeRTOS task ani mutex nevytvoří,
+- při vypnutí za běhu dostane worker požadavek na korektní ukončení,
+- pokud právě probíhá HTTP/TLS operace, nechá se bezpečně dokončit a task se
+  nemaže násilně z jiného tasku,
+- před ukončením se uvolní weather cache, mutex a stack tasku,
+- uložená konfigurace provideru a lokalit zůstává v NVS,
+- při opětovném zapnutí se worker vytvoří znovu z uložené konfigurace.
+
+Toto chování šetří přibližně 12 kB stacku plus cache a režii tasku v době, kdy
+je modul počasí vypnutý. Implementace byla ověřena na fyzickém ESP32 scénářem
+zapnuto → vypnout → znovu zapnout. Worker se korektně ukončil, uvolnil runtime
+prostředky a po opětovném zapnutí znovu načetl všechny tři lokality.
+
+
 ## HTTPS
 
 Oba klienti používají WeatherTls a společný PEM seznam v

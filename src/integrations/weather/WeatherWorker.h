@@ -13,7 +13,9 @@ class WeatherWorker {
 public:
     bool begin(const WeatherConfig& config);
     bool reconfigure(const WeatherConfig& config);
+    bool stop(uint32_t timeoutMs = 10000);
     bool takeLatest(WeatherData& weatherData);
+    void setMemoryHeavyGate(SemaphoreHandle_t gate);
 
 private:
     static constexpr uint32_t TaskStackBytes = 12288;
@@ -41,7 +43,9 @@ private:
     MetNorwayClient _metNorwayClient;
     IWeatherProvider* _provider = nullptr;
     SemaphoreHandle_t _mutex = nullptr;
+    SemaphoreHandle_t _memoryHeavyGate = nullptr;
     TaskHandle_t _task = nullptr;
+    volatile bool _stopRequested = false;
 
     WeatherData _latest;
     bool _hasLatest = false;
@@ -54,6 +58,8 @@ private:
 
     static void taskEntry(void* parameter);
     void taskLoop();
+    void cleanupTaskResources();
+    bool takeMemoryHeavyGate();
 
     IWeatherProvider* providerFor(const String& providerName);
 

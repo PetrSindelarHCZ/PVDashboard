@@ -76,6 +76,16 @@ void DashboardApp::setup() {
     Serial.println("==========================================");
 
     _configManager.begin();
+
+    _memoryHeavyGate = xSemaphoreCreateMutex();
+    if (_memoryHeavyGate == nullptr) {
+        Serial.println("[APP] VAROVANI: memory-heavy gate se nepodarilo vytvorit.");
+    } else {
+        _displayWorker.setMemoryHeavyGate(_memoryHeavyGate);
+        _weatherWorker.setMemoryHeavyGate(_memoryHeavyGate);
+        Serial.println("[APP] Memory-heavy gate pripraven pro Display/TLS.");
+    }
+
     _displayPreview.init(); // tiled preview; komprimovany snapshot se drzi mimo TLS DRAM
     const auto& cfg = _configManager.get();
     applyWifiAddressing(cfg.wifi);
