@@ -18,6 +18,11 @@ public:
     static constexpr size_t BmpHeaderBytes = 62;
     static constexpr size_t BmpBytes = BmpHeaderBytes + BitmapBytes;
 
+    // Preview nesmí kvůli TLS trvale držet celý 48 kB framebuffer.
+    // Pokud by se konkrétní snímek nezkomprimoval pod tento limit,
+    // preview pro daný frame raději nebude dostupné.
+    static constexpr size_t MaxStoredBytes = 32768;
+
     DisplayPreview() = default;
     ~DisplayPreview() override;
 
@@ -63,9 +68,20 @@ private:
     static uint16_t normalizeColor(uint16_t color) { return color == 0 ? 0 : 1; }
     void buildBmpHeader(uint8_t* header) const;
 
+    bool ensureCanvas();
+    void releaseCanvas();
+    static size_t packedSize(const uint8_t* input, size_t length);
+    static bool pack(const uint8_t* input, size_t length, uint8_t* output, size_t outputSize);
+    bool writeUnpacked(WiFiClient& client) const;
+
+    // Canvas je pouze pracovní buffer při capture(), nikoliv trvalý snapshot.
     GFXcanvas1* _canvas = nullptr;
     U8G2_FOR_ADAFRUIT_GFX _u8g2;
     SemaphoreHandle_t _mutex = nullptr;
+
+    uint8_t* _packed = nullptr;
+    size_t _packedBytes = 0;
+
     bool _useUnicodeFont = false;
     bool _initialized = false;
     bool _hasCapture = false;
