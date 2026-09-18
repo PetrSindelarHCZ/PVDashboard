@@ -122,8 +122,8 @@ stále demonstrační; reálný DS18B20/Wi-Fi uzel zatím není připojen.
 
 ### Vnitřní prostředí
 
-Layout a demonstrační hodnoty existují. BME280 ani budoucí CO2 senzor ještě
-nejsou připojené.
+Layout a demonstrační hodnoty existují. BME280 zatím není připojený. Měření
+CO₂ není součástí aktuálního plánu; jde pouze o možnou budoucí úvahu.
 
 ### Fyzické ovládání
 
