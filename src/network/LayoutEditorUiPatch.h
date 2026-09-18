@@ -1264,13 +1264,13 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             const current = (widget.elements || []).find(item => item.id === selectedElementId);
             if (!current) return;
             current.text = event.target.value;
-            renderCustomElements(widget);
+            renderCustomElements(widget, false);
         });
         document.getElementById('customFieldLabel')?.addEventListener('input', event => {
             const current = (widget.elements || []).find(item => item.id === selectedElementId);
             if (!current) return;
             current.label = event.target.value;
-            renderCustomElements(widget);
+            renderCustomElements(widget, false);
         });
         document.getElementById('customDuplicateElement')?.addEventListener('click', () => {
             duplicateSelectedElement(widget);
@@ -1285,7 +1285,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         });
     }
 
-    function renderCustomElements(widget) {
+    function renderCustomElements(widget, includeForm = true) {
         const stage = document.getElementById('customWidgetStage');
         const layer = document.getElementById('customElementLayer');
         const grid = document.getElementById('customElementGrid');
@@ -1374,7 +1374,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 : 'Prvky jsou v pořádku. Překryvy jsou povolené; pořadí určuje vrstvu.';
             note.className = 'custom-editor-note' + (invalid.size ? ' error' : '');
         }
-        renderCustomElementForm(widget);
+        if (includeForm) renderCustomElementForm(widget);
     }
 
     function renderCustomEditor() {
