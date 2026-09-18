@@ -138,6 +138,27 @@ bool MetNorwayClient::update(const WeatherConfig& config, WeatherData& weatherDa
         return false;
     }
 
+    const bool cacheMatches =
+        _hasCachedData &&
+        fabs(_cachedLatitude - config.latitude) <= 0.00001 &&
+        fabs(_cachedLongitude - config.longitude) <= 0.00001;
+    const uint32_t effectiveCacheSeconds =
+        max<uint32_t>(_cacheSeconds, MinimumCacheSeconds);
+    if (cacheMatches && _cacheStoredMs != 0 &&
+        millis() - _cacheStoredMs < effectiveCacheSeconds * 1000UL) {
+        weatherData = _cachedData;
+        weatherData.enabled = config.enabled;
+        const WeatherLocation* activeLocation = config.activeLocation();
+        weatherData.locationName = activeLocation ? activeLocation->name : "";
+        weatherData.provider = "MET Norway";
+        weatherData.lastUpdateMs = millis();
+        weatherData.status.recordSuccess();
+        _cacheStoredMs = millis();
+        Serial.printf("[WEATHER] MET Norway: pouzita lokalni cache (%lu s stara)\n",
+                      static_cast<unsigned long>((millis() - _cacheStoredMs) / 1000UL));
+        return true;
+    }
+
     const String url =
         "https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=" +
         String(config.latitude, 4) + "&lon=" + String(config.longitude, 4);
@@ -165,11 +186,6 @@ bool MetNorwayClient::update(const WeatherConfig& config, WeatherData& weatherDa
     const int httpCode = http.GET();
     if (httpCode == HTTP_CODE_NOT_MODIFIED) {
         updateCachePolicy(http.header("Date"), http.header("Expires"));
-        const bool cacheMatches =
-            _hasCachedData &&
-            fabs(_cachedLatitude - config.latitude) <= 0.00001 &&
-            fabs(_cachedLongitude - config.longitude) <= 0.00001;
-
         if (!cacheMatches) {
             http.end();
             _lastModified = "";
@@ -227,6 +243,7 @@ bool MetNorwayClient::update(const WeatherConfig& config, WeatherData& weatherDa
     weatherData.status.recordSuccess();
 
     _cachedData = weatherData;
+    _cacheStoredMs = millis();
     _cachedLatitude = config.latitude;
     _cachedLongitude = config.longitude;
     _hasCachedData = true;
@@ -242,6 +259,7 @@ bool MetNorwayClient::update(const WeatherConfig& config, WeatherData& weatherDa
 void MetNorwayClient::resetCache() {
     _lastModified = "";
     _cacheSeconds = 0;
+    _cacheStoredMs = 0;
     _cachedData = WeatherData();
     _hasCachedData = false;
     _cachedLatitude = 0.0;
