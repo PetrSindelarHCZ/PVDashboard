@@ -13,6 +13,7 @@
 #include "NetworkDiagnostics.h"
 #include "../diagnostics/Performance.h"
 #include "../config/ConfigBackup.h"
+#include "../layout/HomeLayout.h"
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
@@ -103,6 +104,133 @@ String customNtpServersJson(const std::vector<String>& servers) {
     serializeJson(doc, response);
     return response;
 }
+
+String homeLayoutResponseJson(const HomeLayoutConfig& config, const DataModel& dataModel) {
+    JsonDocument doc;
+    doc["screen"] = "home";
+    doc["customized"] = config.customized;
+
+    JsonObject bounds = doc["bounds"].to<JsonObject>();
+    bounds["x"] = HomeLayout::ContentLeft;
+    bounds["y"] = HomeLayout::ContentTop;
+    bounds["width"] = HomeLayout::ContentRight - HomeLayout::ContentLeft;
+    bounds["height"] = HomeLayout::ContentBottom - HomeLayout::ContentTop;
+
+    JsonArray stored = doc["widgets"].to<JsonArray>();
+    for (uint8_t i = 0; i < config.widgetCount && i < MaxHomeLayoutWidgets; ++i) {
+        const HomeLayoutWidgetConfig& widget = config.widgets[i];
+        JsonObject item = stored.add<JsonObject>();
+        item["id"] = widget.id;
+        item["type"] = widget.type;
+        item["visible"] = widget.visible;
+        item["x"] = widget.x;
+        item["y"] = widget.y;
+        item["width"] = widget.width;
+        item["height"] = widget.height;
+    }
+
+    ScreenLayout effective;
+    HomeLayout::buildResolved(config, dataModel, effective);
+    JsonArray effectiveItems = doc["effectiveWidgets"].to<JsonArray>();
+    for (uint8_t i = 0; i < effective.count(); ++i) {
+        const LayoutWidget& widget = effective[i];
+        JsonObject item = effectiveItems.add<JsonObject>();
+        item["id"] = widget.id;
+        item["type"] = HomeLayout::typeName(widget.type);
+        item["x"] = widget.x;
+        item["y"] = widget.y;
+        item["width"] = widget.width;
+        item["height"] = widget.height;
+    }
+
+    JsonArray supported = doc["supportedWidgets"].to<JsonArray>();
+    const char* ids[] = {"weather-card", "energy-card", "indoor-card"};
+    const char* types[] = {"weather", "energy", "indoor"};
+    for (uint8_t i = 0; i < 3; ++i) {
+        JsonObject item = supported.add<JsonObject>();
+        item["id"] = ids[i];
+        item["type"] = types[i];
+        item["minWidth"] = HomeLayout::minWidth(types[i]);
+        item["minHeight"] = HomeLayout::minHeight(types[i]);
+    }
+
+    String response;
+    serializeJson(doc, response);
+    return response;
+}
+}
+
+void DashboardWebServer::onHomeLayoutConfig(HomeLayoutConfigCallback callback) {
+    _homeLayoutConfigCallback = callback;
+
+    _server.on("/api/layout/home", HTTP_GET, [this]() {
+        _server.sendHeader("Cache-Control", "no-store");
+        _server.send(
+            200,
+            "application/json",
+            homeLayoutResponseJson(_config.display.homeLayout, _dataModel));
+    });
+
+    _server.on("/api/layout/home", HTTP_POST, [this]() {
+        if (!_homeLayoutConfigCallback || !_server.hasArg("plain")) {
+            _server.send(
+                503,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"Home layout configuration unavailable\"}");
+            return;
+        }
+
+        HomeLayoutConfig layout;
+        String error;
+        if (!HomeLayout::parseJson(_server.arg("plain"), layout, &error)) {
+            JsonDocument doc;
+            doc["status"] = "error";
+            doc["message"] = error;
+            String response;
+            serializeJson(doc, response);
+            _server.send(400, "application/json", response);
+            return;
+        }
+
+        if (!_homeLayoutConfigCallback(layout)) {
+            _server.send(
+                500,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"Failed to save Home layout\"}");
+            return;
+        }
+
+        _server.sendHeader("Cache-Control", "no-store");
+        _server.send(
+            200,
+            "application/json",
+            homeLayoutResponseJson(_config.display.homeLayout, _dataModel));
+    });
+
+    _server.on("/api/layout/home/reset", HTTP_POST, [this]() {
+        if (!_homeLayoutConfigCallback) {
+            _server.send(
+                503,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"Home layout configuration unavailable\"}");
+            return;
+        }
+
+        HomeLayoutConfig layout;
+        if (!_homeLayoutConfigCallback(layout)) {
+            _server.send(
+                500,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"Failed to reset Home layout\"}");
+            return;
+        }
+
+        _server.sendHeader("Cache-Control", "no-store");
+        _server.send(
+            200,
+            "application/json",
+            homeLayoutResponseJson(_config.display.homeLayout, _dataModel));
+    });
 }
 
 void DashboardWebServer::enableTimezoneUiExtension() {
