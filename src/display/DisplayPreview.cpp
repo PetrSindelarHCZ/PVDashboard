@@ -203,7 +203,8 @@ void DisplayPreview::capture(
     }
 
     if (!ensureCanvas()) {
-        _hasCapture = false;
+        // Posledni uspesny snapshot ponechame dostupny. Selhani noveho
+        // capture nesmi zneplatnit nahled, ktery uz v pameti mame.
         xSemaphoreGive(_mutex);
         return;
     }
@@ -265,17 +266,14 @@ void DisplayPreview::capture(
         ++_generation;
     } else {
         delete[] nextPacked;
-        delete[] _packed;
-        _packed = nullptr;
-        _packedBytes = 0;
-        _hasCapture = false;
 
         Serial.printf(
-            "[DISPLAY-PREVIEW] Snapshot nelze ulozit: pack=%u B, limit=%u B, free=%u, maxBlock=%u\n",
+            "[DISPLAY-PREVIEW] Novy snapshot nelze ulozit: pack=%u B, limit=%u B, free=%u, maxBlock=%u%s\n",
             static_cast<unsigned>(encodedBytes),
             static_cast<unsigned>(MaxStoredBytes),
             ESP.getFreeHeap(),
-            ESP.getMaxAllocHeap());
+            ESP.getMaxAllocHeap(),
+            _hasCapture ? " | ponechavam predchozi nahled" : "");
     }
 
     releaseCanvas();
@@ -394,24 +392,60 @@ bool DisplayPreview::writeUnpacked(
     WiFiClient& client) const {
     if (_packed == nullptr || _packedBytes == 0) return false;
 
-    auto writeAll = [&client](
-        const uint8_t* data,
-        size_t length) -> bool {
+    // Posilat jednotlive RLE bloky znamenalo stovky velmi malych TCP write()
+    // volani. Na Wi-Fi pak 48kB BMP dokazal blokovat WebServer pres 10 s.
+    // Data proto skládáme do vetsiho vystupniho bufferu a posilame po blocich.
+    constexpr size_t OutputBufferBytes = 1024;
+    uint8_t outputBuffer[OutputBufferBytes];
+    size_t buffered = 0;
+
+    auto flush = [&]() -> bool {
         size_t written = 0;
-        while (written < length) {
+        while (written < buffered) {
             const size_t chunk =
                 client.write(
-                    data + written,
-                    length - written);
+                    outputBuffer + written,
+                    buffered - written);
             if (chunk == 0) return false;
             written += chunk;
+        }
+        buffered = 0;
+        return true;
+    };
+
+    auto emit = [&](const uint8_t* data, size_t length) -> bool {
+        while (length > 0) {
+            const size_t space = OutputBufferBytes - buffered;
+            const size_t chunk = min(space, length);
+            memcpy(outputBuffer + buffered, data, chunk);
+            buffered += chunk;
+            data += chunk;
+            length -= chunk;
+
+            if (buffered == OutputBufferBytes && !flush()) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    auto emitRun = [&](uint8_t value, size_t length) -> bool {
+        while (length > 0) {
+            const size_t space = OutputBufferBytes - buffered;
+            const size_t chunk = min(space, length);
+            memset(outputBuffer + buffered, value, chunk);
+            buffered += chunk;
+            length -= chunk;
+
+            if (buffered == OutputBufferBytes && !flush()) {
+                return false;
+            }
         }
         return true;
     };
 
     size_t input = 0;
     size_t produced = 0;
-    uint8_t runBuffer[64];
 
     while (input < _packedBytes &&
            produced < BitmapBytes) {
@@ -429,21 +463,9 @@ bool DisplayPreview::writeUnpacked(
             }
 
             const uint8_t value = _packed[input++];
-
-            memset(runBuffer, value, sizeof(runBuffer));
-
-            size_t remaining = runLength;
-            while (remaining > 0) {
-                const size_t chunk =
-                    min(
-                        remaining,
-                        sizeof(runBuffer));
-                if (!writeAll(runBuffer, chunk)) {
-                    return false;
-                }
-                remaining -= chunk;
+            if (!emitRun(value, runLength)) {
+                return false;
             }
-
             produced += runLength;
         } else {
             const size_t literalLength =
@@ -454,7 +476,7 @@ bool DisplayPreview::writeUnpacked(
                 return false;
             }
 
-            if (!writeAll(
+            if (!emit(
                     _packed + input,
                     literalLength)) {
                 return false;
@@ -465,8 +487,12 @@ bool DisplayPreview::writeUnpacked(
         }
     }
 
-    return produced == BitmapBytes &&
-           input == _packedBytes;
+    if (produced != BitmapBytes ||
+        input != _packedBytes) {
+        return false;
+    }
+
+    return buffered == 0 || flush();
 }
 
 bool DisplayPreview::writeBmp(WiFiClient& client) {
