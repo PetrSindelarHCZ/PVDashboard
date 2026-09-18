@@ -179,7 +179,7 @@ inline void drawSidebar(IDisplay& d, const DataModel& dm) {
 
     // Horní položky skládáme těsně pod sebe od horního okraje sidebaru.
     // Dlaždice mají výšku 58 px; 2 px mezera dává krok 60 px.
-    constexpr int16_t firstCenterY = HeaderHeight + 2 + 29;
+    constexpr int16_t firstCenterY = HeaderHeight + 6 + 29;
     constexpr int16_t itemStep = 60;
     int16_t y = firstCenterY;
 
