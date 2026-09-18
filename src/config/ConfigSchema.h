@@ -52,6 +52,11 @@ struct HomeLayoutWidgetConfig {
     int16_t width = 0;
     int16_t height = 0;
 
+    // Card appearance is supported by both predefined and custom Home widgets.
+    bool showFrame = true;
+    String background = "white"; // white | black
+    bool inverseText = false;
+
     // Used only by type == "custom". Predefined widgets keep these empty.
     String title = "";
     std::vector<CustomWidgetElementConfig> elements;
@@ -139,7 +144,7 @@ struct PoolConfig {
 };
 
 struct AppConfig {
-    uint8_t schemaVersion = 9;
+    uint8_t schemaVersion = 10;
     SystemConfig system;
     WifiConfig wifi;
     DisplayConfig display;
