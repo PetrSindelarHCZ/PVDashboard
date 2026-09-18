@@ -1375,11 +1375,15 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         gridSelect.addEventListener('change', () => {
             gridStep = Number(gridSelect.value) || 5;
             updateGrid();
+            const widget = byId(selectedId);
+            if (widget?.type === 'custom') renderCustomElements(widget);
         });
 
         document.getElementById('layoutSnapToggle').addEventListener('change', event => {
             snapEnabled = event.target.checked;
             updateGrid();
+            const widget = byId(selectedId);
+            if (widget?.type === 'custom') renderCustomElements(widget);
         });
         document.getElementById('layoutAddCustomButton').addEventListener('click', addCustomWidget);
         document.querySelectorAll('[data-add-element]').forEach(button => {
