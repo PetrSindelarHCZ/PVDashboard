@@ -670,7 +670,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
         <div class="card">
             <div class="card-title">Demonstrační data</div>
-            <div class="update-message">Vnitřní teploty, CO₂ a bazénová technologie zatím nejsou měřené. Hodnoty na těchto obrazovkách jsou demonstrační.</div>
+            <div class="update-message">Vnitřní teploty a bazénová technologie zatím nejsou měřené. Hodnoty na těchto obrazovkách jsou demonstrační.</div>
         </div>
         <div class="card">
             <div class="card-title">Aktualizace z GitHubu</div>
