@@ -85,7 +85,7 @@ už stav `enabled` respektují; jde o drobný UI dluh, ne o problém pollingu.
 - [x] DHCP i statická konfigurace,
 - [x] mDNS `dashboard.local`,
 - [x] NTP a časová zóna; čas v záhlaví se nezobrazuje před první platnou synchronizací,
-- [x] export/import konfigurace v YAML,
+- [x] export/import konfigurace v YAML (`pvdashboard-config` v5),
 - [x] tovární reset,
 - [x] změny počasí, bazénu a energetických zdrojů se aplikují za běhu tam,
   kde není nutný restart síťové vrstvy.
@@ -146,6 +146,7 @@ Krátké testy a chování fronty jsou ověřené. Stále chybí dlouhodobý ale
 - [ ] reálná bazénová čidla a samostatný uzel,
 - [ ] ČHMÚ weather provider, pokud půjde bezpečně omezit objem regionálních dat,
 - [ ] rozšířit host-side testy GoodWe, AZRouteru, konfigurace a verzování,
+- [ ] případně rozšířit YAML backup i o celý seznam známých Wi-Fi sítí a `autoConnect`,
 - [ ] konfigurovatelný layout obrazovek a editor ve WebUI,
 - [ ] 433MHz/CC1101 gateway pro vzdálená čidla,
 - [ ] historie KPI, agregace a případná nezávislá cloudová vrstva.
