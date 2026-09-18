@@ -229,22 +229,73 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 .custom-element-box {
     position: absolute;
     box-sizing: border-box;
-    border: 2px solid #7c3aed;
-    background: rgba(237,233,254,.5);
+    border: 2px dashed rgba(124,58,237,.85);
+    background: transparent;
     cursor: move;
 }
 .custom-element-box.selected {
     border-width: 3px;
-    background: rgba(221,214,254,.65);
+    border-style: solid;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.65);
 }
 .custom-element-box.invalid {
     border-color: #dc2626;
-    background: rgba(254,226,226,.65);
+    background: rgba(254,226,226,.28);
+}
+.custom-element-preview {
+    position: absolute;
+    inset: 0;
+    padding: 5px;
+    box-sizing: border-box;
+    overflow: hidden;
+    pointer-events: none;
+    line-height: 1.15;
+}
+.custom-element-preview.align-left { text-align: left; }
+.custom-element-preview.align-center { text-align: center; }
+.custom-element-preview.align-right { text-align: right; }
+.custom-element-preview.font-small { font-size: 11px; }
+.custom-element-preview.font-normal { font-size: 14px; }
+.custom-element-preview.font-large { font-size: 20px; font-weight: 700; }
+.custom-element-preview.font-auto { font-size: 13px; }
+.custom-element-preview .preview-label {
+    font-size: 11px;
+    opacity: .8;
+    margin-bottom: 3px;
+}
+.custom-element-preview .preview-value {
+    font-size: 1.35em;
+    font-weight: 700;
+}
+.custom-element-preview .preview-progress {
+    height: 12px;
+    border: 1px solid currentColor;
+    margin-top: 5px;
+}
+.custom-element-preview .preview-progress > span {
+    display: block;
+    height: 100%;
+    width: 62%;
+    background: currentColor;
+}
+.custom-element-preview svg {
+    display: block;
+    width: 100%;
+    height: calc(100% - 16px);
+    min-height: 25px;
+}
+.custom-element-preview svg * {
+    stroke: currentColor;
+    fill: none;
+}
+.custom-element-preview svg .bar {
+    fill: currentColor;
+    stroke: none;
 }
 .custom-element-label {
     position: absolute;
     left: 3px;
-    top: 3px;
+    bottom: 3px;
     right: 3px;
     font-size: .64rem;
     line-height: 1.2;
@@ -321,12 +372,39 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 }
 .custom-editor-note.error { color: #b91c1c; }
 
+.card-style-panel {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+.card-style-panel[hidden] { display: none; }
+.card-style-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(120px, 1fr));
+    gap: 10px;
+    align-items: end;
+}
+.card-style-grid .field { margin: 0; }
+.layer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.layer-actions .btn {
+    width: auto;
+    min-height: 0;
+    padding: 6px 9px;
+    font-size: .72rem;
+}
+
 @media (max-width: 699px) {
     .layout-editor-stage-wrap { padding: 6px; }
     .layout-editor-bottom { grid-template-columns: 1fr; }
     .layout-editor-inspector { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .custom-editor-lower { grid-template-columns: 1fr; }
     .custom-element-form { grid-template-columns: 1fr; }
+    .card-style-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 </style>
 <script>
@@ -359,6 +437,15 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         .replace(/'/g, '&#039;');
     const byId = id => draft.find(w => w.id === id);
     const supportedById = id => (apiState?.supportedWidgets || []).find(w => w.id === id);
+    const defaultWidgetById = id => (apiState?.defaultWidgets || []).find(w => w.id === id);
+
+    function ensureWidgetStyle(widget) {
+        if (!widget) return widget;
+        if (typeof widget.showFrame !== 'boolean') widget.showFrame = true;
+        if (!widget.background) widget.background = 'white';
+        if (typeof widget.inverseText !== 'boolean') widget.inverseText = false;
+        return widget;
+    }
 
     function widgetMinimum(widget) {
         if (widget?.type === 'custom') {
@@ -610,7 +697,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const save = document.getElementById('layoutSaveButton');
         if (save) save.disabled = invalid.size > 0 || customInvalid || !draft.some(w => w.visible);
         if (invalid.size > 0) editorMessage('Widgety se překrývají. Uložení je zablokované.', 'error');
-        else if (customInvalid) editorMessage('Vlastní widget obsahuje neplatné nebo překrývající se prvky.', 'error');
+        else if (customInvalid) editorMessage('Vlastní widget obsahuje neplatný prvek.', 'error');
     }
 
     function beginInteraction(event, id) {
@@ -745,10 +832,6 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             }
             for (let j = i + 1; j < elements.length; j++) {
                 if (a.id === elements[j].id) {
-                    ids.add(a.id);
-                    ids.add(elements[j].id);
-                }
-                if (elementOverlap(a, elements[j])) {
                     ids.add(a.id);
                     ids.add(elements[j].id);
                 }
@@ -1015,8 +1098,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const note = document.getElementById('customEditorNote');
         if (note) {
             note.textContent = invalid.size
-                ? 'Některé prvky jsou mimo plochu nebo se překrývají.'
-                : 'Prvky jsou v pořádku. Změny se uloží až hlavním tlačítkem Uložit.';
+                ? 'Některý prvek má neplatnou geometrii nebo konfiguraci.'
+                : 'Prvky jsou v pořádku. Překryvy jsou povolené; pořadí určuje vrstvu.';
             note.className = 'custom-editor-note' + (invalid.size ? ' error' : '');
         }
         renderCustomElementForm(widget);
