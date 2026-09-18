@@ -131,7 +131,7 @@ String homeLayoutResponseJson(const HomeLayoutConfig& config, const DataModel& d
         if (widget.type == "custom") {
             item["title"] = widget.title;
             JsonArray elements = item["elements"].to<JsonArray>();
-            for (uint8_t e = 0; e < widget.elementCount && e < MaxCustomWidgetElements; ++e) {
+            for (uint8_t e = 0; e < widget.elements.size() && e < MaxCustomWidgetElements; ++e) {
                 const CustomWidgetElementConfig& element = widget.elements[e];
                 JsonObject child = elements.add<JsonObject>();
                 HomeLayout::serializeElement(child, element);
