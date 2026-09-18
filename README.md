@@ -109,6 +109,7 @@ URL a SHA-256 získané přímo z GitHub release, ověří celý obraz a potom s
 - [Měření odezvy](docs/PERFORMANCE.md)
 - [Další postup](docs/ROADMAP.md)
 - [Zachycené projektové záměry a neimplementované funkce](docs/PROJECT_INTENT_BACKLOG.md)
+- [Audit starých Dashboard chatů před ručním mazáním](docs/CHAT_CLEANUP_AUDIT_2026-09-18.md)
 
 Výsledky měření z 14. 9. 2026 jsou historické snímky konkrétních testů:
 
