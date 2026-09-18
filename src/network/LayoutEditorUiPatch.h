@@ -180,9 +180,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         el.className = 'layout-editor-message' + (kind ? ' ' + kind : '');
     }
 
-    function snap(value) {
+    function snapSize(value) {
         if (!snapEnabled || !gridStep) return Math.round(value);
         return Math.round(value / gridStep) * gridStep;
+    }
+
+    function snapPosition(value, origin) {
+        if (!snapEnabled || !gridStep) return Math.round(value);
+        return origin + Math.round((value - origin) / gridStep) * gridStep;
     }
 
     function stageRect() {
@@ -373,18 +378,18 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const o = interaction.original;
 
         if (interaction.mode === 'move') {
-            widget.x = snap(o.x + dx);
-            widget.y = snap(o.y + dy);
+            widget.x = snapPosition(o.x + dx, apiState.bounds.x);
+            widget.y = snapPosition(o.y + dy, apiState.bounds.y);
         } else {
             let left = o.x;
             let top = o.y;
             let right = o.x + o.width;
             let bottom = o.y + o.height;
             const h = interaction.handle;
-            if (h.includes('w')) left = snap(o.x + dx);
-            if (h.includes('e')) right = snap(o.x + o.width + dx);
-            if (h.includes('n')) top = snap(o.y + dy);
-            if (h.includes('s')) bottom = snap(o.y + o.height + dy);
+            if (h.includes('w')) left = snapPosition(o.x + dx, apiState.bounds.x);
+            if (h.includes('e')) right = snapPosition(o.x + o.width + dx, apiState.bounds.x);
+            if (h.includes('n')) top = snapPosition(o.y + dy, apiState.bounds.y);
+            if (h.includes('s')) bottom = snapPosition(o.y + o.height + dy, apiState.bounds.y);
 
             const supported = supportedById(widget.id);
             const minW = supported?.minWidth || gridStep;
@@ -446,10 +451,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             return;
         }
 
-        const widgets = draft.filter(widget => widget.visible || apiState.customized);
         const payload = {
             customized: true,
-            widgets
+            widgets: clone(draft)
         };
 
         const button = document.getElementById('layoutSaveButton');
@@ -591,7 +595,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             if (!apiState) return;
             const b = apiState.bounds;
             const bounds = document.getElementById('layoutEditorBounds');
-            cssRect(bounds, {x:b.x, y:b.y, width:b.width, height:b.height});
+            const grid = document.getElementById('layoutEditorGrid');
+            const contentRect = {x:b.x, y:b.y, width:b.width, height:b.height};
+            cssRect(bounds, contentRect);
+            cssRect(grid, contentRect);
         });
 
         setInterval(() => {
