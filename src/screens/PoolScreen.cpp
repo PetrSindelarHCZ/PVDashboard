@@ -63,4 +63,18 @@ void PoolScreen::render(IDisplay& display, const DataModel& dm) {
     display.print("Poslední údržba: 6. 9.");
     display.setCursor(550, 380);
     display.print("Demonstrační hodnoty");
+
+    NavigationLayout navigationLayout;
+    buildNavigationLayout(dm, navigationLayout);
+    ScreenStyle::drawPageNavigationFocus(display, dm, navigationLayout);
+}
+
+void PoolScreen::buildNavigationLayout(const DataModel&, NavigationLayout& layout) const {
+    layout.clear();
+    layout.add("water-card", 75, 63, 166, 132);
+    layout.add("ph-card", 251, 63, 166, 132);
+    layout.add("chlorine-card", 427, 63, 166, 132);
+    layout.add("air-card", 603, 63, 182, 132);
+    layout.add("technology-card", 75, 210, 450, 255);
+    layout.add("info-card", 535, 210, 250, 255);
 }
