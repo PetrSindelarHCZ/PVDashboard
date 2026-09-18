@@ -76,6 +76,7 @@ void DashboardApp::setup() {
     Serial.println("==========================================");
 
     _configManager.begin();
+    _displayPreview.init(); // rezervovat 1bit 800x480 framebuffer drive, nez se heap fragmentuje
     const auto& cfg = _configManager.get();
     applyWifiAddressing(cfg.wifi);
 
