@@ -169,8 +169,12 @@ inline bool validateCustomWidget(const HomeLayoutWidgetConfig& widget, String* e
             return fail("Graph style is valid only for sparkline elements");
         }
 
+        int16_t requiredHeight = elementMinHeight(element.type);
+        if (element.type == "text" && element.fontSize == "large" && requiredHeight < 28) {
+            requiredHeight = 28;
+        }
         if (element.width < elementMinWidth(element.type) ||
-            element.height < elementMinHeight(element.type)) {
+            element.height < requiredHeight) {
             return fail("Custom element is smaller than its supported minimum");
         }
 
