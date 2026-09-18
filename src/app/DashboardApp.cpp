@@ -1,4 +1,5 @@
 #include "DashboardApp.h"
+#include <math.h>
 #include "../diagnostics/Performance.h"
 #include "../../include/AppConfig.h"
 #include "../../include/Version.h"
@@ -252,14 +253,43 @@ void DashboardApp::setup() {
     });
 
     _webServer.onWeatherConfig([this](const WeatherConfig& weather) {
-        const bool enabledChanged = _configManager.get().weather.enabled != weather.enabled;
+        const WeatherConfig previous = _configManager.get().weather;
+        const bool enabledChanged = previous.enabled != weather.enabled;
+        const bool providerChanged = previous.provider != weather.provider;
+        const bool locationChanged =
+            fabs(previous.latitude - weather.latitude) > 0.00001 ||
+            fabs(previous.longitude - weather.longitude) > 0.00001;
+
         _configManager.setWeather(weather);
         const WeatherConfig& applied = _configManager.get().weather;
-        if (!_weatherWorker.reconfigure(applied)) Serial.println("[CONFIG] Nepodarilo se aplikovat konfiguraci pocasi za behu.");
-        _dataModel.weather.enabled = applied.enabled;
+        if (!_weatherWorker.reconfigure(applied)) {
+            Serial.println("[CONFIG] Nepodarilo se aplikovat konfiguraci pocasi za behu.");
+        }
+
         const WeatherLocation* activeLocation = applied.activeLocation();
-        _dataModel.weather.locationName = activeLocation ? activeLocation->name : "";
-        if (!applied.enabled) _dataModel.weather.status.recordError("Weather disabled");
+        const String activeLocationName = activeLocation ? activeLocation->name : "";
+
+        if (providerChanged || locationChanged) {
+            // Starou predpoved nesmime po prepnuti zdroje/lokality vydavat za
+            // data nove konfigurace. Cekame na prvni platnou odpoved workeru.
+            WeatherData pending;
+            pending.enabled = applied.enabled;
+            pending.provider = applied.provider == "met-no" ? "MET Norway" :
+                               (applied.provider == "open-meteo" ? "Open-Meteo" : applied.provider);
+            pending.locationName = activeLocationName;
+            pending.status.available = false;
+            pending.status.lastAttemptMs = millis();
+            pending.status.lastError = "Aktualizuji pocasi";
+            _dataModel.weather = pending;
+        } else {
+            _dataModel.weather.enabled = applied.enabled;
+            _dataModel.weather.locationName = activeLocationName;
+        }
+
+        if (!applied.enabled) {
+            _dataModel.weather.status.recordError("Weather disabled");
+        }
+
         setWeatherScreensEnabled(applied.enabled);
         if (enabledChanged) requestDisplayRefresh(true, 100);
         else requestAutomaticDisplayRefresh();
@@ -393,7 +423,14 @@ void DashboardApp::loop() {
 
     WeatherData weatherUpdate;
     if (_weatherWorker.takeLatest(weatherUpdate)) {
-        const bool changed = weatherUpdate.status.available != _dataModel.weather.status.available || weatherUpdate.lastUpdateMs != _dataModel.weather.lastUpdateMs;
+        const bool changed =
+            weatherUpdate.status.available != _dataModel.weather.status.available ||
+            weatherUpdate.lastUpdateMs != _dataModel.weather.lastUpdateMs ||
+            weatherUpdate.provider != _dataModel.weather.provider ||
+            weatherUpdate.locationName != _dataModel.weather.locationName ||
+            weatherUpdate.dailyCount != _dataModel.weather.dailyCount ||
+            weatherUpdate.hourlyCount != _dataModel.weather.hourlyCount ||
+            weatherUpdate.status.lastError != _dataModel.weather.status.lastError;
         _dataModel.weather = weatherUpdate;
         if (changed) requestAutomaticDisplayRefresh();
     }
