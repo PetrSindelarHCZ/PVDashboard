@@ -122,12 +122,14 @@ Navigace rozlišuje dvě oblasti:
 
 - **Sidebar** — výchozí stav. `UP/DOWN` prochází položky, `OK` aktivuje a načte
   vybranou stránku, `LEFT` se ignoruje a `RIGHT` vstoupí do právě zobrazené stránky.
-- **Page** — `UP/DOWN/LEFT/RIGHT` se pohybuje mezi focusovatelnými prvky.
-  `LEFT` nejprve hledá další prvek vlevo; pokud už žádný neexistuje, focus se
-  vrátí do sidebaru. Tím lze stránku opustit z libovolného prvku na jejím levém
-  navigačním okraji.
-- `OK` uvnitř stránky je zatím rezervované pro budoucí práci s prvkem, editaci
-  nebo potvrzení.
+- **Page bez podstránek** — `UP/DOWN/LEFT/RIGHT` se pohybuje mezi
+  focusovatelnými prvky. `LEFT` bez dalšího prvku vlevo vrátí focus do sidebaru.
+- **Page s více podstránkami** — po `RIGHT` ze sidebaru se nejdřív vstoupí do
+  obecné pager vrstvy. `LEFT/RIGHT` přepíná podstránky a `OK` teprve vstoupí
+  do navigace prvků aktuální podstránky. `LEFT` z prvku bez souseda vlevo vrací
+  focus z prvků zpět do pageru. Z první podstránky vrací další `LEFT` do sidebaru.
+- `OK` nad konkrétním prvkem je zatím rezervované pro budoucí práci s prvkem,
+  editaci nebo potvrzení.
 
 WebUI na kartě **Obrazovky** používá stejné navigační akce jako budoucí fyzický
 joystick. Neobsahuje vlastní logiku přepínání.
@@ -144,6 +146,12 @@ layoutu.
 Toto pravidlo je důležité hlavně pro budoucí editovatelnou Home stránku:
 po změně pozice, velikosti nebo přítomnosti widgetů se navigace sestaví z právě
 platné konfigurace stránky bez změny firmware nebo ručně psaného grafu vazeb.
+
+Pager je obecná vlastnost `IScreen`, nikoli speciální logika Počasí. Weather
+ji používá pro jednu podstránku na každou nakonfigurovanou lokalitu. Při více
+lokalitách se dole na e-inku zobrazí řada teček; vyplněná tečka označuje právě
+zobrazenou lokalitu. Přepnutí pageru nemění persistentní `activeLocationId`,
+takže Home dál používá uživatelem zvolenou aktivní lokalitu.
 
 ### Co ještě chybí
 
