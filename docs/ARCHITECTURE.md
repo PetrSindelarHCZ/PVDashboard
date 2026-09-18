@@ -104,6 +104,32 @@ obdélníků. Sousedi se odvozují z geometrie, takže budoucí konfigurovateln�
 nemusí mít ručně psaný navigační graf. Weather používá Pager pro lokality;
 dočasná volba lokality na e-inku nemění persistentní aktivní lokalitu Home.
 
+
+## Konfigurace a provozní zásady
+
+Konfigurace se ukládá do ESP32 NVS v namespace **dashboard**. Zahrnuje systém,
+síť, známé Wi-Fi, GoodWe, AZRouter, bazén a počasí. Dynamické moduly se po změně
+konfigurace registrují nebo odregistrují za běhu a NavigationController se
+následně synchronizuje.
+
+Známé Wi-Fi sítě mají SSID, heslo a persistentní autoConnect. Ruční Odpojit
+nastaví autoConnect=false; ruční Připojit síť znovu povolí. Pokud není dostupná
+žádná povolená známá síť, zařízení udržuje recovery AP **Dashboard-Setup**.
+
+Aktuální AppConfig schemaVersion je 6. YAML záloha používá vlastní formát
+**pvdashboard-config v5** a obsahuje systém, aktuální Wi-Fi/IP, GoodWe,
+AZRouter, bazén a počasí včetně lokalit. Zatím neobsahuje celý seznam známých
+Wi-Fi sítí ani jejich autoConnect příznaky.
+
+Základní provozní pravidla:
+
+- hesla a tokeny se nesmí objevit v běžném API ani logu,
+- vypnutý modul nesmí zanechat obrazovku ani neplatný navigační focus,
+- neúspěšná OTA nesmí poškodit běžící firmware,
+- firmware musí zůstat menší než jeden OTA slot,
+- lokální dashboard musí fungovat bez cloudové služby,
+- pomalý e-paper refresh nesmí blokovat WebUI.
+
 ## Omezení platformy
 
 Deska má přibližně 4 MB flash a nemá PSRAM. Partition layout `min_spiffs.csv`
