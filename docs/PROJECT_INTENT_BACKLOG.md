@@ -475,7 +475,7 @@ dočasný workaround ani otevřený bod.
 
 ---
 
-## 17. Vypínatelný modul počasí — ROZHODNUTO / IMPLEMENTOVÁNO NA VĚTVI
+## 17. Vypínatelný modul počasí — HOTOVO / OVĚŘENO
 
 Počasí má být možné vypnout bez ztráty uložené konfigurace. Cílové chování je:
 
@@ -493,10 +493,10 @@ dokončí a poté sám uvolní cache, mutex a svůj stack.
 
 Při opětovném zapnutí se WeatherWorker znovu vytvoří z uložené konfigurace.
 
-Toto rozhodnutí je implementováno na větvi
-`feature/weather-worker-lifecycle`. Release workflow úspěšně sestavilo firmware
-a validovalo release artefakty. Před sloučením do masteru zbývá provozní test na
-fyzickém zařízení.
+Implementace byla ověřena na fyzickém zařízení. Vypnutí worker korektně ukončí
+a uvolní jeho runtime prostředky; opětovné zapnutí znovu vytvoří worker a načte
+všechny nakonfigurované lokality. Současně je ověřen společný memory-heavy gate
+mezi DisplayWorkerem a Weather TLS, takže render a TLS již neběží souběžně.
 
 ---
 
