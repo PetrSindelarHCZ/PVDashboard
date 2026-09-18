@@ -13,6 +13,7 @@ public:
     void render(IDisplay& display, const DataModel& dataModel) override;
     bool isSidebarEntry() const override { return _forecastDay < 0; }
     String getSidebarParentId() const override { return "weather"; }
+    void buildNavigationLayout(const DataModel& dataModel, NavigationLayout& layout) const override;
 
 private:
     int8_t _forecastDay;
