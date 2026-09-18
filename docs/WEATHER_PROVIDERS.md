@@ -37,9 +37,9 @@ Při vypnutém modulu počasí nemá WeatherWorker držet runtime prostředky:
 - při opětovném zapnutí se worker vytvoří znovu z uložené konfigurace.
 
 Toto chování šetří přibližně 12 kB stacku plus cache a režii tasku v době, kdy
-je modul počasí vypnutý. Implementace je připravena na větvi
-`feature/weather-worker-lifecycle` a release workflow na této větvi úspěšně
-ověřilo sestavení firmware i kontrolu release artefaktů.
+je modul počasí vypnutý. Implementace byla ověřena na fyzickém ESP32 scénářem
+zapnuto → vypnout → znovu zapnout. Worker se korektně ukončil, uvolnil runtime
+prostředky a po opětovném zapnutí znovu načetl všechny tři lokality.
 
 
 ## HTTPS
