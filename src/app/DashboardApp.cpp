@@ -127,6 +127,7 @@ void DashboardApp::setup() {
         _screenManager.activateScreen("home");
     }
     _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
+    _dataModel.pool.enabled = cfg.pool.enabled;
     _dataModel.weather.enabled = cfg.weather.enabled;
     const WeatherLocation* initialWeatherLocation = cfg.weather.activeLocation();
     const int initialWeatherIndex =
@@ -322,6 +323,17 @@ void DashboardApp::setup() {
         Serial.println("[CONFIG] Datove zdroje ulozeny a aplikovany za behu.");
     });
 
+    _webServer.onPoolConfig([this](const PoolConfig& pool) {
+        const bool enabledChanged = _configManager.get().pool.enabled != pool.enabled;
+        _configManager.setPool(pool);
+        _dataModel.pool.enabled = pool.enabled;
+        setPoolScreenEnabled(pool.enabled);
+        _navigationController.syncToActiveScreen(false);
+        if (enabledChanged) requestDisplayRefresh(true, 100);
+        else requestAutomaticDisplayRefresh();
+        Serial.println("[CONFIG] Bazen ulozen a aplikovan za behu.");
+    });
+
     _webServer.onWeatherConfig([this](const WeatherConfig& weather) {
         const WeatherConfig previous = _configManager.get().weather;
         const bool enabledChanged = previous.enabled != weather.enabled;
@@ -400,12 +412,33 @@ void DashboardApp::setup() {
 void DashboardApp::registerScreens() {
     _screenManager.registerScreen(&_homeScreen);
     _screenManager.registerScreen(&_solarScreen);
-    _screenManager.registerScreen(&_poolScreen);
+    if (_configManager.get().pool.enabled) {
+        _screenManager.registerScreen(&_poolScreen);
+    }
     if (_configManager.get().weather.enabled) {
         _screenManager.registerScreen(&_weatherScreen);
         for (auto& screen : _weatherHourlyScreens) _screenManager.registerScreen(&screen);
     }
     _screenManager.registerScreen(&_diagnosticsScreen);
+}
+
+void DashboardApp::setPoolScreenEnabled(bool enabled) {
+    const bool poolWasActive = _screenManager.getActiveScreenId() == "pool";
+
+    if (enabled) {
+        _screenManager.registerScreen(&_poolScreen);
+        _navigationController.syncToActiveScreen(false);
+        return;
+    }
+
+    _screenManager.unregisterScreen("pool");
+
+    if (poolWasActive) {
+        _screenManager.activateScreen("home");
+        _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
+        requestDisplayRefresh(true, 100);
+    }
+    _navigationController.syncToActiveScreen(false);
 }
 
 void DashboardApp::setWeatherScreensEnabled(bool enabled) {
