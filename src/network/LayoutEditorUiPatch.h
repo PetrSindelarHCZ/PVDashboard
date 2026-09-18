@@ -893,16 +893,23 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
     function requiredElementHeight(element) {
         const typeInfo = elementTypeInfo(element.type);
-        let required = Number(typeInfo.minHeight || 20);
+        const baseHeight = Number(typeInfo.minHeight || 20);
         const fontValue = normalizeFontSizeValue(element.fontSize);
-        if (fontValue === 'auto') return required;
-        const fontPx = requestedFontPx(element, element.type === 'kpi');
-        if (element.type === 'text') required = Math.max(required, fontPx);
+
+        if (element.type === 'text') {
+            if (fontValue === 'auto') return baseHeight;
+            return Math.max(baseHeight, requestedFontPx(element, false));
+        }
+
         if (element.type === 'kpi') {
             const hasLabel = element.showLabel !== false && String(element.label || '').length > 0;
-            required = Math.max(required, fontPx + (hasLabel ? 20 : 0));
+            const valueHeight = fontValue === 'auto'
+                ? baseHeight
+                : Math.max(baseHeight, requestedFontPx(element, true));
+            return valueHeight + (hasLabel ? 20 : 0);
         }
-        return required;
+
+        return baseHeight;
     }
 
     function customElementLabel(element) {

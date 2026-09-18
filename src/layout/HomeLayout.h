@@ -77,7 +77,7 @@ inline int16_t elementMinWidth(const String& type) {
 
 inline int16_t elementMinHeight(const String& type) {
     if (type == "text") return 20;
-    if (type == "kpi") return 45;
+    if (type == "kpi") return 25;
     if (type == "progress") return 35;
     if (type == "sparkline") return 60;
     return 0;
@@ -161,18 +161,23 @@ inline bool parseCustomFontSize(const String& value, uint8_t& px) {
 }
 
 inline int16_t requiredElementHeight(const CustomWidgetElementConfig& element) {
-    int16_t required = elementMinHeight(element.type);
+    const int16_t baseHeight = elementMinHeight(element.type);
     uint8_t fontPx = 0;
-    if (!parseCustomFontSize(element.fontSize, fontPx) || fontPx == 0) return required;
+    if (!parseCustomFontSize(element.fontSize, fontPx)) return baseHeight;
 
-    int16_t requested = required;
     if (element.type == "text") {
-        requested = static_cast<int16_t>(fontPx);
-    } else if (element.type == "kpi") {
-        const bool hasLabel = element.showLabel && !element.label.isEmpty();
-        requested = static_cast<int16_t>(fontPx + (hasLabel ? 20 : 0));
+        if (fontPx == 0) return baseHeight;
+        return fontPx > baseHeight ? fontPx : baseHeight;
     }
-    return requested > required ? requested : required;
+
+    if (element.type == "kpi") {
+        const bool hasLabel = element.showLabel && !element.label.isEmpty();
+        const int16_t valueHeight =
+            fontPx == 0 ? baseHeight : (fontPx > baseHeight ? fontPx : baseHeight);
+        return static_cast<int16_t>(valueHeight + (hasLabel ? 20 : 0));
+    }
+
+    return baseHeight;
 }
 
 inline bool validateCustomWidget(const HomeLayoutWidgetConfig& widget, String* error = nullptr) {
