@@ -62,7 +62,7 @@ inline bool resolveValue(const DataModel& dm, const String& source, float& value
 }
 
 inline String formatValue(float value, uint8_t decimals, const String& unit) {
-    String text(value, decimals);
+    String text(value, static_cast<unsigned int>(decimals));
     if (!unit.isEmpty()) {
         text += " ";
         text += unit;
