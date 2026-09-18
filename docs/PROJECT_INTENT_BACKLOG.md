@@ -305,21 +305,31 @@ Dokud toto není splněno, nemá být ČHMÚ ve WebUI nabízené jako funkční 
 
 ---
 
-## 10. GoodWe + AZRouter a simulátor — zachovat architektonické rozhodnutí
+## 10. GoodWe + AZRouter a simulátor — HOTOVO / SAMOSTATNÉ REPO
 
 Produkční zařízení jsou dvě nezávislá zařízení a konfigurace proto musí mít pro
 GoodWe a AZRouter samostatný host/IP, port a příslušný protokol.
 
-Vývojový simulátor může naopak provozovat oba emulované zdroje na jedné IP
-adrese a rozlišovat je portem/protokolem.
+Vývojový simulátor je uložen v samostatném repozitáři
+`PetrSindelarHCZ/Dashboard.DeviceSimulator`. Repo obsahuje zdrojový projekt,
+README, dokumentaci protokolů a API, fixtures, testy, VS Code workspace a
+startovací skript.
+
+Simulátor může provozovat oba emulované zdroje na jedné IP adrese a rozlišuje je
+portem/protokolem:
+
+- GoodWe: UDP/8899,
+- AZRouter: HTTP/8081,
+- ovládací WebUI/API simulátoru: HTTP/8080.
 
 Z toho plyne dlouhodobé pravidlo:
 
 **Nikdy neslučovat konfiguraci GoodWe a AZRouteru do jednoho společného
 „FVE hostu“.**
 
-Toto je důležité i tehdy, když současný vývojový simulátor obě služby obsluhuje
-na jednom počítači.
+Toto je důležité i tehdy, když vývojový simulátor obě služby obsluhuje na jednom
+počítači. Historické chaty o vzniku simulátoru už nejsou jediným zdrojem jeho
+implementace ani dokumentace.
 
 ---
 
