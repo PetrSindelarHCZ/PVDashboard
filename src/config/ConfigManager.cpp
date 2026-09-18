@@ -134,6 +134,7 @@ bool ConfigManager::begin() {
     if (preferences.isKey("az_host")) _config.azrouter.host = preferences.getString("az_host", _config.azrouter.host);
     _config.azrouter.port = preferences.getUShort("az_port", _config.azrouter.port);
     _config.azrouter.pollIntervalSeconds = preferences.getUInt("az_interval", _config.azrouter.pollIntervalSeconds);
+    _config.pool.enabled = preferences.getBool("pool_enabled", _config.pool.enabled);
     _config.weather.enabled = preferences.getBool("wx_enabled", _config.weather.enabled);
     if (preferences.isKey("wx_provider")) _config.weather.provider = preferences.getString("wx_provider", _config.weather.provider);
     _config.weather.latitude = preferences.getDouble("wx_lat", _config.weather.latitude);
@@ -154,6 +155,7 @@ bool ConfigManager::begin() {
     Serial.printf("  Timezone: %s (%s)\n", _config.system.timezoneId.c_str(), _config.system.timezone.c_str());
     Serial.printf("  GoodWe: %s (host: %s:%u)\n", _config.goodwe.enabled ? "Povoleno" : "Zakazano", _config.goodwe.host.c_str(), _config.goodwe.port);
     Serial.printf("  AZRouter: %s (host: %s:%u)\n", _config.azrouter.enabled ? "Povoleno" : "Zakazano", _config.azrouter.host.c_str(), _config.azrouter.port);
+    Serial.printf("  Bazen: %s\n", _config.pool.enabled ? "Povoleno" : "Zakazano");
     const WeatherLocation* activeWeatherLocation = _config.weather.activeLocation();
     Serial.printf("  Pocasi: %s | mist: %u | aktivni: %s (%.5f, %.5f)\n",
                   _config.weather.enabled ? "Povoleno" : "Zakazano",
@@ -292,6 +294,14 @@ void ConfigManager::setSources(const GoodWeConfig& goodwe, const AZRouterConfig&
     preferences.putBool("az_enabled", azrouter.enabled); preferences.putString("az_host", azrouter.host); preferences.putUShort("az_port", azrouter.port); preferences.putUInt("az_interval", azrouter.pollIntervalSeconds); preferences.end();
 }
 
+void ConfigManager::setPool(const PoolConfig& pool) {
+    _config.pool = pool;
+    Preferences preferences;
+    preferences.begin("dashboard", false);
+    preferences.putBool("pool_enabled", pool.enabled);
+    preferences.end();
+}
+
 void ConfigManager::setWeather(const WeatherConfig& weather) {
     WeatherConfig normalized = weather;
     normalized.syncActiveCoordinates();
@@ -322,6 +332,7 @@ bool ConfigManager::setUserConfiguration(const AppConfig& config) {
     preferences.putBool("wifi_dhcp", config.wifi.dhcp); preferences.putString("wifi_ip", config.wifi.ipAddress); preferences.putString("wifi_mask", config.wifi.subnetMask); preferences.putString("wifi_gw", config.wifi.gateway); preferences.putString("wifi_dns1", config.wifi.dns1); preferences.putString("wifi_dns2", config.wifi.dns2);
     preferences.putBool("gw_enabled", config.goodwe.enabled); preferences.putString("gw_host", config.goodwe.host); preferences.putUShort("gw_port", config.goodwe.port); preferences.putUInt("gw_interval", config.goodwe.pollIntervalSeconds);
     preferences.putBool("az_enabled", config.azrouter.enabled); preferences.putString("az_host", config.azrouter.host); preferences.putUShort("az_port", config.azrouter.port); preferences.putUInt("az_interval", config.azrouter.pollIntervalSeconds);
+    preferences.putBool("pool_enabled", config.pool.enabled);
     WeatherConfig normalizedWeather = config.weather;
     normalizedWeather.syncActiveCoordinates();
     preferences.putBool("wx_enabled", normalizedWeather.enabled);
@@ -331,7 +342,7 @@ bool ConfigManager::setUserConfiguration(const AppConfig& config) {
     preferences.putUInt("wx_interval", normalizedWeather.pollIntervalSeconds);
     saveWeatherLocations(preferences, normalizedWeather);
     preferences.end();
-    _config.system = config.system; _config.wifi = config.wifi; _config.goodwe = config.goodwe; _config.azrouter = config.azrouter; _config.weather = normalizedWeather;
+    _config.system = config.system; _config.wifi = config.wifi; _config.goodwe = config.goodwe; _config.azrouter = config.azrouter; _config.pool = config.pool; _config.weather = normalizedWeather;
     rememberWifi(config.wifi.ssid, config.wifi.password, true);
     Serial.println("[CONFIG] YAML konfigurace importovana do NVS.");
     return true;

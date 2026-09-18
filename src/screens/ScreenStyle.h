@@ -197,7 +197,10 @@ inline void drawSidebar(IDisplay& d, const DataModel& dm) {
 
     drawMenuItem(d, y, "home",  dm, SidebarIcons::Icon::Home);  y += itemStep;
     drawMenuItem(d, y, "solar", dm, SidebarIcons::Icon::Solar); y += itemStep;
-    drawMenuItem(d, y, "pool",  dm, SidebarIcons::Icon::Pool);  y += itemStep;
+    if (dm.pool.enabled) {
+        drawMenuItem(d, y, "pool", dm, SidebarIcons::Icon::Pool);
+        y += itemStep;
+    }
 
     if (dm.weather.enabled) {
         drawMenuItem(d, y, "weather", dm, SidebarIcons::Icon::Weather);

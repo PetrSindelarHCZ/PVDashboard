@@ -650,6 +650,24 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
             </form>
         </div>
 
+        <div class="card pool-settings-card wide-card">
+            <div class="card-title">Bazén</div>
+            <form onsubmit="savePool(event)">
+                <section class="source-device-card">
+                    <div class="source-device-header">
+                        <div class="source-device-title">🏊 Zobrazení bazénu</div>
+                        <label class="source-enabled">
+                            <input id="poolEnabled" type="checkbox" checked onchange="savePool(event)"> Aktivní
+                        </label>
+                    </div>
+                    <div class="field-help">
+                        Určuje, zda se zobrazí stránka Bazén a bazénové údaje na hlavním souhrnu.
+                        Další nastavení bazénu doplníme později.
+                    </div>
+                </section>
+            </form>
+        </div>
+
         <div class="card">
             <div class="card-title">Demonstrační data</div>
             <div class="update-message">Vnitřní teploty, CO₂ a bazénová technologie zatím nejsou měřené. Hodnoty na těchto obrazovkách jsou demonstrační.</div>
@@ -696,6 +714,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
         let systemConfigLoaded = false;
         let sourceConfigLoaded = false;
+        let poolConfigLoaded = false;
         let weatherConfigLoaded = false;
         let lastScreenId = null;
         let weatherSearchResults = [];
@@ -725,6 +744,11 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 error: 'Chyba'
             };
             return labels[state] || state || 'Neznámý';
+        }
+
+        function setPoolScreenVisibility(enabled) {
+            const button = document.querySelector(`button[onclick="activate('pool')"]`);
+            if (button) button.hidden = !enabled;
         }
 
         async function updateStatus() {
@@ -785,6 +809,16 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     document.getElementById('azInterval').value = az.interval;
                     document.getElementById('azEnabled').checked = az.enabled;
                     sourceConfigLoaded = true;
+                }
+
+                if (data.sources && data.sources.pool) {
+                    const pool = data.sources.pool;
+                    setPoolScreenVisibility(pool.enabled !== false);
+                    if (!poolConfigLoaded) {
+                        const enabled = document.getElementById('poolEnabled');
+                        if (enabled) enabled.checked = pool.enabled !== false;
+                        poolConfigLoaded = true;
+                    }
                 }
 
                 if (!weatherConfigLoaded && data.sources && data.sources.weather) {
@@ -1142,6 +1176,36 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
             showToast('Souřadnice byly vyplněny');
         }
 
+        async function savePool(event) {
+            if (event) event.preventDefault();
+            const enabledInput = document.getElementById('poolEnabled');
+            if (!enabledInput) return;
+
+            enabledInput.disabled = true;
+            const enabled = enabledInput.checked;
+            setPoolScreenVisibility(enabled);
+
+            try {
+                const body = new URLSearchParams({enabled: enabled ? '1' : '0'});
+                const response = await fetch('/api/config/pool', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body
+                });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(result.message || ('HTTP ' + response.status));
+                poolConfigLoaded = false;
+                showToast(enabled ? 'Bazén zapnut' : 'Bazén vypnut');
+                setTimeout(updateStatus, 100);
+            } catch (error) {
+                enabledInput.checked = !enabled;
+                setPoolScreenVisibility(!enabled);
+                showToast('Nastavení bazénu se nepodařilo uložit');
+            } finally {
+                enabledInput.disabled = false;
+            }
+        }
+
         async function saveWeather(event) {
             event.preventDefault();
             const body = new URLSearchParams({
@@ -1468,6 +1532,10 @@ void DashboardWebServer::onSourceConfig(SourceConfigCallback callback) {
     _sourceConfigCallback = callback;
 }
 
+void DashboardWebServer::onPoolConfig(PoolConfigCallback callback) {
+    _poolConfigCallback = callback;
+}
+
 void DashboardWebServer::onWeatherConfig(WeatherConfigCallback callback) {
     _weatherConfigCallback = callback;
 }
@@ -1507,6 +1575,7 @@ void DashboardWebServer::setupRoutes() {
     _server.on("/api/wifi/config", HTTP_POST, [this]() { handleApiWifiConfig(); });
     _server.on("/api/wifi/scan", HTTP_GET, [this]() { handleApiWifiScan(); });
     _server.on("/api/config/sources", HTTP_POST, [this]() { handleApiSourceConfig(); });
+    _server.on("/api/config/pool", HTTP_POST, [this]() { handleApiPoolConfig(); });
     _server.on("/api/config/weather", HTTP_POST, [this]() { handleApiWeatherConfig(); });
     _server.on("/api/update/check", HTTP_GET, [this]() { handleApiCheckForUpdate(); });
     _server.on("/api/update/github", HTTP_POST, [this]() { handleApiGithubUpdate(); });
@@ -1580,6 +1649,9 @@ void DashboardWebServer::handleApiStatus() {
         azObj["lastUpdateAgeSeconds"] = (millis() - _dataModel.azrouter.status.lastSuccessMs) / 1000;
     }
 
+    JsonObject poolObj = doc["pool"].to<JsonObject>();
+    poolObj["enabled"] = _config.pool.enabled;
+
     JsonObject weatherObj = doc["weather"].to<JsonObject>();
     weatherObj["enabled"] = _config.weather.enabled;
     weatherObj["available"] = _dataModel.weather.status.available;
@@ -1608,6 +1680,8 @@ void DashboardWebServer::handleApiStatus() {
     sourceAz["host"] = _config.azrouter.host;
     sourceAz["port"] = _config.azrouter.port;
     sourceAz["interval"] = _config.azrouter.pollIntervalSeconds;
+    JsonObject sourcePool = sourcesObj["pool"].to<JsonObject>();
+    sourcePool["enabled"] = _config.pool.enabled;
     JsonObject sourceWeather = sourcesObj["weather"].to<JsonObject>();
     sourceWeather["enabled"] = _config.weather.enabled;
     sourceWeather["provider"] = _config.weather.provider;
@@ -1924,6 +1998,32 @@ void DashboardWebServer::handleApiUpdateComplete() {
     _server.send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Firmware updated; restarting\"}");
     delay(500);
     ESP.restart();
+}
+
+void DashboardWebServer::handleApiPoolConfig() {
+    if (!_server.hasArg("enabled")) {
+        _server.send(400, "application/json",
+                     "{\"status\":\"error\",\"message\":\"Missing pool setting\"}");
+        return;
+    }
+
+    const String enabled = _server.arg("enabled");
+    if (enabled != "0" && enabled != "1") {
+        _server.send(400, "application/json",
+                     "{\"status\":\"error\",\"message\":\"Invalid pool setting\"}");
+        return;
+    }
+
+    if (_poolConfigCallback) {
+        PoolConfig pool;
+        pool.enabled = enabled == "1";
+        _server.send(200, "application/json", "{\"status\":\"saved\"}");
+        _poolConfigCallback(pool);
+        return;
+    }
+
+    _server.send(503, "application/json",
+                 "{\"status\":\"error\",\"message\":\"Pool configuration unavailable\"}");
 }
 
 void DashboardWebServer::handleApiWeatherConfig() {

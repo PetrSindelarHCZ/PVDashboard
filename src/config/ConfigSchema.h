@@ -86,12 +86,20 @@ struct WeatherConfig {
     }
 };
 
+struct PoolConfig {
+    // Řídí viditelnost bazénových informací v UI/displeji.
+    // Další bazénová nastavení (čidla, limity, technologie) lze později
+    // přidat sem bez změny rozhraní ConfigManageru.
+    bool enabled = true;
+};
+
 struct AppConfig {
-    uint8_t schemaVersion = 5;
+    uint8_t schemaVersion = 6;
     SystemConfig system;
     WifiConfig wifi;
     DisplayConfig display;
     GoodWeConfig goodwe;
     AZRouterConfig azrouter;
+    PoolConfig pool;
     WeatherConfig weather;
 };

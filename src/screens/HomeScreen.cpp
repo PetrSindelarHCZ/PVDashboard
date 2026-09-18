@@ -62,12 +62,14 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
         display.setCursor(570, 290);
         display.printf("%d ppm", dm.inside.co2Ppm);
 
-        ScreenStyle::useBody(display);
-        display.setCursor(570, 335);
-        display.print("Bazén");
-        ScreenStyle::useValue(display);
-        display.setCursor(570, 360);
-        display.printf("%.1f °C", dm.inside.poolTempC);
+        if (dm.pool.enabled) {
+            ScreenStyle::useBody(display);
+            display.setCursor(570, 335);
+            display.print("Bazén");
+            ScreenStyle::useValue(display);
+            display.setCursor(570, 360);
+            display.printf("%.1f °C", dm.inside.poolTempC);
+        }
 
         NavigationLayout navigationLayout;
         buildNavigationLayout(dm, navigationLayout);
@@ -165,12 +167,14 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
     display.setCursor(570, 290);
     display.printf("%d ppm", dm.inside.co2Ppm);
 
-    ScreenStyle::useBody(display);
-    display.setCursor(570, 335);
-    display.print("Bazén");
-    ScreenStyle::useValue(display);
-    display.setCursor(570, 360);
-    display.printf("%.1f °C", dm.inside.poolTempC);
+    if (dm.pool.enabled) {
+        ScreenStyle::useBody(display);
+        display.setCursor(570, 335);
+        display.print("Bazén");
+        ScreenStyle::useValue(display);
+        display.setCursor(570, 360);
+        display.printf("%.1f °C", dm.inside.poolTempC);
+    }
 
     NavigationLayout navigationLayout;
     buildNavigationLayout(dm, navigationLayout);
