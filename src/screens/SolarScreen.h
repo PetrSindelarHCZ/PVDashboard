@@ -6,4 +6,5 @@ public:
     String getId() const override { return "solar"; }
     String getTitle() const override { return "Fotovoltaika (FVE)"; }
     void render(IDisplay& display, const DataModel& dataModel) override;
+    void buildNavigationLayout(const DataModel& dataModel, NavigationLayout& layout) const override;
 };
