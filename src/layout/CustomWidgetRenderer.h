@@ -96,8 +96,15 @@ inline const uint8_t* sourceFontFor(uint8_t px, bool bold) {
 inline int16_t sourceFontHeight(const uint8_t* font) {
     U8G2_FOR_ADAFRUIT_GFX metrics;
     metrics.setFont(font);
-    const int16_t height = metrics.getFontAscent() - metrics.getFontDescent();
+    const int16_t height =
+        metrics.u8g2.font_info.ascent_para - metrics.u8g2.font_info.descent_para;
     return height > 0 ? height : 1;
+}
+
+inline int16_t sourceFontAscent(const uint8_t* font) {
+    U8G2_FOR_ADAFRUIT_GFX metrics;
+    metrics.setFont(font);
+    return metrics.u8g2.font_info.ascent_para;
 }
 
 inline int16_t scaledTextWidth(const String& text, uint8_t targetPx, bool bold) {
@@ -155,7 +162,7 @@ inline bool drawScaledUnicodeText(IDisplay& display, int16_t x, int16_t y,
     painter.setFont(font);
     painter.setFontMode(1);
     painter.setForegroundColor(1);
-    painter.setCursor(0, painter.getFontAscent());
+    painter.setCursor(0, sourceFontAscent(font));
     painter.print(text);
 
     const int16_t targetWidth = static_cast<int16_t>(
