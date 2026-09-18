@@ -19,7 +19,24 @@ struct WifiConfig {
     String dns2 = "";
 };
 
-constexpr uint8_t MaxHomeLayoutWidgets = 3;
+constexpr uint8_t MaxHomeLayoutWidgets = 6;
+constexpr uint8_t MaxCustomWidgetElements = 8;
+
+struct CustomWidgetElementConfig {
+    String id = "";
+    String type = "";       // text | kpi | progress | sparkline
+    String source = "";     // e.g. solar.productionPowerW
+    String label = "";
+    String unit = "";
+    String text = "";
+    int16_t x = 10;         // relative to the custom widget
+    int16_t y = 45;
+    int16_t width = 120;
+    int16_t height = 50;
+    uint8_t decimals = 1;
+    float minValue = 0.0f;
+    float maxValue = 100.0f;
+};
 
 struct HomeLayoutWidgetConfig {
     String id = "";
@@ -29,6 +46,11 @@ struct HomeLayoutWidgetConfig {
     int16_t y = 0;
     int16_t width = 0;
     int16_t height = 0;
+
+    // Used only by type == "custom". Predefined widgets keep these empty.
+    String title = "";
+    uint8_t elementCount = 0;
+    CustomWidgetElementConfig elements[MaxCustomWidgetElements];
 };
 
 struct HomeLayoutConfig {
@@ -113,7 +135,7 @@ struct PoolConfig {
 };
 
 struct AppConfig {
-    uint8_t schemaVersion = 7;
+    uint8_t schemaVersion = 8;
     SystemConfig system;
     WifiConfig wifi;
     DisplayConfig display;
