@@ -102,12 +102,6 @@ void NavigationController::buildCurrentLayout(NavigationLayout& layout) const {
     if (active != nullptr) active->buildNavigationLayout(_dataModel, layout);
 }
 
-String NavigationController::currentEntryPoint() const {
-    NavigationLayout layout;
-    buildCurrentLayout(layout);
-    return layout.resolveEntryPoint();
-}
-
 bool NavigationController::enterPage(bool& screenChanged) {
     screenChanged = false;
     ensureSidebarSelection();
@@ -122,7 +116,7 @@ bool NavigationController::enterPage(bool& screenChanged) {
     NavigationLayout layout;
     buildCurrentLayout(layout);
     _state.area = NavigationArea::Page;
-    _state.focusId = layout.resolveEntryPoint();
+    _state.focusId = layout.resolveInitialFocus();
     return true;
 }
 
@@ -247,25 +241,28 @@ bool NavigationController::movePage(NavigationAction action) {
         return action == NavigationAction::Left ? leavePage() : false;
     }
 
-    const String entryPoint = layout.resolveEntryPoint();
     int current = layout.find(_state.focusId);
     if (current < 0) {
-        _state.focusId = entryPoint;
+        _state.focusId = layout.resolveInitialFocus();
         current = layout.find(_state.focusId);
         if (current < 0) return false;
     }
 
-    // LEFT is the only way back to the sidebar, and only from the page entry
-    // point. Elsewhere LEFT remains a normal in-page movement.
-    if (action == NavigationAction::Left && _state.focusId == entryPoint) {
+    const int next = findNeighbour(layout, current, action);
+    if (next >= 0) {
+        _state.focusId = layout.elements[next].id;
+        return true;
+    }
+
+    // The sidebar is directly to the left of the page. Therefore every
+    // focusable element on the page's left navigation edge can leave the page:
+    // LEFT first tries to find another element to the left; if none exists,
+    // focus returns to the sidebar. No dedicated exit node is required.
+    if (action == NavigationAction::Left) {
         return leavePage();
     }
 
-    const int next = findNeighbour(layout, current, action);
-    if (next < 0) return false;
-
-    _state.focusId = layout.elements[next].id;
-    return true;
+    return false;
 }
 
 bool NavigationController::handleAction(NavigationAction action) {
