@@ -16,17 +16,20 @@ public:
     bool takeLatest(WeatherData& weatherData);
 
 private:
-    static constexpr uint32_t TaskStackWords = 12288;
+    static constexpr uint32_t TaskStackBytes = 8192;
     static constexpr UBaseType_t TaskPriority = 1;
     static constexpr uint32_t BackgroundFetchGapMs = 3000;
 
     struct CacheEntry {
         bool used = false;
-        bool valid = false;
         String locationId = "";
         double latitude = 0.0;
         double longitude = 0.0;
-        WeatherData data;
+
+        // Plná předpověď se alokuje až po úspěšném načtení daného místa.
+        // Neplatíme tak RAM za všech 8 možných slotů před prvním TLS requestem.
+        WeatherData* data = nullptr;
+
         uint32_t fetchedAtMs = 0;
         uint32_t validForSeconds = 0;
         uint32_t nextAttemptMs = 0;
@@ -43,7 +46,7 @@ private:
     WeatherData _latest;
     bool _hasLatest = false;
 
-    // Cache obsahuje data všech uložených míst pouze pro aktuálně zvolený provider.
+    // Metadata má pevně max. 8 malých slotů; velká WeatherData jsou dynamická.
     CacheEntry _cache[MaxWeatherLocations];
     String _cacheProvider = "";
     uint32_t _configGeneration = 0;
@@ -54,6 +57,8 @@ private:
 
     IWeatherProvider* providerFor(const String& providerName);
 
+    void releaseEntryData(CacheEntry& entry);
+    void resetEntry(CacheEntry& entry);
     void clearCacheLocked();
     void reconcileCacheLocked(const WeatherConfig& config, bool providerChanged);
     int findCacheEntryLocked(const String& locationId, double latitude, double longitude) const;
