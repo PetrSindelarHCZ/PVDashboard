@@ -25,4 +25,19 @@ public:
         (void)dataModel;
         layout.clear();
     }
+
+    // Some screens consist of multiple peer subpages (for example one
+    // weather page per configured location). With more than one subpage the
+    // navigation controller inserts a generic pager level between sidebar and
+    // element navigation. Future screens can opt into the same behavior
+    // without adding screen-specific rules to NavigationController.
+    virtual uint8_t getNavigationSubpageCount(const DataModel& dataModel) const {
+        (void)dataModel;
+        return 1;
+    }
+
+    virtual uint8_t getInitialNavigationSubpage(const DataModel& dataModel) const {
+        (void)dataModel;
+        return 0;
+    }
 };
