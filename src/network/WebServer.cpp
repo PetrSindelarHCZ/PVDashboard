@@ -632,7 +632,6 @@ void DashboardWebServer::handleApiNavigationState() {
     doc["sidebarScreen"] = state.sidebarScreenId;
     doc["sidebarTitle"] = screenTitle(state.sidebarScreenId);
     doc["focus"] = state.focusId;
-    doc["entryPoint"] = layout.resolveEntryPoint();
 
     JsonArray elements = doc["elements"].to<JsonArray>();
     for (uint8_t i = 0; i < layout.count; ++i) {
@@ -692,7 +691,6 @@ void DashboardWebServer::handleApiNavigationAction() {
     doc["sidebarScreen"] = state.sidebarScreenId;
     doc["sidebarTitle"] = screenTitle(state.sidebarScreenId);
     doc["focus"] = state.focusId;
-    doc["entryPoint"] = layout.resolveEntryPoint();
 
     String response;
     serializeJson(doc, response);
