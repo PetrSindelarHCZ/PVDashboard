@@ -243,7 +243,7 @@ akční seznam, aby se následující funkce neztratily při úklidu starých ch
 - [ ] nezávislá cloudová vrstva pro historii bez závislosti základních funkcí na cloudu,
 - [ ] zachovat možnost samostatného hostu/portu GoodWe a AZRouteru i když simulátor běží na jedné IP,
 - [ ] Home Assistant ponechat pouze jako volitelné budoucí rozšíření.
-- [ ] otestovat na zařízení lifecycle WeatherWorkeru z `feature/weather-worker-lifecycle`: při vypnutí uvolnit task, mutex a cache; při zapnutí vše korektně znovu vytvořit.
+- [ ] znovu otestovat na zařízení `feature/weather-worker-lifecycle`: lifecycle vypnout/zapnout + ověřit memory-heavy gate, že background Weather TLS už neběží současně s renderem a nevzniká `SSL - Memory allocation failed`.
 
 
 ## Doporučené pořadí nejbližší práce
