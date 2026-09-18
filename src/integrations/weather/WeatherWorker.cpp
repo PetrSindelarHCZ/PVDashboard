@@ -1,6 +1,7 @@
 #include "WeatherWorker.h"
 #include <WiFi.h>
 #include <math.h>
+#include <new>
 
 namespace {
 constexpr uint32_t MinimumRetrySeconds = 60;
@@ -8,12 +9,18 @@ constexpr uint32_t MaximumRetrySeconds = 3600;
 constexpr uint8_t MaximumFailureShift = 3;
 constexpr uint32_t OfflineRetryMs = 10000;
 
-uint32_t nextDelaySeconds(uint32_t configuredSeconds, uint8_t failureStreak, bool success) {
+uint32_t nextDelaySeconds(
+    uint32_t configuredSeconds,
+    uint8_t failureStreak,
+    bool success) {
     if (success) return configuredSeconds;
 
     uint64_t delaySeconds = min(configuredSeconds, MinimumRetrySeconds);
-    delaySeconds = max(delaySeconds, static_cast<uint64_t>(MinimumRetrySeconds));
+    delaySeconds = max(
+        delaySeconds,
+        static_cast<uint64_t>(MinimumRetrySeconds));
     delaySeconds <<= min(failureStreak, MaximumFailureShift);
+
     return static_cast<uint32_t>(
         min(delaySeconds, static_cast<uint64_t>(MaximumRetrySeconds)));
 }
@@ -61,22 +68,27 @@ bool WeatherWorker::begin(const WeatherConfig& config) {
     const BaseType_t result = xTaskCreatePinnedToCore(
         taskEntry,
         "weatherTask",
-        TaskStackWords,
+        TaskStackBytes,
         this,
         TaskPriority,
         &_task,
         ARDUINO_RUNNING_CORE);
     if (result != pdPASS) {
         Serial.println("[WEATHER] Nelze vytvorit task.");
+        clearCacheLocked();
         vSemaphoreDelete(_mutex);
         _mutex = nullptr;
         _task = nullptr;
         return false;
     }
 
-    Serial.printf("[WEATHER] Cache pripravena: provider=%s, lokalit=%u\n",
-                  _config.provider.c_str(),
-                  static_cast<unsigned>(_config.locationCount));
+    Serial.printf(
+        "[WEATHER] Cache pripravena: provider=%s, lokalit=%u | "
+        "free=%u, maxBlock=%u\n",
+        _config.provider.c_str(),
+        static_cast<unsigned>(_config.locationCount),
+        ESP.getFreeHeap(),
+        ESP.getMaxAllocHeap());
     return true;
 }
 
@@ -89,7 +101,8 @@ bool WeatherWorker::reconfigure(const WeatherConfig& config) {
     }
 
     const bool providerChanged = _config.provider != config.provider;
-    const bool activeChanged = _config.activeLocationId != config.activeLocationId;
+    const bool activeChanged =
+        _config.activeLocationId != config.activeLocationId;
     const bool enabledChanged = _config.enabled != config.enabled;
 
     _config = config;
@@ -108,7 +121,7 @@ bool WeatherWorker::reconfigure(const WeatherConfig& config) {
 
     uint8_t validCount = 0;
     for (const auto& entry : _cache) {
-        if (entry.used && entry.valid) ++validCount;
+        if (entry.used && entry.data != nullptr) ++validCount;
     }
 
     const uint32_t generation = _configGeneration;
@@ -116,8 +129,8 @@ bool WeatherWorker::reconfigure(const WeatherConfig& config) {
     xSemaphoreGive(_mutex);
 
     Serial.printf(
-        "[WEATHER] Konfigurace za behu: gen=%lu providerGen=%lu, %s, active=%s, "
-        "interval=%lu s, enabled=%d, cache=%u/%u%s%s%s\n",
+        "[WEATHER] Konfigurace za behu: gen=%lu providerGen=%lu, %s, "
+        "active=%s, interval=%lu s, enabled=%d, cache=%u/%u%s%s%s\n",
         static_cast<unsigned long>(generation),
         static_cast<unsigned long>(providerGeneration),
         _config.provider.c_str(),
@@ -130,26 +143,44 @@ bool WeatherWorker::reconfigure(const WeatherConfig& config) {
         activeChanged ? " active-change" : "",
         enabledChanged ? " enabled-change" : "");
 
-    // Přerušit případné čekání. Probíhající HTTPS request doběhne, ale jeho
-    // výsledek se uloží jen pokud stále patří aktuálnímu provideru a lokalitě.
     xTaskNotifyGive(_task);
     return true;
 }
 
 bool WeatherWorker::takeLatest(WeatherData& weatherData) {
-    if (_mutex == nullptr || xSemaphoreTake(_mutex, 0) != pdTRUE) return false;
+    if (_mutex == nullptr || xSemaphoreTake(_mutex, 0) != pdTRUE) {
+        return false;
+    }
 
     const bool hasLatest = _hasLatest;
     if (hasLatest) {
         weatherData = _latest;
         _hasLatest = false;
     }
+
     xSemaphoreGive(_mutex);
     return hasLatest;
 }
 
+void WeatherWorker::releaseEntryData(CacheEntry& entry) {
+    delete entry.data;
+    entry.data = nullptr;
+}
+
+void WeatherWorker::resetEntry(CacheEntry& entry) {
+    releaseEntryData(entry);
+    entry.used = false;
+    entry.locationId = "";
+    entry.latitude = 0.0;
+    entry.longitude = 0.0;
+    entry.fetchedAtMs = 0;
+    entry.validForSeconds = 0;
+    entry.nextAttemptMs = 0;
+    entry.failureStreak = 0;
+}
+
 void WeatherWorker::clearCacheLocked() {
-    for (auto& entry : _cache) entry = CacheEntry();
+    for (auto& entry : _cache) resetEntry(entry);
 }
 
 int WeatherWorker::findCacheEntryLocked(
@@ -159,12 +190,14 @@ int WeatherWorker::findCacheEntryLocked(
     for (uint8_t i = 0; i < MaxWeatherLocations; ++i) {
         const auto& entry = _cache[i];
         if (!entry.used) continue;
+
         if (entry.locationId == locationId &&
             fabs(entry.latitude - latitude) <= 0.00001 &&
             fabs(entry.longitude - longitude) <= 0.00001) {
             return static_cast<int>(i);
         }
     }
+
     return -1;
 }
 
@@ -172,6 +205,7 @@ int WeatherWorker::findUnusedCacheEntryLocked() const {
     for (uint8_t i = 0; i < MaxWeatherLocations; ++i) {
         if (!_cache[i].used) return static_cast<int>(i);
     }
+
     return -1;
 }
 
@@ -189,6 +223,7 @@ bool WeatherWorker::locationStillConfiguredLocked(
             return true;
         }
     }
+
     return false;
 }
 
@@ -200,8 +235,6 @@ void WeatherWorker::reconcileCacheLocked(
         _cacheProvider = config.provider;
     }
 
-    // Odstranit cache lokalit, které už v konfiguraci nejsou nebo změnily
-    // souřadnice.
     for (auto& entry : _cache) {
         if (!entry.used) continue;
 
@@ -218,15 +251,14 @@ void WeatherWorker::reconcileCacheLocked(
             }
         }
 
-        if (!found) entry = CacheEntry();
+        if (!found) resetEntry(entry);
     }
 
-    // Každé uložené místo musí mít svůj cache slot. Pořadí slotů není důležité,
-    // takže existující WeatherData nemusíme při změně pořadí kopírovat.
     for (uint8_t i = 0;
          i < config.locationCount && i < MaxWeatherLocations;
          ++i) {
         const auto& location = config.locations[i];
+
         if (findCacheEntryLocked(
                 location.id,
                 location.latitude,
@@ -238,30 +270,32 @@ void WeatherWorker::reconcileCacheLocked(
         if (slot < 0) break;
 
         auto& entry = _cache[slot];
-        entry = CacheEntry();
+        resetEntry(entry);
         entry.used = true;
         entry.locationId = location.id;
         entry.latitude = location.latitude;
         entry.longitude = location.longitude;
-        entry.nextAttemptMs = 0; // nová lokalita má prioritu k načtení
+        entry.nextAttemptMs = 0;
     }
 
-    // Delší nově nastavený interval respektujeme ihned. Zkrácení intervalu se
-    // projeví po nejbližším refreshi; u MET tím zároveň neporušíme serverové
-    // cache minimum získané z Expires.
     const uint32_t now = millis();
     for (auto& entry : _cache) {
-        if (!entry.used || !entry.valid) continue;
+        if (!entry.used || entry.data == nullptr) continue;
+
         if (config.pollIntervalSeconds > entry.validForSeconds) {
             entry.validForSeconds = config.pollIntervalSeconds;
             entry.nextAttemptMs =
                 entry.fetchedAtMs + entry.validForSeconds * 1000UL;
-            if (dueNow(now, entry.nextAttemptMs)) entry.nextAttemptMs = now;
+
+            if (dueNow(now, entry.nextAttemptMs)) {
+                entry.nextAttemptMs = now;
+            }
         }
     }
 }
 
-void WeatherWorker::publishCachedActiveLocked(const WeatherConfig& config) {
+void WeatherWorker::publishCachedActiveLocked(
+    const WeatherConfig& config) {
     if (!config.enabled) return;
 
     const WeatherLocation* active = config.activeLocation();
@@ -271,25 +305,30 @@ void WeatherWorker::publishCachedActiveLocked(const WeatherConfig& config) {
         active->id,
         active->latitude,
         active->longitude);
-    if (index < 0 || !_cache[index].valid) {
+
+    if (index < 0 || _cache[index].data == nullptr) {
         _latest = WeatherData();
         _hasLatest = false;
-        Serial.printf("[WEATHER] Cache MISS aktivni lokalita: %s\n",
-                      active->name.c_str());
+        Serial.printf(
+            "[WEATHER] Cache MISS aktivni lokalita: %s\n",
+            active->name.c_str());
         return;
     }
 
-    WeatherData cached = _cache[index].data;
+    WeatherData cached = *_cache[index].data;
     cached.enabled = true;
     cached.locationName = active->name;
+
     _latest = cached;
     _hasLatest = true;
 
     const uint32_t ageSeconds =
         (millis() - _cache[index].fetchedAtMs) / 1000UL;
-    Serial.printf("[WEATHER] Cache HIT aktivni lokalita: %s, stari %lu s\n",
-                  active->name.c_str(),
-                  static_cast<unsigned long>(ageSeconds));
+
+    Serial.printf(
+        "[WEATHER] Cache HIT aktivni lokalita: %s, stari %lu s\n",
+        active->name.c_str(),
+        static_cast<unsigned long>(ageSeconds));
 }
 
 void WeatherWorker::storeFetchResult(
@@ -326,45 +365,81 @@ void WeatherWorker::storeFetchResult(
 
     auto& entry = _cache[index];
     const uint32_t now = millis();
-    const bool isActive = _config.activeLocationId == location.id;
+    const bool isActive =
+        _config.activeLocationId == location.id;
 
     if (success) {
-        entry.data = weatherData;
-        entry.data.enabled = _config.enabled;
-        entry.data.locationName = location.name;
-        entry.valid = true;
+        if (entry.data == nullptr) {
+            entry.data = new (std::nothrow) WeatherData();
+        }
+
+        if (entry.data != nullptr) {
+            *entry.data = weatherData;
+            entry.data->enabled = _config.enabled;
+            entry.data->locationName = location.name;
+        } else {
+            Serial.printf(
+                "[WEATHER] Cache alokace selhala: %s | free=%u, maxBlock=%u\n",
+                location.name.c_str(),
+                ESP.getFreeHeap(),
+                ESP.getMaxAllocHeap());
+        }
+
         entry.fetchedAtMs = now;
         entry.validForSeconds = max<uint32_t>(
-            max<uint32_t>(validForSeconds, _config.pollIntervalSeconds),
+            max<uint32_t>(
+                validForSeconds,
+                _config.pollIntervalSeconds),
             MinimumRetrySeconds);
         entry.nextAttemptMs =
             now + entry.validForSeconds * 1000UL;
         entry.failureStreak = 0;
 
+        // Aktivní místo publikujeme i tehdy, kdyby jeho dlouhodobá cache
+        // kvůli nízké paměti nešla alokovat.
         if (isActive) {
-            _latest = entry.data;
+            _latest = weatherData;
+            _latest.enabled = _config.enabled;
+            _latest.locationName = location.name;
             _hasLatest = true;
         }
 
         Serial.printf(
-            "[WEATHER] Cache STORE: %s | %s | TTL %lu s%s\n",
+            "[WEATHER] Cache STORE: %s | %s | TTL %lu s%s | "
+            "free=%u, maxBlock=%u\n",
             providerName.c_str(),
             location.name.c_str(),
             static_cast<unsigned long>(entry.validForSeconds),
-            isActive ? " | ACTIVE" : "");
+            isActive ? " | ACTIVE" : "",
+            ESP.getFreeHeap(),
+            ESP.getMaxAllocHeap());
     } else {
-        const uint8_t shift = min(entry.failureStreak, MaximumFailureShift);
-        const uint32_t retrySeconds =
-            nextDelaySeconds(_config.pollIntervalSeconds, shift, false);
-        entry.failureStreak =
-            min<uint8_t>(entry.failureStreak + 1, MaximumFailureShift);
-        entry.nextAttemptMs = now + retrySeconds * 1000UL;
+        const uint8_t shift =
+            min(entry.failureStreak, MaximumFailureShift);
 
-        if (isActive && !entry.valid) {
+        const uint32_t retrySeconds =
+            nextDelaySeconds(
+                _config.pollIntervalSeconds,
+                shift,
+                false);
+
+        entry.failureStreak =
+            min<uint8_t>(
+                entry.failureStreak + 1,
+                MaximumFailureShift);
+        entry.nextAttemptMs =
+            now + retrySeconds * 1000UL;
+
+        if (isActive && entry.data == nullptr) {
             WeatherData failed = weatherData;
             failed.enabled = _config.enabled;
             failed.locationName = location.name;
             _latest = failed;
+            _hasLatest = true;
+        } else if (isActive && entry.data != nullptr) {
+            _latest = *entry.data;
+            _latest.enabled = _config.enabled;
+            _latest.locationName = location.name;
             _hasLatest = true;
         }
 
@@ -400,18 +475,20 @@ void WeatherWorker::taskLoop() {
 
             if (config.enabled) {
                 const uint32_t now = millis();
-                const WeatherLocation* active = config.activeLocation();
+                const WeatherLocation* active =
+                    config.activeLocation();
 
-                // 1) Aktivní lokalita má absolutní prioritu, pokud ještě nemá
-                // data nebo už je její cache po termínu obnovy.
+                // Aktivní lokalita má prioritu, ale respektuje retry/backoff.
                 if (active != nullptr) {
-                    const int activeIndex = findCacheEntryLocked(
-                        active->id,
-                        active->latitude,
-                        active->longitude);
+                    const int activeIndex =
+                        findCacheEntryLocked(
+                            active->id,
+                            active->latitude,
+                            active->longitude);
+
                     if (activeIndex >= 0) {
                         const auto& entry = _cache[activeIndex];
-                        if (!entry.valid || dueNow(now, entry.nextAttemptMs)) {
+                        if (dueNow(now, entry.nextAttemptMs)) {
                             target = *active;
                             haveTarget = true;
                             targetIsActive = true;
@@ -419,21 +496,29 @@ void WeatherWorker::taskLoop() {
                     }
                 }
 
-                // 2) Potom postupně doplnit ostatní chybějící / prošlé cache.
+                // Potom doplňovat ostatní lokality po jedné.
                 if (!haveTarget) {
                     for (uint8_t i = 0;
-                         i < config.locationCount && i < MaxWeatherLocations;
+                         i < config.locationCount &&
+                         i < MaxWeatherLocations;
                          ++i) {
-                        const auto& location = config.locations[i];
-                        const int index = findCacheEntryLocked(
-                            location.id,
-                            location.latitude,
-                            location.longitude);
+                        const auto& location =
+                            config.locations[i];
+
+                        if (location.id ==
+                            config.activeLocationId) {
+                            continue;
+                        }
+
+                        const int index =
+                            findCacheEntryLocked(
+                                location.id,
+                                location.latitude,
+                                location.longitude);
                         if (index < 0) continue;
 
                         const auto& entry = _cache[index];
-                        if ((!entry.valid || dueNow(now, entry.nextAttemptMs)) &&
-                            location.id != config.activeLocationId) {
+                        if (dueNow(now, entry.nextAttemptMs)) {
                             target = location;
                             haveTarget = true;
                             break;
@@ -441,20 +526,30 @@ void WeatherWorker::taskLoop() {
                     }
                 }
 
-                // 3) Není-li co načítat, spát přesně do nejbližší expirace.
                 if (!haveTarget) {
                     bool haveDeadline = false;
                     uint32_t shortest = 0xFFFFFFFFUL;
+
                     for (const auto& entry : _cache) {
                         if (!entry.used) continue;
+
                         const uint32_t remaining =
-                            msUntil(now, entry.nextAttemptMs);
-                        if (!haveDeadline || remaining < shortest) {
+                            msUntil(
+                                now,
+                                entry.nextAttemptMs);
+                        if (!haveDeadline ||
+                            remaining < shortest) {
                             shortest = remaining;
                             haveDeadline = true;
                         }
                     }
-                    if (haveDeadline) waitMs = max<uint32_t>(shortest, 100UL);
+
+                    if (haveDeadline) {
+                        waitMs =
+                            max<uint32_t>(
+                                shortest,
+                                100UL);
+                    }
                 }
             }
 
@@ -462,19 +557,23 @@ void WeatherWorker::taskLoop() {
         }
 
         if (!config.enabled) {
-            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+            ulTaskNotifyTake(
+                pdTRUE,
+                portMAX_DELAY);
             continue;
         }
 
         if (!haveTarget) {
-            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(waitMs));
+            ulTaskNotifyTake(
+                pdTRUE,
+                pdMS_TO_TICKS(waitMs));
             continue;
         }
 
         if (!WiFi.isConnected()) {
-            // Stav ztráty Wi-Fi publikuje hlavní app loop; worker pouze čeká
-            // na návrat sítě nebo změnu konfigurace.
-            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(OfflineRetryMs));
+            ulTaskNotifyTake(
+                pdTRUE,
+                pdMS_TO_TICKS(OfflineRetryMs));
             continue;
         }
 
@@ -486,23 +585,35 @@ void WeatherWorker::taskLoop() {
         WeatherData working;
         working.enabled = true;
         working.locationName = target.name;
-        working.provider = providerLabel(config.provider);
+        working.provider =
+            providerLabel(config.provider);
 
         bool success = false;
         if (provider == nullptr) {
-            working.status.recordError("Unsupported provider");
+            working.status.recordError(
+                "Unsupported provider");
         } else {
             Serial.printf(
-                "[WEATHER] Fetch %s: %s (%.5f, %.5f)%s\n",
+                "[WEATHER] Fetch %s: %s (%.5f, %.5f)%s | "
+                "free=%u, maxBlock=%u\n",
                 config.provider.c_str(),
                 target.name.c_str(),
                 target.latitude,
                 target.longitude,
-                targetIsActive ? " [ACTIVE]" : " [BACKGROUND]");
-            success = provider->update(targetConfig, working);
+                targetIsActive
+                    ? " [ACTIVE]"
+                    : " [BACKGROUND]",
+                ESP.getFreeHeap(),
+                ESP.getMaxAllocHeap());
+
+            success =
+                provider->update(
+                    targetConfig,
+                    working);
         }
 
-        uint32_t validForSeconds = config.pollIntervalSeconds;
+        uint32_t validForSeconds =
+            config.pollIntervalSeconds;
         if (success && provider != nullptr) {
             validForSeconds =
                 provider->recommendedPollIntervalSeconds(
@@ -517,8 +628,13 @@ void WeatherWorker::taskLoop() {
             success,
             validForSeconds);
 
-        // Neposílat dávku osmi HTTP požadavků bez rozestupu. Změna konfigurace
-        // toto čekání okamžitě přeruší notifikací.
+        Serial.printf(
+            "[WEATHER] Worker stack watermark=%u | free=%u, maxBlock=%u\n",
+            static_cast<unsigned>(
+                uxTaskGetStackHighWaterMark(nullptr)),
+            ESP.getFreeHeap(),
+            ESP.getMaxAllocHeap());
+
         ulTaskNotifyTake(
             pdTRUE,
             pdMS_TO_TICKS(BackgroundFetchGapMs));
