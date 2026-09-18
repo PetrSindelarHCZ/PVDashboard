@@ -108,6 +108,7 @@ URL a SHA-256 získané přímo z GitHub release, ověří celý obraz a potom s
 - [GoodWe a AZRouter](docs/FVE_INTEGRATION_HANDOFF.md)
 - [Měření odezvy](docs/PERFORMANCE.md)
 - [Další postup](docs/ROADMAP.md)
+- [Zachycené projektové záměry a neimplementované funkce](docs/PROJECT_INTENT_BACKLOG.md)
 
 Výsledky měření z 14. 9. 2026 jsou historické snímky konkrétních testů:
 
