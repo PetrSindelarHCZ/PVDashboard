@@ -28,6 +28,7 @@ public:
     using WifiKnownNetworkActionCallback = std::function<bool(const String& ssid)>;
     using WifiDisconnectCallback = std::function<void()>;
     using SourceConfigCallback = std::function<void(const GoodWeConfig& goodwe, const AZRouterConfig& azrouter)>;
+    using PoolConfigCallback = std::function<void(const PoolConfig& pool)>;
     using WeatherConfigCallback = std::function<void(const WeatherConfig& weather)>;
     using FactoryResetCallback = std::function<bool()>;
     using ConfigImportCallback = std::function<bool(const AppConfig& config)>;
@@ -302,6 +303,7 @@ public:
     void onWifiForget(WifiKnownNetworkActionCallback callback);
     void onWifiDisconnect(WifiDisconnectCallback callback);
     void onSourceConfig(SourceConfigCallback callback);
+    void onPoolConfig(PoolConfigCallback callback);
     void onWeatherConfig(WeatherConfigCallback callback);
     void onFactoryReset(FactoryResetCallback callback);
     void onConfigImport(ConfigImportCallback callback);
@@ -326,6 +328,7 @@ private:
     WifiKnownNetworkActionCallback _wifiForgetCallback;
     WifiDisconnectCallback _wifiDisconnectCallback;
     SourceConfigCallback _sourceConfigCallback;
+    PoolConfigCallback _poolConfigCallback;
     WeatherConfigCallback _weatherConfigCallback;
     FactoryResetCallback _factoryResetCallback;
     ConfigImportCallback _configImportCallback;
@@ -356,6 +359,7 @@ private:
     void handleApiWifiConfig();
     void handleApiWifiScan();
     void handleApiSourceConfig();
+    void handleApiPoolConfig();
     void handleApiWeatherConfig();
     void handleApiCheckForUpdate();
     void handleApiGithubUpdate();
