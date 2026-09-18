@@ -68,7 +68,7 @@ python scripts/prepare-release.py --firmware .pio/build/esp32dev/firmware.bin --
 Výstup obsahuje **firmware.bin**, **firmware.bin.sha256** a
 **dashboard-manifest.json**. Aktuální `min_spiffs.csv` poskytuje dva OTA sloty
 po **1 966 080 B (1,875 MiB)**; release skript i firmware větší obraz odmítnou.
-GitHub workflow provádí stejné kontroly a tag **vX.Y.Z** musí odpovídat
+GitHub workflow provádí stejné kontroly a tag ve formátu **v1.YY.denRoku.pořadí** musí odpovídat
 **FIRMWARE_VERSION**. Ruční upload ve WebUI vyžaduje vložit 64znakový SHA-256 ze souboru **firmware.bin.sha256** a ověří jej ještě před aktivací oddílu.
 
 Před OTA je vhodné ponechat si poslední známý funkční **firmware.bin**. Chyba
