@@ -33,8 +33,8 @@ Hlavní záchytné dokumenty:
 | 11. 9. | **GUI pro bazén** | **SMAZAT** | PoolScreen existuje a budoucí reálná bazénová data/DS18B20 jsou zachycená v backlogu. |
 | 11. 9. | **Přenos informací do dashboardů** | **SMAZAT** | Průzkum neidentifikované/nelokální jednotky nepřinesl potvrzenou současnou integraci. Aktuální zdroje jsou GoodWe + AZRouter. |
 | 12. 9. | **Připojení k GoodWe UI** | **SMAZAT** | Pátrání po lokálním UI/hf-lpt230 již není zdrojem aktuálního protokolu. GoodWe transport je popsán v FVE_INTEGRATION_HANDOFF. |
-| 12. 9. | **Simulace AZRouteru a střídače** | **PONECHAT DO OVĚŘENÍ** | Protokoly a pravidlo samostatného hostu GoodWe/AZRouter jsou zachycené, ale samotný zdrojový projekt simulátoru není v repozitáři PVDashboard. Mazat až po potvrzení, že simulator project je uložený jinde v Gitu/lokálně. |
-| 13. 9. | **Příprava simulátoru projektu** | **PONECHAT DO OVĚŘENÍ** | Totéž: chat mohl obsahovat kompletní vygenerovaný C# projekt a dokumentaci pro import do VS Code. Neodstraňovat jako jedinou možnou kopii zdrojů. |
+| 12. 9. | **Simulace AZRouteru a střídače** | **SMAZAT** | Zdrojový projekt i dokumentace jsou v samostatném repu `PetrSindelarHCZ/Dashboard.DeviceSimulator`; obsahuje GoodWe UDP, AZRouter HTTP, fixtures, testy, API dokumentaci a VS Code workspace. |
+| 13. 9. | **Příprava simulátoru projektu** | **SMAZAT** | Finální simulátor je uložen v `PetrSindelarHCZ/Dashboard.DeviceSimulator` a repo obsahuje kompletní Python projekt, dokumentaci, testy, workspace i startovací skript. |
 | 17. 9. | **Nahrání v0.1.6 bez IDE** | **SMAZAT** | Historický postup prvního OTA testu. Aktuální OTA/release workflow je v README a masteru. |
 | 17. 9. | **Příprava OTA testu** | **SMAZAT** | Testovací release řada 0.1.x je překonaná prvním plným release 1.0.0; testovací rozhodnutí jsou v release dokumentaci. |
 | 17. 9. | **Kontrola větvení GitHubu** | **SMAZAT** | Jednorázový Git/branch troubleshooting; výsledný stav je v historii repozitáře. |
@@ -46,7 +46,7 @@ Hlavní záchytné dokumenty:
 
 ### První bezpečná vlna
 
-Můžeš hned ručně smazat těchto **13 chatů**:
+Můžeš hned ručně smazat těchto **15 chatů**:
 
 1. Návrh hlavní jednotky
 2. Posouzení eink displejů
@@ -54,18 +54,18 @@ Můžeš hned ručně smazat těchto **13 chatů**:
 4. GUI pro bazén
 5. Přenos informací do dashboardů
 6. Připojení k GoodWe UI
-7. Nahrání v0.1.6 bez IDE
-8. Příprava OTA testu
-9. Kontrola větvení GitHubu
-10. Strategie obnovy displeje
-11. Probuzení ESP přes 433MHz
-12. Změna šipky karet
-13. Nový branch pro WebUI e ink preview
+7. Simulace AZRouteru a střídače
+8. Příprava simulátoru projektu
+9. Nahrání v0.1.6 bez IDE
+10. Příprava OTA testu
+11. Kontrola větvení GitHubu
+12. Strategie obnovy displeje
+13. Probuzení ESP přes 433MHz
+14. Změna šipky karet
+15. Nový branch pro WebUI e ink preview
 
-Po této vlně mají z uvedených projektových chatů zůstat minimálně:
+Po této vlně má z uvedených projektových chatů zůstat minimálně:
 
-- Simulace AZRouteru a střídače
-- Příprava simulátoru projektu
 - Oprava pádu weather tasku
 
 ---
@@ -138,20 +138,23 @@ Chat lze smazat po uzavření tohoto jediného WeatherWorker rozhodnutí.
 
 ## C. Podmínky pro druhou vlnu mazání
 
-### Simulátor
+### Simulátor — OVĚŘENO
 
-Před smazáním obou simulator chatů ověřit, že existuje mimo ChatGPT:
+Samostatný repozitář `PetrSindelarHCZ/Dashboard.DeviceSimulator` byl ověřen.
+Obsahuje:
 
-- zdrojový projekt simulátoru,
-- GoodWe UDP/8899 emulace,
-- AZRouter HTTP/8081 emulace,
-- README / popis spuštění,
-- konfigurace, že oba simulované zdroje mohou běžet na jedné IP,
-- možnost nastavovat testovací hodnoty/scénáře.
+- zdrojový projekt `simulator/`,
+- GoodWe UDP/8899 emulaci,
+- AZRouter HTTP/8081 emulaci,
+- ovládací WebUI/API na 8080,
+- `README.md`,
+- `docs/PROTOCOLS.md`, `docs/API.md`, OpenAPI, architekturu a handoff,
+- `fixtures/`,
+- `tests/`,
+- VS Code workspace a `start.ps1`.
 
-Pokud takový projekt existuje v Gitu nebo bezpečně lokálně, oba chaty
-**Simulace AZRouteru a střídače** a **Příprava simulátoru projektu** se mohou
-přesunout do **SMAZAT**.
+Oba chaty **Simulace AZRouteru a střídače** a **Příprava simulátoru projektu**
+jsou proto bezpečně zařazené do **SMAZAT**.
 
 ### Weather runtime
 
@@ -196,11 +199,11 @@ než historický chat.
 2. Mimo projekt případně smazat chat **jaké gpio bys použil pro BM280**,
    UTF-8/EInkGraph chat a **GitHub Actions limity a ceny**, pokud je nepotřebuješ
    kvůli jiným tématům mimo Dashboard.
-3. Nechat simulator chaty, dokud není potvrzená samostatná kopie simulator
-   projektu.
+3. Simulátorové chaty už lze smazat; autoritativním zdrojem je
+   `PetrSindelarHCZ/Dashboard.DeviceSimulator`.
 4. Nechat Wi-Fi/NTP chat už jen do rozhodnutí chování WeatherWorkeru při vypnutém počasí.
 5. Nechat aktuální weather-crash chat do dokončení opravy.
-6. Po těchto třech kontrolách provést druhou vlnu a znovu aktualizovat tento
+6. Po těchto zbývajících kontrolách provést další vlnu a znovu aktualizovat tento
    dokument.
 
 Po první vlně bude historie výrazně čistší a přitom zůstanou zachované chaty,
