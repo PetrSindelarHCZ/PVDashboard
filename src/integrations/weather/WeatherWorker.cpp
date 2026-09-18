@@ -1,5 +1,6 @@
 #include "WeatherWorker.h"
 #include <WiFi.h>
+#include <math.h>
 
 namespace {
 constexpr uint32_t MinimumRetrySeconds = 60;
@@ -30,6 +31,7 @@ bool WeatherWorker::begin(const WeatherConfig& config) {
 
     _config = config;
     _provider = providerFor(_config.provider);
+    _configGeneration = 1;
     _mutex = xSemaphoreCreateMutex();
     if (_mutex == nullptr) {
         Serial.println("[WEATHER] Nelze vytvorit mutex.");
@@ -63,11 +65,25 @@ bool WeatherWorker::reconfigure(const WeatherConfig& config) {
         Serial.println("[WEATHER] Reconfiguration lock timeout.");
         return false;
     }
+    const bool providerChanged = _config.provider != config.provider;
+    const bool locationChanged =
+        fabs(_config.latitude - config.latitude) > 0.00001 ||
+        fabs(_config.longitude - config.longitude) > 0.00001;
+
     _config = config;
     _provider = providerFor(_config.provider);
+    ++_configGeneration;
+    const uint32_t generation = _configGeneration;
+
+    if (providerChanged || locationChanged) {
+        _metNorwayClient.resetCache();
+        _latest = WeatherData();
+        _hasLatest = false;
+    }
     xSemaphoreGive(_mutex);
 
-    Serial.printf("[WEATHER] Konfigurace zmenena za behu: %s, %.5f, %.5f, interval %lu s, enabled=%d\n",
+    Serial.printf("[WEATHER] Konfigurace zmenena za behu: gen=%lu, %s, %.5f, %.5f, interval %lu s, enabled=%d\n",
+                  static_cast<unsigned long>(generation),
                   _config.provider.c_str(), _config.latitude, _config.longitude,
                   _config.pollIntervalSeconds, _config.enabled);
 
@@ -94,21 +110,27 @@ void WeatherWorker::taskEntry(void* parameter) {
 }
 
 void WeatherWorker::taskLoop() {
-    WeatherData working;
     uint8_t failureStreak = 0;
 
     for (;;) {
         WeatherConfig config;
         IWeatherProvider* provider = nullptr;
+        uint32_t generation = 0;
         if (xSemaphoreTake(_mutex, portMAX_DELAY) == pdTRUE) {
             config = _config;
             provider = _provider;
+            generation = _configGeneration;
             xSemaphoreGive(_mutex);
         }
 
+        // Každý pokus začíná čistým objektem. Data z jiného providera nebo
+        // předchozí lokality se tak nemohou omylem přenést do nového výsledku.
+        WeatherData working;
         working.enabled = config.enabled;
         const WeatherLocation* activeLocation = config.activeLocation();
         working.locationName = activeLocation ? activeLocation->name : "";
+        working.provider = config.provider == "met-no" ? "MET Norway" :
+                           (config.provider == "open-meteo" ? "Open-Meteo" : config.provider);
         bool success = false;
         if (!config.enabled) {
             working.status.recordError("Weather disabled");
@@ -120,7 +142,7 @@ void WeatherWorker::taskLoop() {
             success = provider->update(config, working);
         }
 
-        publish(working);
+        publish(working, generation);
 
         if (!config.enabled) {
             // Vypnutý modul neprovádí polling ani periodické probouzení.
@@ -142,10 +164,16 @@ void WeatherWorker::taskLoop() {
     }
 }
 
-void WeatherWorker::publish(const WeatherData& weatherData) {
+void WeatherWorker::publish(const WeatherData& weatherData, uint32_t generation) {
     if (xSemaphoreTake(_mutex, portMAX_DELAY) == pdTRUE) {
-        _latest = weatherData;
-        _hasLatest = true;
+        if (generation == _configGeneration) {
+            _latest = weatherData;
+            _hasLatest = true;
+        } else {
+            Serial.printf("[WEATHER] Zahazuji vysledek stare konfigurace gen=%lu, aktualni=%lu\n",
+                          static_cast<unsigned long>(generation),
+                          static_cast<unsigned long>(_configGeneration));
+        }
         xSemaphoreGive(_mutex);
     }
 }
