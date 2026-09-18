@@ -229,27 +229,29 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 .custom-element-box {
     position: absolute;
     box-sizing: border-box;
-    border: 2px dashed rgba(124,58,237,.85);
+    border: 0;
+    outline: 2px dashed rgba(124,58,237,.85);
+    outline-offset: 0;
     background: transparent;
     cursor: move;
 }
 .custom-element-box.selected {
-    border-width: 3px;
-    border-style: solid;
+    outline-width: 3px;
+    outline-style: solid;
     box-shadow: 0 0 0 1px rgba(255,255,255,.65);
 }
 .custom-element-box.invalid {
-    border-color: #dc2626;
+    outline-color: #dc2626;
     background: rgba(254,226,226,.28);
 }
 .custom-element-preview {
     position: absolute;
     inset: 0;
-    padding: 5px;
+    padding: 0;
     box-sizing: border-box;
     overflow: hidden;
     pointer-events: none;
-    line-height: 1.15;
+    line-height: 1;
 }
 .custom-element-preview.align-left { text-align: left; }
 .custom-element-preview.align-center { text-align: center; }
@@ -896,7 +898,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         if (fontValue === 'auto') return required;
         const fontPx = requestedFontPx(element, element.type === 'kpi');
         if (element.type === 'text') required = Math.max(required, fontPx);
-        if (element.type === 'kpi') required = Math.max(required, fontPx + (element.showLabel !== false ? 20 : 0));
+        if (element.type === 'kpi') {
+            const hasLabel = element.showLabel !== false && String(element.label || '').length > 0;
+            required = Math.max(required, fontPx + (hasLabel ? 20 : 0));
+        }
         return required;
     }
 
@@ -908,7 +913,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
     function elementPreviewHtml(element, previewScale = 1) {
         const align = escapeHtml(element.align || 'left');
-        const label = escapeHtml(element.label || sourceInfo(element.source).label || '');
+        const explicitLabel = escapeHtml(element.label || '');
+        const sourceId = escapeHtml(element.source || '');
         const unit = escapeHtml(element.unit || sourceInfo(element.source).unit || '');
         const classes = `custom-element-preview align-${align}`;
         const fontPx = requestedFontPx(element, element.type === 'kpi');
@@ -921,14 +927,17 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             return `<div class="${classes}" style="${fontStyle}">${escapeHtml(element.text || 'Text')}</div>`;
         }
         if (element.type === 'kpi') {
+            const hasLabel = element.showLabel !== false && !!explicitLabel;
+            const valueTop = (hasLabel ? 20 : 0) * previewScale;
             return `<div class="${classes}">
-                ${element.showLabel !== false && label ? `<div class="preview-label" style="${labelStyle}">${label}</div>` : ''}
-                <div class="preview-value" style="${fontStyle}">--${unit ? ' ' + unit : ''}</div>
+                ${hasLabel ? `<div class="preview-label" style="position:absolute;left:0;right:0;top:0;${labelStyle}">${explicitLabel}</div>` : ''}
+                <div class="preview-value" style="position:absolute;left:0;right:0;top:${valueTop}px;${fontStyle}">--${unit ? ' ' + unit : ''}</div>
             </div>`;
         }
         if (element.type === 'progress') {
+            const progressLabel = explicitLabel || sourceId;
             return `<div class="${classes}">
-                ${element.showLabel !== false && label ? `<div class="preview-label" style="${labelStyle}">${label}</div>` : ''}
+                ${element.showLabel !== false && progressLabel ? `<div class="preview-label" style="${labelStyle}">${progressLabel}</div>` : ''}
                 <div class="preview-progress"><span></span></div>
             </div>`;
         }
@@ -946,7 +955,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                      <polyline points="2,29 18,20 34,24 50,9 66,17 82,5 98,12" stroke-width="2"/>
                    </svg>`;
             return `<div class="${classes}">
-                ${element.showLabel !== false && label ? `<div class="preview-label" style="${labelStyle}">${label}</div>` : ''}
+                ${element.showLabel !== false && explicitLabel ? `<div class="preview-label" style="${labelStyle}">${explicitLabel}</div>` : ''}
                 ${graph}
             </div>`;
         }
@@ -1247,11 +1256,20 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             const graphStyle = document.getElementById('customFieldGraphStyle');
             if (text) current.text = text.value;
             if (source) {
+                const previousSource = current.source;
+                const previousInfo = sourceInfo(previousSource);
+                const sourceChanged = previousSource !== source.value;
                 current.source = source.value;
                 const info = sourceInfo(current.source);
-                if (label && !label.value) label.value = info.label || '';
-                if (unit && !unit.value) unit.value = info.unit || '';
-                if (decimals) decimals.value = String(Number(info.decimals ?? decimals.value));
+                if (sourceChanged) {
+                    if (label && (!label.value || label.value === (previousInfo.label || ''))) {
+                        label.value = info.label || '';
+                    }
+                    if (unit && (!unit.value || unit.value === (previousInfo.unit || ''))) {
+                        unit.value = info.unit || '';
+                    }
+                    if (decimals) decimals.value = String(Number(info.decimals ?? decimals.value));
+                }
             }
             if (label) current.label = label.value;
             if (unit) current.unit = unit.value;

@@ -169,7 +169,8 @@ inline int16_t requiredElementHeight(const CustomWidgetElementConfig& element) {
     if (element.type == "text") {
         requested = static_cast<int16_t>(fontPx);
     } else if (element.type == "kpi") {
-        requested = static_cast<int16_t>(fontPx + (element.showLabel ? 20 : 0));
+        const bool hasLabel = element.showLabel && !element.label.isEmpty();
+        requested = static_cast<int16_t>(fontPx + (hasLabel ? 20 : 0));
     }
     return requested > required ? requested : required;
 }
