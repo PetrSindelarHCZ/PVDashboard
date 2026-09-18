@@ -52,7 +52,7 @@ Home layout je uložen v `AppConfig.display.homeLayout` a v NVS pod klíčem
 `layout_home`. Pokud `customized=false`, renderer používá původní automatickou
 šablonu podle dostupnosti Počasí a FVE.
 
-REST rozhraní:
+REST rozhraní (D2):
 
 - `GET /api/layout/home` — uložený i právě efektivní layout a limity widgetů,
 - `POST /api/layout/home` — validace a uložení vlastního layoutu,
