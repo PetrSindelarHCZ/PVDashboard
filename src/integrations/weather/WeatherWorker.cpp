@@ -2,12 +2,18 @@
 #include <WiFi.h>
 #include <math.h>
 #include <new>
+#include <time.h>
 
 namespace {
 constexpr uint32_t MinimumRetrySeconds = 60;
 constexpr uint32_t MaximumRetrySeconds = 3600;
 constexpr uint8_t MaximumFailureShift = 3;
 constexpr uint32_t OfflineRetryMs = 10000;
+constexpr time_t MinimumTlsEpoch = 1704067200; // 2024-01-01 UTC
+
+bool tlsClockReady() {
+    return time(nullptr) >= MinimumTlsEpoch;
+}
 
 uint32_t nextDelaySeconds(
     uint32_t configuredSeconds,
@@ -461,6 +467,8 @@ void WeatherWorker::taskEntry(void* parameter) {
 }
 
 void WeatherWorker::taskLoop() {
+    bool waitingForClockLogged = false;
+
     for (;;) {
         WeatherConfig config;
         IWeatherProvider* provider = nullptr;
@@ -577,6 +585,24 @@ void WeatherWorker::taskLoop() {
                 pdTRUE,
                 pdMS_TO_TICKS(OfflineRetryMs));
             continue;
+        }
+
+        // Ověření TLS certifikátu vyžaduje validní systémový čas.
+        // Po startu proto neposíláme HTTPS request dřív, než doběhne NTP.
+        if (!tlsClockReady()) {
+            if (!waitingForClockLogged) {
+                Serial.println("[WEATHER] Cekam na validni NTP cas pred HTTPS...");
+                waitingForClockLogged = true;
+            }
+            ulTaskNotifyTake(
+                pdTRUE,
+                pdMS_TO_TICKS(1000));
+            continue;
+        }
+
+        if (waitingForClockLogged) {
+            Serial.println("[WEATHER] NTP cas je validni, HTTPS muze pokracovat.");
+            waitingForClockLogged = false;
         }
 
         WeatherConfig targetConfig = config;
