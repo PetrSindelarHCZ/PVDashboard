@@ -127,7 +127,6 @@ void DashboardApp::setup() {
         _screenManager.activateScreen("home");
     }
     _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
-    _navigationController.syncToActiveScreen();
     _dataModel.weather.enabled = cfg.weather.enabled;
     const WeatherLocation* initialWeatherLocation = cfg.weather.activeLocation();
     const int initialWeatherIndex =
@@ -144,6 +143,7 @@ void DashboardApp::setup() {
     _dataModel.weather.locationIndex = _weatherDisplayLocationIndex;
     _dataModel.weather.locationCount =
         min<uint8_t>(cfg.weather.locationCount, MaxWeatherLocations);
+    _navigationController.syncToActiveScreen();
 
     _wifiManager.onStatusChange([this](bool connected, const String& ip) {
         Serial.printf("[APP] Wi-Fi zmena stavu -> Connected: %d, IP: %s\n", connected, ip.c_str());
