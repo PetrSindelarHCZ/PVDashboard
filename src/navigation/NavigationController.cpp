@@ -354,10 +354,9 @@ bool NavigationController::movePage(NavigationAction action) {
         return true;
     }
 
-    // The sidebar is directly to the left of the page. Therefore every
-    // focusable element on the page's left navigation edge can leave the page:
-    // LEFT first tries to find another element to the left; if none exists,
-    // focus returns to the sidebar. No dedicated exit node is required.
+    // LEFT first tries to find another element in the current subpage. If
+    // none exists, the element-navigation level is left. Multi-subpage screens
+    // return to their pager; ordinary screens return directly to the sidebar.
     if (action == NavigationAction::Left) {
         return leavePage();
     }
