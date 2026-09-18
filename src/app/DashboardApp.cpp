@@ -55,6 +55,37 @@ bool applyWifiAddressing(const WifiConfig& wifi) {
                   wifi.dns2.isEmpty() ? "" : ", ", wifi.dns2.c_str(), ok ? "OK" : "CHYBA");
     return ok;
 }
+
+bool isWeatherScreenId(const String& screenId) {
+    return screenId == "weather" || screenId.startsWith("weather-hourly-");
+}
+
+int weatherLocationIndexById(const WeatherConfig& weather, const String& locationId) {
+    for (uint8_t i = 0;
+         i < weather.locationCount && i < MaxWeatherLocations;
+         ++i) {
+        if (weather.locations[i].id == locationId) return static_cast<int>(i);
+    }
+    return -1;
+}
+
+const char* weatherProviderLabel(const String& provider) {
+    if (provider == "met-no") return "MET Norway";
+    if (provider == "open-meteo") return "Open-Meteo";
+    return provider.c_str();
+}
+
+bool weatherDisplayDataChanged(const WeatherData& a, const WeatherData& b) {
+    return a.status.available != b.status.available ||
+           a.status.lastError != b.status.lastError ||
+           a.lastUpdateMs != b.lastUpdateMs ||
+           a.provider != b.provider ||
+           a.locationId != b.locationId ||
+           a.locationName != b.locationName ||
+           a.dailyCount != b.dailyCount ||
+           a.hourlyCount != b.hourlyCount;
+}
+
 }
 
 DashboardApp::DashboardApp()
@@ -99,7 +130,20 @@ void DashboardApp::setup() {
     _navigationController.syncToActiveScreen();
     _dataModel.weather.enabled = cfg.weather.enabled;
     const WeatherLocation* initialWeatherLocation = cfg.weather.activeLocation();
-    _dataModel.weather.locationName = initialWeatherLocation ? initialWeatherLocation->name : "";
+    const int initialWeatherIndex =
+        initialWeatherLocation != nullptr
+            ? weatherLocationIndexById(cfg.weather, initialWeatherLocation->id)
+            : -1;
+    _weatherDisplayLocationIndex =
+        initialWeatherIndex >= 0 ? static_cast<uint8_t>(initialWeatherIndex) : 0;
+    _weatherDisplayLocationId =
+        initialWeatherLocation != nullptr ? initialWeatherLocation->id : "";
+    _dataModel.weather.locationId = _weatherDisplayLocationId;
+    _dataModel.weather.locationName =
+        initialWeatherLocation != nullptr ? initialWeatherLocation->name : "";
+    _dataModel.weather.locationIndex = _weatherDisplayLocationIndex;
+    _dataModel.weather.locationCount =
+        min<uint8_t>(cfg.weather.locationCount, MaxWeatherLocations);
 
     _wifiManager.onStatusChange([this](bool connected, const String& ip) {
         Serial.printf("[APP] Wi-Fi zmena stavu -> Connected: %d, IP: %s\n", connected, ip.c_str());
@@ -167,7 +211,13 @@ void DashboardApp::setup() {
     _dataModel.system.dateStr = _timeService.getDateStr();
     _dataModel.system.dayOfWeekStr = _timeService.getDayOfWeekStr();
 
+    _navigationController.onSubpageChange(
+        [this](const String& screenId, uint8_t subpageIndex) {
+            onNavigationSubpageChanged(screenId, subpageIndex);
+        });
+
     _navigationController.onChange([this](bool fullRefresh) {
+        syncWeatherDisplayForActiveScreen(false);
         requestDisplayRefresh(fullRefresh, 50);
     });
 
@@ -287,23 +337,36 @@ void DashboardApp::setup() {
         }
 
         const WeatherLocation* activeLocation = applied.activeLocation();
-        const String activeLocationName = activeLocation ? activeLocation->name : "";
+        const int activeIndex =
+            activeLocation != nullptr
+                ? weatherLocationIndexById(applied, activeLocation->id)
+                : -1;
+
+        _weatherDisplayLocationIndex =
+            activeIndex >= 0 ? static_cast<uint8_t>(activeIndex) : 0;
+        _weatherDisplayLocationId =
+            activeLocation != nullptr ? activeLocation->id : "";
 
         if (providerChanged || locationChanged) {
             // Starou predpoved nesmime po prepnuti zdroje/lokality vydavat za
             // data nove konfigurace. Cekame na prvni platnou odpoved workeru.
             WeatherData pending;
             pending.enabled = applied.enabled;
-            pending.provider = applied.provider == "met-no" ? "MET Norway" :
-                               (applied.provider == "open-meteo" ? "Open-Meteo" : applied.provider);
-            pending.locationName = activeLocationName;
+            pending.provider = weatherProviderLabel(applied.provider);
+            pending.locationId = _weatherDisplayLocationId;
+            pending.locationName =
+                activeLocation != nullptr ? activeLocation->name : "";
+            pending.locationIndex = _weatherDisplayLocationIndex;
+            pending.locationCount =
+                min<uint8_t>(applied.locationCount, MaxWeatherLocations);
             pending.status.available = false;
             pending.status.lastAttemptMs = millis();
             pending.status.lastError = "Aktualizuji pocasi";
             _dataModel.weather = pending;
         } else {
-            _dataModel.weather.enabled = applied.enabled;
-            _dataModel.weather.locationName = activeLocationName;
+            selectWeatherDisplayLocation(
+                _weatherDisplayLocationIndex,
+                false);
         }
 
         if (!applied.enabled) {
@@ -311,6 +374,7 @@ void DashboardApp::setup() {
         }
 
         setWeatherScreensEnabled(applied.enabled);
+        _navigationController.syncToActiveScreen(false);
         if (enabledChanged) requestDisplayRefresh(true, 100);
         else requestAutomaticDisplayRefresh();
         Serial.println("[CONFIG] Pocasi ulozeno a aplikovano za behu.");
@@ -387,8 +451,126 @@ void DashboardApp::requestAutomaticDisplayRefresh() {
 
 void DashboardApp::onScreenSwitchRequested(const String& screenId) {
     _navigationController.syncToActiveScreen(false);
+    syncWeatherDisplayForActiveScreen(false);
     Serial.printf("[APP][%lu ms] Pozadavek na prepnuti obrazovky: %s\n", millis(), screenId.c_str());
     requestDisplayRefresh(true, 100);
+}
+
+void DashboardApp::onNavigationSubpageChanged(
+    const String& screenId,
+    uint8_t subpageIndex) {
+    if (screenId != "weather") return;
+    selectWeatherDisplayLocation(subpageIndex, false);
+}
+
+void DashboardApp::selectWeatherDisplayLocation(
+    uint8_t index,
+    bool requestRefresh) {
+    const WeatherConfig& weather = _configManager.get().weather;
+    const uint8_t count =
+        min<uint8_t>(weather.locationCount, MaxWeatherLocations);
+
+    if (!weather.enabled || count == 0) {
+        _weatherDisplayLocationId = "";
+        _weatherDisplayLocationIndex = 0;
+        _dataModel.weather.locationId = "";
+        _dataModel.weather.locationName = "";
+        _dataModel.weather.locationIndex = 0;
+        _dataModel.weather.locationCount = 0;
+        return;
+    }
+
+    if (index >= count) index = 0;
+
+    const WeatherLocation& location = weather.locations[index];
+    _weatherDisplayLocationIndex = index;
+    _weatherDisplayLocationId = location.id;
+
+    WeatherData selected;
+    if (_weatherWorker.copyCached(location.id, selected)) {
+        selected.locationId = location.id;
+        selected.locationName = location.name;
+        selected.locationIndex = index;
+        selected.locationCount = count;
+        _dataModel.weather = selected;
+    } else {
+        WeatherData pending;
+        pending.enabled = weather.enabled;
+        pending.provider = weatherProviderLabel(weather.provider);
+        pending.locationId = location.id;
+        pending.locationName = location.name;
+        pending.locationIndex = index;
+        pending.locationCount = count;
+        pending.status.available = false;
+        pending.status.lastAttemptMs = millis();
+        pending.status.lastError = "Nacitam data lokality";
+        _dataModel.weather = pending;
+        _weatherWorker.requestLocation(location.id);
+    }
+
+    if (requestRefresh) requestAutomaticDisplayRefresh();
+}
+
+void DashboardApp::syncWeatherDisplayForActiveScreen(
+    bool requestRefresh) {
+    const WeatherConfig& weather = _configManager.get().weather;
+    if (!weather.enabled || weather.locationCount == 0) return;
+
+    const String screenId = _screenManager.getActiveScreenId();
+    if (isWeatherScreenId(screenId)) {
+        int index = weatherLocationIndexById(
+            weather,
+            _weatherDisplayLocationId);
+        if (index < 0) {
+            const WeatherLocation* active = weather.activeLocation();
+            index =
+                active != nullptr
+                    ? weatherLocationIndexById(weather, active->id)
+                    : 0;
+        }
+        selectWeatherDisplayLocation(
+            index >= 0 ? static_cast<uint8_t>(index) : 0,
+            requestRefresh);
+        return;
+    }
+
+    const WeatherLocation* active = weather.activeLocation();
+    int index =
+        active != nullptr
+            ? weatherLocationIndexById(weather, active->id)
+            : 0;
+    selectWeatherDisplayLocation(
+        index >= 0 ? static_cast<uint8_t>(index) : 0,
+        requestRefresh);
+}
+
+void DashboardApp::refreshWeatherDisplayFromCache(
+    bool requestRefresh) {
+    const WeatherConfig& weather = _configManager.get().weather;
+    if (!weather.enabled || _weatherDisplayLocationId.isEmpty()) return;
+
+    WeatherData cached;
+    if (!_weatherWorker.copyCached(
+            _weatherDisplayLocationId,
+            cached)) {
+        return;
+    }
+
+    int index = weatherLocationIndexById(
+        weather,
+        _weatherDisplayLocationId);
+    if (index < 0) return;
+
+    cached.locationIndex = static_cast<uint8_t>(index);
+    cached.locationCount =
+        min<uint8_t>(weather.locationCount, MaxWeatherLocations);
+
+    const bool changed =
+        weatherDisplayDataChanged(cached, _dataModel.weather);
+    if (!changed) return;
+
+    _dataModel.weather = cached;
+    if (requestRefresh) requestAutomaticDisplayRefresh();
 }
 
 void DashboardApp::onRefreshRequested(bool full) {
@@ -446,16 +628,41 @@ void DashboardApp::loop() {
 
     WeatherData weatherUpdate;
     if (_weatherWorker.takeLatest(weatherUpdate)) {
-        const bool changed =
-            weatherUpdate.status.available != _dataModel.weather.status.available ||
-            weatherUpdate.lastUpdateMs != _dataModel.weather.lastUpdateMs ||
-            weatherUpdate.provider != _dataModel.weather.provider ||
-            weatherUpdate.locationName != _dataModel.weather.locationName ||
-            weatherUpdate.dailyCount != _dataModel.weather.dailyCount ||
-            weatherUpdate.hourlyCount != _dataModel.weather.hourlyCount ||
-            weatherUpdate.status.lastError != _dataModel.weather.status.lastError;
-        _dataModel.weather = weatherUpdate;
-        if (changed) requestAutomaticDisplayRefresh();
+        const WeatherConfig& weather = _configManager.get().weather;
+        const String activeScreenId = _screenManager.getActiveScreenId();
+
+        // Home and non-weather screens always consume the configured active
+        // location. Weather pager may temporarily display another cached
+        // location without changing persistent configuration.
+        const bool shouldApply =
+            !isWeatherScreenId(activeScreenId) ||
+            weatherUpdate.locationId == _weatherDisplayLocationId;
+
+        if (shouldApply) {
+            int index = weatherLocationIndexById(
+                weather,
+                weatherUpdate.locationId);
+            if (index < 0) index = 0;
+
+            weatherUpdate.locationIndex =
+                static_cast<uint8_t>(index);
+            weatherUpdate.locationCount =
+                min<uint8_t>(weather.locationCount, MaxWeatherLocations);
+
+            const bool changed =
+                weatherDisplayDataChanged(
+                    weatherUpdate,
+                    _dataModel.weather);
+            _dataModel.weather = weatherUpdate;
+            if (changed) requestAutomaticDisplayRefresh();
+        }
+    }
+
+    const unsigned long weatherCacheNow = millis();
+    if (isWeatherScreenId(_screenManager.getActiveScreenId()) &&
+        weatherCacheNow - _lastWeatherDisplayCacheCheck >= 1000UL) {
+        _lastWeatherDisplayCacheCheck = weatherCacheNow;
+        refreshWeatherDisplayFromCache(true);
     }
 
     if (displayStatus.ready && _pendingRefresh && static_cast<long>(millis() - _displayRefreshNotBefore) >= 0) {
