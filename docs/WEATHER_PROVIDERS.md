@@ -26,15 +26,17 @@ API.
 
 ## Životní cyklus WeatherWorkeru
 
-Při vypnutém modulu počasí nemá WeatherWorker držet runtime prostředky:
+Při vypnutém modulu počasí nemá WeatherWorker držet runtime prostředky ani
+ponechat Weather obrazovky v navigaci:
 
 - při startu s `weather.enabled=false` se FreeRTOS task ani mutex nevytvoří,
 - při vypnutí za běhu dostane worker požadavek na korektní ukončení,
 - pokud právě probíhá HTTP/TLS operace, nechá se bezpečně dokončit a task se
   nemaže násilně z jiného tasku,
 - před ukončením se uvolní weather cache, mutex a stack tasku,
-- uložená konfigurace provideru a lokalit zůstává v NVS,
-- při opětovném zapnutí se worker vytvoří znovu z uložené konfigurace.
+- uložená konfigurace provideru, lokalit i jejich pořadí zůstává v NVS,
+- Weather a hodinové obrazovky se za běhu odregistrují ze ScreenManageru,
+- při opětovném zapnutí se worker i obrazovky vytvoří/registrují znovu z uložené konfigurace.
 
 Toto chování šetří přibližně 12 kB stacku plus cache a režii tasku v době, kdy
 je modul počasí vypnutý. Implementace byla ověřena na fyzickém ESP32 scénářem
@@ -42,10 +44,32 @@ zapnuto → vypnout → znovu zapnout. Worker se korektně ukončil, uvolnil run
 prostředky a po opětovném zapnutí znovu načetl všechny tři lokality.
 
 
+## Více lokalit a pořadí
+
+Konfigurace podporuje nejvýše **8 lokalit**. Každá má stabilní ID, název, stát a
+souřadnice. `activeLocationId` určuje persistentní lokalitu používanou Home a
+výchozími daty mimo Weather stránku.
+
+WebUI umožňuje lokalitu vyhledat, přidat, vybrat, odstranit a změnit její pořadí.
+Pořadí se ukládá do NVS a současně určuje pořadí podstránek v e-ink Weather
+pageru. Přesun v seznamu proto není pouze kosmetická změna.
+
+WeatherWorker udržuje cache podle ID lokality. Na hlavní Weather obrazovce lze
+přes Pager dočasně zobrazit jinou uloženou lokalitu, aniž by se změnil
+`activeLocationId`. Po návratu na Home se tedy dál používá uživatelem zvolená
+aktivní lokalita.
+
+Pokud je v pageru focus, levá Weather karta zobrazuje `MÍSTO: <název>`. Dole
+se při více lokalitách zobrazují tečky a vyplněná tečka označuje právě zvolenou
+podstránku. Poskytovatel aktuálních dat se zobrazuje také na Home obrazovce.
+
 ## HTTPS
 
 Oba klienti používají WeatherTls a společný PEM seznam v
 WeatherRootCertificates.h. Připojení nevyužívá režim `setInsecure()`.
+HTTPS/TLS fetch navíc sdílí memory-heavy gate s DisplayWorkerem, takže se na
+ESP32 bez PSRAM nepřekrývá TLS alokace s renderem/preview displeje.
+
 Při změně certifikačního řetězce API je nutné kořenový certifikát ověřit vůči
 důvěryhodnému řetězci, aktualizovat seznam, sestavit firmware a oba providery
 otestovat na zařízení.
@@ -64,8 +88,12 @@ a [veřejná data ČHMÚ](https://opendata.chmi.cz/meteorology/weather/forecast/
 
 ## Hodinový přehled na displeji
 
-Ve WebUI v části obrazovek zvolte datum u „Hodinová předpověď“ a stiskněte
-„Zobrazit hodiny“. Návrat na souhrnnou předpověď obstará tlačítko „Počasí“.
+Pager lokalit na hlavní Weather obrazovce a hodinové podobrazovky jsou dvě
+odlišné vrstvy: pager mění zobrazovanou lokalitu, zatímco
+`weather-hourly-0` až `weather-hourly-3` vybírají den předpovědi.
+
+Ve WebUI v části obrazovek lze zvolit datum u „Hodinová předpověď“ a otevřít
+detail dne. Návrat na souhrnnou předpověď obstará tlačítko „Počasí“.
 Každý den má nejvýše osm karet s časem, ikonou, teplotou, větrem, množstvím
 srážek a případně jejich pravděpodobností. Body obsahují datum, aby se nemíchaly
 hodiny různých dnů. MET Norway pro vzdálenější dny poskytuje řidší časové body;
