@@ -716,9 +716,12 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         for (let i = 0; i < elements.length; i++) {
             const a = elements[i];
             const typeInfo = elementTypeInfo(a.type);
+            const requiredHeight = a.type === 'text' && (a.fontSize || 'auto') === 'large'
+                ? Math.max(28, Number(typeInfo.minHeight || 1))
+                : Number(typeInfo.minHeight || 1);
             if (!a.id || !a.type ||
                 a.width < Number(typeInfo.minWidth || 1) ||
-                a.height < Number(typeInfo.minHeight || 1) ||
+                a.height < requiredHeight ||
                 a.x < 8 || a.y < 40 ||
                 a.x + a.width > widget.width - 8 ||
                 a.y + a.height > widget.height - 8) {
@@ -779,7 +782,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     function normalizeElement(widget, element) {
         const typeInfo = elementTypeInfo(element.type);
         const minW = Number(typeInfo.minWidth || 20);
-        const minH = Number(typeInfo.minHeight || 20);
+        const minH = element.type === 'text' && (element.fontSize || 'auto') === 'large'
+            ? Math.max(28, Number(typeInfo.minHeight || 20))
+            : Number(typeInfo.minHeight || 20);
         element.width = Math.max(minW, Number(element.width || minW));
         element.height = Math.max(minH, Number(element.height || minH));
         element.x = Math.max(8, Math.min(Number(element.x || 8), widget.width - 8 - element.width));
