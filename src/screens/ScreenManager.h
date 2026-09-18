@@ -8,6 +8,7 @@ public:
     ScreenManager();
 
     void registerScreen(IScreen* screen);
+    void registerScreenAt(IScreen* screen, size_t index);
     bool unregisterScreen(const String& id);
     bool hasScreen(const String& id) const;
     bool activateScreen(const String& id);
