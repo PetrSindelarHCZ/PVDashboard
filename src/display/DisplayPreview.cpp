@@ -1,14 +1,13 @@
 #include "DisplayPreview.h"
 #include <ArduinoJson.h>
+#include <esp_heap_caps.h>
 #include <new>
 #include <stdarg.h>
 #include <string.h>
 
 DisplayPreview::~DisplayPreview() {
     releaseCanvas();
-    delete[] _packed;
-    _packed = nullptr;
-    _packedBytes = 0;
+    releasePacked();
 
     if (_mutex != nullptr) {
         vSemaphoreDelete(_mutex);
@@ -130,10 +129,35 @@ size_t DisplayPreview::packedSize(
     return encoded;
 }
 
+void DisplayPreview::writePackedByte(
+    uint32_t* storage,
+    size_t index,
+    uint8_t value) {
+    const size_t wordIndex = index >> 2;
+    const uint32_t shift =
+        static_cast<uint32_t>((index & 0x03U) * 8U);
+    const uint32_t mask = 0xFFUL << shift;
+    const uint32_t current = storage[wordIndex];
+    storage[wordIndex] =
+        (current & ~mask) |
+        (static_cast<uint32_t>(value) << shift);
+}
+
+uint8_t DisplayPreview::readPackedByte(
+    const uint32_t* storage,
+    size_t index) {
+    const size_t wordIndex = index >> 2;
+    const uint32_t shift =
+        static_cast<uint32_t>((index & 0x03U) * 8U);
+    return static_cast<uint8_t>(
+        (storage[wordIndex] >> shift) & 0xFFU);
+}
+
 bool DisplayPreview::pack(
     const uint8_t* input,
     size_t length,
-    uint8_t* output,
+    uint32_t* output,
+    size_t outputOffset,
     size_t outputSize) {
     if (input == nullptr || output == nullptr) return false;
 
@@ -150,9 +174,14 @@ bool DisplayPreview::pack(
 
         if (run >= 3) {
             if (out + 2 > outputSize) return false;
-            output[out++] =
-                static_cast<uint8_t>(0x80 | (run - 3));
-            output[out++] = input[i];
+            writePackedByte(
+                output,
+                outputOffset + out++,
+                static_cast<uint8_t>(0x80 | (run - 3)));
+            writePackedByte(
+                output,
+                outputOffset + out++,
+                input[i]);
             i += run;
             continue;
         }
@@ -182,16 +211,94 @@ bool DisplayPreview::pack(
 
         if (out + 1 + literalLength > outputSize) return false;
 
-        output[out++] =
-            static_cast<uint8_t>(literalLength - 1);
-        memcpy(
-            output + out,
-            input + literalStart,
-            literalLength);
-        out += literalLength;
+        writePackedByte(
+            output,
+            outputOffset + out++,
+            static_cast<uint8_t>(literalLength - 1));
+        for (size_t j = 0; j < literalLength; ++j) {
+            writePackedByte(
+                output,
+                outputOffset + out++,
+                input[literalStart + j]);
+        }
     }
 
     return out == outputSize;
+}
+
+bool DisplayPreview::ensurePackedCapacity(
+    size_t requiredBytes) {
+    if (_packed != nullptr &&
+        _packedCapacityBytes >= requiredBytes) {
+        return true;
+    }
+
+    const size_t desiredBytes =
+        min(
+            MaxStoredBytes,
+            (requiredBytes + 4095U) & ~4095U);
+    const size_t allocBytes =
+        (desiredBytes + 3U) & ~3U;
+
+    uint32_t* next =
+        static_cast<uint32_t*>(
+            heap_caps_malloc(
+                allocBytes,
+                MALLOC_CAP_EXEC |
+                MALLOC_CAP_INTERNAL));
+    bool inExecHeap = next != nullptr;
+
+    if (next == nullptr) {
+        next =
+            static_cast<uint32_t*>(
+                heap_caps_malloc(
+                    allocBytes,
+                    MALLOC_CAP_8BIT |
+                    MALLOC_CAP_INTERNAL));
+    }
+
+    if (next == nullptr) {
+        Serial.printf(
+            "[DISPLAY-PREVIEW] Nelze alokovat %u B pro komprimovany snapshot. "
+            "DRAM free=%u maxBlock=%u, IRAM32 free=%u\n",
+            static_cast<unsigned>(allocBytes),
+            ESP.getFreeHeap(),
+            ESP.getMaxAllocHeap(),
+            static_cast<unsigned>(
+                heap_caps_get_free_size(MALLOC_CAP_EXEC)));
+        return false;
+    }
+
+    const size_t wordCount = allocBytes / sizeof(uint32_t);
+    for (size_t i = 0; i < wordCount; ++i) {
+        next[i] = 0;
+    }
+
+    releasePacked();
+    _packed = next;
+    _packedCapacityBytes = allocBytes;
+    _packedInExecHeap = inExecHeap;
+
+    Serial.printf(
+        "[DISPLAY-PREVIEW] Snapshot storage %u B: %s | "
+        "DRAM free=%u maxBlock=%u, IRAM32 free=%u\n",
+        static_cast<unsigned>(_packedCapacityBytes),
+        _packedInExecHeap ? "IRAM32" : "DRAM fallback",
+        ESP.getFreeHeap(),
+        ESP.getMaxAllocHeap(),
+        static_cast<unsigned>(
+            heap_caps_get_free_size(MALLOC_CAP_EXEC)));
+    return true;
+}
+
+void DisplayPreview::releasePacked() {
+    if (_packed != nullptr) {
+        heap_caps_free(_packed);
+        _packed = nullptr;
+    }
+    _packedBytes = 0;
+    _packedCapacityBytes = 0;
+    _packedInExecHeap = false;
 }
 
 void DisplayPreview::capture(
@@ -228,60 +335,54 @@ void DisplayPreview::capture(
         if (encodedBytes > MaxStoredBytes) break;
     }
 
-    uint8_t* nextPacked = nullptr;
     bool stored = false;
 
     if (encodedBytes > 0 &&
-        encodedBytes <= MaxStoredBytes) {
-        nextPacked =
-            new (std::nothrow) uint8_t[encodedBytes];
+        encodedBytes <= MaxStoredBytes &&
+        ensurePackedCapacity(encodedBytes)) {
+        // 2. pruchod: stejne pruhy znovu vyrenderujeme a rovnou ulozime
+        // do znovupouzivaneho komprimovaneho snapshotu.
+        size_t outputOffset = 0;
+        stored = true;
 
-        if (nextPacked != nullptr) {
-            // 2. pruchod: stejne pruhy znovu vyrenderujeme a rovnou ulozime
-            // do jedineho komprimovaneho snapshotu.
-            size_t outputOffset = 0;
-            stored = true;
+        for (int16_t tileY = 0;
+             tileY < Height && stored;
+             tileY += TileHeight) {
+            _tileY = tileY;
+            _canvas->fillScreen(1);
+            _useUnicodeFont = false;
+            screen.render(*this, dataModel);
 
-            for (int16_t tileY = 0;
-                 tileY < Height && stored;
-                 tileY += TileHeight) {
-                _tileY = tileY;
-                _canvas->fillScreen(1);
-                _useUnicodeFont = false;
-                screen.render(*this, dataModel);
+            const size_t tilePackedBytes =
+                packedSize(
+                    _canvas->getBuffer(),
+                    TileBytes);
 
-                const size_t tilePackedBytes =
-                    packedSize(
-                        _canvas->getBuffer(),
-                        TileBytes);
-
-                if (outputOffset + tilePackedBytes >
-                    encodedBytes) {
-                    stored = false;
-                    break;
-                }
-
-                stored =
-                    pack(
-                        _canvas->getBuffer(),
-                        TileBytes,
-                        nextPacked + outputOffset,
-                        tilePackedBytes);
-
-                outputOffset += tilePackedBytes;
+            if (outputOffset + tilePackedBytes >
+                encodedBytes) {
+                stored = false;
+                break;
             }
 
             stored =
-                stored &&
-                outputOffset == encodedBytes;
+                pack(
+                    _canvas->getBuffer(),
+                    TileBytes,
+                    _packed,
+                    outputOffset,
+                    tilePackedBytes);
+
+            outputOffset += tilePackedBytes;
         }
+
+        stored =
+            stored &&
+            outputOffset == encodedBytes;
     }
 
     _tileY = 0;
 
     if (stored) {
-        delete[] _packed;
-        _packed = nextPacked;
         _packedBytes = encodedBytes;
 
         _lastScreenId = screen.getId();
@@ -310,8 +411,6 @@ void DisplayPreview::capture(
         _hasCapture = true;
         ++_generation;
     } else {
-        delete[] nextPacked;
-
         Serial.printf(
             "[DISPLAY-PREVIEW] Novy snapshot nelze ulozit: pack=%u B, limit=%u B, free=%u, maxBlock=%u%s\n",
             static_cast<unsigned>(encodedBytes),
@@ -325,13 +424,16 @@ void DisplayPreview::capture(
 
     if (stored) {
         Serial.printf(
-            "[DISPLAY-PREVIEW] Publikovan nahled '%s', generace %lu, %u B (%.1f%% raw). free=%u maxBlock=%u\n",
+            "[DISPLAY-PREVIEW] Publikovan nahled '%s', generace %lu, %u B "
+            "(%.1f%% raw), storage=%s/%u B | free=%u maxBlock=%u\n",
             _lastScreenId.c_str(),
             static_cast<unsigned long>(_generation),
             static_cast<unsigned>(_packedBytes),
             100.0f *
                 static_cast<float>(_packedBytes) /
                 static_cast<float>(BitmapBytes),
+            _packedInExecHeap ? "IRAM32" : "DRAM",
+            static_cast<unsigned>(_packedCapacityBytes),
             ESP.getFreeHeap(),
             ESP.getMaxAllocHeap());
     }
@@ -375,6 +477,9 @@ String DisplayPreview::metadataJson() {
     doc["goodweAvailable"] = _lastGoodweAvailable;
     doc["azrouterAvailable"] = _lastAzrouterAvailable;
     doc["storedBytes"] = _packedBytes;
+    doc["storageBytes"] = _packedCapacityBytes;
+    doc["storage"] =
+        _packedInExecHeap ? "iram32" : "dram";
     doc["rawBytes"] = BitmapBytes;
 
     String response;
@@ -494,7 +599,8 @@ bool DisplayPreview::writeUnpacked(
 
     while (input < _packedBytes &&
            produced < BitmapBytes) {
-        const uint8_t header = _packed[input++];
+        const uint8_t header =
+            readPackedByte(_packed, input++);
 
         if ((header & 0x80) != 0) {
             const size_t runLength =
@@ -507,7 +613,8 @@ bool DisplayPreview::writeUnpacked(
                 return false;
             }
 
-            const uint8_t value = _packed[input++];
+            const uint8_t value =
+                readPackedByte(_packed, input++);
             if (!emitRun(value, runLength)) {
                 return false;
             }
@@ -521,10 +628,14 @@ bool DisplayPreview::writeUnpacked(
                 return false;
             }
 
-            if (!emit(
-                    _packed + input,
-                    literalLength)) {
-                return false;
+            for (size_t j = 0; j < literalLength; ++j) {
+                const uint8_t value =
+                    readPackedByte(
+                        _packed,
+                        input + j);
+                if (!emit(&value, 1)) {
+                    return false;
+                }
             }
 
             input += literalLength;
