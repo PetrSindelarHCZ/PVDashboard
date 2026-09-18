@@ -53,6 +53,33 @@ IWeatherProvider* WeatherWorker::providerFor(const String& providerName) {
     return nullptr;
 }
 
+void WeatherWorker::setMemoryHeavyGate(SemaphoreHandle_t gate) {
+    _memoryHeavyGate = gate;
+}
+
+bool WeatherWorker::takeMemoryHeavyGate() {
+    if (_memoryHeavyGate == nullptr) return true;
+
+    bool waitingLogged = false;
+    while (!_stopRequested) {
+        if (xSemaphoreTake(
+                _memoryHeavyGate,
+                pdMS_TO_TICKS(250)) == pdTRUE) {
+            if (waitingLogged) {
+                Serial.println("[WEATHER] Memory gate ziskan, TLS muze zacit.");
+            }
+            return true;
+        }
+
+        if (!waitingLogged) {
+            Serial.println("[WEATHER] Cekam na memory gate pred TLS...");
+            waitingLogged = true;
+        }
+    }
+
+    return false;
+}
+
 bool WeatherWorker::begin(const WeatherConfig& config) {
     if (_task != nullptr) return reconfigure(config);
 
@@ -672,6 +699,8 @@ void WeatherWorker::taskLoop() {
             working.status.recordError(
                 "Unsupported provider");
         } else {
+            if (!takeMemoryHeavyGate()) break;
+
             Serial.printf(
                 "[WEATHER] Fetch %s: %s (%.5f, %.5f)%s | "
                 "free=%u, maxBlock=%u\n",
@@ -689,6 +718,10 @@ void WeatherWorker::taskLoop() {
                 provider->update(
                     targetConfig,
                     working);
+
+            if (_memoryHeavyGate != nullptr) {
+                xSemaphoreGive(_memoryHeavyGate);
+            }
         }
 
         // Pokud prisel stop behem HTTP/TLS operace, nedotykame se uz cache.
