@@ -194,6 +194,7 @@ void HomeScreen::buildNavigationLayout(const DataModel& dm, NavigationLayout& la
         layout.add("indoor-card", 555, 63, 230, 402);
     }
 
-    // entryPointId deliberately remains empty: the generic rule selects the
-    // left-most focusable widget (and top-most on ties).
+    // Entering from the sidebar starts on the left-most focusable widget
+    // (top-most on ties); LEFT can leave from any element with no neighbour
+    // further to the left.
 }
