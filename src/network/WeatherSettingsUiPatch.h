@@ -549,15 +549,6 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
 
         const latitude = Number(place.latitude);
         const longitude = Number(place.longitude);
-        const duplicate = locations.find(item =>
-            Math.abs(Number(item.latitude) - latitude) < 0.00001 &&
-            Math.abs(Number(item.longitude) - longitude) < 0.00001
-        );
-
-        if (duplicate) {
-            await selectLocation(duplicate.id);
-            return;
-        }
 
         const regional = place.admin2 || place.admin1 || '';
         const name = [place.name, regional && regional !== place.name ? regional : '']
