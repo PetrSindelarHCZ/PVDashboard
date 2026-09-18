@@ -11,6 +11,9 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         gap:12px;
         padding-bottom:2px;
     }
+    .weather-settings-card .weather-collapse-header {
+        align-items:flex-start;
+    }
     .weather-settings-card .weather-collapse-header > .settings-collapse-toggle {
         flex:1 1 auto;
         min-width:0;
@@ -21,6 +24,9 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         gap:9px;
         flex-wrap:wrap;
         justify-content:flex-end;
+    }
+    .weather-settings-card .weather-collapse-header > .settings-collapse-toggle[aria-expanded="false"] + .weather-title-actions {
+        display:none;
     }
     .weather-config-grid {
         display:grid;
