@@ -155,6 +155,19 @@ inline bool validateCustomWidget(const HomeLayoutWidgetConfig& widget, String* e
             return fail("Custom element text is too long");
         }
         if (element.decimals > 3) return fail("Custom KPI decimals must be 0 to 3");
+        if (!(element.fontSize == "auto" || element.fontSize == "small" ||
+              element.fontSize == "normal" || element.fontSize == "large")) {
+            return fail("Unknown custom font size");
+        }
+        if (!(element.align == "left" || element.align == "center" || element.align == "right")) {
+            return fail("Unknown custom alignment");
+        }
+        if (!(element.graphStyle == "line" || element.graphStyle == "bars")) {
+            return fail("Unknown custom graph style");
+        }
+        if (element.type != "sparkline" && element.graphStyle != "line") {
+            return fail("Graph style is valid only for sparkline elements");
+        }
 
         if (element.width < elementMinWidth(element.type) ||
             element.height < elementMinHeight(element.type)) {
@@ -263,6 +276,10 @@ inline void serializeElement(JsonObject item, const CustomWidgetElementConfig& e
     item["decimals"] = element.decimals;
     item["min"] = element.minValue;
     item["max"] = element.maxValue;
+    item["fontSize"] = element.fontSize;
+    item["align"] = element.align;
+    item["showLabel"] = element.showLabel;
+    item["graphStyle"] = element.graphStyle;
 }
 
 inline String serializeJson(const HomeLayoutConfig& config) {
@@ -307,6 +324,10 @@ inline bool parseElement(JsonObject item, CustomWidgetElementConfig& element) {
     element.decimals = item["decimals"] | 1;
     element.minValue = item["min"] | 0.0f;
     element.maxValue = item["max"] | 100.0f;
+    element.fontSize = String(item["fontSize"] | "auto");
+    element.align = String(item["align"] | "left");
+    element.showLabel = item["showLabel"] | true;
+    element.graphStyle = String(item["graphStyle"] | "line");
     return true;
 }
 
