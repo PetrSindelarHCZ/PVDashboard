@@ -123,7 +123,9 @@ Navigace rozlišuje dvě oblasti:
 - **Sidebar** — výchozí stav. `UP/DOWN` prochází položky, `OK` aktivuje a načte
   vybranou stránku, `LEFT` se ignoruje a `RIGHT` vstoupí do právě zobrazené stránky.
 - **Page** — `UP/DOWN/LEFT/RIGHT` se pohybuje mezi focusovatelnými prvky.
-  `LEFT` na vstupním bodu stránky vrátí focus do sidebaru.
+  `LEFT` nejprve hledá další prvek vlevo; pokud už žádný neexistuje, focus se
+  vrátí do sidebaru. Tím lze stránku opustit z libovolného prvku na jejím levém
+  navigačním okraji.
 - `OK` uvnitř stránky je zatím rezervované pro budoucí práci s prvkem, editaci
   nebo potvrzení.
 
@@ -134,8 +136,10 @@ joystick. Neobsahuje vlastní logiku přepínání.
 
 Navigační sousedé nejsou pevně zakódovaní podle ID widgetů. Každá stránka
 poskytne aktuální seznam focusovatelných obdélníků a controller sousedy odvodí
-z jejich geometrie. Výchozí vstupní bod je nejlevější focusovatelný prvek
-(při shodě nejvyšší), pokud stránka neurčí explicitní vstupní bod.
+z jejich geometrie. Po vstupu ze sidebaru se počáteční focus zvolí jako
+nejlevější focusovatelný prvek, při shodě nejvyšší. Nejde ale o zvláštní
+vstupní ani výstupní bod; výstup vlevo vzniká čistě z geometrie aktuálního
+layoutu.
 
 Toto pravidlo je důležité hlavně pro budoucí editovatelnou Home stránku:
 po změně pozice, velikosti nebo přítomnosti widgetů se navigace sestaví z právě
