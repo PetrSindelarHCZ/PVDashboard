@@ -17,6 +17,10 @@ DisplayWorker::DisplayWorker(DisplayManager& displayManager)
     : _displayManager(displayManager) {
 }
 
+void DisplayWorker::setMemoryHeavyGate(SemaphoreHandle_t gate) {
+    _memoryHeavyGate = gate;
+}
+
 bool DisplayWorker::begin() {
     if (_task != nullptr) {
         return true;
@@ -93,7 +97,22 @@ void DisplayWorker::taskEntry(void* parameter) {
 }
 
 void DisplayWorker::taskLoop() {
+    bool waitedForGate = false;
+    if (_memoryHeavyGate != nullptr &&
+        xSemaphoreTake(_memoryHeavyGate, 0) != pdTRUE) {
+        waitedForGate = true;
+        Serial.println("[DISPLAY-WORKER] Cekam na memory gate pred inicializaci displeje...");
+        xSemaphoreTake(_memoryHeavyGate, portMAX_DELAY);
+    }
+
     _displayManager.init();
+
+    if (_memoryHeavyGate != nullptr) {
+        xSemaphoreGive(_memoryHeavyGate);
+        if (waitedForGate) {
+            Serial.println("[DISPLAY-WORKER] Memory gate po inicializaci uvolnen.");
+        }
+    }
 
     xSemaphoreTake(_mutex, portMAX_DELAY);
     _status.ready = true;
@@ -126,9 +145,25 @@ void DisplayWorker::taskLoop() {
                 : DisplayTaskState::RenderingPartial;
             xSemaphoreGive(_mutex);
 
+            bool waitedForGate = false;
+            if (_memoryHeavyGate != nullptr &&
+                xSemaphoreTake(_memoryHeavyGate, 0) != pdTRUE) {
+                waitedForGate = true;
+                Serial.println("[DISPLAY-WORKER] Cekam na memory gate pred renderem...");
+                xSemaphoreTake(_memoryHeavyGate, portMAX_DELAY);
+            }
+
+            if (waitedForGate) {
+                Serial.println("[DISPLAY-WORKER] Memory gate ziskan, render muze zacit.");
+            }
+
             const uint32_t startedMs = millis();
             _displayManager.renderScreen(screen, dataSnapshot, full);
             const uint32_t completedMs = millis();
+
+            if (_memoryHeavyGate != nullptr) {
+                xSemaphoreGive(_memoryHeavyGate);
+            }
 
             xSemaphoreTake(_mutex, portMAX_DELAY);
             _status.completedCount++;
