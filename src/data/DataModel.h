@@ -88,7 +88,6 @@ struct WeatherData {
 struct InsideData {
     float livingRoomTempC = 22.4f;
     float bedroomTempC = 21.8f;
-    int co2Ppm = 612;
     float poolTempC = 25.1f;
 };
 
