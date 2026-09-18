@@ -288,65 +288,102 @@ bool MetNorwayClient::parseResponse(
     Stream& stream,
     WeatherData& weatherData,
     String& error) {
+    // Locationforecast může vrátit desítky až stovky časových bodů. Držet celé
+    // filtrované pole timeseries v jednom JsonDocument vedlo po rozběhu WebUI
+    // k JSON NoMemory. Proto obálku pouze proskenujeme a každý bod parsujeme
+    // samostatně přímo ze streamu.
+    constexpr char TimeseriesKey[] = "\"timeseries\"";
+    constexpr uint32_t StreamWaitMs = ResponseTimeoutMs;
+
+    auto readByte = [&](bool peekOnly) -> int {
+        const uint32_t started = millis();
+        for (;;) {
+            const int value = peekOnly ? stream.peek() : stream.read();
+            if (value >= 0) return value;
+            if (millis() - started >= StreamWaitMs) return -1;
+            delay(1);
+        }
+    };
+
+    size_t matched = 0;
+    while (matched < sizeof(TimeseriesKey) - 1) {
+        const int value = readByte(false);
+        if (value < 0) {
+            error = "MET timeseries timeout";
+            return false;
+        }
+        const char ch = static_cast<char>(value);
+        if (ch == TimeseriesKey[matched]) {
+            ++matched;
+        } else {
+            matched = ch == TimeseriesKey[0] ? 1 : 0;
+        }
+    }
+
+    bool arrayStarted = false;
+    while (!arrayStarted) {
+        const int value = readByte(false);
+        if (value < 0) {
+            error = "Missing MET timeseries array";
+            return false;
+        }
+        if (value == '[') arrayStarted = true;
+    }
+
     JsonDocument filter;
-    filter["properties"]["timeseries"][0]["time"] = true;
-    filter["properties"]["timeseries"][0]["data"]["instant"]["details"]["air_pressure_at_sea_level"] = true;
-    filter["properties"]["timeseries"][0]["data"]["instant"]["details"]["air_temperature"] = true;
-    filter["properties"]["timeseries"][0]["data"]["instant"]["details"]["relative_humidity"] = true;
-    filter["properties"]["timeseries"][0]["data"]["instant"]["details"]["wind_speed"] = true;
-    filter["properties"]["timeseries"][0]["data"]["next_1_hours"]["summary"]["symbol_code"] = true;
-    filter["properties"]["timeseries"][0]["data"]["next_1_hours"]["details"]["precipitation_amount"] = true;
-    filter["properties"]["timeseries"][0]["data"]["next_1_hours"]["details"]["probability_of_precipitation"] = true;
-    filter["properties"]["timeseries"][0]["data"]["next_6_hours"]["summary"]["symbol_code"] = true;
-    filter["properties"]["timeseries"][0]["data"]["next_6_hours"]["details"]["precipitation_amount"] = true;
-    filter["properties"]["timeseries"][0]["data"]["next_6_hours"]["details"]["probability_of_precipitation"] = true;
-    filter["properties"]["timeseries"][0]["data"]["next_12_hours"]["summary"]["symbol_code"] = true;
+    filter["time"] = true;
+    filter["data"]["instant"]["details"]["air_pressure_at_sea_level"] = true;
+    filter["data"]["instant"]["details"]["air_temperature"] = true;
+    filter["data"]["instant"]["details"]["relative_humidity"] = true;
+    filter["data"]["instant"]["details"]["wind_speed"] = true;
+    filter["data"]["next_1_hours"]["summary"]["symbol_code"] = true;
+    filter["data"]["next_1_hours"]["details"]["precipitation_amount"] = true;
+    filter["data"]["next_1_hours"]["details"]["probability_of_precipitation"] = true;
+    filter["data"]["next_6_hours"]["summary"]["symbol_code"] = true;
+    filter["data"]["next_6_hours"]["details"]["precipitation_amount"] = true;
+    filter["data"]["next_6_hours"]["details"]["probability_of_precipitation"] = true;
+    filter["data"]["next_12_hours"]["summary"]["symbol_code"] = true;
 
-    JsonDocument doc;
-    const DeserializationError jsonError = deserializeJson(
-        doc,
-        stream,
-        DeserializationOption::Filter(filter));
-    if (jsonError) {
-        error = "JSON " + String(jsonError.c_str());
-        return false;
-    }
-
-    const JsonArrayConst timeseries =
-        doc["properties"]["timeseries"].as<JsonArrayConst>();
-    if (timeseries.isNull() || timeseries.size() == 0) {
-        error = "Missing MET timeseries";
-        return false;
-    }
-
-    const JsonObjectConst firstData =
-        timeseries[0]["data"].as<JsonObjectConst>();
-    const JsonObjectConst firstDetails =
-        firstData["instant"]["details"].as<JsonObjectConst>();
-    if (firstDetails["air_temperature"].isNull() ||
-        firstDetails["relative_humidity"].isNull()) {
-        error = "Missing MET current data";
-        return false;
-    }
-
-    weatherData.outdoorTempC = firstDetails["air_temperature"].as<float>();
-    weatherData.outdoorHumidityPercent =
-        static_cast<int>(roundf(firstDetails["relative_humidity"].as<float>()));
-    weatherData.surfacePressureHpa =
-        firstDetails["air_pressure_at_sea_level"] | 0.0f;
-    weatherData.windSpeedKmh =
-        (firstDetails["wind_speed"] | 0.0f) * 3.6f;
-    const JsonObjectConst firstPrecipitation =
-        precipitationDetails(firstData);
-    weatherData.currentPrecipitationMm =
-        firstPrecipitation["precipitation_amount"] | 0.0f;
-    weatherData.weatherCode = symbolToWeatherCode(forecastSymbol(firstData));
-    weatherData.conditionText = conditionForCode(weatherData.weatherCode);
     weatherData.dailyCount = 0;
     weatherData.hourlyCount = 0;
-
     time_t lastHourlyUtc = 0;
-    for (JsonObjectConst point : timeseries) {
+    bool haveCurrent = false;
+    uint16_t parsedPoints = 0;
+
+    for (;;) {
+        int value = readByte(true);
+        while (value >= 0 &&
+               (value == ',' || value == ' ' || value == '\r' ||
+                value == '\n' || value == '\t')) {
+            stream.read();
+            value = readByte(true);
+        }
+
+        if (value < 0) {
+            error = "MET timeseries truncated";
+            return false;
+        }
+        if (value == ']') {
+            stream.read();
+            break;
+        }
+        if (value != '{') {
+            error = "Unexpected MET timeseries token";
+            return false;
+        }
+
+        JsonDocument pointDoc;
+        const DeserializationError jsonError = deserializeJson(
+            pointDoc,
+            stream,
+            DeserializationOption::Filter(filter));
+        if (jsonError) {
+            error = "JSON point " + String(parsedPoints) + " " + String(jsonError.c_str());
+            return false;
+        }
+        ++parsedPoints;
+
+        const JsonObjectConst point = pointDoc.as<JsonObjectConst>();
         const char* timestamp = point["time"];
         time_t utc = 0;
         tm local{};
@@ -356,6 +393,30 @@ bool MetNorwayClient::parseResponse(
         const JsonObjectConst instant =
             data["instant"]["details"].as<JsonObjectConst>();
         if (instant["air_temperature"].isNull()) continue;
+
+        if (!haveCurrent) {
+            if (instant["relative_humidity"].isNull()) {
+                error = "Missing MET current data";
+                return false;
+            }
+            weatherData.outdoorTempC = instant["air_temperature"].as<float>();
+            weatherData.outdoorHumidityPercent =
+                static_cast<int>(roundf(instant["relative_humidity"].as<float>()));
+            weatherData.surfacePressureHpa =
+                instant["air_pressure_at_sea_level"] | 0.0f;
+            weatherData.windSpeedKmh =
+                (instant["wind_speed"] | 0.0f) * 3.6f;
+
+            const JsonObjectConst currentPrecipitation =
+                precipitationDetails(data);
+            weatherData.currentPrecipitationMm =
+                currentPrecipitation["precipitation_amount"] | 0.0f;
+            weatherData.weatherCode =
+                symbolToWeatherCode(forecastSymbol(data));
+            weatherData.conditionText =
+                conditionForCode(weatherData.weatherCode);
+            haveCurrent = true;
+        }
 
         char date[11];
         snprintf(date, sizeof(date), "%04d-%02d-%02d",
@@ -370,7 +431,14 @@ bool MetNorwayClient::parseResponse(
                 break;
             }
         }
-        if (dayIndex < 0 && weatherData.dailyCount < WeatherForecastDayCount) {
+
+        if (dayIndex < 0 && weatherData.dailyCount >= WeatherForecastDayCount) {
+            // Timeseries je chronologická. Jakmile začíná pátý den, další
+            // body už pro čtyřdenní dashboard nepotřebujeme.
+            break;
+        }
+
+        if (dayIndex < 0) {
             dayIndex = weatherData.dailyCount++;
             DailyWeatherForecast& created = weatherData.daily[dayIndex];
             created = {};
@@ -380,29 +448,27 @@ bool MetNorwayClient::parseResponse(
             created.weatherCode = symbolToWeatherCode(forecastSymbol(data));
         }
 
-        if (dayIndex >= 0) {
-            DailyWeatherForecast& day = weatherData.daily[dayIndex];
-            const float temperature = instant["air_temperature"].as<float>();
-            day.tempMaxC = max(day.tempMaxC, temperature);
-            day.tempMinC = min(day.tempMinC, temperature);
-            day.windMaxKmh = max(
-                day.windMaxKmh,
-                (instant["wind_speed"] | 0.0f) * 3.6f);
+        DailyWeatherForecast& day = weatherData.daily[dayIndex];
+        const float temperature = instant["air_temperature"].as<float>();
+        day.tempMaxC = max(day.tempMaxC, temperature);
+        day.tempMinC = min(day.tempMinC, temperature);
+        day.windMaxKmh = max(
+            day.windMaxKmh,
+            (instant["wind_speed"] | 0.0f) * 3.6f);
 
-            const JsonObjectConst precip = precipitationDetails(data);
-            day.precipitationMm += precip["precipitation_amount"] | 0.0f;
-            if (!precip["probability_of_precipitation"].isNull()) {
-                day.hasPrecipitationProbability = true;
-                day.precipitationProbabilityPercent = max(
-                    day.precipitationProbabilityPercent,
-                    precip["probability_of_precipitation"].as<uint8_t>());
-            }
-            if (local.tm_hour >= 11 && local.tm_hour <= 14) {
-                day.weatherCode = symbolToWeatherCode(forecastSymbol(data));
-            }
+        const JsonObjectConst precip = precipitationDetails(data);
+        day.precipitationMm += precip["precipitation_amount"] | 0.0f;
+        if (!precip["probability_of_precipitation"].isNull()) {
+            day.hasPrecipitationProbability = true;
+            day.precipitationProbabilityPercent = max(
+                day.precipitationProbabilityPercent,
+                precip["probability_of_precipitation"].as<uint8_t>());
+        }
+        if (local.tm_hour >= 11 && local.tm_hour <= 14) {
+            day.weatherCode = symbolToWeatherCode(forecastSymbol(data));
         }
 
-        if (dayIndex >= 0 && weatherData.hourlyCount < WeatherHourlySlotCount &&
+        if (weatherData.hourlyCount < WeatherHourlySlotCount &&
             local.tm_hour % 3 == 0 &&
             (lastHourlyUtc == 0 || utc - lastHourlyUtc >= 3 * 3600)) {
             HourlyWeatherForecast& hour =
@@ -412,10 +478,10 @@ bool MetNorwayClient::parseResponse(
             snprintf(hour.time, sizeof(hour.time), "%02d:%02d",
                      local.tm_hour,
                      local.tm_min);
-            hour.tempC = instant["air_temperature"].as<float>();
+            hour.tempC = temperature;
             hour.windKmh = (instant["wind_speed"] | 0.0f) * 3.6f;
-            const JsonObjectConst precip = precipitationDetails(data);
-            hour.precipitationMm = precip["precipitation_amount"] | 0.0f;
+            hour.precipitationMm =
+                precip["precipitation_amount"] | 0.0f;
             if (!precip["probability_of_precipitation"].isNull()) {
                 hour.hasPrecipitationProbability = true;
                 hour.precipitationProbabilityPercent =
@@ -426,11 +492,21 @@ bool MetNorwayClient::parseResponse(
         }
     }
 
+    if (!haveCurrent) {
+        error = "Missing MET current data";
+        return false;
+    }
     if (weatherData.dailyCount == 0) {
         error = "No MET forecast days";
         return false;
     }
+
     weatherData.tempMaxTodayC = weatherData.daily[0].tempMaxC;
     weatherData.tempMinTodayC = weatherData.daily[0].tempMinC;
+
+    Serial.printf("[WEATHER] MET stream parser: %u bodu, %u dnu, %u hodinovych bodu\n",
+                  parsedPoints,
+                  weatherData.dailyCount,
+                  weatherData.hourlyCount);
     return true;
 }
