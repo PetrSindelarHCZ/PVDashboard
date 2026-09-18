@@ -1,14 +1,13 @@
 #include "DisplayPreview.h"
 #include <ArduinoJson.h>
+#include <esp_heap_caps.h>
 #include <new>
 #include <stdarg.h>
 #include <string.h>
 
 DisplayPreview::~DisplayPreview() {
     releaseCanvas();
-    delete[] _packed;
-    _packed = nullptr;
-    _packedBytes = 0;
+    releasePacked();
 
     if (_mutex != nullptr) {
         vSemaphoreDelete(_mutex);
@@ -27,7 +26,10 @@ void DisplayPreview::init() {
     }
 
     Serial.printf(
-        "[DISPLAY-PREVIEW] Lazy preview pripraven: canvas %u B se alokuje jen pri capture.\n",
+        "[DISPLAY-PREVIEW] Tiled preview pripraven: pracovni canvas %u B (%dx%d), raw frame %u B.\n",
+        static_cast<unsigned>(TileBytes),
+        Width,
+        TileHeight,
         static_cast<unsigned>(BitmapBytes));
 }
 
@@ -53,11 +55,11 @@ bool DisplayPreview::ensureCanvas() {
 
     releaseCanvas();
 
-    _canvas = new (std::nothrow) GFXcanvas1(Width, Height);
+    _canvas = new (std::nothrow) GFXcanvas1(Width, TileHeight);
     if (_canvas == nullptr || _canvas->getBuffer() == nullptr) {
         Serial.printf(
-            "[DISPLAY-PREVIEW] Nelze docasne alokovat %u B canvas. free=%u maxBlock=%u\n",
-            static_cast<unsigned>(BitmapBytes),
+            "[DISPLAY-PREVIEW] Nelze docasne alokovat %u B tiled canvas. free=%u maxBlock=%u\n",
+            static_cast<unsigned>(TileBytes),
             ESP.getFreeHeap(),
             ESP.getMaxAllocHeap());
         releaseCanvas();
@@ -127,10 +129,35 @@ size_t DisplayPreview::packedSize(
     return encoded;
 }
 
+void DisplayPreview::writePackedByte(
+    uint32_t* storage,
+    size_t index,
+    uint8_t value) {
+    const size_t wordIndex = index >> 2;
+    const uint32_t shift =
+        static_cast<uint32_t>((index & 0x03U) * 8U);
+    const uint32_t mask = 0xFFUL << shift;
+    const uint32_t current = storage[wordIndex];
+    storage[wordIndex] =
+        (current & ~mask) |
+        (static_cast<uint32_t>(value) << shift);
+}
+
+uint8_t DisplayPreview::readPackedByte(
+    const uint32_t* storage,
+    size_t index) {
+    const size_t wordIndex = index >> 2;
+    const uint32_t shift =
+        static_cast<uint32_t>((index & 0x03U) * 8U);
+    return static_cast<uint8_t>(
+        (storage[wordIndex] >> shift) & 0xFFU);
+}
+
 bool DisplayPreview::pack(
     const uint8_t* input,
     size_t length,
-    uint8_t* output,
+    uint32_t* output,
+    size_t outputOffset,
     size_t outputSize) {
     if (input == nullptr || output == nullptr) return false;
 
@@ -147,9 +174,14 @@ bool DisplayPreview::pack(
 
         if (run >= 3) {
             if (out + 2 > outputSize) return false;
-            output[out++] =
-                static_cast<uint8_t>(0x80 | (run - 3));
-            output[out++] = input[i];
+            writePackedByte(
+                output,
+                outputOffset + out++,
+                static_cast<uint8_t>(0x80 | (run - 3)));
+            writePackedByte(
+                output,
+                outputOffset + out++,
+                input[i]);
             i += run;
             continue;
         }
@@ -179,16 +211,88 @@ bool DisplayPreview::pack(
 
         if (out + 1 + literalLength > outputSize) return false;
 
-        output[out++] =
-            static_cast<uint8_t>(literalLength - 1);
-        memcpy(
-            output + out,
-            input + literalStart,
-            literalLength);
-        out += literalLength;
+        writePackedByte(
+            output,
+            outputOffset + out++,
+            static_cast<uint8_t>(literalLength - 1));
+        for (size_t j = 0; j < literalLength; ++j) {
+            writePackedByte(
+                output,
+                outputOffset + out++,
+                input[literalStart + j]);
+        }
     }
 
     return out == outputSize;
+}
+
+bool DisplayPreview::ensurePackedCapacity(
+    size_t requiredBytes) {
+    if (_packed != nullptr &&
+        _packedCapacityBytes >= requiredBytes) {
+        return true;
+    }
+
+    const size_t desiredBytes =
+        min(
+            MaxStoredBytes,
+            (requiredBytes + 4095U) & ~4095U);
+    const size_t allocBytes =
+        (desiredBytes + 3U) & ~3U;
+
+    uint32_t* next =
+        static_cast<uint32_t*>(
+            heap_caps_malloc(
+                allocBytes,
+                MALLOC_CAP_EXEC |
+                MALLOC_CAP_INTERNAL));
+    const bool inExecHeap = next != nullptr;
+
+    if (next == nullptr) {
+        Serial.printf(
+            "[DISPLAY-PREVIEW] IRAM32 nema %u B pro snapshot; preview preskakuji, "
+            "aby zustala DRAM pro TLS. DRAM free=%u maxBlock=%u, "
+            "IRAM32 free=%u maxBlock=%u\n",
+            static_cast<unsigned>(allocBytes),
+            ESP.getFreeHeap(),
+            ESP.getMaxAllocHeap(),
+            static_cast<unsigned>(
+                heap_caps_get_free_size(MALLOC_CAP_EXEC)),
+            static_cast<unsigned>(
+                heap_caps_get_largest_free_block(MALLOC_CAP_EXEC)));
+        return false;
+    }
+
+    const size_t wordCount = allocBytes / sizeof(uint32_t);
+    for (size_t i = 0; i < wordCount; ++i) {
+        next[i] = 0;
+    }
+
+    releasePacked();
+    _packed = next;
+    _packedCapacityBytes = allocBytes;
+    _packedInExecHeap = inExecHeap;
+
+    Serial.printf(
+        "[DISPLAY-PREVIEW] Snapshot storage %u B: %s | "
+        "DRAM free=%u maxBlock=%u, IRAM32 free=%u\n",
+        static_cast<unsigned>(_packedCapacityBytes),
+        _packedInExecHeap ? "IRAM32" : "none",
+        ESP.getFreeHeap(),
+        ESP.getMaxAllocHeap(),
+        static_cast<unsigned>(
+            heap_caps_get_free_size(MALLOC_CAP_EXEC)));
+    return true;
+}
+
+void DisplayPreview::releasePacked() {
+    if (_packed != nullptr) {
+        heap_caps_free(_packed);
+        _packed = nullptr;
+    }
+    _packedBytes = 0;
+    _packedCapacityBytes = 0;
+    _packedInExecHeap = false;
 }
 
 void DisplayPreview::capture(
@@ -203,39 +307,76 @@ void DisplayPreview::capture(
     }
 
     if (!ensureCanvas()) {
-        _hasCapture = false;
+        // Posledni uspesny snapshot ponechame dostupny.
         xSemaphoreGive(_mutex);
         return;
     }
 
-    _canvas->fillScreen(1);
-    _useUnicodeFont = false;
-    screen.render(*this, dataModel);
+    // 1. pruchod: po 60px pruzich pouze spocitame vyslednou RLE velikost.
+    // Peak alokace je tak jen 6kB canvas a nemusime mit 48kB souvisly blok.
+    size_t encodedBytes = 0;
+    for (int16_t tileY = 0; tileY < Height; tileY += TileHeight) {
+        _tileY = tileY;
+        _canvas->fillScreen(1);
+        _useUnicodeFont = false;
+        screen.render(*this, dataModel);
 
-    const uint8_t* bitmap = _canvas->getBuffer();
-    const size_t encodedBytes =
-        packedSize(bitmap, BitmapBytes);
+        encodedBytes +=
+            packedSize(
+                _canvas->getBuffer(),
+                TileBytes);
 
-    uint8_t* nextPacked = nullptr;
+        if (encodedBytes > MaxStoredBytes) break;
+    }
+
     bool stored = false;
 
     if (encodedBytes > 0 &&
-        encodedBytes <= MaxStoredBytes) {
-        nextPacked =
-            new (std::nothrow) uint8_t[encodedBytes];
+        encodedBytes <= MaxStoredBytes &&
+        ensurePackedCapacity(encodedBytes)) {
+        // 2. pruchod: stejne pruhy znovu vyrenderujeme a rovnou ulozime
+        // do znovupouzivaneho komprimovaneho snapshotu.
+        size_t outputOffset = 0;
+        stored = true;
 
-        if (nextPacked != nullptr) {
-            stored = pack(
-                bitmap,
-                BitmapBytes,
-                nextPacked,
-                encodedBytes);
+        for (int16_t tileY = 0;
+             tileY < Height && stored;
+             tileY += TileHeight) {
+            _tileY = tileY;
+            _canvas->fillScreen(1);
+            _useUnicodeFont = false;
+            screen.render(*this, dataModel);
+
+            const size_t tilePackedBytes =
+                packedSize(
+                    _canvas->getBuffer(),
+                    TileBytes);
+
+            if (outputOffset + tilePackedBytes >
+                encodedBytes) {
+                stored = false;
+                break;
+            }
+
+            stored =
+                pack(
+                    _canvas->getBuffer(),
+                    TileBytes,
+                    _packed,
+                    outputOffset,
+                    tilePackedBytes);
+
+            outputOffset += tilePackedBytes;
         }
+
+        stored =
+            stored &&
+            outputOffset == encodedBytes;
     }
 
+    _tileY = 0;
+
     if (stored) {
-        delete[] _packed;
-        _packed = nextPacked;
         _packedBytes = encodedBytes;
 
         _lastScreenId = screen.getId();
@@ -264,31 +405,29 @@ void DisplayPreview::capture(
         _hasCapture = true;
         ++_generation;
     } else {
-        delete[] nextPacked;
-        delete[] _packed;
-        _packed = nullptr;
-        _packedBytes = 0;
-        _hasCapture = false;
-
         Serial.printf(
-            "[DISPLAY-PREVIEW] Snapshot nelze ulozit: pack=%u B, limit=%u B, free=%u, maxBlock=%u\n",
+            "[DISPLAY-PREVIEW] Novy snapshot nelze ulozit: pack=%u B, limit=%u B, free=%u, maxBlock=%u%s\n",
             static_cast<unsigned>(encodedBytes),
             static_cast<unsigned>(MaxStoredBytes),
             ESP.getFreeHeap(),
-            ESP.getMaxAllocHeap());
+            ESP.getMaxAllocHeap(),
+            _hasCapture ? " | ponechavam predchozi nahled" : "");
     }
 
     releaseCanvas();
 
     if (stored) {
         Serial.printf(
-            "[DISPLAY-PREVIEW] Publikovan nahled '%s', generace %lu, %u B (%.1f%% raw). free=%u maxBlock=%u\n",
+            "[DISPLAY-PREVIEW] Publikovan nahled '%s', generace %lu, %u B "
+            "(%.1f%% raw), storage=%s/%u B | free=%u maxBlock=%u\n",
             _lastScreenId.c_str(),
             static_cast<unsigned long>(_generation),
             static_cast<unsigned>(_packedBytes),
             100.0f *
                 static_cast<float>(_packedBytes) /
                 static_cast<float>(BitmapBytes),
+            _packedInExecHeap ? "IRAM32" : "DRAM",
+            static_cast<unsigned>(_packedCapacityBytes),
             ESP.getFreeHeap(),
             ESP.getMaxAllocHeap());
     }
@@ -332,6 +471,9 @@ String DisplayPreview::metadataJson() {
     doc["goodweAvailable"] = _lastGoodweAvailable;
     doc["azrouterAvailable"] = _lastAzrouterAvailable;
     doc["storedBytes"] = _packedBytes;
+    doc["storageBytes"] = _packedCapacityBytes;
+    doc["storage"] =
+        _packedInExecHeap ? "iram32" : "dram";
     doc["rawBytes"] = BitmapBytes;
 
     String response;
@@ -394,28 +536,65 @@ bool DisplayPreview::writeUnpacked(
     WiFiClient& client) const {
     if (_packed == nullptr || _packedBytes == 0) return false;
 
-    auto writeAll = [&client](
-        const uint8_t* data,
-        size_t length) -> bool {
+    // Posilat jednotlive RLE bloky znamenalo stovky velmi malych TCP write()
+    // volani. Na Wi-Fi pak 48kB BMP dokazal blokovat WebServer pres 10 s.
+    // Data proto skládáme do vetsiho vystupniho bufferu a posilame po blocich.
+    constexpr size_t OutputBufferBytes = 1024;
+    uint8_t outputBuffer[OutputBufferBytes];
+    size_t buffered = 0;
+
+    auto flush = [&]() -> bool {
         size_t written = 0;
-        while (written < length) {
+        while (written < buffered) {
             const size_t chunk =
                 client.write(
-                    data + written,
-                    length - written);
+                    outputBuffer + written,
+                    buffered - written);
             if (chunk == 0) return false;
             written += chunk;
+        }
+        buffered = 0;
+        return true;
+    };
+
+    auto emit = [&](const uint8_t* data, size_t length) -> bool {
+        while (length > 0) {
+            const size_t space = OutputBufferBytes - buffered;
+            const size_t chunk = min(space, length);
+            memcpy(outputBuffer + buffered, data, chunk);
+            buffered += chunk;
+            data += chunk;
+            length -= chunk;
+
+            if (buffered == OutputBufferBytes && !flush()) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    auto emitRun = [&](uint8_t value, size_t length) -> bool {
+        while (length > 0) {
+            const size_t space = OutputBufferBytes - buffered;
+            const size_t chunk = min(space, length);
+            memset(outputBuffer + buffered, value, chunk);
+            buffered += chunk;
+            length -= chunk;
+
+            if (buffered == OutputBufferBytes && !flush()) {
+                return false;
+            }
         }
         return true;
     };
 
     size_t input = 0;
     size_t produced = 0;
-    uint8_t runBuffer[64];
 
     while (input < _packedBytes &&
            produced < BitmapBytes) {
-        const uint8_t header = _packed[input++];
+        const uint8_t header =
+            readPackedByte(_packed, input++);
 
         if ((header & 0x80) != 0) {
             const size_t runLength =
@@ -428,22 +607,11 @@ bool DisplayPreview::writeUnpacked(
                 return false;
             }
 
-            const uint8_t value = _packed[input++];
-
-            memset(runBuffer, value, sizeof(runBuffer));
-
-            size_t remaining = runLength;
-            while (remaining > 0) {
-                const size_t chunk =
-                    min(
-                        remaining,
-                        sizeof(runBuffer));
-                if (!writeAll(runBuffer, chunk)) {
-                    return false;
-                }
-                remaining -= chunk;
+            const uint8_t value =
+                readPackedByte(_packed, input++);
+            if (!emitRun(value, runLength)) {
+                return false;
             }
-
             produced += runLength;
         } else {
             const size_t literalLength =
@@ -454,10 +622,14 @@ bool DisplayPreview::writeUnpacked(
                 return false;
             }
 
-            if (!writeAll(
-                    _packed + input,
-                    literalLength)) {
-                return false;
+            for (size_t j = 0; j < literalLength; ++j) {
+                const uint8_t value =
+                    readPackedByte(
+                        _packed,
+                        input + j);
+                if (!emit(&value, 1)) {
+                    return false;
+                }
             }
 
             input += literalLength;
@@ -465,8 +637,12 @@ bool DisplayPreview::writeUnpacked(
         }
     }
 
-    return produced == BitmapBytes &&
-           input == _packedBytes;
+    if (produced != BitmapBytes ||
+        input != _packedBytes) {
+        return false;
+    }
+
+    return buffered == 0 || flush();
 }
 
 bool DisplayPreview::writeBmp(WiFiClient& client) {
@@ -509,7 +685,7 @@ void DisplayPreview::drawPixel(
     if (_canvas) {
         _canvas->drawPixel(
             x,
-            y,
+            y - _tileY,
             normalizeColor(color));
     }
 }
@@ -523,9 +699,9 @@ void DisplayPreview::drawLine(
     if (_canvas) {
         _canvas->drawLine(
             x0,
-            y0,
+            y0 - _tileY,
             x1,
-            y1,
+            y1 - _tileY,
             normalizeColor(color));
     }
 }
@@ -539,7 +715,7 @@ void DisplayPreview::drawRect(
     if (_canvas) {
         _canvas->drawRect(
             x,
-            y,
+            y - _tileY,
             w,
             h,
             normalizeColor(color));
@@ -555,7 +731,7 @@ void DisplayPreview::fillRect(
     if (_canvas) {
         _canvas->fillRect(
             x,
-            y,
+            y - _tileY,
             w,
             h,
             normalizeColor(color));
@@ -572,7 +748,7 @@ void DisplayPreview::drawRoundRect(
     if (_canvas) {
         _canvas->drawRoundRect(
             x,
-            y,
+            y - _tileY,
             w,
             h,
             r,
@@ -590,7 +766,7 @@ void DisplayPreview::fillRoundRect(
     if (_canvas) {
         _canvas->fillRoundRect(
             x,
-            y,
+            y - _tileY,
             w,
             h,
             r,
@@ -606,7 +782,7 @@ void DisplayPreview::drawCircle(
     if (_canvas) {
         _canvas->drawCircle(
             x,
-            y,
+            y - _tileY,
             r,
             normalizeColor(color));
     }
@@ -620,7 +796,7 @@ void DisplayPreview::fillCircle(
     if (_canvas) {
         _canvas->fillCircle(
             x,
-            y,
+            y - _tileY,
             r,
             normalizeColor(color));
     }
@@ -636,7 +812,7 @@ void DisplayPreview::drawBitmap(
     if (_canvas) {
         _canvas->drawBitmap(
             x,
-            y,
+            y - _tileY,
             bitmap,
             w,
             h,
@@ -671,7 +847,7 @@ void DisplayPreview::drawInvertedBitmap(
             if (!(byte & 0x80)) {
                 _canvas->drawPixel(
                     x + i,
-                    y + j,
+                    y + j - _tileY,
                     normalizeColor(color));
             }
         }
@@ -704,9 +880,9 @@ void DisplayPreview::setCursor(
     int16_t x,
     int16_t y) {
     if (_useUnicodeFont) {
-        _u8g2.setCursor(x, y);
+        _u8g2.setCursor(x, y - _tileY);
     } else if (_canvas) {
-        _canvas->setCursor(x, y);
+        _canvas->setCursor(x, y - _tileY);
     }
 }
 
