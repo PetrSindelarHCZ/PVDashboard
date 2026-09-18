@@ -1,5 +1,6 @@
 #pragma once
 #include "IScreen.h"
+#include "../layout/ScreenLayout.h"
 
 class HomeScreen : public IScreen {
 public:
@@ -7,4 +8,7 @@ public:
     String getTitle() const override { return "Hlavní souhrn"; }
     void render(IDisplay& display, const DataModel& dataModel) override;
     void buildNavigationLayout(const DataModel& dataModel, NavigationLayout& layout) const override;
+
+private:
+    void buildLayout(const DataModel& dataModel, ScreenLayout& layout) const;
 };
