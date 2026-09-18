@@ -66,7 +66,33 @@ void WeatherScreen::render(IDisplay& display, const DataModel& dm) {
         dm.weather.locationIndex,
         dm.weather.locationCount);
 
-    ScreenStyle::drawCard(display, 75, 63, 282, 402, "AKTUÁLNĚ");
+    String currentCardTitle = "AKTUÁLNĚ";
+    if (dm.system.navigationArea == "pager" &&
+        dm.weather.locationCount > 1 &&
+        !dm.weather.locationName.isEmpty()) {
+        currentCardTitle = "MÍSTO: " + dm.weather.locationName;
+
+        // Keep the selected location visible even for long names without
+        // overflowing the current-weather card title.
+        ScreenStyle::useSectionTitle(display);
+        constexpr int16_t MaxPagerTitleWidth = 250;
+        while (currentCardTitle.length() > 4 &&
+               display.textWidth(currentCardTitle) > MaxPagerTitleWidth) {
+            unsigned int end = currentCardTitle.length() - 1;
+            while (end > 0 &&
+                   (static_cast<uint8_t>(currentCardTitle[end]) & 0xC0) == 0x80) {
+                --end;
+            }
+            currentCardTitle.remove(end);
+        }
+        if (display.textWidth(currentCardTitle) > MaxPagerTitleWidth) {
+            currentCardTitle = "MÍSTO";
+        } else if (!currentCardTitle.endsWith(dm.weather.locationName)) {
+            currentCardTitle += "...";
+        }
+    }
+
+    ScreenStyle::drawCard(display, 75, 63, 282, 402, currentCardTitle.c_str());
     if (!dm.weather.status.available) {
         ScreenStyle::useValue(display);
         display.setCursor(95, 150);
