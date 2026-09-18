@@ -6,6 +6,7 @@
 #include "../display/assets/LmarzenWeatherIcons.h"
 #include "../display/assets/SidebarIcons.h"
 #include "../data/DataModel.h"
+#include "../navigation/NavigationTypes.h"
 #include <Fonts/FreeSansBold18pt7b.h>
 
 
@@ -154,6 +155,9 @@ inline void drawMenuItem(IDisplay& d, int16_t y, const char* id,
                          const DataModel& dm, SidebarIcons::Icon iconId) {
     const bool active = dm.system.currentScreenId.equalsIgnoreCase(id) ||
         (strcmp(id, "weather") == 0 && dm.system.currentScreenId.startsWith("weather-hourly-"));
+    const bool focused =
+        dm.system.navigationArea == "sidebar" &&
+        dm.system.navigationSidebarScreenId.equalsIgnoreCase(id);
 
     constexpr int16_t tileX = 4;
     constexpr int16_t tileW = 52;
@@ -162,6 +166,14 @@ inline void drawMenuItem(IDisplay& d, int16_t y, const char* id,
     const int16_t tileY = y - tileH / 2;
 
     if (active) d.fillRoundRect(tileX, tileY, tileW, tileH, tileRadius, 0);
+
+    // Active screen and navigation cursor are intentionally separate states.
+    // A black tile means "currently displayed"; the extra ring means "cursor".
+    if (focused) {
+        const uint16_t focusColor = active ? 1 : 0;
+        d.drawRoundRect(tileX + 2, tileY + 2, tileW - 4, tileH - 4, tileRadius - 2, focusColor);
+        d.drawRoundRect(tileX + 3, tileY + 3, tileW - 6, tileH - 6, tileRadius - 3, focusColor);
+    }
 
     const SidebarIcons::Bitmap icon = SidebarIcons::get(iconId);
     if (icon.data != nullptr) {
@@ -207,6 +219,25 @@ inline void drawCard(IDisplay& d, int16_t x, int16_t y, int16_t w, int16_t h, co
     d.setCursor(x + 12, y + 27);
     d.print(title);
     d.drawLine(x + 10, y + 34, x + w - 10, y + 34, 0);
+}
+
+inline void drawPageNavigationFocus(IDisplay& d, const DataModel& dm, const NavigationLayout& layout) {
+    if (dm.system.navigationArea != "page" || dm.system.navigationFocusId.isEmpty()) return;
+
+    const int index = layout.find(dm.system.navigationFocusId);
+    if (index < 0) return;
+
+    const NavigationRect& bounds = layout.elements[index].bounds;
+    if (bounds.width < 10 || bounds.height < 10) return;
+
+    // Draw inside the widget bounds so the marker is preserved by both the
+    // physical e-paper renderer and the tiled WebUI preview.
+    d.drawRoundRect(bounds.x + 3, bounds.y + 3,
+                    bounds.width - 6, bounds.height - 6,
+                    max<int16_t>(1, CardRadius - 2), 0);
+    d.drawRoundRect(bounds.x + 4, bounds.y + 4,
+                    bounds.width - 8, bounds.height - 8,
+                    max<int16_t>(1, CardRadius - 3), 0);
 }
 
 } // namespace ScreenStyle
