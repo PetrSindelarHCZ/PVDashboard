@@ -23,6 +23,7 @@ public:
 
     void init() override;
     bool available() const;
+    bool ready();
     void capture(IScreen& screen, const DataModel& dataModel, bool fullRefresh);
     String metadataJson();
     bool writeBmp(WiFiClient& client);
