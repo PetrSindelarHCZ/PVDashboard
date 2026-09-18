@@ -6,6 +6,7 @@
 #include <WiFiClientSecure.h>
 #include <ctime>
 #include <cstring>
+#include <math.h>
 
 namespace {
 constexpr int32_t ConnectTimeoutMs = 3000;
@@ -164,10 +165,28 @@ bool MetNorwayClient::update(const WeatherConfig& config, WeatherData& weatherDa
     const int httpCode = http.GET();
     if (httpCode == HTTP_CODE_NOT_MODIFIED) {
         updateCachePolicy(http.header("Date"), http.header("Expires"));
+        const bool cacheMatches =
+            _hasCachedData &&
+            fabs(_cachedLatitude - config.latitude) <= 0.00001 &&
+            fabs(_cachedLongitude - config.longitude) <= 0.00001;
+
+        if (!cacheMatches) {
+            http.end();
+            _lastModified = "";
+            weatherData.status.recordError("MET 304 without matching cache");
+            Serial.println("[WEATHER] MET Norway: 304 bez odpovidajici cache, vynucuji dalsi plny dotaz.");
+            return false;
+        }
+
+        weatherData = _cachedData;
+        weatherData.enabled = config.enabled;
+        const WeatherLocation* activeLocation = config.activeLocation();
+        weatherData.locationName = activeLocation ? activeLocation->name : "";
         weatherData.provider = "MET Norway";
+        weatherData.lastUpdateMs = millis();
         weatherData.status.recordSuccess();
         http.end();
-        Serial.println("[WEATHER] MET Norway: 304 Not Modified");
+        Serial.println("[WEATHER] MET Norway: 304 Not Modified, pouzita vlastni MET cache");
         return true;
     }
     if (httpCode != HTTP_CODE_OK) {
@@ -194,12 +213,27 @@ bool MetNorwayClient::update(const WeatherConfig& config, WeatherData& weatherDa
     weatherData.provider = "MET Norway";
     weatherData.lastUpdateMs = millis();
     weatherData.status.recordSuccess();
+
+    _cachedData = weatherData;
+    _cachedLatitude = config.latitude;
+    _cachedLongitude = config.longitude;
+    _hasCachedData = true;
+
     Serial.printf("[WEATHER] MET Norway: %.1f C, %d %%, %u dnu, %u hodinovych bodu\n",
                   weatherData.outdoorTempC,
                   weatherData.outdoorHumidityPercent,
                   weatherData.dailyCount,
                   weatherData.hourlyCount);
     return true;
+}
+
+void MetNorwayClient::resetCache() {
+    _lastModified = "";
+    _cacheSeconds = 0;
+    _cachedData = WeatherData();
+    _hasCachedData = false;
+    _cachedLatitude = 0.0;
+    _cachedLongitude = 0.0;
 }
 
 uint32_t MetNorwayClient::recommendedPollIntervalSeconds(uint32_t configuredSeconds) const {
