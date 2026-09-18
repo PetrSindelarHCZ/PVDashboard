@@ -30,8 +30,81 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
     .weather-settings-card .source-device-card {
         height:auto;
     }
+    .weather-settings-card.is-disabled .weather-config-grid {
+        opacity:.68;
+    }
+    .weather-location-picker .ntp-picker-value,
+    .weather-location-picker .ntp-option-name {
+        font-family:inherit;
+    }
+    .weather-location-picker .ntp-picker-value {
+        font-size:.9rem;
+        font-weight:650;
+    }
+    .weather-location-menu {
+        max-height:430px;
+    }
+    .weather-location-menu .ntp-option-main {
+        padding:8px;
+    }
+    .weather-location-active {
+        color:#8ec5ff;
+        font-size:.67rem;
+        font-weight:700;
+        padding-right:3px;
+        white-space:nowrap;
+    }
     .weather-location-summary {
         min-height:1.1rem;
+    }
+    .weather-location-add {
+        border-top:1px solid #282e3a;
+        margin-top:5px;
+        padding:7px 6px 2px;
+    }
+    .weather-location-add input {
+        width:100%;
+        min-width:0;
+        padding:8px 9px;
+        font-size:.82rem;
+    }
+    .weather-location-results {
+        display:flex;
+        flex-direction:column;
+        gap:3px;
+        padding:2px 6px 5px;
+    }
+    .weather-location-result {
+        appearance:none;
+        width:100%;
+        border:0;
+        border-radius:7px;
+        background:transparent;
+        color:var(--text);
+        padding:8px;
+        text-align:left;
+        cursor:pointer;
+    }
+    .weather-location-result:hover,
+    .weather-location-result:focus {
+        background:#252b37;
+        outline:none;
+    }
+    .weather-location-result-name {
+        display:block;
+        font-size:.82rem;
+        font-weight:650;
+    }
+    .weather-location-result-desc {
+        display:block;
+        color:var(--text-sub);
+        font-size:.68rem;
+        margin-top:2px;
+    }
+    .weather-location-info {
+        color:var(--text-sub);
+        font-size:.72rem;
+        padding:7px 8px;
     }
     .weather-save-row {
         display:flex;
@@ -43,163 +116,6 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         width:auto;
         min-width:150px;
         justify-content:center;
-    }
-    .weather-settings-card.is-disabled .weather-config-grid {
-        opacity:.68;
-    }
-
-    .weather-location-dialog {
-        width:min(760px,calc(100vw - 28px));
-        max-height:min(82vh,760px);
-        margin:auto;
-        padding:0;
-        border:1px solid #343c4c;
-        border-radius:14px;
-        background:#1b202a;
-        color:var(--text);
-        box-shadow:0 24px 80px rgba(0,0,0,.55);
-        overflow:hidden;
-    }
-    .weather-location-dialog::backdrop {
-        background:rgba(7,10,15,.72);
-        backdrop-filter:blur(2px);
-    }
-    .weather-dialog-shell {
-        display:flex;
-        flex-direction:column;
-        max-height:min(82vh,760px);
-    }
-    .weather-dialog-header {
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
-        gap:12px;
-        padding:16px 18px;
-        border-bottom:1px solid #2b3240;
-    }
-    .weather-dialog-title {
-        font-size:1rem;
-        font-weight:750;
-    }
-    .weather-dialog-count {
-        color:var(--text-sub);
-        font-size:.76rem;
-    }
-    .weather-dialog-body {
-        display:flex;
-        flex-direction:column;
-        gap:14px;
-        padding:16px 18px;
-        overflow:auto;
-    }
-    .weather-location-list {
-        display:flex;
-        flex-direction:column;
-        gap:8px;
-    }
-    .weather-location-row {
-        display:grid;
-        grid-template-columns:minmax(0,1fr) auto;
-        align-items:center;
-        gap:12px;
-        border:1px solid #2b3240;
-        border-radius:9px;
-        padding:10px 11px;
-        background:#171a21;
-    }
-    .weather-location-row.active {
-        border-color:var(--active-border);
-        background:#1d293b;
-    }
-    .weather-location-name {
-        font-size:.88rem;
-        font-weight:700;
-        overflow-wrap:anywhere;
-    }
-    .weather-location-coords {
-        color:var(--text-sub);
-        font-size:.71rem;
-        margin-top:3px;
-    }
-    .weather-location-actions {
-        display:flex;
-        align-items:center;
-        gap:7px;
-        flex-wrap:wrap;
-        justify-content:flex-end;
-    }
-    .weather-location-active-tag {
-        color:#8ec5ff;
-        font-size:.72rem;
-        font-weight:700;
-        white-space:nowrap;
-    }
-    .weather-location-search {
-        padding-top:4px;
-        border-top:1px solid #2b3240;
-        display:flex;
-        flex-direction:column;
-        gap:7px;
-    }
-    .weather-location-search label {
-        color:var(--text-sub);
-        font-size:.78rem;
-    }
-    .weather-search-results {
-        display:flex;
-        flex-direction:column;
-        gap:5px;
-        max-height:220px;
-        overflow:auto;
-    }
-    .weather-search-result {
-        appearance:none;
-        width:100%;
-        text-align:left;
-        border:1px solid #2b3240;
-        border-radius:8px;
-        background:#171a21;
-        color:var(--text);
-        padding:9px 10px;
-        cursor:pointer;
-    }
-    .weather-search-result:hover,
-    .weather-search-result:focus {
-        border-color:#4b5563;
-        background:#202632;
-        outline:none;
-    }
-    .weather-search-result-main {
-        font-size:.84rem;
-        font-weight:650;
-    }
-    .weather-search-result-sub {
-        color:var(--text-sub);
-        font-size:.7rem;
-        margin-top:2px;
-    }
-    .weather-search-info {
-        color:var(--text-sub);
-        font-size:.76rem;
-        padding:6px 2px;
-    }
-    .weather-dialog-footer {
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
-        gap:12px;
-        padding:14px 18px;
-        border-top:1px solid #2b3240;
-    }
-    .weather-dialog-hint {
-        color:var(--text-sub);
-        font-size:.72rem;
-        max-width:420px;
-    }
-    .weather-dialog-buttons {
-        display:flex;
-        gap:8px;
-        flex:0 0 auto;
     }
 
     @media(max-width:699px) {
@@ -218,18 +134,13 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         .weather-config-grid {
             grid-template-columns:1fr;
         }
-        .weather-location-row {
-            grid-template-columns:1fr;
-        }
-        .weather-location-actions {
-            justify-content:flex-start;
-        }
-        .weather-dialog-footer {
-            align-items:stretch;
-            flex-direction:column;
-        }
-        .weather-dialog-buttons {
-            justify-content:flex-end;
+        .weather-location-menu {
+            position:fixed;
+            left:10px;
+            right:10px;
+            top:auto;
+            bottom:82px;
+            max-height:60vh;
         }
     }
 </style>
@@ -242,12 +153,10 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
     let baseline = '';
     let initialized = false;
     let statusRefreshTimer = null;
-
-    let dialogLocations = [];
-    let dialogActiveLocationId = '';
-    let dialogSearchResults = [];
-    let dialogSearchTimer = null;
-    let dialogSearchController = null;
+    let locationBusy = false;
+    let searchResults = [];
+    let searchTimer = null;
+    let searchController = null;
 
     const cloneLocations = source => source.map(item => ({
         id:String(item.id || ''),
@@ -273,11 +182,11 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
 
     function stateFromUi() {
         return {
-            enabled: !!document.getElementById('weatherEnabled')?.checked,
-            provider: document.getElementById('weatherProvider')?.value || 'open-meteo',
-            interval: Number(document.getElementById('weatherInterval')?.value || 1800),
+            enabled:!!document.getElementById('weatherEnabled')?.checked,
+            provider:document.getElementById('weatherProvider')?.value || 'open-meteo',
+            interval:Number(document.getElementById('weatherInterval')?.value || 1800),
             activeLocationId,
-            locations: cloneLocations(locations)
+            locations:cloneLocations(locations)
         };
     }
 
@@ -285,10 +194,37 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         return JSON.stringify(state);
     }
 
+    function savedStateFromSource(source) {
+        const loaded = Array.isArray(source?.locations) && source.locations.length
+            ? source.locations.slice(0, MaxLocations).map(item => ({
+                id:String(item.id || ''),
+                name:String(item.name || 'Původní místo'),
+                country:String(item.country || ''),
+                latitude:Number(item.latitude),
+                longitude:Number(item.longitude)
+            }))
+            : [{
+                id:'legacy',
+                name:'Původní místo',
+                country:'',
+                latitude:Number(source?.latitude || 50.0755),
+                longitude:Number(source?.longitude || 14.4378)
+            }];
+
+        return {
+            enabled:source?.enabled !== false,
+            provider:source?.provider || 'open-meteo',
+            interval:Number(source?.interval || 1800),
+            activeLocationId:String(source?.activeLocationId || loaded[0].id),
+            locations:loaded
+        };
+    }
+
     function updateDirtyState() {
         const save = document.getElementById('weatherSave');
         const refresh = document.getElementById('weatherRefreshNow');
         const dirty = initialized && stateKey() !== baseline;
+
         if (save) save.disabled = !dirty;
         if (refresh) {
             refresh.disabled = dirty || !document.getElementById('weatherEnabled')?.checked;
@@ -296,14 +232,21 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
                 ? 'Nejprve uložte změny počasí'
                 : 'Okamžitě načíst počasí pro uloženou konfiguraci';
         }
+
         const card = document.querySelector('.weather-settings-card');
-        if (card) card.classList.toggle('is-disabled', !document.getElementById('weatherEnabled')?.checked);
+        if (card) {
+            card.classList.toggle(
+                'is-disabled',
+                !document.getElementById('weatherEnabled')?.checked
+            );
+        }
     }
 
     function syncLegacyCoordinates() {
         const active = locations.find(item => item.id === activeLocationId) || locations[0];
         const lat = document.getElementById('weatherLatitude');
         const lon = document.getElementById('weatherLongitude');
+
         if (active) {
             activeLocationId = active.id;
             if (lat) lat.value = active.latitude;
@@ -311,290 +254,328 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         }
     }
 
-    function renderLocations() {
+    function closeLocationMenu() {
+        const menu = document.getElementById('weatherLocationMenu');
+        const button = document.getElementById('weatherLocationPickerButton');
+        if (menu) menu.hidden = true;
+        if (button) button.setAttribute('aria-expanded', 'false');
+    }
+
+    function renderLocationPicker() {
         if (!locations.length) return;
-        if (!locations.some(item => item.id === activeLocationId)) activeLocationId = locations[0].id;
+        if (!locations.some(item => item.id === activeLocationId)) {
+            activeLocationId = locations[0].id;
+        }
+
         syncLegacyCoordinates();
 
-        const select = document.getElementById('weatherActiveLocation');
-        if (select) {
-            select.replaceChildren();
-            locations.forEach(location => {
-                const option = document.createElement('option');
-                option.value = location.id;
-                option.textContent = displayName(location);
-                option.selected = location.id === activeLocationId;
-                select.appendChild(option);
-            });
-        }
-
-        const active = locations.find(item => item.id === activeLocationId);
+        const active = locations.find(item => item.id === activeLocationId) || locations[0];
+        const value = document.getElementById('weatherLocationPickerValue');
         const summary = document.getElementById('weatherLocationSummary');
+
+        if (value) value.textContent = displayName(active);
         if (summary) summary.textContent = compactCoordinates(active);
 
-        const manage = document.getElementById('weatherManageLocations');
-        if (manage) manage.textContent = 'Spravovat místa (' + locations.length + ')';
+        renderLocationMenu();
     }
 
-    function makeLocationId(place, targetLocations) {
-        const base = String(place.name || 'misto')
-            .toLowerCase()
-            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-|-$/g, '')
-            .slice(0, 18) || 'misto';
-        let id = base;
-        let suffix = 2;
-        while (targetLocations.some(item => item.id === id)) id = base + '-' + suffix++;
-        return id;
-    }
+    function addLocationOption(menu, location) {
+        const row = document.createElement('div');
+        row.className = 'ntp-option';
 
-    function renderDialogLocations() {
-        const list = document.getElementById('weatherDialogLocationList');
-        const count = document.getElementById('weatherDialogLocationCount');
-        const search = document.getElementById('weatherLocationSearch');
-        if (count) count.textContent = dialogLocations.length + ' / ' + MaxLocations;
-        if (search) {
-            search.disabled = dialogLocations.length >= MaxLocations;
-            search.placeholder = dialogLocations.length >= MaxLocations
-                ? 'Dosažen limit 8 míst'
-                : 'Obec nebo PSČ, např. Mikulov';
-        }
-        if (!list) return;
+        const main = document.createElement('button');
+        main.type = 'button';
+        main.className = 'ntp-option-main';
 
-        list.replaceChildren();
-        dialogLocations.forEach(location => {
-            const row = document.createElement('div');
-            row.className = 'weather-location-row' +
-                (location.id === dialogActiveLocationId ? ' active' : '');
+        const name = document.createElement('span');
+        name.className = 'ntp-option-name';
+        name.textContent = displayName(location);
 
-            const text = document.createElement('div');
-            const name = document.createElement('div');
-            name.className = 'weather-location-name';
-            name.textContent = displayName(location);
-            const coords = document.createElement('div');
-            coords.className = 'weather-location-coords';
-            coords.textContent = compactCoordinates(location);
-            text.append(name, coords);
+        const desc = document.createElement('span');
+        desc.className = 'ntp-option-desc';
+        desc.textContent = compactCoordinates(location);
 
-            const actions = document.createElement('div');
-            actions.className = 'weather-location-actions';
+        main.append(name, desc);
+        main.addEventListener('click', () => selectLocation(location.id));
+        row.appendChild(main);
 
-            if (location.id === dialogActiveLocationId) {
-                const active = document.createElement('span');
-                active.className = 'weather-location-active-tag';
-                active.textContent = 'Aktivní';
-                actions.appendChild(active);
-            } else {
-                const use = document.createElement('button');
-                use.type = 'button';
-                use.className = 'source-test-button';
-                use.textContent = 'Použít';
-                use.addEventListener('click', () => {
-                    dialogActiveLocationId = location.id;
-                    renderDialogLocations();
-                });
-                actions.appendChild(use);
-            }
-
+        if (location.id === activeLocationId) {
+            const active = document.createElement('span');
+            active.className = 'weather-location-active';
+            active.textContent = 'Aktivní';
+            row.appendChild(active);
+        } else {
             const remove = document.createElement('button');
             remove.type = 'button';
-            remove.className = 'source-test-button';
+            remove.className = 'ntp-delete';
             remove.textContent = 'Smazat';
-            remove.disabled = dialogLocations.length <= 1;
-            remove.title = dialogLocations.length <= 1
-                ? 'Alespoň jedno místo musí zůstat uložené'
-                : 'Odstranit místo';
-            remove.addEventListener('click', () => {
-                if (dialogLocations.length <= 1) return;
-                const index = dialogLocations.findIndex(item => item.id === location.id);
-                if (index < 0) return;
-                dialogLocations.splice(index, 1);
-                if (dialogActiveLocationId === location.id) {
-                    dialogActiveLocationId = dialogLocations[0].id;
-                }
-                renderDialogLocations();
+            remove.title = 'Smazat uložené místo';
+            remove.disabled = locationBusy || locations.length <= 1;
+            remove.addEventListener('click', event => {
+                event.stopPropagation();
+                deleteLocation(location.id);
             });
-            actions.appendChild(remove);
+            row.appendChild(remove);
+        }
 
-            row.append(text, actions);
-            list.appendChild(row);
-        });
+        menu.appendChild(row);
     }
 
-    function renderDialogSearchResults(message = '') {
+    function renderLocationMenu() {
+        const menu = document.getElementById('weatherLocationMenu');
+        if (!menu) return;
+
+        menu.replaceChildren();
+
+        const title = document.createElement('div');
+        title.className = 'ntp-menu-title';
+        title.textContent = 'Uložená místa · ' + locations.length + ' / ' + MaxLocations;
+        menu.appendChild(title);
+
+        locations.forEach(location => addLocationOption(menu, location));
+
+        const addTitle = document.createElement('div');
+        addTitle.className = 'ntp-menu-title';
+        addTitle.textContent = 'Přidat místo';
+        menu.appendChild(addTitle);
+
+        const add = document.createElement('div');
+        add.className = 'weather-location-add';
+
+        const input = document.createElement('input');
+        input.className = 'wifi-input';
+        input.id = 'weatherLocationSearch';
+        input.type = 'search';
+        input.autocomplete = 'off';
+        input.placeholder = locations.length >= MaxLocations
+            ? 'Dosažen limit 8 míst'
+            : 'Obec nebo PSČ, např. Mikulov';
+        input.disabled = locationBusy || locations.length >= MaxLocations;
+        input.addEventListener('input', scheduleSearch);
+        input.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                closeLocationMenu();
+            }
+        });
+
+        add.appendChild(input);
+        menu.appendChild(add);
+
+        const results = document.createElement('div');
+        results.id = 'weatherLocationSearchResults';
+        results.className = 'weather-location-results';
+        menu.appendChild(results);
+
+        if (searchResults.length) renderSearchResults();
+
+        if (!menu.hidden && !input.disabled) {
+            setTimeout(() => input.focus(), 0);
+        }
+    }
+
+    function renderSearchResults(message = '') {
         const box = document.getElementById('weatherLocationSearchResults');
         if (!box) return;
+
         box.replaceChildren();
 
         if (message) {
             const info = document.createElement('div');
-            info.className = 'weather-search-info';
+            info.className = 'weather-location-info';
             info.textContent = message;
             box.appendChild(info);
             return;
         }
 
-        if (!dialogSearchResults.length) {
-            const info = document.createElement('div');
-            info.className = 'weather-search-info';
-            info.textContent = 'Místo nebylo nalezeno.';
-            box.appendChild(info);
-            return;
-        }
+        if (!searchResults.length) return;
 
-        dialogSearchResults.forEach((place, index) => {
+        searchResults.forEach((place, index) => {
             const button = document.createElement('button');
             button.type = 'button';
-            button.className = 'weather-search-result';
+            button.className = 'weather-location-result';
 
-            const main = document.createElement('div');
-            main.className = 'weather-search-result-main';
-            main.textContent = [place.name, place.admin2 || place.admin1, place.country]
+            const name = document.createElement('span');
+            name.className = 'weather-location-result-name';
+            name.textContent = [place.name, place.admin2 || place.admin1, place.country]
                 .filter(Boolean).join(', ');
 
-            const sub = document.createElement('div');
-            sub.className = 'weather-search-result-sub';
-            sub.textContent = Number(place.latitude).toFixed(4) + ', ' +
-                              Number(place.longitude).toFixed(4);
+            const desc = document.createElement('span');
+            desc.className = 'weather-location-result-desc';
+            desc.textContent =
+                Number(place.latitude).toFixed(4) + ', ' +
+                Number(place.longitude).toFixed(4);
 
-            button.append(main, sub);
-            button.addEventListener('click', () => addDialogLocation(index));
+            button.append(name, desc);
+            button.addEventListener('click', () => addLocation(index));
             box.appendChild(button);
         });
     }
 
-    async function searchDialogLocations(query) {
+    function scheduleSearch() {
+        const input = document.getElementById('weatherLocationSearch');
+        if (!input) return;
+
+        clearTimeout(searchTimer);
+        if (searchController) {
+            searchController.abort();
+            searchController = null;
+        }
+
+        const query = input.value.trim();
+        if (query.length < 2) {
+            searchResults = [];
+            renderSearchResults();
+            return;
+        }
+
+        renderSearchResults('Hledám…');
+        searchTimer = setTimeout(() => searchPlaces(query), 350);
+    }
+
+    async function searchPlaces(query) {
         const input = document.getElementById('weatherLocationSearch');
         if (!input || input.value.trim() !== query) return;
 
         const controller = new AbortController();
-        dialogSearchController = controller;
+        searchController = controller;
         const timeout = setTimeout(() => controller.abort(), 5000);
 
         try {
-            const url = 'https://geocoding-api.open-meteo.com/v1/search?' +
+            const url =
+                'https://geocoding-api.open-meteo.com/v1/search?' +
                 new URLSearchParams({
                     name:query,
                     count:'8',
                     language:'cs',
                     format:'json'
                 });
+
             const response = await fetch(url, {signal:controller.signal});
             if (!response.ok) throw new Error('Geocoding HTTP ' + response.status);
+
             const data = await response.json();
             if (input.value.trim() !== query) return;
-            dialogSearchResults = Array.isArray(data.results) ? data.results : [];
-            renderDialogSearchResults();
+
+            searchResults = Array.isArray(data.results) ? data.results : [];
+            renderSearchResults(
+                searchResults.length ? '' : 'Místo nebylo nalezeno.'
+            );
         } catch (error) {
             if (error.name !== 'AbortError') {
-                dialogSearchResults = [];
-                renderDialogSearchResults('Vyhledávání se nepodařilo.');
+                searchResults = [];
+                renderSearchResults('Vyhledávání se nepodařilo.');
             }
         } finally {
             clearTimeout(timeout);
-            if (dialogSearchController === controller) dialogSearchController = null;
+            if (searchController === controller) searchController = null;
         }
     }
 
-    function scheduleDialogSearch() {
-        const input = document.getElementById('weatherLocationSearch');
-        if (!input) return;
+    function makeLocationId(place) {
+        const base = String(place.name || 'misto')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '')
+            .slice(0, 18) || 'misto';
 
-        clearTimeout(dialogSearchTimer);
-        if (dialogSearchController) {
-            dialogSearchController.abort();
-            dialogSearchController = null;
+        let id = base;
+        let suffix = 2;
+        while (locations.some(item => item.id === id)) {
+            id = base + '-' + suffix++;
         }
-
-        const query = input.value.trim();
-        if (query.length < 2) {
-            dialogSearchResults = [];
-            const box = document.getElementById('weatherLocationSearchResults');
-            if (box) box.replaceChildren();
-            return;
-        }
-
-        renderDialogSearchResults('Hledám…');
-        dialogSearchTimer = setTimeout(() => searchDialogLocations(query), 350);
+        return id;
     }
 
-    function addDialogLocation(index) {
-        const place = dialogSearchResults[Number(index)];
-        if (!place) return;
+    async function locationAction(params, successMessage) {
+        if (locationBusy) return false;
+        locationBusy = true;
+        renderLocationMenu();
 
-        if (dialogLocations.length >= MaxLocations) {
-            showToast('Lze uložit maximálně 8 míst');
+        try {
+            const body = new URLSearchParams(params);
+            const response = await fetch('/api/weather/locations', {
+                method:'POST',
+                headers:{'Content-Type':'application/x-www-form-urlencoded'},
+                body
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(result.message || ('HTTP ' + response.status));
+            }
+
+            await refreshFromStatus(true, false);
+            if (successMessage) showToast(successMessage);
+            return true;
+        } catch (error) {
+            showToast('Místo se nepodařilo uložit: ' + (error.message || 'chyba'));
+            return false;
+        } finally {
+            locationBusy = false;
+            renderLocationMenu();
+        }
+    }
+
+    async function selectLocation(id) {
+        const current = locations.find(item => item.id === activeLocationId);
+        const selected = locations.find(item => item.id === id);
+        if (!selected || id === activeLocationId) {
+            closeLocationMenu();
             return;
         }
+
+        closeLocationMenu();
+        await locationAction(
+            {action:'select', id},
+            'Aktivní místo: ' + displayName(selected)
+        );
+    }
+
+    async function deleteLocation(id) {
+        const location = locations.find(item => item.id === id);
+        if (!location || locations.length <= 1) return;
+
+        await locationAction(
+            {action:'delete', id},
+            'Místo smazáno'
+        );
+    }
+
+    async function addLocation(index) {
+        const place = searchResults[Number(index)];
+        if (!place || locations.length >= MaxLocations) return;
 
         const latitude = Number(place.latitude);
         const longitude = Number(place.longitude);
-        const duplicate = dialogLocations.find(item =>
+        const duplicate = locations.find(item =>
             Math.abs(Number(item.latitude) - latitude) < 0.00001 &&
-            Math.abs(Number(item.longitude) - longitude) < 0.00001);
+            Math.abs(Number(item.longitude) - longitude) < 0.00001
+        );
 
         if (duplicate) {
-            dialogActiveLocationId = duplicate.id;
-            showToast('Místo už je v seznamu');
-        } else {
-            const regional = place.admin2 || place.admin1 || '';
-            const location = {
-                id:makeLocationId(place, dialogLocations),
-                name:[place.name, regional && regional !== place.name ? regional : '']
-                    .filter(Boolean).join(', ') || place.name || 'Uložené místo',
-                country:place.country || '',
-                latitude,
-                longitude
-            };
-            dialogLocations.push(location);
-            dialogActiveLocationId = location.id;
-            showToast('Místo přidáno');
+            await selectLocation(duplicate.id);
+            return;
         }
 
-        const input = document.getElementById('weatherLocationSearch');
-        if (input) input.value = '';
-        dialogSearchResults = [];
-        const box = document.getElementById('weatherLocationSearchResults');
-        if (box) box.replaceChildren();
-        renderDialogLocations();
-    }
+        const regional = place.admin2 || place.admin1 || '';
+        const name = [place.name, regional && regional !== place.name ? regional : '']
+            .filter(Boolean).join(', ') || place.name || 'Uložené místo';
 
-    function openLocationDialog() {
-        dialogLocations = cloneLocations(locations);
-        dialogActiveLocationId = activeLocationId;
-        dialogSearchResults = [];
+        const ok = await locationAction({
+            action:'add',
+            id:makeLocationId(place),
+            name,
+            country:place.country || '',
+            latitude:String(latitude),
+            longitude:String(longitude)
+        }, 'Místo přidáno');
 
-        const input = document.getElementById('weatherLocationSearch');
-        if (input) input.value = '';
-        const box = document.getElementById('weatherLocationSearchResults');
-        if (box) box.replaceChildren();
-
-        renderDialogLocations();
-
-        const dialog = document.getElementById('weatherLocationDialog');
-        if (!dialog) return;
-        if (typeof dialog.showModal === 'function') dialog.showModal();
-        else dialog.setAttribute('open', '');
-        setTimeout(() => document.getElementById('weatherLocationSearch')?.focus(), 50);
-    }
-
-    function closeLocationDialog(applyChanges) {
-        const dialog = document.getElementById('weatherLocationDialog');
-        if (applyChanges) {
-            if (!dialogLocations.length) {
-                showToast('Alespoň jedno místo musí zůstat uložené');
-                return;
-            }
-            locations = cloneLocations(dialogLocations);
-            activeLocationId = dialogActiveLocationId || locations[0].id;
-            renderLocations();
-            updateDirtyState();
-            showToast('Změny míst jsou připravené k uložení');
+        if (ok) {
+            searchResults = [];
+            closeLocationMenu();
         }
-        if (!dialog) return;
-        if (typeof dialog.close === 'function') dialog.close();
-        else dialog.removeAttribute('open');
     }
 
     function payloadFor(state) {
@@ -617,6 +598,7 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
 
     window.saveWeather = async function(event) {
         if (event) event.preventDefault();
+
         const state = stateFromUi();
         if (!state.locations.length || !state.activeLocationId) {
             showToast('Vyberte alespoň jedno místo');
@@ -632,13 +614,12 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         try {
             const response = await postState(state);
             const result = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(result.message || ('HTTP ' + response.status));
+            if (!response.ok) {
+                throw new Error(result.message || ('HTTP ' + response.status));
+            }
 
-            // Nebereme úspěch POST jako jediný důkaz. Znovu načteme konfiguraci
-            // z ESP a tím zároveň ověříme, že nový seznam skutečně převzal backend.
             await new Promise(resolve => setTimeout(resolve, 120));
-            await refreshFromStatus(true);
-            baseline = stateKey();
+            await refreshFromStatus(true, true);
             showToast('Počasí uloženo a použito');
         } catch (error) {
             showToast('Počasí se nepodařilo uložit: ' + (error.message || 'chyba'));
@@ -653,6 +634,7 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
             showToast('Nejprve uložte změny počasí');
             return;
         }
+
         const saved = JSON.parse(baseline);
         if (!saved.enabled) return;
 
@@ -666,8 +648,8 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
             const response = await postState(saved);
             if (!response.ok) throw new Error('HTTP ' + response.status);
             showToast('Aktualizace počasí spuštěna');
-            setTimeout(() => refreshFromStatus(false), 500);
-            setTimeout(() => refreshFromStatus(false), 1800);
+            setTimeout(() => refreshFromStatus(false, false), 500);
+            setTimeout(() => refreshFromStatus(false, false), 1800);
         } catch (_) {
             showToast('Aktualizaci počasí se nepodařilo spustit');
         } finally {
@@ -737,120 +719,54 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         if (detailRow) detailRow.hidden = !enabled;
     }
 
-    async function refreshFromStatus(forceConfig) {
+    async function refreshFromStatus(loadConfig, overwriteFields) {
         try {
             const response = await fetch('/api/status', {cache:'no-store'});
             if (!response.ok) return false;
-            const data = await response.json();
 
+            const data = await response.json();
             renderWeatherStatus(data);
             setWeatherScreenVisibility(data?.weather?.enabled !== false);
 
-            if (!initialized || forceConfig) {
+            if (loadConfig) {
                 const source = data?.sources?.weather || {};
-                const loaded = Array.isArray(source.locations) ? source.locations : [];
+                const saved = savedStateFromSource(source);
 
-                locations = loaded.length
-                    ? loaded.slice(0, MaxLocations).map(item => ({
-                        id:String(item.id || ''),
-                        name:String(item.name || 'Uložené místo'),
-                        country:String(item.country || ''),
-                        latitude:Number(item.latitude),
-                        longitude:Number(item.longitude)
-                    }))
-                    : [{
-                        id:'legacy',
-                        name:'Původní místo',
-                        country:'',
-                        latitude:Number(source.latitude || 50.0755),
-                        longitude:Number(source.longitude || 14.4378)
-                    }];
+                locations = cloneLocations(saved.locations);
+                activeLocationId = saved.activeLocationId;
 
-                activeLocationId = String(source.activeLocationId || locations[0].id);
+                if (overwriteFields || !initialized) {
+                    document.getElementById('weatherProvider').value = saved.provider;
 
-                document.getElementById('weatherProvider').value =
-                    source.provider || 'open-meteo';
+                    const intervalSelect = document.getElementById('weatherInterval');
+                    const intervalValue = String(saved.interval);
+                    if (
+                        intervalSelect &&
+                        !Array.from(intervalSelect.options)
+                            .some(option => option.value === intervalValue)
+                    ) {
+                        const custom = document.createElement('option');
+                        custom.value = intervalValue;
+                        custom.textContent =
+                            Math.round(Number(intervalValue) / 60) +
+                            ' minut (původní)';
+                        intervalSelect.appendChild(custom);
+                    }
+                    if (intervalSelect) intervalSelect.value = intervalValue;
 
-                const intervalSelect = document.getElementById('weatherInterval');
-                const intervalValue = String(source.interval || 1800);
-                if (
-                    intervalSelect &&
-                    !Array.from(intervalSelect.options).some(option => option.value === intervalValue)
-                ) {
-                    const custom = document.createElement('option');
-                    custom.value = intervalValue;
-                    custom.textContent =
-                        Math.round(Number(intervalValue) / 60) + ' minut (původní)';
-                    intervalSelect.appendChild(custom);
+                    document.getElementById('weatherEnabled').checked = saved.enabled;
                 }
-                if (intervalSelect) intervalSelect.value = intervalValue;
 
-                document.getElementById('weatherEnabled').checked =
-                    source.enabled !== false;
-
-                renderLocations();
+                baseline = stateKey(saved);
                 initialized = true;
-                baseline = stateKey();
+                renderLocationPicker();
                 updateDirtyState();
             }
+
             return true;
         } catch (_) {
             return false;
         }
-    }
-
-    function createLocationDialog() {
-        if (document.getElementById('weatherLocationDialog')) return;
-
-        const dialog = document.createElement('dialog');
-        dialog.id = 'weatherLocationDialog';
-        dialog.className = 'weather-location-dialog';
-        dialog.innerHTML =
-            '<div class="weather-dialog-shell">' +
-                '<div class="weather-dialog-header">' +
-                    '<div class="weather-dialog-title">Spravovat místa</div>' +
-                    '<div class="weather-dialog-count" id="weatherDialogLocationCount">0 / 8</div>' +
-                '</div>' +
-                '<div class="weather-dialog-body">' +
-                    '<div class="weather-location-list" id="weatherDialogLocationList"></div>' +
-                    '<div class="weather-location-search">' +
-                        '<label for="weatherLocationSearch">Přidat místo</label>' +
-                        '<input class="wifi-input" id="weatherLocationSearch" type="search" autocomplete="off" placeholder="Obec nebo PSČ, např. Mikulov">' +
-                        '<div class="weather-search-results" id="weatherLocationSearchResults"></div>' +
-                    '</div>' +
-                '</div>' +
-                '<div class="weather-dialog-footer">' +
-                    '<div class="weather-dialog-hint">Po potvrzení se změny přenesou do karty Počasí. Trvale se uloží tlačítkem „Uložit počasí“.</div>' +
-                    '<div class="weather-dialog-buttons">' +
-                        '<button class="btn btn-secondary" type="button" id="weatherDialogCancel">Zrušit</button>' +
-                        '<button class="btn btn-primary" type="button" id="weatherDialogApply">Použít změny</button>' +
-                    '</div>' +
-                '</div>' +
-            '</div>';
-
-        document.body.appendChild(dialog);
-
-        document.getElementById('weatherDialogCancel')
-            .addEventListener('click', () => closeLocationDialog(false));
-        document.getElementById('weatherDialogApply')
-            .addEventListener('click', () => closeLocationDialog(true));
-        document.getElementById('weatherLocationSearch')
-            .addEventListener('input', scheduleDialogSearch);
-
-        dialog.addEventListener('cancel', event => {
-            event.preventDefault();
-            closeLocationDialog(false);
-        });
-        dialog.addEventListener('click', event => {
-            if (event.target !== dialog) return;
-            const rect = dialog.getBoundingClientRect();
-            const inside =
-                event.clientX >= rect.left &&
-                event.clientX <= rect.right &&
-                event.clientY >= rect.top &&
-                event.clientY <= rect.bottom;
-            if (!inside) closeLocationDialog(false);
-        });
     }
 
     function install() {
@@ -858,9 +774,9 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
             document.querySelector('.view-settings form[onsubmit^="saveWeather"]') ||
             document.querySelector('form[onsubmit^="saveWeather"]');
         const card = form?.closest('.card');
+
         if (!card || !form || card.classList.contains('weather-settings-card')) return;
 
-        // Stejná šířka jako karta Fotovoltaika / Systém.
         card.classList.add('weather-settings-card', 'wide-card');
 
         const titleActions = document.createElement('div');
@@ -884,11 +800,12 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
 
         const enabledLabel = document.createElement('label');
         enabledLabel.className = 'source-enabled';
+
         const enabled = document.createElement('input');
         enabled.type = 'checkbox';
         enabled.id = 'weatherEnabled';
-        enabledLabel.append(enabled, document.createTextNode(' Aktivní'));
 
+        enabledLabel.append(enabled, document.createTextNode(' Aktivní'));
         titleActions.append(status, refresh, enabledLabel);
 
         const collapseToggle = Array.from(card.children)
@@ -902,7 +819,6 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         } else {
             const title = Array.from(card.children)
                 .find(child => child.classList?.contains('card-title'));
-
             const titleRow = document.createElement('div');
             titleRow.className = 'weather-title-row';
 
@@ -926,11 +842,16 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         locationCard.innerHTML =
             '<div class="source-device-header">' +
                 '<div class="source-device-title">📍 Lokalita</div>' +
-                '<button class="source-test-button" type="button" id="weatherManageLocations">Spravovat místa</button>' +
             '</div>' +
             '<div class="source-field">' +
-                '<label for="weatherActiveLocation">Aktivní místo</label>' +
-                '<select class="wifi-input" id="weatherActiveLocation"></select>' +
+                '<label for="weatherLocationPickerButton">Aktivní místo</label>' +
+                '<div class="ntp-picker weather-location-picker" id="weatherLocationPicker">' +
+                    '<button type="button" class="ntp-picker-button" id="weatherLocationPickerButton" aria-haspopup="listbox" aria-expanded="false">' +
+                        '<span class="ntp-picker-value" id="weatherLocationPickerValue">Načítám…</span>' +
+                        '<span class="ntp-picker-chevron">▾</span>' +
+                    '</button>' +
+                    '<div class="ntp-menu weather-location-menu" id="weatherLocationMenu" role="listbox" hidden></div>' +
+                '</div>' +
                 '<div class="field-help weather-location-summary" id="weatherLocationSummary"></div>' +
             '</div>';
 
@@ -960,7 +881,6 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
 
         configGrid.append(locationCard, sourceCard);
 
-        // Kompatibilita se starým status loaderem. Uživatel je už neuvidí.
         const hiddenLat = document.createElement('input');
         hiddenLat.type = 'hidden';
         hiddenLat.id = 'weatherLatitude';
@@ -978,30 +898,46 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         save.className = 'btn btn-secondary source-save settings-save';
         save.textContent = 'Uložit počasí';
         save.disabled = true;
-        saveRow.appendChild(save);
 
+        saveRow.appendChild(save);
         form.replaceChildren(configGrid, hiddenLat, hiddenLon, saveRow);
         form.classList.add('settings-form');
 
-        createLocationDialog();
+        const picker = document.getElementById('weatherLocationPicker');
+        const pickerButton = document.getElementById('weatherLocationPickerButton');
+        const menu = document.getElementById('weatherLocationMenu');
 
-        document.getElementById('weatherManageLocations')
-            .addEventListener('click', openLocationDialog);
+        pickerButton.addEventListener('click', () => {
+            menu.hidden = !menu.hidden;
+            pickerButton.setAttribute(
+                'aria-expanded',
+                menu.hidden ? 'false' : 'true'
+            );
 
-        document.getElementById('weatherActiveLocation')
-            .addEventListener('change', event => {
-                activeLocationId = event.target.value;
-                renderLocations();
-                updateDirtyState();
-            });
+            if (!menu.hidden) {
+                searchResults = [];
+                renderLocationMenu();
+            }
+        });
+
+        document.addEventListener('click', event => {
+            if (!picker.contains(event.target)) closeLocationMenu();
+        });
+
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') closeLocationMenu();
+        });
 
         ['weatherProvider','weatherInterval','weatherEnabled'].forEach(id => {
             document.getElementById(id)
                 .addEventListener('change', updateDirtyState);
         });
 
-        refreshFromStatus(true);
-        statusRefreshTimer = setInterval(() => refreshFromStatus(false), 5000);
+        refreshFromStatus(true, true);
+        statusRefreshTimer = setInterval(
+            () => refreshFromStatus(false, false),
+            5000
+        );
     }
 
     if (document.readyState === 'loading') {
