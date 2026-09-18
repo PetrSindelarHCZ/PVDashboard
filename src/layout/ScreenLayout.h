@@ -25,7 +25,13 @@ public:
     bool add(const char* id, LayoutWidgetType type,
              int16_t x, int16_t y, int16_t width, int16_t height) {
         if (!id || !*id || width <= 0 || height <= 0 || _count >= MaxWidgets) return false;
-        _widgets[_count++] = {id, type, x, y, width, height};
+        LayoutWidget& widget = _widgets[_count++];
+        widget.id = id;
+        widget.type = type;
+        widget.x = x;
+        widget.y = y;
+        widget.width = width;
+        widget.height = height;
         return true;
     }
 
