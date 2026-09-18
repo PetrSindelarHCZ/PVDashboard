@@ -150,7 +150,9 @@ platné konfigurace stránky bez změny firmware nebo ručně psaného grafu vaz
 Pager je obecná vlastnost `IScreen`, nikoli speciální logika Počasí. Weather
 ji používá pro jednu podstránku na každou nakonfigurovanou lokalitu. Při více
 lokalitách se dole na e-inku zobrazí řada teček; vyplněná tečka označuje právě
-zobrazenou lokalitu. Přepnutí pageru nemění persistentní `activeLocationId`,
+zobrazenou lokalitu. Pořadí lokalit lze měnit přímo v rozbalovacím seznamu
+**Nastavení → Počasí → Lokalita** a stejné pořadí určuje pořadí podstránek a
+teček na displeji. Přepnutí pageru nemění persistentní `activeLocationId`,
 takže Home dál používá uživatelem zvolenou aktivní lokalitu.
 
 ### Co ještě chybí
