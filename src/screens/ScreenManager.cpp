@@ -4,8 +4,13 @@ ScreenManager::ScreenManager() : _activeScreen(nullptr) {
 }
 
 void ScreenManager::registerScreen(IScreen* screen) {
+    registerScreenAt(screen, _screens.size());
+}
+
+void ScreenManager::registerScreenAt(IScreen* screen, size_t index) {
     if (!screen || hasScreen(screen->getId())) return;
-    _screens.push_back(screen);
+    if (index > _screens.size()) index = _screens.size();
+    _screens.insert(_screens.begin() + index, screen);
     if (!_activeScreen) {
         _activeScreen = screen;
     }
