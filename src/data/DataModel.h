@@ -91,6 +91,7 @@ struct InsideData {
 };
 
 struct PoolData {
+    bool enabled = true;
     DataSourceStatus status;
     float waterTempC = 26.4f;
     float targetTempC = 26.5f;
