@@ -393,7 +393,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
     <div class="container">
         <div class="header">
             <h1>E-Paper Dashboard</h1>
-            <span class="badge" id="fwVer">v0.1.0</span>
+            <span class="badge" id="fwVer">v…</span>
         </div>
 
         <div class="card">
