@@ -3,6 +3,7 @@
 #include "../config/ConfigManager.h"
 #include "../data/DataModel.h"
 #include "../display/EpaperDisplay.h"
+#include "../display/DisplayPreview.h"
 #include "../display/DisplayManager.h"
 #include "../display/DisplayWorker.h"
 #include "../screens/ScreenManager.h"
@@ -31,6 +32,7 @@ private:
     DataModel _dataModel;
 
     EpaperDisplay _epaperDisplay;
+    DisplayPreview _displayPreview;
     DisplayManager _displayManager;
     DisplayWorker _displayWorker;
     ScreenManager _screenManager;
