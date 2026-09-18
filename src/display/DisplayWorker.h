@@ -15,6 +15,7 @@ public:
     bool begin();
     bool enqueue(IScreen* screen, const DataModel& dataModel, bool full);
     DisplayTaskStatus getStatus();
+    void setMemoryHeavyGate(SemaphoreHandle_t gate);
 
 private:
     static constexpr uint32_t TaskStackWords = 8192;
@@ -22,6 +23,7 @@ private:
 
     DisplayManager& _displayManager;
     SemaphoreHandle_t _mutex = nullptr;
+    SemaphoreHandle_t _memoryHeavyGate = nullptr;
     TaskHandle_t _task = nullptr;
     DataModel _pendingData;
     IScreen* _pendingScreen = nullptr;
