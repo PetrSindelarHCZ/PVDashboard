@@ -1,8 +1,9 @@
 # Integrace GoodWe a AZRouteru
 
-Tento dokument popisuje datové kontrakty aktuálního firmware. Podrobné mapování
-je přímo v implementaci klientů; při změně protokolu se musí současně upravit
-DataModel a tato dokumentace.
+Tento dokument popisuje datové kontrakty aktuálního firmware i chování při
+zapnutí/vypnutí obou energetických zdrojů. Podrobné mapování je přímo v
+implementaci klientů; při změně protokolu se musí současně upravit DataModel a
+tato dokumentace.
 
 ## GoodWe GW10K-ET
 
@@ -48,6 +49,30 @@ timeout je 400 ms a timeout odpovědi 1 000 ms. Když hlavní endpoint selže,
 doplňkové dotazy /status a /devices se v daném cyklu neprovedou. Jejich samostatné
 selhání nezneplatní již přijatá výkonová data.
 
+## Aktivace zdrojů a dynamická FVE obrazovka
+
+GoodWe a AZRouter mají nezávislý příznak `enabled`. Nastavení se ukládá do NVS
+a změna se aplikuje za běhu:
+
+- vypnutý zdroj se nepolluje,
+- jeho stavová ikona se nekreslí do záhlaví,
+- diagnostika e-inku rozlišuje **Vypnuto** od nedostupného aktivního zdroje,
+- `SolarScreen` se registruje, pokud je zapnutý alespoň jeden zdroj,
+- při vypnutí obou zdrojů se FVE odstraní ze sidebaru i seznamu obrazovek,
+- pokud byla FVE právě aktivní a oba zdroje se vypnou, aplikace přejde na Home,
+- NavigationController se po změně registrace synchronizuje.
+
+Rozložení FVE obrazovky je adaptivní:
+
+- **GoodWe + AZRouter**: standardní kombinované rozložení,
+- **jen GoodWe**: GoodWe karty a širší graf dne bez prázdného AZRouter panelu,
+- **jen AZRouter**: samostatná velká AZRouter karta,
+- **oba vypnuté**: obrazovka se běžně vůbec nezaregistruje; renderer obsahuje
+  pouze obranný empty state pro již zařazený snímek.
+
+Domovská energetická karta je v současném layoutu navázaná na aktivní GoodWe.
+AZRouter-only režim je dostupný na FVE stránce.
+
 ## Znaménka
 
 V komentářích DataModel a v některých obrazovkách historicky existovaly opačné
@@ -61,7 +86,7 @@ stavu měniče a opravit zavádějící komentáře v DataModel.
 
 ## Stav a stáří dat
 
-Každý zdroj udržuje:
+Každý zdroj má vedle konfiguračního `enabled` také runtime stav:
 
 - available,
 - lastSuccessMs,
@@ -69,10 +94,19 @@ Každý zdroj udržuje:
 - errorCount,
 - lastError.
 
-Při chybě zůstávají poslední naměřené hodnoty v DataModel. UI proto musí spolu
-s hodnotou zobrazovat dostupnost nebo stáří dat, aby stará hodnota nepůsobila
-jako aktuální měření.
+Při chybě aktivního zdroje zůstávají poslední naměřené hodnoty v DataModel.
+UI proto musí spolu s hodnotou zobrazovat dostupnost nebo stáří dat, aby stará
+hodnota nepůsobila jako aktuální měření. Vypnutý zdroj se nemá interpretovat
+jako komunikační chyba.
 
 Po neúspěchu plánovač zdvojnásobuje interval dalšího pokusu. Pro běžné krátké
 intervaly je strop pět minut; delší uživatelský interval se nikdy nezkrátí.
 Interval se měří od dokončení dotazu a první úspěch obnoví běžnou hodnotu.
+
+## Známý drobný UI dluh
+
+Stručný stavový přehled ve WebUI stále používá pro GoodWe/AZRouter text
+`Offline`, pokud `available=false`, i když je zdroj explicitně vypnutý.
+Samotný polling, dynamická registrace FVE obrazovky, sidebar, záhlaví a e-ink
+diagnostika už `enabled` respektují. Při další úpravě WebUI je vhodné sjednotit
+text s počasím na `Vypnuto`.
