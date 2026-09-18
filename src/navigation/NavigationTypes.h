@@ -13,6 +13,7 @@ enum class NavigationAction : uint8_t {
 
 enum class NavigationArea : uint8_t {
     Sidebar,
+    Pager,
     Page
 };
 
@@ -39,7 +40,12 @@ inline bool parseNavigationAction(String value, NavigationAction& action) {
 }
 
 inline const char* navigationAreaName(NavigationArea area) {
-    return area == NavigationArea::Page ? "page" : "sidebar";
+    switch (area) {
+        case NavigationArea::Sidebar: return "sidebar";
+        case NavigationArea::Pager: return "pager";
+        case NavigationArea::Page: return "page";
+    }
+    return "sidebar";
 }
 
 struct NavigationRect {
@@ -111,4 +117,5 @@ struct NavigationState {
     NavigationArea area = NavigationArea::Sidebar;
     String sidebarScreenId = "home";
     String focusId;
+    uint8_t subpageIndex = 0;
 };
