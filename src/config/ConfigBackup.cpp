@@ -176,7 +176,7 @@ bool parseWeatherLocations(const String& json, WeatherConfig& weather) {
 
 String exportConfigurationYaml(const AppConfig& c) {
     String y;
-    y.reserve(4096);
+    y.reserve(8192);
     y += "format: \"pvdashboard-config\"\nversion: 6\n";
     y += "system:\n  hostname: " + quoteYaml(c.system.hostname) + "\n";
     y += "  ntp_server: " + quoteYaml(c.system.ntpServer) + "\n";
@@ -208,7 +208,7 @@ String exportConfigurationYaml(const AppConfig& c) {
 }
 
 bool importConfigurationYaml(const String& yaml, AppConfig& config, String& error) {
-    if (yaml.isEmpty() || yaml.length() > 8192) { error = "Empty or oversized YAML"; return false; }
+    if (yaml.isEmpty() || yaml.length() > 24576) { error = "Empty or oversized YAML"; return false; }
     AppConfig parsed;
     String section;
     uint32_t seen = 0;
