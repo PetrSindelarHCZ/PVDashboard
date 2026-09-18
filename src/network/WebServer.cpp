@@ -19,6 +19,7 @@
 #include "../../include/FirmwareLimits.h"
 #include <cstring>
 #include <vector>
+#include <math.h>
 
 // Původní implementaci zachováváme beze změny. Rozšířené routy
 // se registrují explicitně z DashboardApp ještě před begin().
