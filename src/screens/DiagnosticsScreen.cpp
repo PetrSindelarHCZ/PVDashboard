@@ -30,7 +30,9 @@ void DiagnosticsScreen::render(IDisplay& display, const DataModel& dm) {
     display.print("GOODWE | UDP 8899");
     ScreenStyle::useBody(display);
     display.setCursor(457, 165);
-    display.printf("Status: %s", dm.solar.status.available ? "Data dostupná" : "Nedostupné");
+    display.printf("Status: %s",
+                   !dm.solar.enabled ? "Vypnuto" :
+                   (dm.solar.status.available ? "Data dostupná" : "Nedostupné"));
     display.setCursor(457, 195);
     display.printf("Chyby: %u", dm.solar.status.errorCount);
 
@@ -39,7 +41,9 @@ void DiagnosticsScreen::render(IDisplay& display, const DataModel& dm) {
     display.print("AZ ROUTER | HTTP");
     ScreenStyle::useBody(display);
     display.setCursor(457, 265);
-    display.printf("Status: %s", dm.azrouter.status.available ? "Data dostupná" : "Nedostupné");
+    display.printf("Status: %s",
+                   !dm.azrouter.enabled ? "Vypnuto" :
+                   (dm.azrouter.status.available ? "Data dostupná" : "Nedostupné"));
     display.setCursor(457, 295);
     display.printf("Chyby: %u", dm.azrouter.status.errorCount);
 
