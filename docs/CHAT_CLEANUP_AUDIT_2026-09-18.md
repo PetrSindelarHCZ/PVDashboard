@@ -38,6 +38,7 @@ Hlavní záchytné dokumenty:
 | 17. 9. | **Nahrání v0.1.6 bez IDE** | **SMAZAT** | Historický postup prvního OTA testu. Aktuální OTA/release workflow je v README a masteru. |
 | 17. 9. | **Příprava OTA testu** | **SMAZAT** | Testovací release řada 0.1.x je překonaná prvním plným release 1.0.0; testovací rozhodnutí jsou v release dokumentaci. |
 | 17. 9. | **Kontrola větvení GitHubu** | **SMAZAT** | Jednorázový Git/branch troubleshooting; výsledný stav je v historii repozitáře. |
+| 17. 9. | **Sloučení a release** | **SMAZAT** | Chat řešil merge `fix/header-icons-czech`, PR #2, release `v1.0.1` a kontrolu shody tagu s `FIRMWARE_VERSION`. Výsledný stav je v Git historii a aktuální `.github/workflows/release.yml` shodu tagu/verze validuje automaticky. |
 | 17. 9. | **Strategie obnovy displeje** | **SMAZAT** | Wi-Fi/AP ikony, NTP-validita, české fonty, záhlaví a refresh strategie jsou zachycené v DISPLAY.md a backlogu. |
 | 17. 9. | **Probuzení ESP přes 433MHz** | **SMAZAT** | Myšlenka wake přes 433 MHz je zachycená jako volitelná v PROJECT_INTENT_BACKLOG. |
 | 18. 9. | **Změna šipky karet** | **SMAZAT** | Hotová čistě vizuální změna WebUI; branch byla ukončená a výsledek je v masteru. |
@@ -46,7 +47,7 @@ Hlavní záchytné dokumenty:
 
 ### První bezpečná vlna
 
-Můžeš hned ručně smazat těchto **16 chatů**:
+Můžeš hned ručně smazat těchto **17 chatů**:
 
 1. Návrh hlavní jednotky
 2. Posouzení eink displejů
@@ -64,6 +65,7 @@ Můžeš hned ručně smazat těchto **16 chatů**:
 14. Změna šipky karet
 15. Nový branch pro WebUI e ink preview
 16. Oprava pádu weather tasku
+17. Sloučení a release
 
 Po této vlně už z výše uvedených přímo auditovaných projektových chatů nemusí zůstat žádný pouze kvůli nedokončené opravě.
 
@@ -128,8 +130,8 @@ správně.
 
 WeatherWorker rozhodnutí je nyní uzavřené: při vypnutém modulu se task nemá
 držet dormantní. Má se korektně ukončit a uvolnit cache, mutex i stack; při
-opětovném zapnutí se vytvoří znovu. Implementace je uložená na větvi
-`feature/weather-worker-lifecycle`, build i validace release artefaktů prošly
+opětovném zapnutí se vytvoří znovu. Implementace byla ověřena na zařízení a
+sloučena do `masteru` přes PR #6; build i validace release artefaktů prošly
 v GitHub Actions a rozhodnutí je zachycené v dokumentaci.
 
 Tím už chat neobsahuje žádné unikátní projektové rozhodnutí a lze jej smazat.
@@ -160,8 +162,8 @@ jsou proto bezpečně zařazené do **SMAZAT**.
 
 Wi-Fi část i lifecycle WeatherWorkeru jsou rozhodnuté a zachycené v repozitáři.
 Chat o Wi-Fi/NTP/živém nastavení už není potřeba držet kvůli projektovému
-rozhodnutí. Samotná lifecycle implementace ještě čeká na provozní test na
-zařízení před sloučením do masteru.
+rozhodnutí. Lifecycle implementace byla provozně ověřena a je sloučená do
+`masteru`.
 
 ### Weather crash — UZAVŘENO
 
@@ -199,7 +201,7 @@ než historický chat.
 
 ## E. Doporučený postup ručního úklidu
 
-1. Smazat 13 chatů z **První bezpečné vlny**.
+1. Smazat 17 chatů z **První bezpečné vlny**.
 2. Mimo projekt případně smazat chat **jaké gpio bys použil pro BM280**,
    UTF-8/EInkGraph chat a **GitHub Actions limity a ceny**, pokud je nepotřebuješ
    kvůli jiným tématům mimo Dashboard.
