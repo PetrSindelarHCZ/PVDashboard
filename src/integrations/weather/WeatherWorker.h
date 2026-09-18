@@ -15,6 +15,8 @@ public:
     bool reconfigure(const WeatherConfig& config);
     bool stop(uint32_t timeoutMs = 10000);
     bool takeLatest(WeatherData& weatherData);
+    bool copyCached(const String& locationId, WeatherData& weatherData);
+    bool requestLocation(const String& locationId);
     void setMemoryHeavyGate(SemaphoreHandle_t gate);
 
 private:
@@ -55,6 +57,7 @@ private:
     String _cacheProvider = "";
     uint32_t _configGeneration = 0;
     uint32_t _providerGeneration = 0;
+    String _priorityLocationId = "";
 
     static void taskEntry(void* parameter);
     void taskLoop();

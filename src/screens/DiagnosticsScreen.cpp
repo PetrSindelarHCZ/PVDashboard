@@ -51,4 +51,14 @@ void DiagnosticsScreen::render(IDisplay& display, const DataModel& dm) {
     display.print("REST API / Mobile UI | port 80");
     display.setCursor(457, 395);
     display.printf("Obrazovka: %s", dm.system.currentScreenId.c_str());
+
+    NavigationLayout navigationLayout;
+    buildNavigationLayout(dm, navigationLayout);
+    ScreenStyle::drawPageNavigationFocus(display, dm, navigationLayout);
+}
+
+void DiagnosticsScreen::buildNavigationLayout(const DataModel&, NavigationLayout& layout) const {
+    layout.clear();
+    layout.add("system-card", 75, 63, 342, 402);
+    layout.add("services-card", 427, 63, 358, 402);
 }

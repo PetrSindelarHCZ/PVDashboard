@@ -63,7 +63,10 @@ struct WeatherData {
     DataSourceStatus status;
     bool enabled = false;
     String provider = "";
+    String locationId = "";
     String locationName = "";
+    uint8_t locationIndex = 0;
+    uint8_t locationCount = 0;
     float outdoorTempC = 0.0f;
     int outdoorHumidityPercent = 0;
     float surfacePressureHpa = 0.0f;
@@ -101,6 +104,15 @@ struct PoolData {
 
 struct SystemData {
     String currentScreenId = "home";
+
+    // Runtime UI focus. This is intentionally separate from persisted
+    // configuration; it is copied into display snapshots so e-ink and WebUI
+    // preview render the same navigation state.
+    String navigationArea = "sidebar";
+    String navigationSidebarScreenId = "home";
+    String navigationFocusId = "";
+    uint8_t navigationSubpageIndex = 0;
+    uint8_t navigationSubpageCount = 1;
     String timeStr = "";
     String dateStr = "";
     String dayOfWeekStr = "";

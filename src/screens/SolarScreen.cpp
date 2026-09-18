@@ -99,4 +99,17 @@ void SolarScreen::render(IDisplay& display, const DataModel& dm) {
     display.printf("GW %s | AZ %s",
                    dm.solar.status.available ? "OK" : "OFF",
                    dm.azrouter.status.available ? "OK" : "OFF");
+
+    NavigationLayout navigationLayout;
+    buildNavigationLayout(dm, navigationLayout);
+    ScreenStyle::drawPageNavigationFocus(display, dm, navigationLayout);
+}
+
+void SolarScreen::buildNavigationLayout(const DataModel&, NavigationLayout& layout) const {
+    layout.clear();
+    layout.add("production-card", 75, 63, 225, 190);
+    layout.add("battery-card", 315, 63, 225, 190);
+    layout.add("grid-card", 555, 63, 230, 190);
+    layout.add("history-card", 75, 268, 470, 197);
+    layout.add("azrouter-card", 555, 268, 230, 197);
 }

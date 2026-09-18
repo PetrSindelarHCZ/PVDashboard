@@ -60,6 +60,39 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         padding-right:3px;
         white-space:nowrap;
     }
+    .weather-location-row-actions {
+        display:flex;
+        align-items:center;
+        gap:3px;
+        padding-right:4px;
+        flex:0 0 auto;
+    }
+    .weather-location-order {
+        appearance:none;
+        width:27px;
+        height:27px;
+        min-width:27px;
+        padding:0;
+        display:grid;
+        place-items:center;
+        border:1px solid var(--card-border);
+        border-radius:6px;
+        background:#1c2230;
+        color:var(--text-sub);
+        cursor:pointer;
+        font-size:.78rem;
+        line-height:1;
+    }
+    .weather-location-order:hover,
+    .weather-location-order:focus {
+        color:var(--text);
+        border-color:#4b5563;
+        outline:none;
+    }
+    .weather-location-order:disabled {
+        opacity:.32;
+        cursor:default;
+    }
     .weather-location-summary {
         min-height:1.1rem;
     }
@@ -283,7 +316,7 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         renderLocationMenu();
     }
 
-    function addLocationOption(menu, location) {
+    function addLocationOption(menu, location, index) {
         const row = document.createElement('div');
         row.className = 'ntp-option';
 
@@ -303,11 +336,40 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         main.addEventListener('click', () => selectLocation(location.id));
         row.appendChild(main);
 
+        const actions = document.createElement('div');
+        actions.className = 'weather-location-row-actions';
+
+        const up = document.createElement('button');
+        up.type = 'button';
+        up.className = 'weather-location-order';
+        up.textContent = '▲';
+        up.title = 'Posunout výše';
+        up.setAttribute('aria-label', 'Posunout ' + displayName(location) + ' výše');
+        up.disabled = locationBusy || index === 0;
+        up.addEventListener('click', event => {
+            event.stopPropagation();
+            moveLocation(location.id, 'up');
+        });
+
+        const down = document.createElement('button');
+        down.type = 'button';
+        down.className = 'weather-location-order';
+        down.textContent = '▼';
+        down.title = 'Posunout níže';
+        down.setAttribute('aria-label', 'Posunout ' + displayName(location) + ' níže');
+        down.disabled = locationBusy || index === locations.length - 1;
+        down.addEventListener('click', event => {
+            event.stopPropagation();
+            moveLocation(location.id, 'down');
+        });
+
+        actions.append(up, down);
+
         if (location.id === activeLocationId) {
             const active = document.createElement('span');
             active.className = 'weather-location-active';
             active.textContent = 'Aktivní';
-            row.appendChild(active);
+            actions.appendChild(active);
         } else {
             const remove = document.createElement('button');
             remove.type = 'button';
@@ -319,9 +381,10 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
                 event.stopPropagation();
                 deleteLocation(location.id);
             });
-            row.appendChild(remove);
+            actions.appendChild(remove);
         }
 
+        row.appendChild(actions);
         menu.appendChild(row);
     }
 
@@ -336,7 +399,12 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         title.textContent = 'Uložená místa · ' + locations.length + ' / ' + MaxLocations;
         menu.appendChild(title);
 
-        locations.forEach(location => addLocationOption(menu, location));
+        const orderInfo = document.createElement('div');
+        orderInfo.className = 'weather-location-info';
+        orderInfo.textContent = 'Pořadí zde určuje pořadí podstránek na displeji.';
+        menu.appendChild(orderInfo);
+
+        locations.forEach((location, index) => addLocationOption(menu, location, index));
 
         const addTitle = document.createElement('div');
         addTitle.className = 'ntp-menu-title';
@@ -534,6 +602,18 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         await locationAction(
             {action:'select', id},
             'Aktivní místo: ' + displayName(selected)
+        );
+    }
+
+    async function moveLocation(id, direction) {
+        const index = locations.findIndex(item => item.id === id);
+        if (index < 0) return;
+        if (direction === 'up' && index === 0) return;
+        if (direction === 'down' && index === locations.length - 1) return;
+
+        await locationAction(
+            {action:'move', id, direction},
+            'Pořadí míst upraveno'
         );
     }
 

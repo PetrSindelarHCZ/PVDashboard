@@ -68,6 +68,10 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
         ScreenStyle::useValue(display);
         display.setCursor(570, 360);
         display.printf("%.1f °C", dm.inside.poolTempC);
+
+        NavigationLayout navigationLayout;
+        buildNavigationLayout(dm, navigationLayout);
+        ScreenStyle::drawPageNavigationFocus(display, dm, navigationLayout);
         return;
     }
 
@@ -167,4 +171,30 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
     ScreenStyle::useValue(display);
     display.setCursor(570, 360);
     display.printf("%.1f °C", dm.inside.poolTempC);
+
+    NavigationLayout navigationLayout;
+    buildNavigationLayout(dm, navigationLayout);
+    ScreenStyle::drawPageNavigationFocus(display, dm, navigationLayout);
+}
+
+void HomeScreen::buildNavigationLayout(const DataModel& dm, NavigationLayout& layout) const {
+    layout.clear();
+
+    // These rectangles describe the current rendered layout. The controller
+    // derives neighbours from geometry every time; it never knows that
+    // "weather" is left of "energy". When Home becomes configuration-driven,
+    // the page builder can feed the same NavigationLayout directly from the
+    // active widget configuration.
+    if (dm.weather.enabled) {
+        layout.add("weather-card", 75, 63, 225, 402);
+        layout.add("energy-card", 315, 63, 225, 402);
+        layout.add("indoor-card", 555, 63, 230, 402);
+    } else {
+        layout.add("energy-card", 75, 63, 465, 402);
+        layout.add("indoor-card", 555, 63, 230, 402);
+    }
+
+    // Entering from the sidebar starts on the left-most focusable widget
+    // (top-most on ties); LEFT can leave from any element with no neighbour
+    // further to the left.
 }

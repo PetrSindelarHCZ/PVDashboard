@@ -6,7 +6,9 @@
 #include "WifiKnownDialogPatch.h"
 #include "WeatherSettingsUiPatch.h"
 #include "DisplayPreviewUiPatch.h"
+#include "NavigationUiPatch.h"
 #include "../display/DisplayPreview.h"
+#include "../navigation/NavigationController.h"
 #include "TimeService.h"
 #include "NetworkDiagnostics.h"
 #include "../diagnostics/Performance.h"
@@ -121,6 +123,9 @@ void DashboardWebServer::enableTimezoneUiExtension() {
         _server.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate");
         _server.send(200, "application/json", _displayPreview->metadataJson());
     });
+
+    _server.on("/api/navigation", HTTP_GET, [this]() { handleApiNavigationState(); });
+    _server.on("/api/navigation", HTTP_POST, [this]() { handleApiNavigationAction(); });
 
     _server.on("/api/display.bmp", HTTP_GET, [this]() {
         if (_displayPreview == nullptr || !_displayPreview->ready()) {
@@ -325,6 +330,34 @@ void DashboardWebServer::enableTimezoneUiExtension() {
                 location.longitude = longitude;
                 weather.activeLocationId = id;
             }
+        } else if (action == "move") {
+            const String id = _server.arg("id");
+            const String direction = _server.arg("direction");
+            const int index = findLocation(id);
+            if (index < 0) {
+                _server.send(404, "application/json",
+                             "{\"status\":\"error\",\"message\":\"Weather location not found\"}");
+                return;
+            }
+
+            int target = index;
+            if (direction == "up") target = index - 1;
+            else if (direction == "down") target = index + 1;
+            else {
+                _server.send(400, "application/json",
+                             "{\"status\":\"error\",\"message\":\"Invalid weather location move\"}");
+                return;
+            }
+
+            if (target < 0 || target >= weather.locationCount) {
+                _server.send(409, "application/json",
+                             "{\"status\":\"error\",\"message\":\"Weather location already at edge\"}");
+                return;
+            }
+
+            const WeatherLocation tmp = weather.locations[index];
+            weather.locations[index] = weather.locations[target];
+            weather.locations[target] = tmp;
         } else if (action == "delete") {
             if (weather.locationCount <= 1) {
                 _server.send(409, "application/json",
@@ -586,6 +619,7 @@ void DashboardWebServer::handleExtendedRoot() {
         _server.sendContent_P(WIFI_KNOWN_DIALOG_PATCH);
         _server.sendContent_P(WEATHER_SETTINGS_UI_PATCH);
         _server.sendContent_P(DISPLAY_PREVIEW_UI_PATCH);
+        _server.sendContent_P(NAVIGATION_UI_PATCH);
         _server.sendContent_P(bodyEnd);
     } else {
         _server.sendContent_P(INDEX_HTML);
@@ -596,8 +630,104 @@ void DashboardWebServer::handleExtendedRoot() {
         _server.sendContent_P(WIFI_KNOWN_DIALOG_PATCH);
         _server.sendContent_P(WEATHER_SETTINGS_UI_PATCH);
         _server.sendContent_P(DISPLAY_PREVIEW_UI_PATCH);
+        _server.sendContent_P(NAVIGATION_UI_PATCH);
     }
     _server.sendContent("");
+}
+
+void DashboardWebServer::handleApiNavigationState() {
+    if (_navigationController == nullptr) {
+        _server.send(503, "application/json",
+                     "{\"status\":\"error\",\"message\":\"Navigation unavailable\"}");
+        return;
+    }
+
+    const NavigationState& state = _navigationController->getState();
+    NavigationLayout layout;
+    _navigationController->buildCurrentLayout(layout);
+
+    auto screenTitle = [this](const String& id) -> String {
+        for (auto* screen : _screenManager.getAllScreens()) {
+            if (screen && screen->getId().equalsIgnoreCase(id)) return screen->getTitle();
+        }
+        return id;
+    };
+
+    JsonDocument doc;
+    doc["area"] = navigationAreaName(state.area);
+    doc["activeScreen"] = _screenManager.getActiveScreenId();
+    doc["activeTitle"] = screenTitle(_screenManager.getActiveScreenId());
+    doc["sidebarScreen"] = state.sidebarScreenId;
+    doc["sidebarTitle"] = screenTitle(state.sidebarScreenId);
+    doc["focus"] = state.focusId;
+    doc["subpageIndex"] = state.subpageIndex;
+    doc["subpageCount"] = _dataModel.system.navigationSubpageCount;
+
+    JsonArray elements = doc["elements"].to<JsonArray>();
+    for (uint8_t i = 0; i < layout.count; ++i) {
+        if (!layout.elements[i].enabled) continue;
+        JsonObject item = elements.add<JsonObject>();
+        item["id"] = layout.elements[i].id;
+        item["x"] = layout.elements[i].bounds.x;
+        item["y"] = layout.elements[i].bounds.y;
+        item["width"] = layout.elements[i].bounds.width;
+        item["height"] = layout.elements[i].bounds.height;
+    }
+
+    String response;
+    serializeJson(doc, response);
+    _server.sendHeader("Cache-Control", "no-store");
+    _server.send(200, "application/json", response);
+}
+
+void DashboardWebServer::handleApiNavigationAction() {
+    if (_navigationController == nullptr) {
+        _server.send(503, "application/json",
+                     "{\"status\":\"error\",\"message\":\"Navigation unavailable\"}");
+        return;
+    }
+    if (!_server.hasArg("action")) {
+        _server.send(400, "application/json",
+                     "{\"status\":\"error\",\"message\":\"Navigation action is required\"}");
+        return;
+    }
+
+    NavigationAction action;
+    if (!parseNavigationAction(_server.arg("action"), action)) {
+        _server.send(400, "application/json",
+                     "{\"status\":\"error\",\"message\":\"Unknown navigation action\"}");
+        return;
+    }
+
+    const bool handled = _navigationController->handleAction(action);
+    const NavigationState& state = _navigationController->getState();
+    NavigationLayout layout;
+    _navigationController->buildCurrentLayout(layout);
+
+    auto screenTitle = [this](const String& id) -> String {
+        for (auto* screen : _screenManager.getAllScreens()) {
+            if (screen && screen->getId().equalsIgnoreCase(id)) return screen->getTitle();
+        }
+        return id;
+    };
+
+    JsonDocument doc;
+    doc["status"] = "ok";
+    doc["handled"] = handled;
+    doc["action"] = navigationActionName(action);
+    doc["area"] = navigationAreaName(state.area);
+    doc["activeScreen"] = _screenManager.getActiveScreenId();
+    doc["activeTitle"] = screenTitle(_screenManager.getActiveScreenId());
+    doc["sidebarScreen"] = state.sidebarScreenId;
+    doc["sidebarTitle"] = screenTitle(state.sidebarScreenId);
+    doc["focus"] = state.focusId;
+    doc["subpageIndex"] = state.subpageIndex;
+    doc["subpageCount"] = _dataModel.system.navigationSubpageCount;
+
+    String response;
+    serializeJson(doc, response);
+    _server.sendHeader("Cache-Control", "no-store");
+    _server.send(200, "application/json", response);
 }
 
 void DashboardWebServer::handleApiTimezoneConfig() {

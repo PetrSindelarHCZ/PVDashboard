@@ -88,6 +88,7 @@ bool WeatherWorker::begin(const WeatherConfig& config) {
     _configGeneration = 0;
     _providerGeneration = 0;
     _cacheProvider = "";
+    _priorityLocationId = "";
 
     if (!_config.enabled) {
         _provider = nullptr;
@@ -249,6 +250,70 @@ bool WeatherWorker::takeLatest(WeatherData& weatherData) {
     return hasLatest;
 }
 
+bool WeatherWorker::copyCached(
+    const String& locationId,
+    WeatherData& weatherData) {
+    if (_mutex == nullptr ||
+        xSemaphoreTake(_mutex, pdMS_TO_TICKS(50)) != pdTRUE) {
+        return false;
+    }
+
+    bool found = false;
+    for (uint8_t i = 0;
+         i < _config.locationCount && i < MaxWeatherLocations;
+         ++i) {
+        const WeatherLocation& location = _config.locations[i];
+        if (location.id != locationId) continue;
+
+        const int cacheIndex = findCacheEntryLocked(
+            location.id,
+            location.latitude,
+            location.longitude);
+        if (cacheIndex >= 0 && _cache[cacheIndex].data != nullptr) {
+            weatherData = *_cache[cacheIndex].data;
+            weatherData.enabled = _config.enabled;
+            weatherData.locationId = location.id;
+            weatherData.locationName = location.name;
+            found = true;
+        }
+        break;
+    }
+
+    xSemaphoreGive(_mutex);
+    return found;
+}
+
+bool WeatherWorker::requestLocation(const String& locationId) {
+    if (_mutex == nullptr ||
+        xSemaphoreTake(_mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+        return false;
+    }
+
+    bool configured = false;
+    for (uint8_t i = 0;
+         i < _config.locationCount && i < MaxWeatherLocations;
+         ++i) {
+        if (_config.locations[i].id == locationId) {
+            configured = true;
+            _priorityLocationId = locationId;
+
+            const WeatherLocation& location = _config.locations[i];
+            const int index = findCacheEntryLocked(
+                location.id,
+                location.latitude,
+                location.longitude);
+            if (index >= 0 && _cache[index].data == nullptr) {
+                _cache[index].nextAttemptMs = 0;
+            }
+            break;
+        }
+    }
+
+    xSemaphoreGive(_mutex);
+    if (configured && _task != nullptr) xTaskNotifyGive(_task);
+    return configured;
+}
+
 void WeatherWorker::releaseEntryData(CacheEntry& entry) {
     delete entry.data;
     entry.data = nullptr;
@@ -404,6 +469,7 @@ void WeatherWorker::publishCachedActiveLocked(
 
     WeatherData cached = *_cache[index].data;
     cached.enabled = true;
+    cached.locationId = active->id;
     cached.locationName = active->name;
 
     _latest = cached;
@@ -463,6 +529,7 @@ void WeatherWorker::storeFetchResult(
         if (entry.data != nullptr) {
             *entry.data = weatherData;
             entry.data->enabled = _config.enabled;
+            entry.data->locationId = location.id;
             entry.data->locationName = location.name;
         } else {
             Serial.printf(
@@ -489,6 +556,7 @@ void WeatherWorker::storeFetchResult(
         if (isActive) {
             _latest = weatherData;
             _latest.enabled = _config.enabled;
+            _latest.locationId = location.id;
             _latest.locationName = location.name;
             _hasLatest = true;
         }
@@ -522,12 +590,14 @@ void WeatherWorker::storeFetchResult(
         if (isActive && entry.data == nullptr) {
             WeatherData failed = weatherData;
             failed.enabled = _config.enabled;
+            failed.locationId = location.id;
             failed.locationName = location.name;
             _latest = failed;
             _hasLatest = true;
         } else if (isActive && entry.data != nullptr) {
             _latest = *entry.data;
             _latest.enabled = _config.enabled;
+            _latest.locationId = location.id;
             _latest.locationName = location.name;
             _hasLatest = true;
         }
@@ -571,8 +641,37 @@ void WeatherWorker::taskLoop() {
                 const WeatherLocation* active =
                     config.activeLocation();
 
+                // A location currently selected by the display pager gets one
+                // immediate fetch opportunity. This does not change the
+                // persisted active location used by Home.
+                if (!_priorityLocationId.isEmpty()) {
+                    const String priorityLocationId = _priorityLocationId;
+                    _priorityLocationId = "";
+
+                    for (uint8_t i = 0;
+                         i < config.locationCount &&
+                         i < MaxWeatherLocations;
+                         ++i) {
+                        const auto& location = config.locations[i];
+                        if (location.id != priorityLocationId) continue;
+
+                        const int index = findCacheEntryLocked(
+                            location.id,
+                            location.latitude,
+                            location.longitude);
+                        if (index >= 0 &&
+                            dueNow(now, _cache[index].nextAttemptMs)) {
+                            target = location;
+                            haveTarget = true;
+                            targetIsActive =
+                                location.id == config.activeLocationId;
+                        }
+                        break;
+                    }
+                }
+
                 // Aktivní lokalita má prioritu, ale respektuje retry/backoff.
-                if (active != nullptr) {
+                if (!haveTarget && active != nullptr) {
                     const int activeIndex =
                         findCacheEntryLocked(
                             active->id,
@@ -772,6 +871,7 @@ void WeatherWorker::cleanupTaskResources() {
         _cacheProvider = "";
         _configGeneration = 0;
         _providerGeneration = 0;
+        _priorityLocationId = "";
         xSemaphoreGive(mutex);
     }
 
