@@ -110,32 +110,46 @@ pozic a velikostí widgetů ale v aktuálním masteru není.
 
 ---
 
-## 3. Fyzické ovládání dashboardu — PLÁN
+## 3. Ovládání dashboardu joystickem — ČÁSTEČNĚ
 
-Dashboard je nyní plně ovladatelný z WebUI. Původní návrh ale počítal také s
-lokálním ovládáním bez telefonu.
+Cílovým lokálním ovladačem je pětisměrné navigační tlačítko. Fyzické GPIO zatím
+nejsou zapojené; první etapa implementuje společnou softwarovou navigaci a její
+ekvivalent ve WebUI.
 
-### Minimální varianta
+### Schválený model navigace
 
-Dvě fyzická tlačítka:
+Navigace rozlišuje dvě oblasti:
 
-- předchozí obrazovka,
-- následující obrazovka.
+- **Sidebar** — výchozí stav. `UP/DOWN` prochází položky, `LEFT` se ignoruje a
+  `RIGHT` vstoupí do vybrané stránky.
+- **Page** — `UP/DOWN/LEFT/RIGHT` se pohybuje mezi focusovatelnými prvky.
+  `LEFT` na vstupním bodu stránky vrátí focus do sidebaru.
+- `OK` je zatím rezervované pro budoucí práci s prvkem, editaci nebo potvrzení.
 
-Tlačítka mají cyklicky procházet hlavními obrazovkami. Přepnutí obrazovky musí
-použít stejný ScreenManager jako WebUI a respektovat refresh politiku.
+WebUI na kartě **Obrazovky** používá stejné navigační akce jako budoucí fyzický
+joystick. Neobsahuje vlastní logiku přepínání.
 
-### Rozšířená varianta
+### Dynamický layout
 
-V inventáři je k dispozici také pětisměrné navigační tlačítko/joystick.
-Je možné později zvážit:
+Navigační sousedé nejsou pevně zakódovaní podle ID widgetů. Každá stránka
+poskytne aktuální seznam focusovatelných obdélníků a controller sousedy odvodí
+z jejich geometrie. Výchozí vstupní bod je nejlevější focusovatelný prvek
+(při shodě nejvyšší), pokud stránka neurčí explicitní vstupní bod.
 
-- vlevo/vpravo = změna obrazovky,
-- nahoru/dolů = změna detailu/podobrazovky,
-- stisk = potvrzení nebo návrat.
+Toto pravidlo je důležité hlavně pro budoucí editovatelnou Home stránku:
+po změně pozice, velikosti nebo přítomnosti widgetů se navigace sestaví z právě
+platné konfigurace stránky bez změny firmware nebo ručně psaného grafu vazeb.
 
-Tato varianta zatím není závazná. Před implementací je nutné ověřit dostupné
-GPIO na konkrétní Waveshare desce.
+### Co ještě chybí
+
+- fyzické připojení joysticku a volba GPIO,
+- debounce a obsluha tlačítek,
+- long-press / auto-repeat,
+- akce `OK` nad konkrétními prvky,
+- případné ruční override sousednosti pro atypické layouty.
+
+Před fyzickým zapojením je stále nutné ověřit dostupné GPIO konkrétní revize
+Waveshare desky a boot-strapping piny.
 
 ---
 
