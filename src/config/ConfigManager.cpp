@@ -30,11 +30,11 @@ void saveWeatherLocations(Preferences& preferences, const WeatherConfig& weather
             preferences.putDouble(latKey.c_str(), location.latitude);
             preferences.putDouble(lonKey.c_str(), location.longitude);
         } else {
-            preferences.remove(idKey.c_str());
-            preferences.remove(nameKey.c_str());
-            preferences.remove(countryKey.c_str());
-            preferences.remove(latKey.c_str());
-            preferences.remove(lonKey.c_str());
+            if (preferences.isKey(idKey.c_str())) preferences.remove(idKey.c_str());
+            if (preferences.isKey(nameKey.c_str())) preferences.remove(nameKey.c_str());
+            if (preferences.isKey(countryKey.c_str())) preferences.remove(countryKey.c_str());
+            if (preferences.isKey(latKey.c_str())) preferences.remove(latKey.c_str());
+            if (preferences.isKey(lonKey.c_str())) preferences.remove(lonKey.c_str());
         }
     }
 }
