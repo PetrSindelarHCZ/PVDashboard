@@ -22,6 +22,9 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         flex-wrap:wrap;
         justify-content:flex-end;
     }
+    .weather-settings-card .weather-collapse-header > .settings-collapse-toggle[aria-expanded="false"] + .weather-title-actions {
+        display:none;
+    }
     .weather-config-grid {
         display:grid;
         grid-template-columns:repeat(2,minmax(0,1fr));
