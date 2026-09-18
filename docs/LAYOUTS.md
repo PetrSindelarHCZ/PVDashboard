@@ -44,3 +44,59 @@ Při zavedení editoru musí firmware validovat alespoň:
 - na jedné obrazovce není duplicitní `id`,
 - počet widgetů nepřekročí pevný limit,
 - neznámý typ widgetu se odmítne místo tichého ignorování.
+
+
+## D2 — persistence a REST API
+
+Home layout je uložen v `AppConfig.display.homeLayout` a v NVS pod klíčem
+`layout_home`. Pokud `customized=false`, renderer používá původní automatickou
+šablonu podle dostupnosti Počasí a FVE.
+
+REST rozhraní:
+
+- `GET /api/layout/home` — uložený i právě efektivní layout a limity widgetů,
+- `POST /api/layout/home` — validace a uložení vlastního layoutu,
+- `POST /api/layout/home/reset` — návrat na automatickou výchozí šablonu.
+
+POST používá JSON, například:
+
+```json
+{
+  "customized": true,
+  "widgets": [
+    {
+      "id": "weather-card",
+      "type": "weather",
+      "visible": true,
+      "x": 75,
+      "y": 63,
+      "width": 225,
+      "height": 402
+    },
+    {
+      "id": "energy-card",
+      "type": "energy",
+      "visible": true,
+      "x": 315,
+      "y": 63,
+      "width": 225,
+      "height": 402
+    },
+    {
+      "id": "indoor-card",
+      "type": "indoor",
+      "visible": true,
+      "x": 555,
+      "y": 63,
+      "width": 230,
+      "height": 402
+    }
+  ]
+}
+```
+
+Firmware odmítá neznámé nebo duplicitní widgety, geometrii mimo obsahovou
+plochu, příliš malé widgety a překryv viditelných widgetů.
+
+Formát YAML zálohy je od této fáze verze 6 a obsahuje `layout.home_json`.
+Starší zálohy se importují s výchozím automatickým Home layoutem.
