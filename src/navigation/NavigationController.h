@@ -22,7 +22,6 @@ public:
 
     const NavigationState& getState() const { return _state; }
     void buildCurrentLayout(NavigationLayout& layout) const;
-    String currentEntryPoint() const;
 
 private:
     static constexpr uint8_t MaxSidebarEntries = 12;
