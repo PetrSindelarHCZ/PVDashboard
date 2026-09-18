@@ -227,6 +227,24 @@ workeru a weather workeru.
 - automatický build a kontrola velikosti firmware,
 - aktualizace README a changelogu při každém release.
 
+
+## P8 — zachycené budoucí funkce z projektových diskusí
+
+Podrobné důvody, omezení a původní návrhová rozhodnutí jsou zachovány v
+[PROJECT_INTENT_BACKLOG.md](PROJECT_INTENT_BACKLOG.md). Tento oddíl je zkrácený
+akční seznam, aby se následující funkce neztratily při úklidu starých chatů.
+
+- [ ] konfigurovatelný layout e-ink obrazovek a editor ve WebUI,
+- [ ] fyzická navigace mezi obrazovkami (minimálně předchozí/následující),
+- [ ] reálné vnitřní čidlo BME280 a pozdější výběr CO2 senzoru,
+- [ ] reálná bazénová čidla; první prototyp počítá s DS18B20 a Wi-Fi uzlem,
+- [ ] 433MHz/CC1101 gateway pro vzdálená čidla,
+- [ ] dlouhodobá historie KPI, agregace a lokální buffer při výpadku internetu,
+- [ ] nezávislá cloudová vrstva pro historii bez závislosti základních funkcí na cloudu,
+- [ ] zachovat možnost samostatného hostu/portu GoodWe a AZRouteru i když simulátor běží na jedné IP,
+- [ ] Home Assistant ponechat pouze jako volitelné budoucí rozšíření.
+
+
 ## Doporučené pořadí nejbližší práce
 
 1. P0: uzavřít současný vzhled a refresh strategii.
