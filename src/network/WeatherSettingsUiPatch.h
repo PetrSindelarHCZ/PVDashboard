@@ -3,12 +3,17 @@
 
 static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
 <style>
-    .weather-settings-card .weather-title-row {
+    .weather-settings-card .weather-title-row,
+    .weather-settings-card .weather-collapse-header {
         display:flex;
         align-items:center;
         justify-content:space-between;
         gap:12px;
         padding-bottom:2px;
+    }
+    .weather-settings-card .weather-collapse-header > .settings-collapse-toggle {
+        flex:1 1 auto;
+        min-width:0;
     }
     .weather-title-actions {
         display:flex;
@@ -103,9 +108,13 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         opacity:.68;
     }
     @media(max-width:699px) {
-        .weather-title-row {
+        .weather-title-row,
+        .weather-collapse-header {
             align-items:flex-start !important;
             flex-direction:column;
+        }
+        .weather-collapse-header > .settings-collapse-toggle {
+            width:100%;
         }
         .weather-title-actions {
             width:100%;
@@ -501,18 +510,14 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
     }
 
     function install() {
-        const cards = Array.from(document.querySelectorAll('.card'));
-        const card = cards.find(item => item.querySelector('.card-title')?.textContent.trim() === 'Počasí');
-        const form = card?.querySelector('form[onsubmit^="saveWeather"]');
-        const title = card?.querySelector('.card-title');
-        if (!card || !form || !title || card.classList.contains('weather-settings-card')) return;
+        // Karta může být už převedená na skládací variantu jiným UI patchem.
+        // Proto ji hledáme přes formulář, ne přes původní .card-title.
+        const form = document.querySelector('.view-settings form[onsubmit^="saveWeather"]') ||
+                     document.querySelector('form[onsubmit^="saveWeather"]');
+        const card = form?.closest('.card');
+        if (!card || !form || card.classList.contains('weather-settings-card')) return;
 
         card.classList.add('weather-settings-card');
-
-        const titleRow = document.createElement('div');
-        titleRow.className = 'weather-title-row';
-        title.replaceWith(titleRow);
-        titleRow.appendChild(title);
 
         const titleActions = document.createElement('div');
         titleActions.className = 'weather-title-actions';
@@ -539,7 +544,34 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         enabledLabel.append(enabled, document.createTextNode(' Aktivní'));
 
         titleActions.append(status, refresh, enabledLabel);
-        titleRow.appendChild(titleActions);
+
+        const collapseToggle = Array.from(card.children)
+            .find(child => child.classList?.contains('settings-collapse-toggle'));
+        if (collapseToggle) {
+            // Zachovat existující skládání karty, ale dát stav a ovládání vedle názvu.
+            const collapseHeader = document.createElement('div');
+            collapseHeader.className = 'weather-collapse-header';
+            collapseToggle.replaceWith(collapseHeader);
+            collapseHeader.append(collapseToggle, titleActions);
+        } else {
+            const title = Array.from(card.children)
+                .find(child => child.classList?.contains('card-title'));
+            if (title) {
+                const titleRow = document.createElement('div');
+                titleRow.className = 'weather-title-row';
+                title.replaceWith(titleRow);
+                titleRow.append(title, titleActions);
+            } else {
+                // Nouzová varianta pro případ další změny struktury karty.
+                const titleRow = document.createElement('div');
+                titleRow.className = 'weather-title-row';
+                const title = document.createElement('div');
+                title.className = 'card-title';
+                title.textContent = 'Počasí';
+                titleRow.append(title, titleActions);
+                card.prepend(titleRow);
+            }
+        }
 
         const configGrid = document.createElement('div');
         configGrid.className = 'weather-config-grid';
