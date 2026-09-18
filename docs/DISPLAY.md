@@ -37,11 +37,13 @@ Na testovaném panelu trvá přibližně 7,3 sekundy.
 ### Automatická aktualizace
 
 Běžná minutová aktualizace používá diferenciální refresh celé obrazovky a trvá
-přibližně 2,0 sekundy. Po pěti po sobě jdoucích částečných obnovách
-DisplayManager automaticky provede čisticí plnou obnovu.
+přibližně 2,0 sekundy. **Počet částečných obnov už automaticky nevynucuje plný
+refresh.** Čisticí full refresh se používá při startu, změně obrazovky a ručním
+požadavku.
 
 Více požadavků vzniklých do pěti sekund po předchozím vykreslení se slučuje.
-Požadavek na plný refresh se při sloučení zachová.
+Požadavek na plný refresh se při sloučení zachová. Dlouhodobý 24hodinový test
+ghostingu této politiky zůstává otevřeným bodem.
 
 ## Vzhled
 
@@ -49,9 +51,10 @@ Všechny obrazovky používají společný ScreenStyle:
 
 - černé záhlaví,
 - bílý text v tmavých plochách,
-- vlevo ikony Wi-Fi (oblouky), GoodWe (solární panel) a AZRouteru (topná spirála),
+- vlevo ikona Wi-Fi a pouze ikony zapnutých energetických zdrojů: GoodWe
+  (solární panel) a AZRouter (topná spirála),
 - připojené zařízení má čistou ikonu, nedostupné šikmé přeškrtnutí přímo přes ikonu;
-  při odpojené Wi-Fi jsou přeškrtnuté také obě síťové integrace,
+  při odpojené Wi-Fi jsou zapnuté síťové integrace označené jako nedostupné,
 - Wi-Fi ukazuje 1–3 oblouky podle RSSI; při připojení jsou hranice −75 a −67 dBm,
   následně se používá hystereze ±3 dB a potvrzení změny po 5 sekundách;
   odpojení se označí bez tohoto zpoždění, číselné RSSI zůstává v diagnostice,
@@ -67,7 +70,14 @@ Všechny obrazovky používají společný ScreenStyle:
 - bez synchronizace (např. po resetu do AP) je časová část záhlaví prázdná;
   první refresh po startu smaže původní údaje. Po úspěšné synchronizaci
   krátký výpadek Wi-Fi již nastavené hodiny neskrývá,
-- stejné fonty a vzhled karet.
+- stejné fonty a vzhled karet,
+- levý sidebar obsahuje jen aktuálně dostupné moduly: FVE při alespoň jednom
+  aktivním energetickém zdroji, Bazén při `pool.enabled` a Počasí při
+  `weather.enabled`,
+- aktivní obrazovka a navigační kurzor jsou dvě různé věci; focus Sidebar/Page
+  se vykresluje podle stavu společného NavigationControlleru,
+- Weather při více lokalitách zobrazuje dole pager teček a při focusu pageru
+  také jednoznačný název právě volené lokality.
 
 
 ## Stabilita preview a WeatherWorkeru — opraveno 18. 9. 2026
@@ -102,8 +112,7 @@ se překryly s full/partial renderem e-paperu a tvorbou preview.
 Nešlo o restart zařízení. Uptime pokračoval plynule a problém byl způsoben
 současným tlakem na souvislou interní DRAM.
 
-Na větvi `feature/weather-worker-lifecycle` je proto společný FreeRTOS mutex
-(memory-heavy gate):
+V aktuálním `masteru` je proto společný FreeRTOS mutex (memory-heavy gate):
 
 - `DisplayWorker` ho drží během inicializace a celého renderu včetně preview,
 - `WeatherWorker` ho drží pouze během HTTPS/TLS fetchu,
@@ -111,11 +120,11 @@ Na větvi `feature/weather-worker-lifecycle` je proto společný FreeRTOS mutex
 - při vypnutí se task nikdy násilně nemaže uprostřed TLS operace,
 - display a TLS se díky tomu nemohou rozběhnout současně.
 
-GitHub Actions release workflow po této změně úspěšně sestavil firmware a
-validoval release artefakty. Následný test na fyzickém ESP32 potvrdil správné
-čekání v obou směrech (Display čeká na Weather TLS i Weather na Display),
-korektní vypnutí/zapnutí workeru a úspěšné načtení všech tří lokalit bez
-`SSL - Memory allocation failed`.
+Změna byla sloučena do masteru přes lifecycle/memory-gate práci a GitHub Actions
+úspěšně sestavil firmware i release artefakty. Následný test na fyzickém ESP32
+potvrdil správné čekání v obou směrech (Display čeká na Weather TLS i Weather na
+Display), korektní vypnutí/zapnutí workeru a úspěšné načtení všech tří testovaných
+lokalit bez `SSL - Memory allocation failed`.
 
 ## Známá omezení
 
@@ -147,7 +156,7 @@ Před změnou waveformu nebo driveru provést:
 
 1. alespoň 24hodinový test minutových aktualizací,
 2. opakované přepínání všech obrazovek,
-3. kontrolu ghostingu po každé páté částečné obnově,
+3. kontrolu ghostingu po delší sérii částečných obnov bez automatického full refreshu,
 4. kontrolu kontrastu po studeném startu,
 5. zaznamenání okolní teploty při problému.
 
