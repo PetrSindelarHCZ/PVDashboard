@@ -113,10 +113,10 @@ bool NavigationController::enterPage(bool& screenChanged) {
     ensureSidebarSelection();
     if (_state.sidebarScreenId.isEmpty()) return false;
 
+    // RIGHT only enters the page that is already displayed. Changing the
+    // displayed page is an explicit OK action in sidebar mode.
     if (!_screenManager.getActiveScreenId().equalsIgnoreCase(_state.sidebarScreenId)) {
-        if (!_screenManager.activateScreen(_state.sidebarScreenId)) return false;
-        _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
-        screenChanged = true;
+        return false;
     }
 
     NavigationLayout layout;
@@ -285,8 +285,16 @@ bool NavigationController::handleAction(NavigationAction action) {
             case NavigationAction::Right:
                 changed = enterPage(screenChanged);
                 break;
-            case NavigationAction::Left:
             case NavigationAction::Ok:
+                if (!_state.sidebarScreenId.isEmpty() &&
+                    !_screenManager.getActiveScreenId().equalsIgnoreCase(_state.sidebarScreenId) &&
+                    _screenManager.activateScreen(_state.sidebarScreenId)) {
+                    _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
+                    screenChanged = true;
+                    changed = true;
+                }
+                break;
+            case NavigationAction::Left:
                 break;
         }
     } else {
