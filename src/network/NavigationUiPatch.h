@@ -163,9 +163,10 @@ static const char NAVIGATION_UI_PATCH[] PROGMEM = R"rawliteral(
                         <div class="status-item"><div class="status-label">Vstupní bod</div><div class="status-value" id="navStateEntry">—</div></div>
                     </div>
                     <div class="navigation-hint">
-                        Sidebar: ↑/↓ vybírá položku, ← se ignoruje, → vstoupí do stránky.
-                        Ve stránce fungují všechny směry; ← na vstupním bodu se vrátí do sidebaru.
-                        OK je zatím rezervované pro budoucí práci s prvky. Klávesnice: šipky + Enter.
+                        Sidebar: ↑/↓ vybírá položku, OK načte vybranou stránku, ← se ignoruje
+                        a → vstoupí do právě zobrazené stránky. Ve stránce fungují všechny směry;
+                        ← na vstupním bodu se vrátí do sidebaru. OK uvnitř stránky je zatím
+                        rezervované pro budoucí práci s prvky. Klávesnice: šipky + Enter.
                     </div>
                 </div>
             </div>
