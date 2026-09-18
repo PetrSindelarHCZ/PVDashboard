@@ -53,9 +53,12 @@ Cílem je datový layout, nikoli obecný HTML/CSS framework v ESP32.
 - [x] definovat podporovanou množinu widgetů,
 - [x] navrhnout datový popis pozice, velikosti a parametrů,
 - [x] renderovat stejný popis na fyzickém e-inku,
-- [ ] vytvořit editor layoutu ve WebUI s využitím existujícího preview,
+- [x] vytvořit editor layoutu ve WebUI s využitím existujícího preview,
 - [x] zahrnout layout do exportu/importu konfigurace,
-- [x] umožnit reset jednotlivé obrazovky na výchozí šablonu.
+- [x] umožnit reset jednotlivé obrazovky na výchozí šablonu,
+- [x] přidat vlastní Home widgety skládající se z Text/KPI/Progress/Graf prvků,
+- [x] přidat vnořený editor vlastních prvků s mřížkou, drag/resize a datovými vazbami,
+- [ ] rozšířit stejný model konfigurovatelného layoutu i na další obrazovky mimo Home.
 
 ## E — vzdálená čidla
 
