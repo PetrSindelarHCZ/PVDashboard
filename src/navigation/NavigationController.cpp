@@ -88,8 +88,8 @@ bool NavigationController::moveSidebar(int8_t delta) {
     }
     if (current < 0) current = 0;
 
-    int next = (current + delta) % count;
-    if (next < 0) next += count;
+    const int next = current + delta;
+    if (next < 0 || next >= count) return false;
     if (next == current && _state.sidebarScreenId == entries[next]->getId()) return false;
 
     _state.sidebarScreenId = entries[next]->getId();
