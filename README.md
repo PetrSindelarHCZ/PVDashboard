@@ -63,7 +63,7 @@ připnuté v **platformio.ini**. Po sestavení připraví validované artefakty 
 příkaz:
 
 ~~~powershell
-python scripts/prepare-release.py --firmware .pio/build/esp32dev/firmware.bin --output dist --expected-version 1.0.0
+python scripts/prepare-release.py --firmware .pio/build/esp32dev/firmware.bin --output dist --expected-version 1.26.261.1
 ~~~
 
 Výstup obsahuje **firmware.bin**, **firmware.bin.sha256** a
@@ -147,3 +147,6 @@ Výsledky měření z 14. 9. 2026 jsou historické snímky konkrétních testů:
 - Fyzický joystick zatím není připojen; WebUI už používá stejný navigační model.
 - Reálná bazénová a vnitřní čidla zatím nejsou připojená; jejich hodnoty jsou
   stále označené jako demonstrační.
+- YAML export používá `pvdashboard-config` v5 a zálohuje aktuální Wi-Fi/IP
+  konfiguraci, ale zatím ne celý seznam známých Wi-Fi sítí ani jejich
+  `autoConnect` příznaky.
