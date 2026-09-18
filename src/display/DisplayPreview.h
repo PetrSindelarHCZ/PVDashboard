@@ -15,6 +15,8 @@ public:
     static constexpr int16_t Height = 480;
     static constexpr size_t RowBytes = Width / 8;
     static constexpr size_t BitmapBytes = RowBytes * Height;
+    static constexpr int16_t TileHeight = 60;
+    static constexpr size_t TileBytes = RowBytes * TileHeight;
     static constexpr size_t BmpHeaderBytes = 62;
     static constexpr size_t BmpBytes = BmpHeaderBytes + BitmapBytes;
 
@@ -74,8 +76,10 @@ private:
     static bool pack(const uint8_t* input, size_t length, uint8_t* output, size_t outputSize);
     bool writeUnpacked(WiFiClient& client) const;
 
-    // Canvas je pouze pracovní buffer při capture(), nikoliv trvalý snapshot.
+    // Preview renderujeme po vodorovnych pruzich, aby nikdy nebyl potreba
+    // souvisly 48kB framebuffer. 800 x 60 px = pouze 6000 B.
     GFXcanvas1* _canvas = nullptr;
+    int16_t _tileY = 0;
     U8G2_FOR_ADAFRUIT_GFX _u8g2;
     SemaphoreHandle_t _mutex = nullptr;
 
