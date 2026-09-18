@@ -132,9 +132,15 @@ void DashboardWebServer::enableTimezoneUiExtension() {
         _server.setContentLength(_displayPreview->bmpSize());
         _server.send(200, "image/bmp", "");
         WiFiClient client = _server.client();
-        if (!_displayPreview->writeBmp(client)) {
-            Serial.println("[WEB] Prenos BMP nahledu displeje selhal.");
-        }
+        client.setNoDelay(true);
+        const uint32_t previewStarted = millis();
+        const bool previewOk = _displayPreview->writeBmp(client);
+        const uint32_t previewElapsed = millis() - previewStarted;
+        Serial.printf(
+            "[WEB] BMP nahled: %s, %u B za %lu ms.\n",
+            previewOk ? "OK" : "CHYBA",
+            static_cast<unsigned>(_displayPreview->bmpSize()),
+            static_cast<unsigned long>(previewElapsed));
     });
 
     _server.on("/api/ntp/status", HTTP_GET, [this]() {
