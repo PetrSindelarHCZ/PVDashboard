@@ -536,6 +536,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                         <label>Magnetismus</label>
                         <label class="toggle"><input id="layoutSnapToggle" type="checkbox" checked><span class="slider"></span></label>
                     </div>
+                    <button class="btn btn-secondary" type="button" id="layoutShowHomeButton">⌂ Zobrazit Home</button>
                     <button class="btn btn-secondary" type="button" id="layoutReloadButton">↻ Znovu načíst</button>
                     <button class="btn btn-secondary" type="button" id="layoutResetButton">Výchozí</button>
                     <button class="btn btn-primary" type="button" id="layoutSaveButton">Uložit</button>
@@ -578,6 +579,19 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         document.getElementById('layoutSnapToggle').addEventListener('change', event => {
             snapEnabled = event.target.checked;
             updateGrid();
+        });
+        document.getElementById('layoutShowHomeButton').addEventListener('click', async () => {
+            editorMessage('Přepínám displej na Home…');
+            try {
+                const response = await fetch('/api/screens/home/activate', {method: 'POST'});
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                editorMessage('Home aktivováno. Čekám na nový náhled…', 'ok');
+                if (typeof loadDisplayPreview === 'function') {
+                    setTimeout(() => loadDisplayPreview(true), 1200);
+                }
+            } catch (error) {
+                editorMessage('Home nelze aktivovat: ' + error.message, 'error');
+            }
         });
         document.getElementById('layoutReloadButton').addEventListener('click', loadLayoutEditor);
         document.getElementById('layoutSaveButton').addEventListener('click', saveLayout);
