@@ -134,6 +134,46 @@ inline bool intersects(const HomeLayoutWidgetConfig& a, const HomeLayoutWidgetCo
                                b.x, b.y, b.width, b.height);
 }
 
+inline bool parseCustomFontSize(const String& value, uint8_t& px) {
+    if (value == "auto") {
+        px = 0;
+        return true;
+    }
+
+    // Backward compatibility with layouts created before numeric font sizes.
+    if (value == "small") {
+        px = 16;
+        return true;
+    }
+    if (value == "normal") {
+        px = 18;
+        return true;
+    }
+    if (value == "large") {
+        px = 22;
+        return true;
+    }
+
+    const int numeric = value.toInt();
+    if (numeric < 7 || numeric > 64 || String(numeric) != value) return false;
+    px = static_cast<uint8_t>(numeric);
+    return true;
+}
+
+inline int16_t requiredElementHeight(const CustomWidgetElementConfig& element) {
+    int16_t required = elementMinHeight(element.type);
+    uint8_t fontPx = 0;
+    if (!parseCustomFontSize(element.fontSize, fontPx) || fontPx == 0) return required;
+
+    int16_t requested = required;
+    if (element.type == "text") {
+        requested = static_cast<int16_t>(fontPx);
+    } else if (element.type == "kpi") {
+        requested = static_cast<int16_t>(fontPx + (element.showLabel ? 20 : 0));
+    }
+    return requested > required ? requested : required;
+}
+
 inline bool validateCustomWidget(const HomeLayoutWidgetConfig& widget, String* error = nullptr) {
     auto fail = [error](const String& message) {
         if (error != nullptr) *error = message;
@@ -155,9 +195,9 @@ inline bool validateCustomWidget(const HomeLayoutWidgetConfig& widget, String* e
             return fail("Custom element text is too long");
         }
         if (element.decimals > 3) return fail("Custom KPI decimals must be 0 to 3");
-        if (!(element.fontSize == "auto" || element.fontSize == "small" ||
-              element.fontSize == "normal" || element.fontSize == "large")) {
-            return fail("Unknown custom font size");
+        uint8_t fontPx = 0;
+        if (!parseCustomFontSize(element.fontSize, fontPx)) {
+            return fail("Custom font size must be auto or 7 to 64 px");
         }
         if (!(element.align == "left" || element.align == "center" || element.align == "right")) {
             return fail("Unknown custom alignment");
@@ -169,10 +209,7 @@ inline bool validateCustomWidget(const HomeLayoutWidgetConfig& widget, String* e
             return fail("Graph style is valid only for sparkline elements");
         }
 
-        int16_t requiredHeight = elementMinHeight(element.type);
-        if (element.type == "text" && element.fontSize == "large" && requiredHeight < 28) {
-            requiredHeight = 28;
-        }
+        const int16_t requiredHeight = requiredElementHeight(element);
         if (element.width < elementMinWidth(element.type) ||
             element.height < requiredHeight) {
             return fail("Custom element is smaller than its supported minimum");
@@ -331,6 +368,9 @@ inline bool parseElement(JsonObject item, CustomWidgetElementConfig& element) {
     element.minValue = item["min"] | 0.0f;
     element.maxValue = item["max"] | 100.0f;
     element.fontSize = String(item["fontSize"] | "auto");
+    if (element.fontSize == "small") element.fontSize = "16";
+    else if (element.fontSize == "normal") element.fontSize = "18";
+    else if (element.fontSize == "large") element.fontSize = "22";
     element.align = String(item["align"] | "left");
     element.showLabel = item["showLabel"] | true;
     element.graphStyle = String(item["graphStyle"] | "line");

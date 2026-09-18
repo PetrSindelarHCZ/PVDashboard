@@ -37,7 +37,7 @@ struct CustomWidgetElementConfig {
     uint8_t decimals = 1;
     float minValue = 0.0f;
     float maxValue = 100.0f;
-    String fontSize = "auto";   // auto | small | normal | large
+    String fontSize = "auto";   // auto | 7..64 (pixel height)
     String align = "left";      // left | center | right
     bool showLabel = true;
     String graphStyle = "line"; // line | bars (sparkline only)

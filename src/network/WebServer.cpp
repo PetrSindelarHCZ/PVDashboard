@@ -208,9 +208,9 @@ String homeLayoutResponseJson(const HomeLayoutConfig& config, const DataModel& d
 
     JsonArray fontSizes = custom["fontSizes"].to<JsonArray>();
     fontSizes.add("auto");
-    fontSizes.add("small");
-    fontSizes.add("normal");
-    fontSizes.add("large");
+    for (uint8_t px = 7; px <= 64; ++px) {
+        fontSizes.add(String(px));
+    }
 
     JsonArray alignments = custom["alignments"].to<JsonArray>();
     alignments.add("left");

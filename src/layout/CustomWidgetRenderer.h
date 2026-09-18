@@ -70,6 +70,110 @@ inline String formatValue(float value, uint8_t decimals, const String& unit) {
     return text;
 }
 
+inline uint8_t requestedFontPx(const CustomWidgetElementConfig& element, bool valueFont = false) {
+    if (element.fontSize == "auto") return valueFont ? 22 : 18;
+    if (element.fontSize == "small") return 16;
+    if (element.fontSize == "normal") return 18;
+    if (element.fontSize == "large") return 22;
+
+    const int px = element.fontSize.toInt();
+    if (px < 7 || px > 64) return valueFont ? 22 : 18;
+    return static_cast<uint8_t>(px);
+}
+
+inline const uint8_t* sourceFontFor(uint8_t px, bool bold) {
+    if (px <= 11) return bold ? u8g2_font_t0_11b_te : u8g2_font_t0_11_te;
+    if (px <= 12) return bold ? u8g2_font_t0_12b_te : u8g2_font_t0_12_te;
+    if (px <= 13) return bold ? u8g2_font_t0_13b_te : u8g2_font_t0_13_te;
+    if (px <= 14) return bold ? u8g2_font_t0_14b_te : u8g2_font_t0_14_te;
+    if (px <= 15) return bold ? u8g2_font_t0_15b_te : u8g2_font_t0_15_te;
+    if (px <= 16) return bold ? u8g2_font_t0_16b_te : u8g2_font_t0_16_te;
+    if (px <= 17) return bold ? u8g2_font_t0_17b_te : u8g2_font_t0_17_te;
+    if (px <= 18) return bold ? u8g2_font_t0_18b_te : u8g2_font_t0_18_te;
+    return bold ? u8g2_font_t0_22b_te : u8g2_font_t0_22_te;
+}
+
+inline int16_t sourceFontHeight(const uint8_t* font) {
+    U8G2_FOR_ADAFRUIT_GFX metrics;
+    metrics.setFont(font);
+    const int16_t height = metrics.getFontAscent() - metrics.getFontDescent();
+    return height > 0 ? height : 1;
+}
+
+inline int16_t scaledTextWidth(const String& text, uint8_t targetPx, bool bold) {
+    if (text.isEmpty()) return 0;
+    const uint8_t* font = sourceFontFor(targetPx, bold);
+    U8G2_FOR_ADAFRUIT_GFX metrics;
+    metrics.setFont(font);
+    const int16_t sourceHeight = sourceFontHeight(font);
+    const int16_t sourceWidth = metrics.getUTF8Width(text.c_str());
+    if (sourceWidth <= 0) return 0;
+    return static_cast<int16_t>(
+        (static_cast<int32_t>(sourceWidth) * targetPx + sourceHeight - 1) / sourceHeight);
+}
+
+inline String fitScaledText(const String& input, int16_t width, uint8_t targetPx, bool bold) {
+    if (width <= 0 || scaledTextWidth(input, targetPx, bold) <= width) return input;
+
+    String text = input;
+    const String ellipsis = "...";
+    if (scaledTextWidth(ellipsis, targetPx, bold) > width) return String();
+
+    while (text.length() && scaledTextWidth(text + ellipsis, targetPx, bold) > width) {
+        unsigned int end = text.length() - 1;
+        while (end > 0 && (static_cast<uint8_t>(text[end]) & 0xC0) == 0x80) --end;
+        text.remove(end);
+    }
+    text += ellipsis;
+    return text;
+}
+
+inline int16_t alignedScaledX(int16_t x, int16_t width, int16_t textWidth, const String& align) {
+    if (align == "center") return x + (width - textWidth) / 2;
+    if (align == "right") return x + width - textWidth;
+    return x;
+}
+
+inline bool drawScaledUnicodeText(IDisplay& display, int16_t x, int16_t y,
+                                  const String& text, uint8_t targetPx, bool bold,
+                                  uint16_t color, int16_t maxHeight) {
+    if (text.isEmpty() || targetPx == 0 || maxHeight <= 0) return true;
+
+    const uint8_t* font = sourceFontFor(targetPx, bold);
+    U8G2_FOR_ADAFRUIT_GFX metrics;
+    metrics.setFont(font);
+    const int16_t sourceHeight = sourceFontHeight(font);
+    const int16_t sourceWidth = metrics.getUTF8Width(text.c_str());
+    if (sourceWidth <= 0) return true;
+
+    GFXcanvas1 canvas(static_cast<uint16_t>(sourceWidth), static_cast<uint16_t>(sourceHeight));
+    if (canvas.getBuffer() == nullptr) return false;
+    canvas.fillScreen(0);
+
+    U8G2_FOR_ADAFRUIT_GFX painter;
+    painter.begin(canvas);
+    painter.setFont(font);
+    painter.setFontMode(1);
+    painter.setForegroundColor(1);
+    painter.setCursor(0, painter.getFontAscent());
+    painter.print(text);
+
+    const int16_t targetWidth = static_cast<int16_t>(
+        (static_cast<int32_t>(sourceWidth) * targetPx + sourceHeight - 1) / sourceHeight);
+    const int16_t drawHeight = targetPx < maxHeight ? targetPx : maxHeight;
+
+    for (int16_t dy = 0; dy < drawHeight; ++dy) {
+        const int16_t sy = static_cast<int16_t>(
+            (static_cast<int32_t>(dy) * sourceHeight) / targetPx);
+        for (int16_t dx = 0; dx < targetWidth; ++dx) {
+            const int16_t sx = static_cast<int16_t>(
+                (static_cast<int32_t>(dx) * sourceWidth) / targetWidth);
+            if (canvas.getPixel(sx, sy)) display.drawPixel(x + dx, y + dy, color);
+        }
+    }
+    return true;
+}
+
 inline const uint8_t* fontFor(const CustomWidgetElementConfig& element, bool valueFont = false) {
     if (element.fontSize == "small") return DisplayFonts::sectionTitle();
     if (element.fontSize == "normal") return DisplayFonts::body();
@@ -115,6 +219,16 @@ inline void useElementFont(IDisplay& display, const CustomWidgetElementConfig& e
 
 inline void drawText(IDisplay& display, int16_t x, int16_t y,
                      const CustomWidgetElementConfig& element, uint16_t textColor) {
+    if (element.fontSize != "auto") {
+        const uint8_t fontPx = requestedFontPx(element, false);
+        const String text = fitScaledText(element.text, element.width, fontPx, false);
+        const int16_t textWidth = scaledTextWidth(text, fontPx, false);
+        const int16_t textX = alignedScaledX(x, element.width, textWidth, element.align);
+        if (drawScaledUnicodeText(display, textX, y, text, fontPx, false, textColor, element.height)) {
+            return;
+        }
+    }
+
     useElementFont(display, element, false, textColor);
     const String text = fitText(display, element.text, element.width);
     const int16_t textX = alignedX(display, x, element.width, text, element.align);
@@ -139,6 +253,18 @@ inline void drawKpi(IDisplay& display, const DataModel& dm, int16_t x, int16_t y
     String valueText = available
         ? formatValue(value, element.decimals, element.unit)
         : String("--");
+    if (element.fontSize != "auto") {
+        const uint8_t fontPx = requestedFontPx(element, true);
+        valueText = fitScaledText(valueText, element.width, fontPx, true);
+        const int16_t valueWidth = scaledTextWidth(valueText, fontPx, true);
+        const int16_t valueX = alignedScaledX(x, element.width, valueWidth, element.align);
+        const int16_t availableHeight = element.height - (valueY - y);
+        if (drawScaledUnicodeText(display, valueX, valueY, valueText, fontPx, true,
+                                  textColor, availableHeight)) {
+            return;
+        }
+    }
+
     useElementFont(display, element, true, textColor);
     valueText = fitText(display, valueText, element.width);
     const int16_t valueX = alignedX(display, x, element.width, valueText, element.align);

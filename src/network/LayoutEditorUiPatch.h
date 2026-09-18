@@ -254,17 +254,13 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 .custom-element-preview.align-left { text-align: left; }
 .custom-element-preview.align-center { text-align: center; }
 .custom-element-preview.align-right { text-align: right; }
-.custom-element-preview.font-small { font-size: 11px; }
-.custom-element-preview.font-normal { font-size: 14px; }
-.custom-element-preview.font-large { font-size: 20px; font-weight: 700; }
-.custom-element-preview.font-auto { font-size: 13px; }
 .custom-element-preview .preview-label {
     font-size: 11px;
     opacity: .8;
     margin-bottom: 3px;
 }
 .custom-element-preview .preview-value {
-    font-size: 1.35em;
+    font-size: 1em;
     font-weight: 700;
 }
 .custom-element-preview .preview-progress {
@@ -880,6 +876,30 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         return (apiState?.customWidget?.dataSources || []).find(item => item.id === source) || {};
     }
 
+    function normalizeFontSizeValue(value) {
+        const legacy = {small:'16', normal:'18', large:'22'};
+        const normalized = legacy[value] || String(value || 'auto');
+        return normalized === 'auto' ? 'auto' : normalized;
+    }
+
+    function requestedFontPx(element, valueFont = false) {
+        const value = normalizeFontSizeValue(element?.fontSize);
+        if (value === 'auto') return valueFont ? 22 : 18;
+        const px = Number(value);
+        return Number.isInteger(px) && px >= 7 && px <= 64 ? px : (valueFont ? 22 : 18);
+    }
+
+    function requiredElementHeight(element) {
+        const typeInfo = elementTypeInfo(element.type);
+        let required = Number(typeInfo.minHeight || 20);
+        const fontValue = normalizeFontSizeValue(element.fontSize);
+        if (fontValue === 'auto') return required;
+        const fontPx = requestedFontPx(element, element.type === 'kpi');
+        if (element.type === 'text') required = Math.max(required, fontPx);
+        if (element.type === 'kpi') required = Math.max(required, fontPx + (element.showLabel !== false ? 20 : 0));
+        return required;
+    }
+
     function customElementLabel(element) {
         if (!element) return '';
         if (element.type === 'text') return element.text || 'Text';
@@ -888,16 +908,17 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
     function elementPreviewHtml(element) {
         const align = escapeHtml(element.align || 'left');
-        const fontSize = escapeHtml(element.fontSize || 'auto');
         const label = escapeHtml(element.label || sourceInfo(element.source).label || '');
         const unit = escapeHtml(element.unit || sourceInfo(element.source).unit || '');
-        const classes = `custom-element-preview align-${align} font-${fontSize}`;
+        const classes = `custom-element-preview align-${align}`;
+        const fontPx = requestedFontPx(element, element.type === 'kpi');
+        const fontStyle = `font-size:${fontPx}px`;
 
         if (element.type === 'text') {
-            return `<div class="${classes}">${escapeHtml(element.text || 'Text')}</div>`;
+            return `<div class="${classes}" style="${fontStyle}">${escapeHtml(element.text || 'Text')}</div>`;
         }
         if (element.type === 'kpi') {
-            return `<div class="${classes}">
+            return `<div class="${classes}" style="${fontStyle}">
                 ${element.showLabel !== false && label ? `<div class="preview-label">${label}</div>` : ''}
                 <div class="preview-value">--${unit ? ' ' + unit : ''}</div>
             </div>`;
@@ -983,9 +1004,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         for (let i = 0; i < elements.length; i++) {
             const a = elements[i];
             const typeInfo = elementTypeInfo(a.type);
-            const requiredHeight = a.type === 'text' && (a.fontSize || 'auto') === 'large'
-                ? Math.max(28, Number(typeInfo.minHeight || 1))
-                : Number(typeInfo.minHeight || 1);
+            const requiredHeight = requiredElementHeight(a);
             if (!a.id || !a.type ||
                 a.width < Number(typeInfo.minWidth || 1) ||
                 a.height < requiredHeight ||
@@ -994,10 +1013,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 a.y + a.height > widget.height - 8) {
                 ids.add(a.id);
             }
-            const fontSizes = apiState?.customWidget?.fontSizes || ['auto','small','normal','large'];
+            const fontSizes = apiState?.customWidget?.fontSizes || ['auto', ...Array.from({length:58}, (_, i) => String(i + 7))];
             const alignments = apiState?.customWidget?.alignments || ['left','center','right'];
             const graphStyles = apiState?.customWidget?.graphStyles || ['line','bars'];
-            if (!fontSizes.includes(a.fontSize || 'auto')) ids.add(a.id);
+            if (!fontSizes.includes(normalizeFontSizeValue(a.fontSize))) ids.add(a.id);
             if (!alignments.includes(a.align || 'left')) ids.add(a.id);
             if (!graphStyles.includes(a.graphStyle || 'line')) ids.add(a.id);
             if (a.type !== 'sparkline' && (a.graphStyle || 'line') !== 'line') ids.add(a.id);
@@ -1045,9 +1064,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     function normalizeElement(widget, element) {
         const typeInfo = elementTypeInfo(element.type);
         const minW = Number(typeInfo.minWidth || 20);
-        const minH = element.type === 'text' && (element.fontSize || 'auto') === 'large'
-            ? Math.max(28, Number(typeInfo.minHeight || 20))
-            : Number(typeInfo.minHeight || 20);
+        const minH = requiredElementHeight(element);
         element.width = Math.max(minW, Number(element.width || minW));
         element.height = Math.max(minH, Number(element.height || minH));
         element.x = Math.max(8, Math.min(Number(element.x || 8), widget.width - 8 - element.width));
@@ -1113,10 +1130,11 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const sourceOptions = sources.map(source =>
             `<option value="${escapeHtml(source.id)}" ${source.id === element.source ? 'selected' : ''}>${escapeHtml(source.label)} (${escapeHtml(source.id)})</option>`
         ).join('');
-        const fontOptions = (apiState?.customWidget?.fontSizes || ['auto','small','normal','large'])
+        const selectedFontSize = normalizeFontSizeValue(element.fontSize);
+        const fontOptions = (apiState?.customWidget?.fontSizes || ['auto', ...Array.from({length:58}, (_, i) => String(i + 7))])
             .map(value => {
-                const names = {auto:'Automatická', small:'Malá', normal:'Normální', large:'Velká'};
-                return `<option value="${value}" ${value === (element.fontSize || 'auto') ? 'selected' : ''}>${names[value] || value}</option>`;
+                const label = value === 'auto' ? 'Automatická' : value + ' px';
+                return `<option value="${value}" ${value === selectedFontSize ? 'selected' : ''}>${label}</option>`;
             }).join('');
         const alignOptions = (apiState?.customWidget?.alignments || ['left','center','right'])
             .map(value => {
@@ -1237,7 +1255,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             if (decimals) current.decimals = Number(decimals.value);
             if (min) current.min = Number(min.value);
             if (max) current.max = Number(max.value);
-            current.fontSize = fontSize ? fontSize.value : (current.fontSize || 'auto');
+            current.fontSize = fontSize ? normalizeFontSizeValue(fontSize.value) : normalizeFontSizeValue(current.fontSize);
             current.align = align ? align.value : (current.align || 'left');
             current.showLabel = showLabel ? showLabel.checked : (current.showLabel !== false);
             current.graphStyle = graphStyle ? graphStyle.value : (current.graphStyle || 'line');
