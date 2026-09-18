@@ -246,26 +246,20 @@ bool DisplayPreview::ensurePackedCapacity(
                 allocBytes,
                 MALLOC_CAP_EXEC |
                 MALLOC_CAP_INTERNAL));
-    bool inExecHeap = next != nullptr;
-
-    if (next == nullptr) {
-        next =
-            static_cast<uint32_t*>(
-                heap_caps_malloc(
-                    allocBytes,
-                    MALLOC_CAP_8BIT |
-                    MALLOC_CAP_INTERNAL));
-    }
+    const bool inExecHeap = next != nullptr;
 
     if (next == nullptr) {
         Serial.printf(
-            "[DISPLAY-PREVIEW] Nelze alokovat %u B pro komprimovany snapshot. "
-            "DRAM free=%u maxBlock=%u, IRAM32 free=%u\n",
+            "[DISPLAY-PREVIEW] IRAM32 nema %u B pro snapshot; preview preskakuji, "
+            "aby zustala DRAM pro TLS. DRAM free=%u maxBlock=%u, "
+            "IRAM32 free=%u maxBlock=%u\n",
             static_cast<unsigned>(allocBytes),
             ESP.getFreeHeap(),
             ESP.getMaxAllocHeap(),
             static_cast<unsigned>(
-                heap_caps_get_free_size(MALLOC_CAP_EXEC)));
+                heap_caps_get_free_size(MALLOC_CAP_EXEC)),
+            static_cast<unsigned>(
+                heap_caps_get_largest_free_block(MALLOC_CAP_EXEC)));
         return false;
     }
 
@@ -283,7 +277,7 @@ bool DisplayPreview::ensurePackedCapacity(
         "[DISPLAY-PREVIEW] Snapshot storage %u B: %s | "
         "DRAM free=%u maxBlock=%u, IRAM32 free=%u\n",
         static_cast<unsigned>(_packedCapacityBytes),
-        _packedInExecHeap ? "IRAM32" : "DRAM fallback",
+        _packedInExecHeap ? "IRAM32" : "none",
         ESP.getFreeHeap(),
         ESP.getMaxAllocHeap(),
         static_cast<unsigned>(
