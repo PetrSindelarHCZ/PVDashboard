@@ -1,0 +1,204 @@
+# Audit chatů projektu Dashboard před ručním mazáním
+
+> Stav k 18. 9. 2026. Účel: umožnit bezpečný ruční úklid historie ChatGPT bez
+> ztráty projektových rozhodnutí.
+
+## Legenda
+
+- **SMAZAT** — obsah je již zachycen v aktuálním kódu nebo dokumentaci.
+- **PONECHAT DO OVĚŘENÍ** — chat ještě může obsahovat jedinou kopii zdrojového
+  projektu nebo rozhodnutí, které není definitivně uzavřené.
+- **PONECHAT** — aktuální/rozpracovaná práce.
+
+Hlavní záchytné dokumenty:
+
+- `README.md`
+- `docs/PV_DASHBOARD_SPEC.md`
+- `docs/ARCHITECTURE.md`
+- `docs/DISPLAY.md`
+- `docs/FVE_INTEGRATION_HANDOFF.md`
+- `docs/WEATHER_PROVIDERS.md`
+- `docs/ROADMAP.md`
+- `docs/PROJECT_INTENT_BACKLOG.md`
+
+---
+
+## A. Chaty přímo v projektu Dashboard
+
+| Datum | Chat | Stav | Proč |
+| --- | --- | --- | --- |
+| 7. 9. | **Návrh hlavní jednotky** | **SMAZAT** | Výběr základní architektury, GoodWe, HA, senzory a gateway jsou zachycené ve specifikaci, architektuře a PROJECT_INTENT_BACKLOG. |
+| 9. 9. | **Posouzení eink displejů** | **SMAZAT** | Současný 7,5" BW panel, Waveshare board, limity RAM/flash a budoucí možnost migrace jsou zdokumentované. |
+| 11. 9. | **Vytvoření projektu Dashboard** | **SMAZAT** | Původní bootstrap projektu je překonaný aktuálním masterem, README a release dokumentací. |
+| 11. 9. | **GUI pro bazén** | **SMAZAT** | PoolScreen existuje a budoucí reálná bazénová data/DS18B20 jsou zachycená v backlogu. |
+| 11. 9. | **Přenos informací do dashboardů** | **SMAZAT** | Průzkum neidentifikované/nelokální jednotky nepřinesl potvrzenou současnou integraci. Aktuální zdroje jsou GoodWe + AZRouter. |
+| 12. 9. | **Připojení k GoodWe UI** | **SMAZAT** | Pátrání po lokálním UI/hf-lpt230 již není zdrojem aktuálního protokolu. GoodWe transport je popsán v FVE_INTEGRATION_HANDOFF. |
+| 12. 9. | **Simulace AZRouteru a střídače** | **PONECHAT DO OVĚŘENÍ** | Protokoly a pravidlo samostatného hostu GoodWe/AZRouter jsou zachycené, ale samotný zdrojový projekt simulátoru není v repozitáři PVDashboard. Mazat až po potvrzení, že simulator project je uložený jinde v Gitu/lokálně. |
+| 13. 9. | **Příprava simulátoru projektu** | **PONECHAT DO OVĚŘENÍ** | Totéž: chat mohl obsahovat kompletní vygenerovaný C# projekt a dokumentaci pro import do VS Code. Neodstraňovat jako jedinou možnou kopii zdrojů. |
+| 17. 9. | **Nahrání v0.1.6 bez IDE** | **SMAZAT** | Historický postup prvního OTA testu. Aktuální OTA/release workflow je v README a masteru. |
+| 17. 9. | **Příprava OTA testu** | **SMAZAT** | Testovací release řada 0.1.x je překonaná prvním plným release 1.0.0; testovací rozhodnutí jsou v release dokumentaci. |
+| 17. 9. | **Kontrola větvení GitHubu** | **SMAZAT** | Jednorázový Git/branch troubleshooting; výsledný stav je v historii repozitáře. |
+| 17. 9. | **Strategie obnovy displeje** | **SMAZAT** | Wi-Fi/AP ikony, NTP-validita, české fonty, záhlaví a refresh strategie jsou zachycené v DISPLAY.md a backlogu. |
+| 17. 9. | **Probuzení ESP přes 433MHz** | **SMAZAT** | Myšlenka wake přes 433 MHz je zachycená jako volitelná v PROJECT_INTENT_BACKLOG. |
+| 18. 9. | **Změna šipky karet** | **SMAZAT** | Hotová čistě vizuální změna WebUI; branch byla ukončená a výsledek je v masteru. |
+| 18. 9. | **Nový branch pro WebUI e ink preview** | **SMAZAT** | Preview je v masteru přes `/api/display.bmp`; zásada „náhled na stránce Obrazovky“ je zachycená v backlogu. |
+| 18. 9. | **Oprava pádu weather tasku** | **PONECHAT** | Aktuální debugging. Nechat minimálně do uzavření chyby a ověření na zařízení. |
+
+### První bezpečná vlna
+
+Můžeš hned ručně smazat těchto **13 chatů**:
+
+1. Návrh hlavní jednotky
+2. Posouzení eink displejů
+3. Vytvoření projektu Dashboard
+4. GUI pro bazén
+5. Přenos informací do dashboardů
+6. Připojení k GoodWe UI
+7. Nahrání v0.1.6 bez IDE
+8. Příprava OTA testu
+9. Kontrola větvení GitHubu
+10. Strategie obnovy displeje
+11. Probuzení ESP přes 433MHz
+12. Změna šipky karet
+13. Nový branch pro WebUI e ink preview
+
+Po této vlně mají z uvedených projektových chatů zůstat minimálně:
+
+- Simulace AZRouteru a střídače
+- Příprava simulátoru projektu
+- Oprava pádu weather tasku
+
+---
+
+## B. Dashboardové chaty mimo projekt / s nejasným zařazením
+
+### „jaké gpio bys použil pro BM280“ — SMAZAT
+
+Zachycené informace:
+
+- současné e-paper GPIO,
+- I²C návrh GPIO21/22,
+- dříve zvažovaná GPIO pro tlačítka/joystick,
+- možnost budoucí ESP32-S3 N32R16V + externí e-paper driver,
+- možnost GT911 dotykového panelu.
+
+Vše je nyní v `PROJECT_INTENT_BACKLOG.md`.
+
+### Chat z 15. 9. kolem UTF-8 / `feature/eink-ui-utf8-graphs` — SMAZAT
+
+Poznávací body:
+
+- česká diakritika na invertovaném záhlaví,
+- `EInkGraph`,
+- grafy počasí/FVE,
+- větev `feature/eink-ui-utf8-graphs`.
+
+UTF-8 problém je dokumentovaný v `DISPLAY.md`; `EInkGraph` je implementovaný
+v masteru a jeho budoucí použití je zachycené v PROJECT_INTENT_BACKLOG.
+
+### „GitHub Actions limity a ceny“ — SMAZAT z pohledu Dashboardu
+
+Dashboardová část tohoto chatu obsahovala:
+
+- NTP strategii,
+- návrh cloudové historie KPI,
+- 5min vzorky a hourly/daily/monthly agregace,
+- lokální frontu při výpadku,
+- Azure/AWS úvahy.
+
+Projektové rozhodnutí je nyní zachycené v `PROJECT_INTENT_BACKLOG.md`.
+Konkrétní cloudová platforma nebyla definitivně zvolena a má se při implementaci
+znovu posoudit podle aktuálních podmínek.
+
+### Chat z 17. 9. o Wi-Fi/NTP/živém nastavení — PONECHAT DO ROZHODNUTÍ
+
+Poznávací body:
+
+- více známých Wi-Fi sítí,
+- AP+STA fallback,
+- ruční **Odpojit/Připojit**,
+- DHCP/statická IP,
+- NTP,
+- vypínání počasí,
+- přejmenování „Datové zdroje“ na „Fotovoltaika“.
+
+Většina je implementovaná. Audit ale odhalil dva otevřené rozdíly:
+
+1. původní požadavek: ručně odpojené SSID blokovat do restartu **nebo** ručního
+   Připojit; aktuální master ukládá `autoConnect=false` persistentně přes restart,
+2. původní požadavek: vypnuté počasí odstraní worker; aktuální master ponechá
+   WeatherWorker task vytvořený, ale dormantní a bez HTTPS requestů.
+
+Oba body jsou nyní zapsané v `PROJECT_INTENT_BACKLOG.md` a `ROADMAP.md`.
+Chat lze smazat, až budou tato dvě chování výslovně uzavřená.
+
+---
+
+## C. Podmínky pro druhou vlnu mazání
+
+### Simulátor
+
+Před smazáním obou simulator chatů ověřit, že existuje mimo ChatGPT:
+
+- zdrojový projekt simulátoru,
+- GoodWe UDP/8899 emulace,
+- AZRouter HTTP/8081 emulace,
+- README / popis spuštění,
+- konfigurace, že oba simulované zdroje mohou běžet na jedné IP,
+- možnost nastavovat testovací hodnoty/scénáře.
+
+Pokud takový projekt existuje v Gitu nebo bezpečně lokálně, oba chaty
+**Simulace AZRouteru a střídače** a **Příprava simulátoru projektu** se mohou
+přesunout do **SMAZAT**.
+
+### Wi-Fi / Weather runtime
+
+Po rozhodnutí dvou otevřených bodů výše lze smazat i chat o Wi-Fi/NTP/živém
+nastavení. Rozhodnutí musí být předtím buď implementované, nebo explicitně
+zapsané jako zvolená cílová funkce.
+
+### Weather crash
+
+Chat **Oprava pádu weather tasku** lze smazat až tehdy, když:
+
+- příčina je známá,
+- oprava je v masteru,
+- build projde,
+- firmware proběhne na zařízení bez opakování pádu,
+- relevantní omezení/příčina je případně zapsaná do kódu nebo dokumentace.
+
+---
+
+## D. Co není důvodem chat ponechávat
+
+Chat není potřeba uchovávat jen proto, že obsahuje:
+
+- staré sériové logy,
+- jednorázové PlatformIO příkazy,
+- čísla starých testovacích verzí,
+- staré branche,
+- již sloučený CSS/JS fix,
+- postup, který je vidět z Git historie,
+- screenshot hotové UI změny,
+- dřívější návrh, který je již zachycený v PROJECT_INTENT_BACKLOG.
+
+Git, aktuální dokumentace a zdrojový kód jsou pro tyto informace autoritativnější
+než historický chat.
+
+---
+
+## E. Doporučený postup ručního úklidu
+
+1. Smazat 13 chatů z **První bezpečné vlny**.
+2. Mimo projekt případně smazat chat **jaké gpio bys použil pro BM280**,
+   UTF-8/EInkGraph chat a **GitHub Actions limity a ceny**, pokud je nepotřebuješ
+   kvůli jiným tématům mimo Dashboard.
+3. Nechat simulator chaty, dokud není potvrzená samostatná kopie simulator
+   projektu.
+4. Nechat Wi-Fi/NTP chat do rozhodnutí dvou auditních rozporů.
+5. Nechat aktuální weather-crash chat do dokončení opravy.
+6. Po těchto třech kontrolách provést druhou vlnu a znovu aktualizovat tento
+   dokument.
+
+Po první vlně bude historie výrazně čistší a přitom zůstanou zachované chaty,
+které ještě skutečně nesou riziko ztráty informace.
