@@ -5,21 +5,27 @@ Lokální domácí dashboard pro **Waveshare ESP32 e-Paper Driver Board** a čer
 poskytuje mobilní WebUI, konfiguraci přes NVS, recovery Wi-Fi AP a OTA aktualizaci.
 
 Aktuální firmware: **1.26.261.1**. Obsahuje stabilizované načítání počasí přes HTTPS,
-paměťově úsporný náhled e-paperu ve WebUI, diagnostiku výkonu a sjednocený vzhled obrazovek.
+paměťově úsporný náhled e-paperu ve WebUI, diagnostiku výkonu, společnou navigaci
+pro budoucí joystick a dynamické zobrazování modulů podle konfigurace.
 
 ## Aktuální funkce
 
-- obrazovky **home**, **solar**, **pool**, **weather** a **diagnostics**,
+- obrazovky **home**, **solar**, **pool**, **weather** a **diagnostics**; FVE, bazén
+  a počasí se za běhu registrují jen tehdy, když jsou příslušné moduly aktivní,
 - GoodWe GW10K-ET přes Modbus RTU zapouzdřený v UDP na portu 8899,
 - AZRouter přes HTTP endpointy **/api/v1/power**, **/api/v1/status** a **/api/v1/devices**,
-- mobilní WebUI pro přepínání obrazovek, refresh, konfiguraci a OTA,
+- mobilní WebUI pro přepínání obrazovek, refresh, konfiguraci, náhled e-inku a OTA,
+- společný **NavigationController** s režimy Sidebar / Pager / Page, virtuálním
+  pětisměrným joystickem ve WebUI a geometricky odvozenou navigací prvků,
 - NTP s časovou zónou pro Českou republiku,
-- recovery AP **Dashboard-Setup**, pokud není nastavené SSID nebo se zařízení nepřipojí k uložené Wi-Fi,
+- více známých Wi-Fi sítí, AP+STA recovery **Dashboard-Setup** a automatický
+  návrat k dostupné povolené známé síti,
 - měření dob hlavní smyčky, HTTP, integrací a e-paper refreshů,
 - živé počasí z Open-Meteo nebo MET Norway pro více uložených lokalit,
-  čtyřdenní předpověď, hodinový přehled pro vybraný den, pager lokalit na e-inku
-  a vyhledání místa ve WebUI,
-- ověřené HTTPS pro oba poskytovatele a respektování serverové cache MET Norway.
+  čtyřdenní předpověď, hodinový přehled pro vybraný den, pager lokalit na e-inku,
+  změnu pořadí lokalit a vyhledání místa ve WebUI,
+- ověřené HTTPS pro oba poskytovatele a respektování serverové cache MET Norway,
+- dynamickou viditelnost GoodWe/AZRouteru, bazénu a počasí bez ztráty uložené konfigurace.
 
 Počasí načítá samostatná FreeRTOS úloha a při nedostupnosti API se na displeji
 nezobrazují náhradní čísla. Hodnoty vnitřních čidel a bazénu jsou zatím
@@ -44,9 +50,11 @@ WebUI je po připojení dostupné přes **http://dashboard.local/** nebo IP adre
 zařízení. V současném testovacím zapojení zařízení používá **192.168.88.181**;
 nejde o pevnou adresu firmware.
 
-Pokud se ESP32 nepřipojí k uložené Wi-Fi, vytvoří konfigurační síť
-**Dashboard-Setup** s heslem **dashboard**. Nastavení je pak dostupné na
-**http://192.168.4.1/**.
+Pokud se ESP32 nepřipojí k aktivní Wi-Fi, přejde do AP+STA recovery režimu,
+vytvoří síť **Dashboard-Setup** s heslem **dashboard** a dál průběžně hledá
+povolené známé sítě. Nastavení je dostupné na **http://192.168.4.1/**. Ruční
+**Odpojit** zakáže auto-connect daného SSID i přes restart; ruční **Připojit**
+jej znovu povolí.
 
 ## Release a návrat verze
 
@@ -59,9 +67,10 @@ python scripts/prepare-release.py --firmware .pio/build/esp32dev/firmware.bin --
 ~~~
 
 Výstup obsahuje **firmware.bin**, **firmware.bin.sha256** a
-**dashboard-manifest.json**. Skript odmítne nesoulad verze a obraz větší než
-1 310 720 B. GitHub workflow provádí stejné kontroly a tag **vX.Y.Z** musí
-odpovídat **FIRMWARE_VERSION**. Ruční upload ve WebUI vyžaduje vložit 64znakový SHA-256 ze souboru **firmware.bin.sha256** a ověří jej ještě před aktivací oddílu.
+**dashboard-manifest.json**. Aktuální `min_spiffs.csv` poskytuje dva OTA sloty
+po **1 966 080 B (1,875 MiB)**; release skript i firmware větší obraz odmítnou.
+GitHub workflow provádí stejné kontroly a tag **vX.Y.Z** musí odpovídat
+**FIRMWARE_VERSION**. Ruční upload ve WebUI vyžaduje vložit 64znakový SHA-256 ze souboru **firmware.bin.sha256** a ověří jej ještě před aktivací oddílu.
 
 Před OTA je vhodné ponechat si poslední známý funkční **firmware.bin**. Chyba
 uploadu nebo SHA-256 vrátí HTTP 400 a běžící partition zůstane aktivní. Pokud
@@ -96,8 +105,13 @@ URL a SHA-256 získané přímo z GitHub release, ověří celý obraz a potom s
 | POST | /api/config/system | Uložení hostname, NTP serveru a časového pásma |
 | POST | /api/wifi/config | Uložení Wi-Fi konfigurace |
 | GET | /api/wifi/scan | Vyhledání Wi-Fi sítí |
-| POST | /api/config/sources | Uložení konfigurace energetických zdrojů |
-| POST | /api/config/weather | Uložení provideru, souřadnic a intervalu počasí |
+| POST | /api/config/sources | Uložení konfigurace GoodWe/AZRouteru a živá aktualizace FVE obrazovky |
+| POST | /api/config/pool | Uložení viditelnosti bazénového modulu |
+| POST | /api/config/weather | Uložení provideru, aktivace a intervalu počasí |
+| POST | /api/weather/locations | Přidání, výběr, odstranění nebo změna pořadí lokalit |
+| GET | /api/wifi/known | Seznam známých Wi-Fi sítí |
+| POST | /api/wifi/disconnect | Ruční odpojení a zakázání auto-connectu aktivního SSID |
+| GET | /api/display.bmp | BMP náhled posledního vyrenderovaného e-inku |
 | POST | /api/screens/weather-hourly-0/activate | Hodinový přehled prvního dne (indexy 0–3) |
 | GET | /api/update/check | Kontrola GitHub release |
 | POST | /api/update/github | Instalace release firmware |
@@ -105,6 +119,7 @@ URL a SHA-256 získané přímo z GitHub release, ověří celý obraz a potom s
 
 ## Dokumentace
 
+- [Aktuální stav: hotovo / částečně / plán](docs/PROJECT_STATUS.md)
 - [Aktuální specifikace](docs/PV_DASHBOARD_SPEC.md)
 - [Architektura a datové toky](docs/ARCHITECTURE.md)
 - [Panel a refresh strategie](docs/DISPLAY.md)
@@ -126,5 +141,9 @@ Výsledky měření z 14. 9. 2026 jsou historické snímky konkrétních testů:
 - E-paper obsluhuje samostatná FreeRTOS úloha; WebUI během partial ani full
   refreshu zůstává dostupné a zobrazuje stav vykreslení.
 - Platná ruční i GitHub OTA a chybové scénáře jsou ověřené na zařízení.
-- Firmware využívá přibližně 93,7 % OTA partition; release skript i zařízení
-  odmítnou obraz větší než 1 310 720 B.
+- Aktuální OTA partition má **1 966 080 B**. Release skript i zařízení odmítnou
+  větší obraz; skutečné procento využití se mění s každým buildem a má se
+  kontrolovat v CI/release výstupu.
+- Fyzický joystick zatím není připojen; WebUI už používá stejný navigační model.
+- Reálná bazénová a vnitřní čidla zatím nejsou připojená; jejich hodnoty jsou
+  stále označené jako demonstrační.
