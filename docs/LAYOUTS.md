@@ -117,3 +117,42 @@ WebUI na stránce Obrazovky obsahuje první interaktivní editor Home layoutu.
 - tlačítko Výchozí používá REST reset z D2,
 - tlačítko Zobrazit Home přepne fyzický displej/náhled na Home pouze na výslovný
   požadavek uživatele.
+
+
+## Custom widgety — první základ
+
+Vedle předdefinovaných Home widgetů může layout obsahovat uživatelský kontejner
+s `type: custom`. ID vlastního kontejneru musí začínat `custom-`; na jedné
+Home obrazovce může být celkem až 6 widgetů.
+
+Vlastní kontejner má:
+
+- vlastní `title`,
+- geometrii na Home stejně jako ostatní widgety,
+- až 8 vnitřních elementů,
+- vnitřní souřadnice relativně k levému hornímu rohu kontejneru.
+
+Prvních 38 px výšky je rezervováno pro záhlaví karty. Vnitřní elementy tedy
+začínají od `y >= 40`.
+
+První elementy:
+
+- `text` — statický text,
+- `kpi` — číselná hodnota ze zvoleného datového zdroje,
+- `progress` — hodnota vykreslená do rozsahu min/max,
+- `sparkline` — mini graf; v první verzi podporuje 24h historii výroby FVE
+  a spotřeby domu.
+
+Dynamické elementy používají stabilní klíč `source`, například
+`solar.productionPowerW`, `weather.outdoorTempC` nebo
+`pool.waterTempC`. Katalog podporovaných zdrojů vrací
+`GET /api/layout/home` v objektu `customWidget.dataSources`, takže WebUI
+nemusí seznam datových vazeb duplikovat.
+
+Vlastní widgety se ukládají ve stejném layout JSON jako předdefinované widgety.
+NVS persistence používá blob `layout_blob`; starší D2/D3 string
+`layout_home` se při načtení automaticky migruje.
+
+WebUI nyní umí vytvořit nový vlastní kontejner s výchozím textovým placeholderem
+a upravovat jeho vnější geometrii. Samostatný editor vnitřních elementů je další
+krok.
