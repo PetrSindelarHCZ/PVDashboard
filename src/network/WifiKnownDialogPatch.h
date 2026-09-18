@@ -46,9 +46,9 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
     .source-test-button:hover,.source-test-button:focus { color:var(--text); border-color:#4b5563; outline:none; }
     .source-test-button:disabled { opacity:.55; cursor:wait; }
 
-    .settings-collapse-toggle { width:100%; appearance:none; border:0; background:transparent; color:inherit; padding:0; display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; text-align:left; }
+    .settings-collapse-toggle { width:100%; appearance:none; border:0; background:transparent; color:inherit; padding:0; display:flex; align-items:center; justify-content:flex-start; gap:7px; cursor:pointer; text-align:left; }
     .settings-collapse-title { font-size:.85rem; text-transform:uppercase; letter-spacing:.05em; color:var(--text-sub); font-weight:700; }
-    .settings-collapse-chevron { color:var(--text-sub); font-size:.82rem; transition:transform .16s ease; }
+    .settings-collapse-chevron { color:var(--text-sub); font-size:.82rem; transition:transform .16s ease; flex:0 0 auto; width:.9rem; text-align:center; }
     .settings-collapse-toggle[aria-expanded="true"] .settings-collapse-chevron { transform:rotate(180deg); }
     .settings-collapsible-body { display:flex; flex-direction:column; gap:12px; min-width:0; }
 
@@ -192,7 +192,7 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
     function makeSettingsCardsCollapsible(){
         document.querySelectorAll('.view-settings .section-grid > .card').forEach((card,index)=>{
             if(card.dataset.collapsibleReady==='1')return;const title=Array.from(card.children).find(child=>child.classList&&child.classList.contains('card-title'));if(!title)return;
-            card.dataset.collapsibleReady='1';const titleText=title.textContent.trim();const toggle=document.createElement('button');toggle.type='button';toggle.className='settings-collapse-toggle';toggle.innerHTML='<span class="settings-collapse-title"></span><span class="settings-collapse-chevron">▾</span>';toggle.querySelector('.settings-collapse-title').textContent=titleText;
+            card.dataset.collapsibleReady='1';const titleText=title.textContent.trim();const toggle=document.createElement('button');toggle.type='button';toggle.className='settings-collapse-toggle';toggle.innerHTML='<span class="settings-collapse-chevron">▾</span><span class="settings-collapse-title"></span>';toggle.querySelector('.settings-collapse-title').textContent=titleText;
             const body=document.createElement('div');body.className='settings-collapsible-body';Array.from(card.children).filter(child=>child!==title).forEach(child=>body.appendChild(child));title.replaceWith(toggle);card.appendChild(body);
             const key='dashboard.settings.collapsed.'+titleText.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+index;let collapsed=false;try{collapsed=localStorage.getItem(key)==='1';}catch(_){}
             const apply=()=>{toggle.setAttribute('aria-expanded',collapsed?'false':'true');body.hidden=collapsed;};apply();toggle.addEventListener('click',()=>{collapsed=!collapsed;apply();try{localStorage.setItem(key,collapsed?'1':'0');}catch(_){}});
