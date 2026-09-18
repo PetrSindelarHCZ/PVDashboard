@@ -173,6 +173,29 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     const byId = id => draft.find(w => w.id === id);
     const supportedById = id => (apiState?.supportedWidgets || []).find(w => w.id === id);
 
+    function widgetMinimum(widget) {
+        if (widget?.type === 'custom') {
+            let minW = Number(apiState?.customWidget?.minWidth || 160);
+            let minH = Number(apiState?.customWidget?.minHeight || 120);
+            (widget.elements || []).forEach(element => {
+                minW = Math.max(minW, Number(element.x || 0) + Number(element.width || 0) + 8);
+                minH = Math.max(minH, Number(element.y || 0) + Number(element.height || 0) + 8);
+            });
+            return {minWidth: minW, minHeight: minH};
+        }
+        const supported = supportedById(widget?.id);
+        return {
+            minWidth: Number(supported?.minWidth || gridStep),
+            minHeight: Number(supported?.minHeight || gridStep)
+        };
+    }
+
+    function widgetLabel(widget) {
+        if (!widget) return '';
+        if (widget.type === 'custom') return widget.title || widget.id;
+        return labels[widget.id] || widget.id;
+    }
+
     function editorMessage(text, kind = '') {
         const el = document.getElementById('layoutEditorMessage');
         if (!el) return;
@@ -205,12 +228,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
     function normalizeWidget(widget) {
         const bounds = apiState.bounds;
-        const supported = supportedById(widget.id);
-        const minW = supported?.minWidth || gridStep;
-        const minH = supported?.minHeight || gridStep;
-
-        widget.width = Math.max(minW, widget.width);
-        widget.height = Math.max(minH, widget.height);
+        const minimum = widgetMinimum(widget);
+        widget.width = Math.max(minimum.minWidth, widget.width);
+        widget.height = Math.max(minimum.minHeight, widget.height);
         widget.x = Math.max(bounds.x, Math.min(widget.x, bounds.x + bounds.width - widget.width));
         widget.y = Math.max(bounds.y, Math.min(widget.y, bounds.y + bounds.height - widget.height));
         widget.width = Math.min(widget.width, bounds.x + bounds.width - widget.x);
@@ -310,6 +330,46 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 renderDraft();
             });
         });
+
+        draft.filter(widget => widget.type === 'custom').forEach(widget => {
+            const minimum = widgetMinimum(widget);
+            const row = document.createElement('div');
+            row.className = 'layout-widget-row';
+            row.innerHTML = `
+                <div class="layout-widget-row-main">
+                    <div class="layout-widget-row-title">${widgetLabel(widget)}</div>
+                    <div class="layout-widget-row-meta">Vlastní · ${widget.elements?.length || 0} prvků · min. ${minimum.minWidth} × ${minimum.minHeight} px</div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <label class="toggle">
+                        <input type="checkbox" data-custom-visible="${widget.id}" ${widget.visible ? 'checked' : ''}>
+                        <span class="slider"></span>
+                    </label>
+                    <button class="btn btn-secondary" type="button" data-custom-delete="${widget.id}" style="width:auto;min-height:0;padding:6px 9px">Smazat</button>
+                </div>
+            `;
+            list.appendChild(row);
+        });
+
+        list.querySelectorAll('[data-custom-visible]').forEach(input => {
+            input.addEventListener('change', () => {
+                const widget = byId(input.dataset.customVisible);
+                if (!widget) return;
+                widget.visible = input.checked;
+                if (widget.visible) selectedId = widget.id;
+                renderDraft();
+            });
+        });
+
+        list.querySelectorAll('[data-custom-delete]').forEach(button => {
+            button.addEventListener('click', () => {
+                const id = button.dataset.customDelete;
+                draft = draft.filter(widget => widget.id !== id);
+                if (selectedId === id) selectedId = draft.find(widget => widget.visible)?.id || '';
+                renderDraft();
+                editorMessage('Vlastní widget odstraněn z návrhu. Změnu potvrď tlačítkem Uložit.');
+            });
+        });
     }
 
     function renderDraft() {
@@ -327,7 +387,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             box.dataset.widgetId = widget.id;
             cssRect(box, widget);
             box.innerHTML = `
-                <div class="layout-widget-label">${labels[widget.id] || widget.id} · ${widget.width}×${widget.height}</div>
+                <div class="layout-widget-label">${widgetLabel(widget)} · ${widget.width}×${widget.height}</div>
                 <span class="layout-resize-handle nw" data-handle="nw"></span>
                 <span class="layout-resize-handle ne" data-handle="ne"></span>
                 <span class="layout-resize-handle sw" data-handle="sw"></span>
@@ -391,17 +451,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             if (h.includes('n')) top = snapPosition(o.y + dy, apiState.bounds.y);
             if (h.includes('s')) bottom = snapPosition(o.y + o.height + dy, apiState.bounds.y);
 
-            const supported = supportedById(widget.id);
-            const minW = supported?.minWidth || gridStep;
-            const minH = supported?.minHeight || gridStep;
-
-            if (right - left < minW) {
-                if (h.includes('w')) left = right - minW;
-                else right = left + minW;
+            const minimum = widgetMinimum(widget);
+            if (right - left < minimum.minWidth) {
+                if (h.includes('w')) left = right - minimum.minWidth;
+                else right = left + minimum.minWidth;
             }
-            if (bottom - top < minH) {
-                if (h.includes('n')) top = bottom - minH;
-                else bottom = top + minH;
+            if (bottom - top < minimum.minHeight) {
+                if (h.includes('n')) top = bottom - minimum.minHeight;
+                else bottom = top + minimum.minHeight;
             }
 
             widget.x = left;
@@ -425,6 +482,52 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             return clone(state.widgets);
         }
         return clone(state.effectiveWidgets || []).map(widget => ({...widget, visible: true}));
+    }
+
+    function addCustomWidget() {
+        if (!apiState?.customWidget) {
+            editorMessage('Firmware nepodporuje vlastní widgety.', 'error');
+            return;
+        }
+        if (draft.length >= 6) {
+            editorMessage('Home už má maximální počet 6 widgetů.', 'error');
+            return;
+        }
+
+        let sequence = 1;
+        while (byId('custom-' + sequence)) sequence++;
+        const id = 'custom-' + sequence;
+        const bounds = apiState.bounds;
+        const widget = {
+            id,
+            type: 'custom',
+            visible: true,
+            x: bounds.x,
+            y: bounds.y,
+            width: 300,
+            height: 180,
+            title: 'Vlastní ' + sequence,
+            elements: [{
+                id: 'text-1',
+                type: 'text',
+                source: '',
+                label: '',
+                unit: '',
+                text: 'Nový vlastní widget',
+                x: 10,
+                y: 45,
+                width: 180,
+                height: 30,
+                decimals: 1,
+                min: 0,
+                max: 100
+            }]
+        };
+        normalizeWidget(widget);
+        draft.push(widget);
+        selectedId = id;
+        renderDraft();
+        editorMessage('Vlastní widget přidán do návrhu. Vnitřní prvky budeme upravovat v dalším kroku.');
     }
 
     async function loadLayoutEditor() {
@@ -536,6 +639,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                         <label>Magnetismus</label>
                         <label class="toggle"><input id="layoutSnapToggle" type="checkbox" checked><span class="slider"></span></label>
                     </div>
+                    <button class="btn btn-secondary" type="button" id="layoutAddCustomButton">＋ Přidat vlastní</button>
                     <button class="btn btn-secondary" type="button" id="layoutShowHomeButton">⌂ Zobrazit Home</button>
                     <button class="btn btn-secondary" type="button" id="layoutReloadButton">↻ Znovu načíst</button>
                     <button class="btn btn-secondary" type="button" id="layoutResetButton">Výchozí</button>
@@ -580,6 +684,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             snapEnabled = event.target.checked;
             updateGrid();
         });
+        document.getElementById('layoutAddCustomButton').addEventListener('click', addCustomWidget);
         document.getElementById('layoutShowHomeButton').addEventListener('click', async () => {
             editorMessage('Přepínám displej na Home…');
             try {
