@@ -120,6 +120,7 @@ void DashboardApp::setup() {
 
     _displayPreview.init(); // tiled preview; komprimovany snapshot se drzi mimo TLS DRAM
     const auto& cfg = _configManager.get();
+    _homeScreen.setLayoutConfig(&cfg.display.homeLayout);
     applyWifiAddressing(cfg.wifi);
 
     _dataModel.solar.enabled = cfg.goodwe.enabled;
@@ -360,6 +361,14 @@ void DashboardApp::setup() {
         if (enabledChanged) requestDisplayRefresh(true, 100);
         else requestAutomaticDisplayRefresh();
         Serial.println("[CONFIG] Bazen ulozen a aplikovan za behu.");
+    });
+
+    _webServer.onHomeLayoutConfig([this](const HomeLayoutConfig& layout) {
+        if (!_configManager.setHomeLayout(layout)) return false;
+        _navigationController.syncToActiveScreen(false);
+        requestDisplayRefresh(true, 100);
+        Serial.println("[CONFIG] Home layout ulozen a aplikovan za behu.");
+        return true;
     });
 
     _webServer.onWeatherConfig([this](const WeatherConfig& weather) {
