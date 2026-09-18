@@ -251,8 +251,28 @@ void DashboardWebServer::enableTimezoneUiExtension() {
                 }
             }
 
-            if (existing >= 0) {
-                weather.activeLocationId = weather.locations[existing].id;
+            const bool replaceLegacy =
+                weather.locationCount == 1 &&
+                (weather.locations[0].id == "legacy" ||
+                 weather.locations[0].name == "Původní místo");
+
+            if (replaceLegacy) {
+                auto& location = weather.locations[0];
+                location.id = id;
+                location.name = name;
+                location.country = country;
+                location.latitude = latitude;
+                location.longitude = longitude;
+                weather.activeLocationId = id;
+            } else if (existing >= 0) {
+                // Pokud už místo existuje, aktualizujeme jeho čitelný název
+                // z geokódování a pouze ho zvolíme jako aktivní.
+                auto& location = weather.locations[existing];
+                location.name = name;
+                location.country = country;
+                location.latitude = latitude;
+                location.longitude = longitude;
+                weather.activeLocationId = location.id;
             } else {
                 if (weather.locationCount >= MaxWeatherLocations) {
                     _server.send(409, "application/json",
