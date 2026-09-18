@@ -151,9 +151,7 @@ bool MetNorwayClient::update(const WeatherConfig& config, WeatherData& weatherDa
         const WeatherLocation* activeLocation = config.activeLocation();
         weatherData.locationName = activeLocation ? activeLocation->name : "";
         weatherData.provider = "MET Norway";
-        weatherData.lastUpdateMs = millis();
         weatherData.status.recordSuccess();
-        _cacheStoredMs = millis();
         Serial.printf("[WEATHER] MET Norway: pouzita lokalni cache (%lu s stara)\n",
                       static_cast<unsigned long>((millis() - _cacheStoredMs) / 1000UL));
         return true;
@@ -201,6 +199,7 @@ bool MetNorwayClient::update(const WeatherConfig& config, WeatherData& weatherDa
         weatherData.provider = "MET Norway";
         weatherData.lastUpdateMs = millis();
         weatherData.status.recordSuccess();
+        _cacheStoredMs = millis();
         http.end();
         Serial.println("[WEATHER] MET Norway: 304 Not Modified, pouzita vlastni MET cache");
         return true;
