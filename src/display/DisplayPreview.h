@@ -73,7 +73,12 @@ private:
     bool ensureCanvas();
     void releaseCanvas();
     static size_t packedSize(const uint8_t* input, size_t length);
-    static bool pack(const uint8_t* input, size_t length, uint8_t* output, size_t outputSize);
+    static void writePackedByte(uint32_t* storage, size_t index, uint8_t value);
+    static uint8_t readPackedByte(const uint32_t* storage, size_t index);
+    static bool pack(const uint8_t* input, size_t length, uint32_t* output,
+                     size_t outputOffset, size_t outputSize);
+    bool ensurePackedCapacity(size_t requiredBytes);
+    void releasePacked();
     bool writeUnpacked(WiFiClient& client) const;
 
     // Preview renderujeme po vodorovnych pruzich, aby nikdy nebyl potreba
@@ -83,8 +88,12 @@ private:
     U8G2_FOR_ADAFRUIT_GFX _u8g2;
     SemaphoreHandle_t _mutex = nullptr;
 
-    uint8_t* _packed = nullptr;
+    // Komprimovany snapshot drzime prednostne v 32bit IRAM heapu, aby
+    // nezmensoval souvisly 8bit DRAM blok potrebny pro mbedTLS.
+    uint32_t* _packed = nullptr;
     size_t _packedBytes = 0;
+    size_t _packedCapacityBytes = 0;
+    bool _packedInExecHeap = false;
 
     bool _useUnicodeFont = false;
     bool _initialized = false;
