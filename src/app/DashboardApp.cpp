@@ -558,6 +558,7 @@ void DashboardApp::selectWeatherDisplayLocation(
     if (!weather.enabled || count == 0) {
         _weatherDisplayLocationId = "";
         _weatherDisplayLocationIndex = 0;
+        _dataModel.weather.enabled = false;
         _dataModel.weather.locationId = "";
         _dataModel.weather.locationName = "";
         _dataModel.weather.locationIndex = 0;
