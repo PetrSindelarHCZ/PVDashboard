@@ -133,10 +133,12 @@ void WeatherWorker::taskLoop() {
             (fabs(previousLatitude - config.latitude) > 0.00001 ||
              fabs(previousLongitude - config.longitude) > 0.00001);
 
-        if (providerChanged || locationChanged) {
-            // Cache provideru spravuje výhradně weather task, aby nedošlo
-            // k souběhu s právě probíhajícím HTTPS/JSON zpracováním.
+        if (locationChanged) {
+            // MET cache je vázaná na souřadnice, proto ji mažeme jen při
+            // změně lokality. Při přepnutí provideru zůstává bezpečně oddělená.
             _metNorwayClient.resetCache();
+        }
+        if (providerChanged || locationChanged) {
             failureStreak = 0;
         }
         previousProvider = config.provider;
