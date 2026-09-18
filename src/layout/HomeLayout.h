@@ -227,7 +227,7 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
         if (widget.type == "custom") {
             String customError;
             if (!validateCustomWidget(widget, &customError)) return fail(customError);
-        } else if (widget.elements.size() != 0 || !widget.title.isEmpty()) {
+        } else if (!widget.elements.empty() || !widget.title.isEmpty()) {
             return fail("Predefined widget cannot contain custom elements");
         }
 
@@ -353,7 +353,9 @@ inline bool parseJson(const String& json, HomeLayoutConfig& config, String* erro
                     return false;
                 }
                 for (JsonObject elementItem : elements) {
-                    parseElement(elementItem, widget.elements[widget.elements.size()++]);
+                    CustomWidgetElementConfig element;
+                    parseElement(elementItem, element);
+                    widget.elements.push_back(element);
                 }
             }
         }
