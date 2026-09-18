@@ -330,6 +330,34 @@ void DashboardWebServer::enableTimezoneUiExtension() {
                 location.longitude = longitude;
                 weather.activeLocationId = id;
             }
+        } else if (action == "move") {
+            const String id = _server.arg("id");
+            const String direction = _server.arg("direction");
+            const int index = findLocation(id);
+            if (index < 0) {
+                _server.send(404, "application/json",
+                             "{\"status\":\"error\",\"message\":\"Weather location not found\"}");
+                return;
+            }
+
+            int target = index;
+            if (direction == "up") target = index - 1;
+            else if (direction == "down") target = index + 1;
+            else {
+                _server.send(400, "application/json",
+                             "{\"status\":\"error\",\"message\":\"Invalid weather location move\"}");
+                return;
+            }
+
+            if (target < 0 || target >= weather.locationCount) {
+                _server.send(409, "application/json",
+                             "{\"status\":\"error\",\"message\":\"Weather location already at edge\"}");
+                return;
+            }
+
+            const WeatherLocation tmp = weather.locations[index];
+            weather.locations[index] = weather.locations[target];
+            weather.locations[target] = tmp;
         } else if (action == "delete") {
             if (weather.locationCount <= 1) {
                 _server.send(409, "application/json",
