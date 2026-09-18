@@ -128,6 +128,15 @@ String homeLayoutResponseJson(const HomeLayoutConfig& config, const DataModel& d
         item["y"] = widget.y;
         item["width"] = widget.width;
         item["height"] = widget.height;
+        if (widget.type == "custom") {
+            item["title"] = widget.title;
+            JsonArray elements = item["elements"].to<JsonArray>();
+            for (uint8_t e = 0; e < widget.elementCount && e < MaxCustomWidgetElements; ++e) {
+                const CustomWidgetElementConfig& element = widget.elements[e];
+                JsonObject child = elements.add<JsonObject>();
+                HomeLayout::serializeElement(child, element);
+            }
+        }
     }
 
     ScreenLayout effective;
@@ -154,6 +163,58 @@ String homeLayoutResponseJson(const HomeLayoutConfig& config, const DataModel& d
         item["minWidth"] = HomeLayout::minWidth(types[i]);
         item["minHeight"] = HomeLayout::minHeight(types[i]);
     }
+
+    JsonObject custom = doc["customWidget"].to<JsonObject>();
+    custom["type"] = "custom";
+    custom["idPrefix"] = "custom-";
+    custom["minWidth"] = HomeLayout::minWidth("custom");
+    custom["minHeight"] = HomeLayout::minHeight("custom");
+    custom["maxElements"] = MaxCustomWidgetElements;
+
+    JsonArray elementTypes = custom["elementTypes"].to<JsonArray>();
+    const char* customTypes[] = {"text", "kpi", "progress", "sparkline"};
+    for (const char* type : customTypes) {
+        JsonObject item = elementTypes.add<JsonObject>();
+        item["type"] = type;
+        item["minWidth"] = HomeLayout::elementMinWidth(type);
+        item["minHeight"] = HomeLayout::elementMinHeight(type);
+    }
+
+    JsonArray sources = custom["dataSources"].to<JsonArray>();
+    auto addSource = [&sources](const char* id, const char* label, const char* unit,
+                                uint8_t decimals, bool history = false) {
+        JsonObject item = sources.add<JsonObject>();
+        item["id"] = id;
+        item["label"] = label;
+        item["unit"] = unit;
+        item["decimals"] = decimals;
+        item["history"] = history;
+    };
+    addSource("solar.productionPowerW", "Výroba FVE", "W", 0, true);
+    addSource("solar.houseConsumptionW", "Spotřeba domu", "W", 0, true);
+    addSource("solar.gridPowerW", "Distribuce", "W", 0);
+    addSource("solar.energyTodayKWh", "Výroba dnes", "kWh", 1);
+    addSource("solar.batterySocPercent", "Baterie", "%", 0);
+    addSource("solar.batteryPowerW", "Výkon baterie", "W", 0);
+    addSource("azrouter.gridPowerW", "AZRouter síť", "W", 0);
+    addSource("azrouter.routedPowerW", "AZRouter výkon", "W", 0);
+    addSource("azrouter.routedEnergyTodayKWh", "AZRouter energie dnes", "kWh", 1);
+    addSource("azrouter.boilerTempC", "Bojler", "°C", 1);
+    addSource("weather.outdoorTempC", "Venkovní teplota", "°C", 1);
+    addSource("weather.outdoorHumidityPercent", "Venkovní vlhkost", "%", 0);
+    addSource("weather.surfacePressureHpa", "Tlak", "hPa", 0);
+    addSource("weather.windSpeedKmh", "Vítr", "km/h", 1);
+    addSource("inside.livingRoomTempC", "Obývák", "°C", 1);
+    addSource("inside.bedroomTempC", "Ložnice", "°C", 1);
+    addSource("inside.poolTempC", "Bazén uvnitř modelu", "°C", 1);
+    addSource("pool.waterTempC", "Bazén voda", "°C", 1);
+    addSource("pool.targetTempC", "Bazén cíl", "°C", 1);
+    addSource("pool.ph", "Bazén pH", "", 1);
+    addSource("pool.freeChlorineMgL", "Volný chlor", "mg/l", 2);
+    addSource("pool.airTempC", "Bazén vzduch", "°C", 1);
+    addSource("pool.airHumidityPercent", "Bazén vlhkost", "%", 0);
+    addSource("system.wifiRssi", "Wi-Fi RSSI", "dBm", 0);
+    addSource("system.uptimeSeconds", "Uptime", "s", 0);
 
     String response;
     serializeJson(doc, response);
