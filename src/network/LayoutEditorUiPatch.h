@@ -906,26 +906,29 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         return element.label || sourceInfo(element.source).label || element.source || element.type;
     }
 
-    function elementPreviewHtml(element) {
+    function elementPreviewHtml(element, previewScale = 1) {
         const align = escapeHtml(element.align || 'left');
         const label = escapeHtml(element.label || sourceInfo(element.source).label || '');
         const unit = escapeHtml(element.unit || sourceInfo(element.source).unit || '');
         const classes = `custom-element-preview align-${align}`;
         const fontPx = requestedFontPx(element, element.type === 'kpi');
-        const fontStyle = `font-size:${fontPx}px`;
+        const scaledFontPx = Math.max(1, fontPx * previewScale);
+        const scaledLabelPx = Math.max(1, 18 * previewScale);
+        const fontStyle = `font-size:${scaledFontPx}px;line-height:${scaledFontPx}px`;
+        const labelStyle = `font-size:${scaledLabelPx}px;line-height:${scaledLabelPx}px`;
 
         if (element.type === 'text') {
             return `<div class="${classes}" style="${fontStyle}">${escapeHtml(element.text || 'Text')}</div>`;
         }
         if (element.type === 'kpi') {
-            return `<div class="${classes}" style="${fontStyle}">
-                ${element.showLabel !== false && label ? `<div class="preview-label">${label}</div>` : ''}
-                <div class="preview-value">--${unit ? ' ' + unit : ''}</div>
+            return `<div class="${classes}">
+                ${element.showLabel !== false && label ? `<div class="preview-label" style="${labelStyle}">${label}</div>` : ''}
+                <div class="preview-value" style="${fontStyle}">--${unit ? ' ' + unit : ''}</div>
             </div>`;
         }
         if (element.type === 'progress') {
             return `<div class="${classes}">
-                ${element.showLabel !== false && label ? `<div class="preview-label">${label}</div>` : ''}
+                ${element.showLabel !== false && label ? `<div class="preview-label" style="${labelStyle}">${label}</div>` : ''}
                 <div class="preview-progress"><span></span></div>
             </div>`;
         }
@@ -943,7 +946,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                      <polyline points="2,29 18,20 34,24 50,9 66,17 82,5 98,12" stroke-width="2"/>
                    </svg>`;
             return `<div class="${classes}">
-                ${element.showLabel !== false && label ? `<div class="preview-label">${label}</div>` : ''}
+                ${element.showLabel !== false && label ? `<div class="preview-label" style="${labelStyle}">${label}</div>` : ''}
                 ${graph}
             </div>`;
         }
@@ -1335,10 +1338,22 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         grid.style.width = ((widget.width - 16) / widget.width * 100) + '%';
         grid.style.height = ((widget.height - 48) / widget.height * 100) + '%';
         const rect = stage.getBoundingClientRect();
+        const previewScale = Math.min(
+            rect.width / Math.max(1, widget.width),
+            rect.height / Math.max(1, widget.height)
+        );
         grid.style.backgroundSize =
             (rect.width * gridStep / widget.width) + 'px ' +
             (rect.height * gridStep / widget.height) + 'px';
         grid.hidden = !snapEnabled;
+
+        if (title) {
+            const titlePx = Math.max(1, 16 * previewScale);
+            title.style.left = (12 * previewScale) + 'px';
+            title.style.top = (7 * previewScale) + 'px';
+            title.style.fontSize = titlePx + 'px';
+            title.style.lineHeight = titlePx + 'px';
+        }
 
         const invalid = elementInvalidIds(widget);
         layer.innerHTML = '';
@@ -1351,7 +1366,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             box.style.zIndex = String(10 + elementIndex);
             elementCssRect(box, widget, element);
             box.innerHTML = `
-                ${elementPreviewHtml(element)}
+                ${elementPreviewHtml(element, previewScale)}
                 <div class="custom-element-label">vrstva ${elementIndex + 1}/${widget.elements.length} · ${escapeHtml(customElementLabel(element))}</div>
                 <span class="custom-element-handle nw" data-element-handle="nw"></span>
                 <span class="custom-element-handle ne" data-element-handle="ne"></span>
