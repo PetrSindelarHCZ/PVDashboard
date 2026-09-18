@@ -9,13 +9,7 @@ public:
     void resetCache();
 
 private:
-    String _lastModified;
     uint32_t _cacheSeconds = 0;
-    uint32_t _cacheStoredMs = 0;
-    WeatherData _cachedData;
-    bool _hasCachedData = false;
-    double _cachedLatitude = 0.0;
-    double _cachedLongitude = 0.0;
 
     bool parseResponse(Stream& stream, WeatherData& weatherData, String& error);
     void updateCachePolicy(const String& dateHeader, const String& expiresHeader);
