@@ -185,6 +185,7 @@ int NavigationController::findNeighbour(
                     const int32_t gap = current.x - (candidate.x + candidate.width);
                     primaryGap = gap > 0 ? gap : 0;
                 }
+                primaryCenterDistance = abs(candidateCx - currentCx);
                 crossDistance = abs(candidateCy - currentCy);
                 orthogonalOverlap =
                     candidate.y < current.y + current.height &&
@@ -208,6 +209,7 @@ int NavigationController::findNeighbour(
                     const int32_t gap = current.y - (candidate.y + candidate.height);
                     primaryGap = gap > 0 ? gap : 0;
                 }
+                primaryCenterDistance = abs(candidateCy - currentCy);
                 crossDistance = abs(candidateCx - currentCx);
                 orthogonalOverlap =
                     candidate.x < current.x + current.width &&
