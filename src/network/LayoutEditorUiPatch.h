@@ -144,10 +144,189 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 }
 .layout-editor-message.error { color: #b91c1c; }
 .layout-editor-message.ok { color: #166534; }
+
+.custom-editor-panel {
+    margin-top: 14px;
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+}
+.custom-editor-panel[hidden] { display: none; }
+.custom-editor-head {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
+}
+.custom-editor-head-left {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: end;
+    flex: 1;
+}
+.custom-editor-head .field {
+    margin: 0;
+    min-width: 190px;
+}
+.custom-editor-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.custom-editor-actions .btn {
+    width: auto;
+    min-height: 0;
+    padding: 7px 10px;
+    font-size: .76rem;
+}
+.custom-widget-stage-wrap {
+    margin-top: 10px;
+    padding: 10px;
+    background: #e5e7eb;
+    border: 1px solid #3a414f;
+    border-radius: 10px;
+}
+.custom-widget-stage {
+    position: relative;
+    width: 100%;
+    max-width: 760px;
+    margin: 0 auto;
+    background: #fff;
+    border: 1px solid #111827;
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+}
+.custom-widget-header-zone {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    border-bottom: 1px solid #111827;
+    background: rgba(229,231,235,.7);
+    pointer-events: none;
+}
+.custom-widget-header-title {
+    position: absolute;
+    left: 10px;
+    top: 8px;
+    right: 10px;
+    font-size: .72rem;
+    font-weight: 700;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.custom-element-grid {
+    position: absolute;
+    pointer-events: none;
+    opacity: .25;
+    background-image:
+        linear-gradient(to right, rgba(17,24,39,.55) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(17,24,39,.55) 1px, transparent 1px);
+}
+.custom-element-box {
+    position: absolute;
+    box-sizing: border-box;
+    border: 2px solid #7c3aed;
+    background: rgba(237,233,254,.5);
+    cursor: move;
+}
+.custom-element-box.selected {
+    border-width: 3px;
+    background: rgba(221,214,254,.65);
+}
+.custom-element-box.invalid {
+    border-color: #dc2626;
+    background: rgba(254,226,226,.65);
+}
+.custom-element-label {
+    position: absolute;
+    left: 3px;
+    top: 3px;
+    right: 3px;
+    font-size: .64rem;
+    line-height: 1.2;
+    padding: 2px 4px;
+    background: rgba(255,255,255,.9);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    pointer-events: none;
+}
+.custom-element-handle {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    box-sizing: border-box;
+    border: 2px solid #7c3aed;
+    background: #fff;
+    border-radius: 50%;
+}
+.custom-element-box.invalid .custom-element-handle { border-color: #dc2626; }
+.custom-element-handle.nw { left: -7px; top: -7px; cursor: nwse-resize; }
+.custom-element-handle.ne { right: -7px; top: -7px; cursor: nesw-resize; }
+.custom-element-handle.sw { left: -7px; bottom: -7px; cursor: nesw-resize; }
+.custom-element-handle.se { right: -7px; bottom: -7px; cursor: nwse-resize; }
+.custom-editor-lower {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 390px);
+    gap: 12px;
+    margin-top: 10px;
+}
+.custom-element-list {
+    display: grid;
+    gap: 6px;
+    align-content: start;
+}
+.custom-element-row {
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 9px;
+    cursor: pointer;
+}
+.custom-element-row.selected {
+    border-color: #7c3aed;
+    background: rgba(237,233,254,.35);
+}
+.custom-element-row.invalid { border-color: #dc2626; }
+.custom-element-row-title {
+    font-size: .8rem;
+    font-weight: 600;
+}
+.custom-element-row-meta {
+    font-size: .7rem;
+    color: var(--text-sub);
+    margin-top: 2px;
+}
+.custom-element-form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+.custom-element-form .field { margin: 0; min-width: 0; }
+.custom-element-form .field.full { grid-column: 1 / -1; }
+.custom-element-form input,
+.custom-element-form select { width: 100%; }
+.custom-editor-note {
+    margin-top: 6px;
+    min-height: 18px;
+    font-size: .74rem;
+    color: var(--text-sub);
+}
+.custom-editor-note.error { color: #b91c1c; }
+
 @media (max-width: 699px) {
     .layout-editor-stage-wrap { padding: 6px; }
     .layout-editor-bottom { grid-template-columns: 1fr; }
     .layout-editor-inspector { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .custom-editor-lower { grid-template-columns: 1fr; }
+    .custom-element-form { grid-template-columns: 1fr; }
 }
 </style>
 <script>
@@ -168,8 +347,16 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     let snapEnabled = true;
     let interaction = null;
     let stageObserver = null;
+    let selectedElementId = '';
+    let elementInteraction = null;
 
     const clone = value => JSON.parse(JSON.stringify(value));
+    const escapeHtml = value => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     const byId = id => draft.find(w => w.id === id);
     const supportedById = id => (apiState?.supportedWidgets || []).find(w => w.id === id);
 
@@ -337,7 +524,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             row.className = 'layout-widget-row';
             row.innerHTML = `
                 <div class="layout-widget-row-main">
-                    <div class="layout-widget-row-title">${widgetLabel(widget)}</div>
+                    <div class="layout-widget-row-title">${escapeHtml(widgetLabel(widget))}</div>
                     <div class="layout-widget-row-meta">Vlastní · ${widget.elements?.length || 0} prvků · min. ${minimum.minWidth} × ${minimum.minHeight} px</div>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center">
@@ -345,6 +532,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                         <input type="checkbox" data-custom-visible="${widget.id}" ${widget.visible ? 'checked' : ''}>
                         <span class="slider"></span>
                     </label>
+                    <button class="btn btn-secondary" type="button" data-custom-edit="${widget.id}" style="width:auto;min-height:0;padding:6px 9px">Upravit obsah</button>
                     <button class="btn btn-secondary" type="button" data-custom-delete="${widget.id}" style="width:auto;min-height:0;padding:6px 9px">Smazat</button>
                 </div>
             `;
@@ -361,11 +549,25 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             });
         });
 
+        list.querySelectorAll('[data-custom-edit]').forEach(button => {
+            button.addEventListener('click', () => {
+                const widget = byId(button.dataset.customEdit);
+                if (!widget) return;
+                selectedId = widget.id;
+                selectedElementId = widget.elements?.[0]?.id || '';
+                renderDraft();
+                document.getElementById('customEditorPanel')?.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+            });
+        });
+
         list.querySelectorAll('[data-custom-delete]').forEach(button => {
             button.addEventListener('click', () => {
                 const id = button.dataset.customDelete;
                 draft = draft.filter(widget => widget.id !== id);
-                if (selectedId === id) selectedId = draft.find(widget => widget.visible)?.id || '';
+                if (selectedId === id) {
+                    selectedId = draft.find(widget => widget.visible)?.id || '';
+                    selectedElementId = '';
+                }
                 renderDraft();
                 editorMessage('Vlastní widget odstraněn z návrhu. Změnu potvrď tlačítkem Uložit.');
             });
@@ -387,7 +589,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             box.dataset.widgetId = widget.id;
             cssRect(box, widget);
             box.innerHTML = `
-                <div class="layout-widget-label">${widgetLabel(widget)} · ${widget.width}×${widget.height}</div>
+                <div class="layout-widget-label">${escapeHtml(widgetLabel(widget))} · ${widget.width}×${widget.height}</div>
                 <span class="layout-resize-handle nw" data-handle="nw"></span>
                 <span class="layout-resize-handle ne" data-handle="ne"></span>
                 <span class="layout-resize-handle sw" data-handle="sw"></span>
@@ -401,10 +603,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         renderInspector();
         renderWidgetList();
         updateGrid();
+        renderCustomEditor();
 
+        const customInvalid = draft.some(widget =>
+            widget.type === 'custom' && customWidgetHasErrors(widget));
         const save = document.getElementById('layoutSaveButton');
-        if (save) save.disabled = invalid.size > 0 || !draft.some(w => w.visible);
+        if (save) save.disabled = invalid.size > 0 || customInvalid || !draft.some(w => w.visible);
         if (invalid.size > 0) editorMessage('Widgety se překrývají. Uložení je zablokované.', 'error');
+        else if (customInvalid) editorMessage('Vlastní widget obsahuje neplatné nebo překrývající se prvky.', 'error');
     }
 
     function beginInteraction(event, id) {
@@ -413,6 +619,11 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         event.preventDefault();
         event.stopPropagation();
         selectedId = id;
+        const selectedWidget = byId(id);
+        if (selectedWidget?.type === 'custom' &&
+            !selectedWidget.elements?.some(element => element.id === selectedElementId)) {
+            selectedElementId = selectedWidget.elements?.[0]?.id || '';
+        }
         const point = displayFromPointer(event);
         interaction = {
             pointerId: event.pointerId,
@@ -477,6 +688,438 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         renderDraft();
     }
 
+    function elementTypeInfo(type) {
+        return (apiState?.customWidget?.elementTypes || []).find(item => item.type === type) || {};
+    }
+
+    function sourceInfo(source) {
+        return (apiState?.customWidget?.dataSources || []).find(item => item.id === source) || {};
+    }
+
+    function customElementLabel(element) {
+        if (!element) return '';
+        if (element.type === 'text') return element.text || 'Text';
+        return element.label || sourceInfo(element.source).label || element.source || element.type;
+    }
+
+    function elementOverlap(a, b) {
+        return a.x < b.x + b.width &&
+               a.x + a.width > b.x &&
+               a.y < b.y + b.height &&
+               a.y + a.height > b.y;
+    }
+
+    function elementInvalidIds(widget) {
+        const ids = new Set();
+        if (!widget || widget.type !== 'custom') return ids;
+        const elements = widget.elements || [];
+        for (let i = 0; i < elements.length; i++) {
+            const a = elements[i];
+            const typeInfo = elementTypeInfo(a.type);
+            if (!a.id || !a.type ||
+                a.width < Number(typeInfo.minWidth || 1) ||
+                a.height < Number(typeInfo.minHeight || 1) ||
+                a.x < 8 || a.y < 40 ||
+                a.x + a.width > widget.width - 8 ||
+                a.y + a.height > widget.height - 8) {
+                ids.add(a.id);
+            }
+            if (a.type === 'text') {
+                if (!a.text) ids.add(a.id);
+            } else {
+                const source = sourceInfo(a.source);
+                if (!source.id) ids.add(a.id);
+                if (a.type === 'sparkline' && !source.history) ids.add(a.id);
+                if (a.type === 'progress' && !(Number(a.max) > Number(a.min))) ids.add(a.id);
+            }
+            for (let j = i + 1; j < elements.length; j++) {
+                if (elementOverlap(a, elements[j])) {
+                    ids.add(a.id);
+                    ids.add(elements[j].id);
+                }
+            }
+        }
+        return ids;
+    }
+
+    function customWidgetHasErrors(widget) {
+        if (!widget || widget.type !== 'custom') return false;
+        const elements = widget.elements || [];
+        if (!elements.length || elements.length > Number(apiState?.customWidget?.maxElements || 8)) return true;
+        return elementInvalidIds(widget).size > 0;
+    }
+
+    function customStagePoint(event, widget) {
+        const stage = document.getElementById('customWidgetStage');
+        const rect = stage?.getBoundingClientRect();
+        if (!rect || !widget) return {x: 0, y: 0};
+        return {
+            x: (event.clientX - rect.left) * widget.width / rect.width,
+            y: (event.clientY - rect.top) * widget.height / rect.height
+        };
+    }
+
+    function snapElementPosition(value, origin) {
+        if (!snapEnabled || !gridStep) return Math.round(value);
+        return origin + Math.round((value - origin) / gridStep) * gridStep;
+    }
+
+    function normalizeElement(widget, element) {
+        const typeInfo = elementTypeInfo(element.type);
+        const minW = Number(typeInfo.minWidth || 20);
+        const minH = Number(typeInfo.minHeight || 20);
+        element.width = Math.max(minW, Number(element.width || minW));
+        element.height = Math.max(minH, Number(element.height || minH));
+        element.x = Math.max(8, Math.min(Number(element.x || 8), widget.width - 8 - element.width));
+        element.y = Math.max(40, Math.min(Number(element.y || 40), widget.height - 8 - element.height));
+        element.width = Math.min(element.width, widget.width - 8 - element.x);
+        element.height = Math.min(element.height, widget.height - 8 - element.y);
+    }
+
+    function elementCssRect(box, widget, element) {
+        box.style.left = (element.x / widget.width * 100) + '%';
+        box.style.top = (element.y / widget.height * 100) + '%';
+        box.style.width = (element.width / widget.width * 100) + '%';
+        box.style.height = (element.height / widget.height * 100) + '%';
+    }
+
+    function renderCustomElementForm(widget) {
+        const form = document.getElementById('customElementForm');
+        if (!form) return;
+        const element = (widget.elements || []).find(item => item.id === selectedElementId);
+        if (!element) {
+            form.innerHTML = '<div class="field-help">Vyber prvek ve vlastní kartě.</div>';
+            return;
+        }
+
+        const sources = (apiState?.customWidget?.dataSources || [])
+            .filter(source => element.type !== 'sparkline' || source.history);
+        const sourceOptions = sources.map(source =>
+            `<option value="${escapeHtml(source.id)}" ${source.id === element.source ? 'selected' : ''}>${escapeHtml(source.label)} (${escapeHtml(source.id)})</option>`
+        ).join('');
+
+        form.innerHTML = `
+            <div class="field full">
+                <label>Typ prvku</label>
+                <input value="${escapeHtml(element.type)}" disabled>
+            </div>
+            ${element.type === 'text' ? `
+                <div class="field full">
+                    <label>Text</label>
+                    <input id="customFieldText" maxlength="80" value="${escapeHtml(element.text || '')}">
+                </div>
+            ` : `
+                <div class="field full">
+                    <label>Datový zdroj</label>
+                    <select id="customFieldSource">${sourceOptions}</select>
+                </div>
+                <div class="field full">
+                    <label>Popisek</label>
+                    <input id="customFieldLabel" maxlength="40" value="${escapeHtml(element.label || '')}">
+                </div>
+                <div class="field">
+                    <label>Jednotka</label>
+                    <input id="customFieldUnit" maxlength="16" value="${escapeHtml(element.unit || '')}">
+                </div>
+                <div class="field">
+                    <label>Desetinná místa</label>
+                    <select id="customFieldDecimals">
+                        ${[0,1,2,3].map(value => `<option value="${value}" ${Number(element.decimals) === value ? 'selected' : ''}>${value}</option>`).join('')}
+                    </select>
+                </div>
+                ${element.type === 'progress' ? `
+                    <div class="field"><label>Minimum</label><input id="customFieldMin" type="number" step="any" value="${Number(element.min ?? 0)}"></div>
+                    <div class="field"><label>Maximum</label><input id="customFieldMax" type="number" step="any" value="${Number(element.max ?? 100)}"></div>
+                ` : ''}
+            `}
+            <div class="field"><label>X</label><input id="customFieldX" type="number" value="${element.x}"></div>
+            <div class="field"><label>Y</label><input id="customFieldY" type="number" value="${element.y}"></div>
+            <div class="field"><label>Šířka</label><input id="customFieldW" type="number" value="${element.width}"></div>
+            <div class="field"><label>Výška</label><input id="customFieldH" type="number" value="${element.height}"></div>
+            <div class="field full">
+                <button class="btn btn-secondary" type="button" id="customDeleteElement" style="width:auto">Smazat prvek</button>
+            </div>
+        `;
+
+        const commit = () => {
+            const current = (widget.elements || []).find(item => item.id === selectedElementId);
+            if (!current) return;
+            const text = document.getElementById('customFieldText');
+            const source = document.getElementById('customFieldSource');
+            const label = document.getElementById('customFieldLabel');
+            const unit = document.getElementById('customFieldUnit');
+            const decimals = document.getElementById('customFieldDecimals');
+            const min = document.getElementById('customFieldMin');
+            const max = document.getElementById('customFieldMax');
+            if (text) current.text = text.value;
+            if (source) {
+                current.source = source.value;
+                const info = sourceInfo(current.source);
+                if (label && !label.value) current.label = info.label || '';
+                if (unit && !unit.value) current.unit = info.unit || '';
+                if (decimals) current.decimals = Number(info.decimals ?? decimals.value);
+            }
+            if (label) current.label = label.value;
+            if (unit) current.unit = unit.value;
+            if (decimals) current.decimals = Number(decimals.value);
+            if (min) current.min = Number(min.value);
+            if (max) current.max = Number(max.value);
+            current.x = Number(document.getElementById('customFieldX')?.value ?? current.x);
+            current.y = Number(document.getElementById('customFieldY')?.value ?? current.y);
+            current.width = Number(document.getElementById('customFieldW')?.value ?? current.width);
+            current.height = Number(document.getElementById('customFieldH')?.value ?? current.height);
+            normalizeElement(widget, current);
+            renderDraft();
+        };
+
+        form.querySelectorAll('input,select').forEach(control => {
+            control.addEventListener('change', commit);
+        });
+        document.getElementById('customDeleteElement')?.addEventListener('click', () => {
+            widget.elements = (widget.elements || []).filter(item => item.id !== selectedElementId);
+            selectedElementId = widget.elements?.[0]?.id || '';
+            renderDraft();
+        });
+    }
+
+    function renderCustomElements(widget) {
+        const stage = document.getElementById('customWidgetStage');
+        const layer = document.getElementById('customElementLayer');
+        const grid = document.getElementById('customElementGrid');
+        const title = document.getElementById('customWidgetHeaderTitle');
+        const header = document.getElementById('customWidgetHeaderZone');
+        if (!stage || !layer || !grid || !header) return;
+
+        stage.style.aspectRatio = widget.width + ' / ' + widget.height;
+        if (title) title.textContent = widget.title || widget.id;
+        header.style.height = (40 / widget.height * 100) + '%';
+
+        grid.style.left = (8 / widget.width * 100) + '%';
+        grid.style.top = (40 / widget.height * 100) + '%';
+        grid.style.width = ((widget.width - 16) / widget.width * 100) + '%';
+        grid.style.height = ((widget.height - 48) / widget.height * 100) + '%';
+        const rect = stage.getBoundingClientRect();
+        grid.style.backgroundSize =
+            (rect.width * gridStep / widget.width) + 'px ' +
+            (rect.height * gridStep / widget.height) + 'px';
+        grid.hidden = !snapEnabled;
+
+        const invalid = elementInvalidIds(widget);
+        layer.innerHTML = '';
+        (widget.elements || []).forEach(element => {
+            const box = document.createElement('div');
+            box.className = 'custom-element-box' +
+                (element.id === selectedElementId ? ' selected' : '') +
+                (invalid.has(element.id) ? ' invalid' : '');
+            box.dataset.elementId = element.id;
+            elementCssRect(box, widget, element);
+            box.innerHTML = `
+                <div class="custom-element-label">${escapeHtml(customElementLabel(element))} · ${element.width}×${element.height}</div>
+                <span class="custom-element-handle nw" data-element-handle="nw"></span>
+                <span class="custom-element-handle ne" data-element-handle="ne"></span>
+                <span class="custom-element-handle sw" data-element-handle="sw"></span>
+                <span class="custom-element-handle se" data-element-handle="se"></span>
+            `;
+            box.addEventListener('pointerdown', event => beginElementInteraction(event, widget.id, element.id));
+            layer.appendChild(box);
+        });
+
+        const list = document.getElementById('customElementList');
+        if (list) {
+            list.innerHTML = '';
+            (widget.elements || []).forEach(element => {
+                const row = document.createElement('div');
+                row.className = 'custom-element-row' +
+                    (element.id === selectedElementId ? ' selected' : '') +
+                    (invalid.has(element.id) ? ' invalid' : '');
+                row.innerHTML = `
+                    <div>
+                        <div class="custom-element-row-title">${escapeHtml(customElementLabel(element))}</div>
+                        <div class="custom-element-row-meta">${escapeHtml(element.type)} · x${element.x} y${element.y} · ${element.width}×${element.height}</div>
+                    </div>
+                `;
+                row.addEventListener('click', () => {
+                    selectedElementId = element.id;
+                    renderCustomElements(widget);
+                    renderCustomElementForm(widget);
+                });
+                list.appendChild(row);
+            });
+        }
+
+        const note = document.getElementById('customEditorNote');
+        if (note) {
+            note.textContent = invalid.size
+                ? 'Některé prvky jsou mimo plochu nebo se překrývají.'
+                : 'Prvky jsou v pořádku. Změny se uloží až hlavním tlačítkem Uložit.';
+            note.className = 'custom-editor-note' + (invalid.size ? ' error' : '');
+        }
+        renderCustomElementForm(widget);
+    }
+
+    function renderCustomEditor() {
+        const panel = document.getElementById('customEditorPanel');
+        if (!panel) return;
+        const widget = byId(selectedId);
+        if (!widget || widget.type !== 'custom') {
+            panel.hidden = true;
+            return;
+        }
+        panel.hidden = false;
+
+        if (!widget.elements?.some(element => element.id === selectedElementId)) {
+            selectedElementId = widget.elements?.[0]?.id || '';
+        }
+
+        const titleInput = document.getElementById('customWidgetTitleInput');
+        if (titleInput && document.activeElement !== titleInput) titleInput.value = widget.title || '';
+        const dimensions = document.getElementById('customWidgetDimensions');
+        if (dimensions) dimensions.textContent = widget.width + ' × ' + widget.height + ' px';
+
+        renderCustomElements(widget);
+    }
+
+    function findElementPosition(widget, width, height) {
+        const step = gridStep || 5;
+        for (let y = 40; y + height <= widget.height - 8; y += step) {
+            for (let x = 8; x + width <= widget.width - 8; x += step) {
+                const probe = {x, y, width, height};
+                if (!(widget.elements || []).some(element => elementOverlap(probe, element))) {
+                    return {x, y};
+                }
+            }
+        }
+        return null;
+    }
+
+    function addCustomElement(type) {
+        const widget = byId(selectedId);
+        if (!widget || widget.type !== 'custom') {
+            editorMessage('Nejdřív vyber vlastní widget.', 'error');
+            return;
+        }
+        if ((widget.elements || []).length >= Number(apiState?.customWidget?.maxElements || 8)) {
+            editorMessage('Vlastní widget už má maximální počet prvků.', 'error');
+            return;
+        }
+
+        const typeInfo = elementTypeInfo(type);
+        let width = Math.max(Number(typeInfo.minWidth || 40), type === 'sparkline' ? 220 : type === 'progress' ? 180 : 140);
+        let height = Math.max(Number(typeInfo.minHeight || 20), type === 'sparkline' ? 100 : type === 'kpi' ? 60 : type === 'progress' ? 50 : 30);
+        width = Math.min(width, widget.width - 16);
+        height = Math.min(height, widget.height - 48);
+
+        const position = findElementPosition(widget, width, height);
+        if (!position) {
+            editorMessage('Ve widgetu není pro nový prvek dost volného místa.', 'error');
+            return;
+        }
+
+        let sequence = 1;
+        while ((widget.elements || []).some(element => element.id === type + '-' + sequence)) sequence++;
+        const sources = (apiState?.customWidget?.dataSources || [])
+            .filter(source => type !== 'sparkline' || source.history);
+        const source = sources[0] || {};
+        const element = {
+            id: type + '-' + sequence,
+            type,
+            source: type === 'text' ? '' : (source.id || ''),
+            label: type === 'text' ? '' : (source.label || ''),
+            unit: type === 'text' ? '' : (source.unit || ''),
+            text: type === 'text' ? 'Nový text' : '',
+            x: position.x,
+            y: position.y,
+            width,
+            height,
+            decimals: Number(source.decimals ?? 1),
+            min: 0,
+            max: type === 'progress' && source.unit === '%' ? 100 : 100
+        };
+        widget.elements = widget.elements || [];
+        widget.elements.push(element);
+        selectedElementId = element.id;
+        renderDraft();
+    }
+
+    function beginElementInteraction(event, widgetId, elementId) {
+        const widget = byId(widgetId);
+        const element = widget?.elements?.find(item => item.id === elementId);
+        if (!widget || !element) return;
+        event.preventDefault();
+        event.stopPropagation();
+        selectedId = widgetId;
+        selectedElementId = elementId;
+        const point = customStagePoint(event, widget);
+        elementInteraction = {
+            pointerId: event.pointerId,
+            widgetId,
+            elementId,
+            mode: event.target.dataset.elementHandle ? 'resize' : 'move',
+            handle: event.target.dataset.elementHandle || '',
+            startX: point.x,
+            startY: point.y,
+            original: clone(element)
+        };
+        event.currentTarget.setPointerCapture(event.pointerId);
+        renderCustomElements(widget);
+    }
+
+    function moveElementInteraction(event) {
+        if (!elementInteraction || event.pointerId !== elementInteraction.pointerId) return;
+        const widget = byId(elementInteraction.widgetId);
+        const element = widget?.elements?.find(item => item.id === elementInteraction.elementId);
+        if (!widget || !element) return;
+
+        const point = customStagePoint(event, widget);
+        const dx = point.x - elementInteraction.startX;
+        const dy = point.y - elementInteraction.startY;
+        const original = elementInteraction.original;
+
+        if (elementInteraction.mode === 'move') {
+            element.x = snapElementPosition(original.x + dx, 8);
+            element.y = snapElementPosition(original.y + dy, 40);
+        } else {
+            let left = original.x;
+            let top = original.y;
+            let right = original.x + original.width;
+            let bottom = original.y + original.height;
+            const handle = elementInteraction.handle;
+            if (handle.includes('w')) left = snapElementPosition(original.x + dx, 8);
+            if (handle.includes('e')) right = snapElementPosition(original.x + original.width + dx, 8);
+            if (handle.includes('n')) top = snapElementPosition(original.y + dy, 40);
+            if (handle.includes('s')) bottom = snapElementPosition(original.y + original.height + dy, 40);
+
+            const typeInfo = elementTypeInfo(element.type);
+            const minW = Number(typeInfo.minWidth || 20);
+            const minH = Number(typeInfo.minHeight || 20);
+            if (right - left < minW) {
+                if (handle.includes('w')) left = right - minW;
+                else right = left + minW;
+            }
+            if (bottom - top < minH) {
+                if (handle.includes('n')) top = bottom - minH;
+                else bottom = top + minH;
+            }
+
+            element.x = left;
+            element.y = top;
+            element.width = right - left;
+            element.height = bottom - top;
+        }
+
+        normalizeElement(widget, element);
+        renderCustomElements(widget);
+        const save = document.getElementById('layoutSaveButton');
+        if (save) save.disabled = invalidIds().size > 0 ||
+            draft.some(item => item.type === 'custom' && customWidgetHasErrors(item));
+    }
+
+    function endElementInteraction(event) {
+        if (!elementInteraction || event.pointerId !== elementInteraction.pointerId) return;
+        elementInteraction = null;
+        renderDraft();
+    }
+
     function draftFromApi(state) {
         if (state.customized && state.widgets?.length) {
             return clone(state.widgets);
@@ -526,8 +1169,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         normalizeWidget(widget);
         draft.push(widget);
         selectedId = id;
+        selectedElementId = 'text-1';
         renderDraft();
-        editorMessage('Vlastní widget přidán do návrhu. Vnitřní prvky budeme upravovat v dalším kroku.');
+        editorMessage('Vlastní widget přidán. Obsah můžeš upravit v editoru pod náhledem.');
     }
 
     async function loadLayoutEditor() {
@@ -539,6 +1183,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             apiState = state;
             draft = draftFromApi(state);
             selectedId = draft.find(w => w.visible)?.id || '';
+            selectedElementId = '';
             renderDraft();
             editorMessage(state.customized ? 'Načten vlastní Home layout.' : 'Načtena výchozí automatická šablona.', 'ok');
         } catch (error) {
@@ -668,6 +1313,49 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <div class="status-item"><div class="status-label">Výška</div><div class="status-value" id="layoutInspectH">—</div></div>
                 </div>
             </div>
+
+            <div class="custom-editor-panel" id="customEditorPanel" hidden>
+                <div class="custom-editor-head">
+                    <div class="custom-editor-head-left">
+                        <div>
+                            <div class="card-title">Obsah vlastního widgetu</div>
+                            <div class="field-help">Prvky mají relativní souřadnice uvnitř vybrané karty a používají stejnou mřížku/magnetismus.</div>
+                        </div>
+                        <div class="field">
+                            <label for="customWidgetTitleInput">Název karty</label>
+                            <input id="customWidgetTitleInput" maxlength="40">
+                        </div>
+                        <div class="status-item" style="min-width:120px">
+                            <div class="status-label">Velikost karty</div>
+                            <div class="status-value" id="customWidgetDimensions">—</div>
+                        </div>
+                    </div>
+                    <div class="custom-editor-actions">
+                        <button class="btn btn-secondary" type="button" data-add-element="text">＋ Text</button>
+                        <button class="btn btn-secondary" type="button" data-add-element="kpi">＋ KPI</button>
+                        <button class="btn btn-secondary" type="button" data-add-element="progress">＋ Progress</button>
+                        <button class="btn btn-secondary" type="button" data-add-element="sparkline">＋ Graf</button>
+                    </div>
+                </div>
+
+                <div class="custom-widget-stage-wrap">
+                    <div class="custom-widget-stage" id="customWidgetStage">
+                        <div class="custom-widget-header-zone" id="customWidgetHeaderZone">
+                            <div class="custom-widget-header-title" id="customWidgetHeaderTitle"></div>
+                        </div>
+                        <div class="custom-element-grid" id="customElementGrid"></div>
+                        <div id="customElementLayer"></div>
+                    </div>
+                </div>
+
+                <div class="custom-editor-lower">
+                    <div>
+                        <div class="custom-element-list" id="customElementList"></div>
+                        <div class="custom-editor-note" id="customEditorNote"></div>
+                    </div>
+                    <div class="custom-element-form" id="customElementForm"></div>
+                </div>
+            </div>
         `;
         target.appendChild(card);
 
@@ -685,6 +1373,15 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             updateGrid();
         });
         document.getElementById('layoutAddCustomButton').addEventListener('click', addCustomWidget);
+        document.querySelectorAll('[data-add-element]').forEach(button => {
+            button.addEventListener('click', () => addCustomElement(button.dataset.addElement));
+        });
+        document.getElementById('customWidgetTitleInput').addEventListener('change', event => {
+            const widget = byId(selectedId);
+            if (!widget || widget.type !== 'custom') return;
+            widget.title = event.target.value.trim();
+            renderDraft();
+        });
         document.getElementById('layoutShowHomeButton').addEventListener('click', async () => {
             editorMessage('Přepínám displej na Home…');
             try {
@@ -707,7 +1404,16 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         stage.addEventListener('pointerup', endInteraction);
         stage.addEventListener('pointercancel', endInteraction);
 
-        stageObserver = new ResizeObserver(updateGrid);
+        const customStage = document.getElementById('customWidgetStage');
+        customStage.addEventListener('pointermove', moveElementInteraction);
+        customStage.addEventListener('pointerup', endElementInteraction);
+        customStage.addEventListener('pointercancel', endElementInteraction);
+
+        stageObserver = new ResizeObserver(() => {
+            updateGrid();
+            const widget = byId(selectedId);
+            if (widget?.type === 'custom') renderCustomElements(widget);
+        });
         stageObserver.observe(stage);
 
         loadLayoutEditor().then(() => {
