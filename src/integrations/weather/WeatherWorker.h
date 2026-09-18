@@ -16,7 +16,7 @@ public:
     bool takeLatest(WeatherData& weatherData);
 
 private:
-    static constexpr uint32_t TaskStackBytes = 8192;
+    static constexpr uint32_t TaskStackBytes = 12288;
     static constexpr UBaseType_t TaskPriority = 1;
     static constexpr uint32_t BackgroundFetchGapMs = 3000;
 
