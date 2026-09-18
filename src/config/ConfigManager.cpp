@@ -342,7 +342,7 @@ bool ConfigManager::setUserConfiguration(const AppConfig& config) {
     preferences.putUInt("wx_interval", normalizedWeather.pollIntervalSeconds);
     saveWeatherLocations(preferences, normalizedWeather);
     preferences.end();
-    _config.system = config.system; _config.wifi = config.wifi; _config.goodwe = config.goodwe; _config.azrouter = config.azrouter; _config.weather = normalizedWeather;
+    _config.system = config.system; _config.wifi = config.wifi; _config.goodwe = config.goodwe; _config.azrouter = config.azrouter; _config.pool = config.pool; _config.weather = normalizedWeather;
     rememberWifi(config.wifi.ssid, config.wifi.password, true);
     Serial.println("[CONFIG] YAML konfigurace importovana do NVS.");
     return true;
