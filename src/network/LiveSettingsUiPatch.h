@@ -84,8 +84,7 @@ static const char LIVE_SETTINGS_UI_PATCH[] PROGMEM = R"livepatch(
     const saveForms = [
         ['form[onsubmit^="saveSystem"]', 'Uložit systém'],
         ['form[onsubmit^="saveWifi"]', 'Uložit Wi-Fi'],
-        ['form[onsubmit^="saveSources"]', 'Uložit fotovoltaiku'],
-        ['form[onsubmit^="saveWeather"]', 'Uložit počasí']
+        ['form[onsubmit^="saveSources"]', 'Uložit fotovoltaiku']
     ];
 
     saveForms.forEach(([selector, label]) => {
@@ -105,8 +104,7 @@ static const char LIVE_SETTINGS_UI_PATCH[] PROGMEM = R"livepatch(
         const replacements = new Map([
             ['Systém uložen, zařízení se restartuje', 'Systém uložen a použit'],
             ['Wi-Fi uložena, zařízení se restartuje', 'Wi-Fi uložena, přepojuji síť…'],
-            ['Zdroje uloženy, zařízení se restartuje', 'Fotovoltaika uložena a použita'],
-            ['Počasí uloženo, zařízení se restartuje', 'Počasí uloženo a použito']
+            ['Zdroje uloženy, zařízení se restartuje', 'Fotovoltaika uložena a použita']
         ]);
         window.showToast = function(message) {
             baseShowToast(replacements.get(message) || message);
