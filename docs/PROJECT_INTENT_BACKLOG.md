@@ -120,15 +120,17 @@ ekvivalent ve WebUI.
 
 Navigace rozlišuje dvě oblasti:
 
-- **Sidebar** — výchozí stav. `UP/DOWN` prochází položky, `OK` aktivuje a načte
-  vybranou stránku, `LEFT` se ignoruje a `RIGHT` vstoupí do právě zobrazené stránky.
+- **Sidebar** — výchozí stav. `UP/DOWN` prochází položky. `OK` aktivuje/načte
+  vybranou stránku a rovnou vstoupí do její navigace: u běžné stránky přímo na
+  prvky, u vícepodstránkové stránky do pageru. `LEFT` se v sidebaru ignoruje;
+  `RIGHT` zůstává alternativou pro vstup do už zobrazené stránky.
 - **Page bez podstránek** — `UP/DOWN/LEFT/RIGHT` se pohybuje mezi
   focusovatelnými prvky. `LEFT` bez dalšího prvku vlevo vrátí focus do sidebaru.
-- **Page s více podstránkami** — po `RIGHT` ze sidebaru se nejdřív vstoupí do
-  obecné pager vrstvy. `LEFT/RIGHT` přepíná podstránky, `UP` se z libovolné
-  podstránky vrátí do sidebaru a `OK` teprve vstoupí do navigace prvků aktuální
-  podstránky. `LEFT` z prvku bez souseda vlevo vrací focus z prvků zpět do pageru.
-  Na první podstránce zůstává `LEFT` také možností návratu do sidebaru.
+- **Page s více podstránkami** — po vstupu ze sidebaru se nejdřív použije obecná
+  pager vrstva. `LEFT/RIGHT` přepíná podstránky a `OK` teprve vstoupí do
+  navigace prvků aktuální podstránky. `LEFT` z prvku bez souseda vlevo vrací
+  focus z prvků zpět do pageru; z první podstránky vrací další `LEFT` do sidebaru.
+  `UP/DOWN` v pageru nejsou pro návrat použity.
 - `OK` nad konkrétním prvkem je zatím rezervované pro budoucí práci s prvkem,
   editaci nebo potvrzení.
 
@@ -151,7 +153,9 @@ platné konfigurace stránky bez změny firmware nebo ručně psaného grafu vaz
 Pager je obecná vlastnost `IScreen`, nikoli speciální logika Počasí. Weather
 ji používá pro jednu podstránku na každou nakonfigurovanou lokalitu. Při více
 lokalitách se dole na e-inku zobrazí řada teček; vyplněná tečka označuje právě
-zobrazenou lokalitu. Pořadí lokalit lze měnit přímo v rozbalovacím seznamu
+zobrazenou lokalitu. Když je focus v pageru, levá karta navíc v titulku zobrazuje
+`MÍSTO: <název lokality>`, aby bylo jednoznačné, kterou podstránku uživatel právě
+volí. Pořadí lokalit lze měnit přímo v rozbalovacím seznamu
 **Nastavení → Počasí → Lokalita** a stejné pořadí určuje pořadí podstránek a
 teček na displeji. Přepnutí pageru nemění persistentní `activeLocationId`,
 takže Home dál používá uživatelem zvolenou aktivní lokalitu.
