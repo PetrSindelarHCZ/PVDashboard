@@ -29,8 +29,7 @@ pro budoucí joystick a dynamické zobrazování modulů podle konfigurace.
 
 Počasí načítá samostatná FreeRTOS úloha a při nedostupnosti API se na displeji
 nezobrazují náhradní čísla. Hodnoty vnitřních čidel a bazénu jsou zatím
-demonstrační a firmware i WebUI je tak označují. Podrobnosti poskytovatelů
-a další postup pro ČHMÚ jsou v [WEATHER_PROVIDERS.md](docs/WEATHER_PROVIDERS.md).
+demonstrační a firmware i WebUI je tak označují. Podrobnosti datových zdrojů jsou v [INTEGRATIONS.md](docs/INTEGRATIONS.md).
 
 ## Sestavení a nahrání
 
@@ -119,20 +118,15 @@ URL a SHA-256 získané přímo z GitHub release, ověří celý obraz a potom s
 
 ## Dokumentace
 
-- [Aktuální stav: hotovo / částečně / plán](docs/PROJECT_STATUS.md)
-- [Aktuální specifikace](docs/PV_DASHBOARD_SPEC.md)
-- [Architektura a datové toky](docs/ARCHITECTURE.md)
-- [Panel a refresh strategie](docs/DISPLAY.md)
-- [GoodWe a AZRouter](docs/FVE_INTEGRATION_HANDOFF.md)
-- [Měření odezvy](docs/PERFORMANCE.md)
-- [Další postup](docs/ROADMAP.md)
-- [Zachycené projektové záměry a neimplementované funkce](docs/PROJECT_INTENT_BACKLOG.md)
-- [Audit starých Dashboard chatů před ručním mazáním](docs/CHAT_CLEANUP_AUDIT_2026-09-18.md)
+- [Aktuální stav projektu](docs/PROJECT_STATUS.md)
+- [Architektura a provozní principy](docs/ARCHITECTURE.md)
+- [Displej a refresh strategie](docs/DISPLAY.md)
+- [GoodWe, AZRouter a počasí](docs/INTEGRATIONS.md)
+- [Testování a diagnostika](docs/TESTING.md)
+- [Roadmapa](docs/ROADMAP.md)
 
-Výsledky měření z 14. 9. 2026 jsou historické snímky konkrétních testů:
-
-- [měření s nedostupnými zdroji](docs/PERFORMANCE_RESULTS_2026-09-14.md),
-- [měření s funkčními simulacemi](docs/PERFORMANCE_SOURCES_ONLINE_2026-09-14.md).
+Starší specifikace, výsledky jednorázových měření a pracovní audity zůstávají
+dostupné v Git historii místo samostatného archivu v aktuálním stromu.
 
 ## Známá omezení
 
