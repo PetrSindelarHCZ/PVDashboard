@@ -180,6 +180,21 @@ String homeLayoutResponseJson(const HomeLayoutConfig& config, const DataModel& d
         item["minHeight"] = HomeLayout::elementMinHeight(type);
     }
 
+    JsonArray fontSizes = custom["fontSizes"].to<JsonArray>();
+    fontSizes.add("auto");
+    fontSizes.add("small");
+    fontSizes.add("normal");
+    fontSizes.add("large");
+
+    JsonArray alignments = custom["alignments"].to<JsonArray>();
+    alignments.add("left");
+    alignments.add("center");
+    alignments.add("right");
+
+    JsonArray graphStyles = custom["graphStyles"].to<JsonArray>();
+    graphStyles.add("line");
+    graphStyles.add("bars");
+
     JsonArray sources = custom["dataSources"].to<JsonArray>();
     auto addSource = [&sources](const char* id, const char* label, const char* unit,
                                 uint8_t decimals, bool history) {
