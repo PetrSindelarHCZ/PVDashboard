@@ -31,6 +31,6 @@ private:
 
     static void taskEntry(void* parameter);
     void taskLoop();
-    void publish(const WeatherData& weatherData);
+    void publish(const WeatherData& weatherData, uint32_t generation);
     IWeatherProvider* providerFor(const String& providerName);
 };
