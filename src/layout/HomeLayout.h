@@ -417,6 +417,30 @@ inline void buildDefault(const DataModel& dm, ScreenLayout& layout) {
     }
 }
 
+inline bool buildDefaultWidget(const DataModel& dm, const String& id,
+                              HomeLayoutWidgetConfig& result) {
+    ScreenLayout layout;
+    buildDefault(dm, layout);
+    for (uint8_t i = 0; i < layout.count(); ++i) {
+        const LayoutWidget& widget = layout[i];
+        if (id != widget.id) continue;
+
+        result = HomeLayoutWidgetConfig();
+        result.id = widget.id;
+        result.type = typeName(widget.type);
+        result.visible = true;
+        result.x = widget.x;
+        result.y = widget.y;
+        result.width = widget.width;
+        result.height = widget.height;
+        result.showFrame = true;
+        result.background = "white";
+        result.inverseText = false;
+        return true;
+    }
+    return false;
+}
+
 inline void buildResolved(const HomeLayoutConfig& config, const DataModel& dm, ScreenLayout& layout) {
     if (!config.customized) {
         buildDefault(dm, layout);
