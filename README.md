@@ -16,8 +16,9 @@ paměťově úsporný náhled e-paperu ve WebUI, diagnostiku výkonu a sjednocen
 - NTP s časovou zónou pro Českou republiku,
 - recovery AP **Dashboard-Setup**, pokud není nastavené SSID nebo se zařízení nepřipojí k uložené Wi-Fi,
 - měření dob hlavní smyčky, HTTP, integrací a e-paper refreshů,
-- živé počasí z Open-Meteo nebo MET Norway pro zvolené souřadnice,
-  čtyřdenní předpověď, hodinový přehled pro vybraný den a vyhledání místa ve WebUI,
+- živé počasí z Open-Meteo nebo MET Norway pro více uložených lokalit,
+  čtyřdenní předpověď, hodinový přehled pro vybraný den, pager lokalit na e-inku
+  a vyhledání místa ve WebUI,
 - ověřené HTTPS pro oba poskytovatele a respektování serverové cache MET Norway.
 
 Počasí načítá samostatná FreeRTOS úloha a při nedostupnosti API se na displeji
