@@ -10,6 +10,7 @@ constexpr uint32_t RequiredMaskV1 = (1UL << 20) - 1;
 constexpr uint32_t RequiredMaskV2 = (1UL << 21) - 1;
 constexpr uint32_t RequiredMaskV3 = (1UL << 27) - 1;
 constexpr uint32_t RequiredMaskV4 = (1UL << 29) - 1;
+constexpr uint32_t RequiredMaskV5 = (1UL << 30) - 1;
 
 String quoteYaml(const String& value) {
     String output = "\"";
@@ -174,7 +175,7 @@ bool parseWeatherLocations(const String& json, WeatherConfig& weather) {
 String exportConfigurationYaml(const AppConfig& c) {
     String y;
     y.reserve(3072);
-    y += "format: \"pvdashboard-config\"\nversion: 4\n";
+    y += "format: \"pvdashboard-config\"\nversion: 5\n";
     y += "system:\n  hostname: " + quoteYaml(c.system.hostname) + "\n";
     y += "  ntp_server: " + quoteYaml(c.system.ntpServer) + "\n";
     y += "  timezone: " + quoteYaml(c.system.timezone) + "\n";
@@ -193,6 +194,7 @@ String exportConfigurationYaml(const AppConfig& c) {
     y += "azrouter:\n  enabled: " + String(c.azrouter.enabled ? "true" : "false") + "\n";
     y += "  host: " + quoteYaml(c.azrouter.host) + "\n  port: " + String(c.azrouter.port) + "\n";
     y += "  interval_seconds: " + String(c.azrouter.pollIntervalSeconds) + "\n";
+    y += "pool:\n  enabled: " + String(c.pool.enabled ? "true" : "false") + "\n";
     y += "weather:\n  enabled: " + String(c.weather.enabled ? "true" : "false") + "\n";
     y += "  provider: " + quoteYaml(c.weather.provider) + "\n";
     y += "  latitude: " + String(c.weather.latitude, 6) + "\n  longitude: " + String(c.weather.longitude, 6) + "\n";
@@ -232,7 +234,7 @@ bool importConfigurationYaml(const String& yaml, AppConfig& config, String& erro
         String text; bool flag = false; long number = 0; double decimal = 0;
         bool ok = true; uint8_t bit = 0;
         if (path == "format") { ok = parseString(scalar, text) && text == "pvdashboard-config"; bit = 0; }
-        else if (path == "version") { ok = parseLong(scalar, number) && (number >= 1 && number <= 4); configVersion = number; bit = 1; }
+        else if (path == "version") { ok = parseLong(scalar, number) && (number >= 1 && number <= 5); configVersion = number; bit = 1; }
         else if (path == "system.hostname") { ok = parseString(scalar, parsed.system.hostname); bit = 2; }
         else if (path == "system.ntp_server") { ok = parseString(scalar, parsed.system.ntpServer); bit = 3; }
         else if (path == "system.timezone") { ok = parseString(scalar, parsed.system.timezone); bit = 4; }
@@ -260,14 +262,16 @@ bool importConfigurationYaml(const String& yaml, AppConfig& config, String& erro
         else if (path == "wifi.dns2") { ok = parseString(scalar, parsed.wifi.dns2); bit = 26; }
         else if (path == "weather.active_location_id") { ok = parseString(scalar, parsed.weather.activeLocationId); bit = 27; }
         else if (path == "weather.locations_json") { ok = parseString(scalar, text) && parseWeatherLocations(text, parsed.weather); bit = 28; }
+        else if (path == "pool.enabled") { ok = parseBool(scalar, parsed.pool.enabled); bit = 29; }
         else { error = "Unknown setting at line " + String(lineNumber); return false; }
         if (!ok || (seen & (1UL << bit))) { error = "Invalid or duplicate setting at line " + String(lineNumber); return false; }
         seen |= 1UL << bit;
     }
 
-    const uint32_t requiredMask = configVersion == 4 ? RequiredMaskV4 :
+    const uint32_t requiredMask = configVersion == 5 ? RequiredMaskV5 :
+                                  (configVersion == 4 ? RequiredMaskV4 :
                                   (configVersion == 3 ? RequiredMaskV3 :
-                                  (configVersion == 2 ? RequiredMaskV2 : RequiredMaskV1));
+                                  (configVersion == 2 ? RequiredMaskV2 : RequiredMaskV1)));
     if (configVersion == 1 && !(seen & (1UL << 20))) parsed.system.timezoneId = inferTimezoneId(parsed.system.timezone);
     if (configVersion < 3) {
         parsed.wifi.dhcp = true;
@@ -289,6 +293,11 @@ bool importConfigurationYaml(const String& yaml, AppConfig& config, String& erro
         parsed.weather.locations[0].latitude = parsed.weather.latitude;
         parsed.weather.locations[0].longitude = parsed.weather.longitude;
         parsed.weather.activeLocationId = parsed.weather.locations[0].id;
+    }
+
+    if (configVersion < 5) {
+        // Starší zálohy vznikly v době, kdy byla obrazovka Bazén vždy viditelná.
+        parsed.pool.enabled = true;
     }
 
     bool activeLocationValid = false;
