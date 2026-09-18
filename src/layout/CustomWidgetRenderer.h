@@ -1,0 +1,187 @@
+#pragma once
+
+#include <Arduino.h>
+#include <math.h>
+#include "../config/ConfigSchema.h"
+#include "../data/DataModel.h"
+#include "../display/IDisplay.h"
+#include "../screens/ScreenStyle.h"
+
+namespace CustomWidgetRenderer {
+
+inline bool resolveValue(const DataModel& dm, const String& source, float& value) {
+    if (source.startsWith("solar.")) {
+        if (!dm.solar.enabled || !dm.solar.status.available) return false;
+        if (source == "solar.productionPowerW") value = dm.solar.productionPowerW;
+        else if (source == "solar.houseConsumptionW") value = dm.solar.houseConsumptionW;
+        else if (source == "solar.gridPowerW") value = dm.solar.gridPowerW;
+        else if (source == "solar.energyTodayKWh") value = dm.solar.energyTodayKWh;
+        else if (source == "solar.batterySocPercent") value = dm.solar.batterySocPercent;
+        else if (source == "solar.batteryPowerW") value = dm.solar.batteryPowerW;
+        else return false;
+        return true;
+    }
+
+    if (source.startsWith("azrouter.")) {
+        if (!dm.azrouter.enabled || !dm.azrouter.status.available) return false;
+        if (source == "azrouter.gridPowerW") value = dm.azrouter.gridPowerW;
+        else if (source == "azrouter.routedPowerW") value = dm.azrouter.routedPowerW;
+        else if (source == "azrouter.routedEnergyTodayKWh") value = dm.azrouter.routedEnergyTodayKWh;
+        else if (source == "azrouter.boilerTempC") value = dm.azrouter.boilerTempC;
+        else return false;
+        return true;
+    }
+
+    if (source.startsWith("weather.")) {
+        if (!dm.weather.enabled || !dm.weather.status.available) return false;
+        if (source == "weather.outdoorTempC") value = dm.weather.outdoorTempC;
+        else if (source == "weather.outdoorHumidityPercent") value = dm.weather.outdoorHumidityPercent;
+        else if (source == "weather.surfacePressureHpa") value = dm.weather.surfacePressureHpa;
+        else if (source == "weather.windSpeedKmh") value = dm.weather.windSpeedKmh;
+        else return false;
+        return true;
+    }
+
+    if (source == "inside.livingRoomTempC") value = dm.inside.livingRoomTempC;
+    else if (source == "inside.bedroomTempC") value = dm.inside.bedroomTempC;
+    else if (source == "inside.poolTempC") value = dm.inside.poolTempC;
+    else if (source.startsWith("pool.")) {
+        if (!dm.pool.enabled) return false;
+        if (source == "pool.waterTempC") value = dm.pool.waterTempC;
+        else if (source == "pool.targetTempC") value = dm.pool.targetTempC;
+        else if (source == "pool.ph") value = dm.pool.ph;
+        else if (source == "pool.freeChlorineMgL") value = dm.pool.freeChlorineMgL;
+        else if (source == "pool.airTempC") value = dm.pool.airTempC;
+        else if (source == "pool.airHumidityPercent") value = dm.pool.airHumidityPercent;
+        else return false;
+    } else if (source == "system.wifiRssi") value = dm.system.wifiRssi;
+    else if (source == "system.uptimeSeconds") value = dm.system.uptimeSeconds;
+    else return false;
+
+    return true;
+}
+
+inline String formatValue(float value, uint8_t decimals, const String& unit) {
+    String text(value, decimals);
+    if (!unit.isEmpty()) {
+        text += " ";
+        text += unit;
+    }
+    return text;
+}
+
+inline void drawText(IDisplay& display, int16_t x, int16_t y,
+                     const CustomWidgetElementConfig& element) {
+    ScreenStyle::useBody(display);
+    display.setCursor(x, y + 18);
+    display.print(element.text);
+}
+
+inline void drawKpi(IDisplay& display, const DataModel& dm, int16_t x, int16_t y,
+                    const CustomWidgetElementConfig& element) {
+    if (!element.label.isEmpty()) {
+        ScreenStyle::useBody(display);
+        display.setCursor(x, y + 16);
+        display.print(element.label);
+    }
+
+    float value = 0.0f;
+    const bool available = resolveValue(dm, element.source, value);
+    ScreenStyle::useValue(display);
+    display.setCursor(x, y + 43);
+    display.print(available ? formatValue(value, element.decimals, element.unit) : String("--"));
+}
+
+inline void drawProgress(IDisplay& display, const DataModel& dm, int16_t x, int16_t y,
+                         const CustomWidgetElementConfig& element) {
+    float value = 0.0f;
+    const bool available = resolveValue(dm, element.source, value);
+
+    ScreenStyle::useBody(display);
+    display.setCursor(x, y + 15);
+    if (!element.label.isEmpty()) {
+        display.print(element.label);
+    } else {
+        display.print(element.source);
+    }
+
+    const int16_t barY = y + 21;
+    const int16_t barH = max<int16_t>(10, min<int16_t>(18, element.height - 22));
+    display.drawRect(x, barY, element.width, barH, 0);
+
+    if (!available) return;
+
+    float ratio = (value - element.minValue) / (element.maxValue - element.minValue);
+    ratio = max(0.0f, min(1.0f, ratio));
+    const int16_t fillWidth = static_cast<int16_t>((element.width - 4) * ratio);
+    if (fillWidth > 0) display.fillRect(x + 2, barY + 2, fillWidth, barH - 4, 0);
+}
+
+inline bool historyValue(const SolarHistorySample& sample, const String& source, float& value) {
+    if (source == "solar.productionPowerW") value = sample.productionPowerW;
+    else if (source == "solar.houseConsumptionW") value = sample.houseConsumptionW;
+    else return false;
+    return true;
+}
+
+inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int16_t y,
+                          const CustomWidgetElementConfig& element) {
+    if (!element.label.isEmpty()) {
+        ScreenStyle::useBody(display);
+        display.setCursor(x, y + 15);
+        display.print(element.label);
+    }
+
+    const int16_t graphY = y + 20;
+    const int16_t graphH = max<int16_t>(20, element.height - 22);
+    display.drawRect(x, graphY, element.width, graphH, 0);
+
+    const uint8_t count = dm.solar.historyCount;
+    if (count < 2) return;
+
+    float maxValue = 1.0f;
+    for (uint8_t i = 0; i < count; ++i) {
+        float value = 0.0f;
+        if (!historyValue(dm.solar.history[i], element.source, value)) return;
+        if (value > maxValue) maxValue = value;
+    }
+
+    const int16_t left = x + 2;
+    const int16_t top = graphY + 2;
+    const int16_t plotW = max<int16_t>(1, element.width - 4);
+    const int16_t plotH = max<int16_t>(1, graphH - 4);
+
+    int16_t previousX = left;
+    int16_t previousY = top + plotH - 1;
+    bool previousValid = false;
+
+    for (uint8_t i = 0; i < count; ++i) {
+        float value = 0.0f;
+        if (!historyValue(dm.solar.history[i], element.source, value)) return;
+        const int16_t px = left + static_cast<int16_t>((static_cast<uint32_t>(i) * (plotW - 1)) / (count - 1));
+        const float normalized = max(0.0f, min(1.0f, value / maxValue));
+        const int16_t py = top + plotH - 1 - static_cast<int16_t>(normalized * (plotH - 1));
+        if (previousValid) display.drawLine(previousX, previousY, px, py, 0);
+        previousX = px;
+        previousY = py;
+        previousValid = true;
+    }
+}
+
+inline void draw(IDisplay& display, const DataModel& dm, const HomeLayoutWidgetConfig& widget) {
+    ScreenStyle::drawCard(display, widget.x, widget.y, widget.width, widget.height,
+                          widget.title.isEmpty() ? "VLASTNÍ" : widget.title.c_str());
+
+    for (uint8_t i = 0; i < widget.elementCount && i < MaxCustomWidgetElements; ++i) {
+        const CustomWidgetElementConfig& element = widget.elements[i];
+        const int16_t x = widget.x + element.x;
+        const int16_t y = widget.y + element.y;
+
+        if (element.type == "text") drawText(display, x, y, element);
+        else if (element.type == "kpi") drawKpi(display, dm, x, y, element);
+        else if (element.type == "progress") drawProgress(display, dm, x, y, element);
+        else if (element.type == "sparkline") drawSparkline(display, dm, x, y, element);
+    }
+}
+
+} // namespace CustomWidgetRenderer
