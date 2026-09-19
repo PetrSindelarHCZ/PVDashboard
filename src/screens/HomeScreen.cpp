@@ -151,6 +151,7 @@ void drawIndoorCard(IDisplay& display, const DataModel& dm, const LayoutWidget& 
     const int16_t x = widget.x;
     const int16_t y = widget.y;
     const int16_t w = widget.width;
+    const int16_t h = widget.height;
 
     const uint16_t color = cardTextColor(style);
     drawHomeCardBackground(display, widget, style, "UVNITŘ");
@@ -176,7 +177,7 @@ void drawIndoorCard(IDisplay& display, const DataModel& dm, const LayoutWidget& 
 
         display.setCursor(valueX, pressureY);
         if (dm.inside.status.available) {
-            display.printf("Tlak: %.1f hPa", dm.inside.pressureHpa);
+            display.printf("Tlak: %.0f hPa", dm.inside.pressureHpa);
         } else {
             display.print("Tlak: ---- hPa");
         }
@@ -218,19 +219,21 @@ void drawIndoorCard(IDisplay& display, const DataModel& dm, const LayoutWidget& 
     drawBmeTemperature(valueX, y + 87);
     drawBmeDetails(valueX, y + 132, y + 167);
 
-    ScreenStyle::useBody(display, color);
-    display.setCursor(valueX, y + 222);
-    display.print("Ložnice");
-    ScreenStyle::useValue(display, color);
-    display.setCursor(valueX, y + 247);
-    display.printf("%.1f °C", dm.inside.bedroomTempC);
-
-    if (dm.pool.enabled) {
+    if (h >= 250) {
         ScreenStyle::useBody(display, color);
-        display.setCursor(valueX, y + 302);
+        display.setCursor(valueX, y + 205);
+        display.print("Ložnice");
+        ScreenStyle::useValue(display, color);
+        display.setCursor(valueX, y + 230);
+        display.printf("%.1f °C", dm.inside.bedroomTempC);
+    }
+
+    if (dm.pool.enabled && h >= 350) {
+        ScreenStyle::useBody(display, color);
+        display.setCursor(valueX, y + 285);
         display.print("Bazén");
         ScreenStyle::useValue(display, color);
-        display.setCursor(valueX, y + 327);
+        display.setCursor(valueX, y + 310);
         display.printf("%.1f °C", dm.inside.poolTempC);
     }
 }
