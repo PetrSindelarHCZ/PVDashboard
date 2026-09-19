@@ -35,6 +35,7 @@ inline bool knownDataSource(const String& source) {
         "azrouter.routedPowerW",
         "azrouter.routedEnergyTodayKWh",
         "azrouter.boilerTempC",
+        "azrouter.systemTempC",
         "weather.outdoorTempC",
         "weather.outdoorHumidityPercent",
         "weather.surfacePressureHpa",
