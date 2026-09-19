@@ -159,10 +159,12 @@ void EpaperDisplay::beginFrame(bool partial) {
 void EpaperDisplay::beginPartialFrame(int16_t x, int16_t y, int16_t w, int16_t h) {
     _isPartial = true;
 
-    const int16_t clippedX = max<int16_t>(0, x);
-    const int16_t clippedY = max<int16_t>(0, y);
-    const int16_t right = min<int16_t>(_epd.width(), x + w);
-    const int16_t bottom = min<int16_t>(_epd.height(), y + h);
+    const int16_t clippedX = x < 0 ? 0 : x;
+    const int16_t clippedY = y < 0 ? 0 : y;
+    const int16_t requestedRight = x + w;
+    const int16_t requestedBottom = y + h;
+    const int16_t right = requestedRight > _epd.width() ? _epd.width() : requestedRight;
+    const int16_t bottom = requestedBottom > _epd.height() ? _epd.height() : requestedBottom;
     const int16_t clippedW = right - clippedX;
     const int16_t clippedH = bottom - clippedY;
 
