@@ -236,7 +236,7 @@ void DashboardApp::setup() {
         // slightly so several quick moves collapse into one render of the
         // final focus. WebUI keeps the original near-immediate response.
         const unsigned long delayMs = _handlingPhysicalNavigation ? 250UL : 50UL;
-        requestDisplayRefresh(fullRefresh, delayMs);
+        requestNavigationDisplayRefresh(fullRefresh, delayMs);
     });
 
     _webServer.onScreenChange([this](const String& screenId) { onScreenSwitchRequested(screenId); });
@@ -544,7 +544,19 @@ void DashboardApp::requestDisplayRefresh(bool full, unsigned long delayMs) {
     _pendingRefresh = true;
     _pendingFullRefresh = _pendingFullRefresh || full;
     const unsigned long requestedAt = millis() + delayMs;
-    if (_displayRefreshNotBefore == 0 || static_cast<long>(requestedAt - _displayRefreshNotBefore) > 0) _displayRefreshNotBefore = requestedAt;
+    if (_displayRefreshNotBefore == 0 || static_cast<long>(requestedAt - _displayRefreshNotBefore) > 0) {
+        _displayRefreshNotBefore = requestedAt;
+    }
+}
+
+void DashboardApp::requestNavigationDisplayRefresh(bool full, unsigned long delayMs) {
+    _pendingRefresh = true;
+    _pendingFullRefresh = _pendingFullRefresh || full;
+
+    // Navigation is interactive and must outrank a delayed automatic refresh.
+    // Repeated joystick actions intentionally reset this short deadline so a
+    // burst of moves renders only the final focus.
+    _displayRefreshNotBefore = millis() + delayMs;
 }
 
 void DashboardApp::requestAutomaticDisplayRefresh() {
