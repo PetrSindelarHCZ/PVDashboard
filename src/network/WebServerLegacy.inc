@@ -1670,6 +1670,19 @@ void DashboardWebServer::handleApiStatus() {
     JsonObject poolObj = doc["pool"].to<JsonObject>();
     poolObj["enabled"] = _config.pool.enabled;
 
+    JsonObject bme280Obj = doc["bme280"].to<JsonObject>();
+    bme280Obj["available"] = _dataModel.inside.status.available;
+    bme280Obj["temperatureC"] = _dataModel.inside.temperatureC;
+    bme280Obj["humidityPercent"] = _dataModel.inside.humidityPercent;
+    bme280Obj["pressureHpa"] = _dataModel.inside.pressureHpa;
+    bme280Obj["lastError"] = _dataModel.inside.status.lastError;
+    if (_dataModel.inside.status.lastSuccessMs == 0) {
+        bme280Obj["lastUpdateAgeSeconds"] = nullptr;
+    } else {
+        bme280Obj["lastUpdateAgeSeconds"] =
+            (millis() - _dataModel.inside.status.lastSuccessMs) / 1000;
+    }
+
     JsonObject weatherObj = doc["weather"].to<JsonObject>();
     weatherObj["enabled"] = _config.weather.enabled;
     weatherObj["available"] = _dataModel.weather.status.available;
