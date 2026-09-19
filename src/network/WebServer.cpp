@@ -241,6 +241,7 @@ String homeLayoutResponseJson(const HomeLayoutConfig& config, const DataModel& d
     addSource("azrouter.routedPowerW", "AZRouter výkon", "W", 0, false);
     addSource("azrouter.routedEnergyTodayKWh", "AZRouter energie dnes", "kWh", 1, false);
     addSource("azrouter.boilerTempC", "Bojler", "°C", 1, false);
+    addSource("azrouter.systemTempC", "AZRouter jednotka", "°C", 1, false);
     addSource("weather.outdoorTempC", "Venkovní teplota", "°C", 1, false);
     addSource("weather.outdoorHumidityPercent", "Venkovní vlhkost", "%", 0, false);
     addSource("weather.surfacePressureHpa", "Tlak", "hPa", 0, false);
