@@ -1661,16 +1661,16 @@ void DashboardWebServer::handleApiStatus() {
 
     JsonObject azObj = doc["azrouter"].to<JsonObject>();
     azObj["available"] = _dataModel.azrouter.status.available;
-    azObj["routedPowerW"] =
-        _dataModel.azrouter.hasRoutedPower ? _dataModel.azrouter.routedPowerW : nullptr;
-    azObj["routedEnergyTodayKWh"] =
-        _dataModel.azrouter.hasRoutedEnergyToday ? _dataModel.azrouter.routedEnergyTodayKWh : nullptr;
-    azObj["gridPowerW"] =
-        _dataModel.azrouter.hasGridPower ? _dataModel.azrouter.gridPowerW : nullptr;
-    azObj["boilerTempC"] =
-        _dataModel.azrouter.hasBoilerTemp ? _dataModel.azrouter.boilerTempC : nullptr;
-    azObj["systemTempC"] =
-        _dataModel.azrouter.hasSystemTemp ? _dataModel.azrouter.systemTempC : nullptr;
+    if (_dataModel.azrouter.hasRoutedPower) azObj["routedPowerW"] = _dataModel.azrouter.routedPowerW;
+    else azObj["routedPowerW"] = nullptr;
+    if (_dataModel.azrouter.hasRoutedEnergyToday) azObj["routedEnergyTodayKWh"] = _dataModel.azrouter.routedEnergyTodayKWh;
+    else azObj["routedEnergyTodayKWh"] = nullptr;
+    if (_dataModel.azrouter.hasGridPower) azObj["gridPowerW"] = _dataModel.azrouter.gridPowerW;
+    else azObj["gridPowerW"] = nullptr;
+    if (_dataModel.azrouter.hasBoilerTemp) azObj["boilerTempC"] = _dataModel.azrouter.boilerTempC;
+    else azObj["boilerTempC"] = nullptr;
+    if (_dataModel.azrouter.hasSystemTemp) azObj["systemTempC"] = _dataModel.azrouter.systemTempC;
+    else azObj["systemTempC"] = nullptr;
     if (_dataModel.azrouter.status.lastSuccessMs == 0) {
         azObj["lastUpdateAgeSeconds"] = nullptr;
     } else {
