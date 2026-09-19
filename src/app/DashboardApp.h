@@ -91,6 +91,7 @@ private:
     void setPoolScreenEnabled(bool enabled);
     void setWeatherScreensEnabled(bool enabled);
     void requestDisplayRefresh(bool full, unsigned long delayMs = 0);
+    void requestNavigationDisplayRefresh(bool full, unsigned long delayMs);
     void requestAutomaticDisplayRefresh();
     void onScreenSwitchRequested(const String& screenId);
     void onRefreshRequested(bool full);
