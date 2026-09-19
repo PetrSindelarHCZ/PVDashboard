@@ -124,7 +124,8 @@ stále demonstrační; reálný DS18B20/Wi-Fi uzel zatím není připojen.
 
 Firmware má připravenou podporu BME280 přes I²C na GPIO21/GPIO22, automatickou
 detekci adres 0x76/0x77, periodický polling a napojení teploty, vlhkosti a tlaku
-do `InsideData`. Stav a hodnoty jsou dostupné také v `/api/status`.
+do `InsideData`. Teplota, vlhkost a tlak se zobrazují ve standardní Home kartě
+Uvnitř, jsou dostupné vlastním KPI prvkům a také v `/api/status`.
 
 Fyzické zapojení konkrétního 4pinového modulu ještě není na zařízení ověřené,
 proto tato část zůstává částečně hotová. Ložnice a další hodnoty vnitřního
