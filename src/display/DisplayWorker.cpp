@@ -54,7 +54,9 @@ bool DisplayWorker::begin() {
     return true;
 }
 
-bool DisplayWorker::enqueue(IScreen* screen, const DataModel& dataModel, bool full) {
+bool DisplayWorker::enqueue(IScreen* screen, const DataModel& dataModel, bool full,
+                            const DisplayRegion* partialRegion,
+                            bool capturePreview) {
     if (_mutex == nullptr || _task == nullptr || screen == nullptr) {
         return false;
     }
@@ -66,7 +68,33 @@ bool DisplayWorker::enqueue(IScreen* screen, const DataModel& dataModel, bool fu
 
     _pendingData = dataModel;
     _pendingScreen = screen;
-    _pendingFull = _hasPending ? (_pendingFull || full) : full;
+
+    const bool hadPending = _hasPending;
+    _pendingFull = hadPending ? (_pendingFull || full) : full;
+
+    if (_pendingFull || partialRegion == nullptr || !partialRegion->valid()) {
+        _pendingHasRegion = false;
+    } else if (!hadPending || !_pendingHasRegion) {
+        _pendingRegion = *partialRegion;
+        _pendingHasRegion = true;
+    } else {
+        const int16_t x1 = min(_pendingRegion.x, partialRegion->x);
+        const int16_t y1 = min(_pendingRegion.y, partialRegion->y);
+        const int16_t x2 = max(
+            static_cast<int16_t>(_pendingRegion.x + _pendingRegion.width),
+            static_cast<int16_t>(partialRegion->x + partialRegion->width));
+        const int16_t y2 = max(
+            static_cast<int16_t>(_pendingRegion.y + _pendingRegion.height),
+            static_cast<int16_t>(partialRegion->y + partialRegion->height));
+        _pendingRegion.x = x1;
+        _pendingRegion.y = y1;
+        _pendingRegion.width = x2 - x1;
+        _pendingRegion.height = y2 - y1;
+    }
+
+    _pendingCapturePreview =
+        hadPending ? (_pendingCapturePreview || capturePreview) : capturePreview;
+
     _hasPending = true;
     _status.pending = true;
     _status.pendingFull = _pendingFull;
@@ -136,8 +164,14 @@ void DisplayWorker::taskLoop() {
             dataSnapshot = _pendingData;
             IScreen* screen = _pendingScreen;
             const bool full = _pendingFull;
+            const bool hasRegion = _pendingHasRegion && !full;
+            const DisplayRegion region = _pendingRegion;
+            const bool capturePreview = _pendingCapturePreview;
+
             _hasPending = false;
             _pendingFull = false;
+            _pendingHasRegion = false;
+            _pendingCapturePreview = true;
             _status.pending = false;
             _status.pendingFull = false;
             _status.state = full
@@ -158,7 +192,12 @@ void DisplayWorker::taskLoop() {
             }
 
             const uint32_t startedMs = millis();
-            _displayManager.renderScreen(screen, dataSnapshot, full);
+            _displayManager.renderScreen(
+                screen,
+                dataSnapshot,
+                full,
+                hasRegion ? &region : nullptr,
+                capturePreview);
             const uint32_t completedMs = millis();
 
             if (_memoryHeavyGate != nullptr) {
