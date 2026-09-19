@@ -177,8 +177,8 @@ void SolarScreen::render(IDisplay& display, const DataModel& dm) {
             display.print("Dnes: -- kWh");
         display.setCursor(570, 438);
         display.printf("GW %s | AZ %s",
-                       dm.solar.status.available ? "OK" : "OFF",
-                       dm.azrouter.status.available ? "OK" : "OFF");
+                       dm.solar.status.available ? "OK" : "ERR",
+                       dm.azrouter.status.available ? "OK" : "ERR");
     }
 
     NavigationLayout navigationLayout;
