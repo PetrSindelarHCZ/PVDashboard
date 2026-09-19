@@ -10,7 +10,10 @@ public:
     explicit DisplayManager(IDisplay& display, DisplayPreview* preview = nullptr);
 
     void init();
-    void renderScreen(IScreen* screen, const DataModel& dataModel, bool forceFullRefresh = false);
+    void renderScreen(IScreen* screen, const DataModel& dataModel,
+                      bool forceFullRefresh = false,
+                      const DisplayRegion* partialRegion = nullptr,
+                      bool capturePreview = true);
     void requestRefresh(bool full = false);
 
 private:
