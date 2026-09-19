@@ -314,13 +314,15 @@ void DashboardApp::setup() {
         });
 
     _navigationController.onChange([this](bool fullRefresh) {
-        syncWeatherDisplayForActiveScreen(false);
+        if (_handlingPhysicalNavigation) {
+            _physicalNavigationChanged = true;
+            _physicalNavigationFullRefresh =
+                _physicalNavigationFullRefresh || fullRefresh;
+            return;
+        }
 
-        // Physical joystick presses are often clustered. Delay the e-paper
-        // slightly so several quick moves collapse into one render of the
-        // final focus. WebUI keeps the original near-immediate response.
-        const unsigned long delayMs = _handlingPhysicalNavigation ? 250UL : 50UL;
-        requestNavigationDisplayRefresh(fullRefresh, delayMs);
+        syncWeatherDisplayForActiveScreen(false);
+        requestNavigationDisplayRefresh(fullRefresh, 50UL, nullptr, true);
     });
 
     _webServer.onScreenChange([this](const String& screenId) { onScreenSwitchRequested(screenId); });
@@ -627,19 +629,57 @@ void DashboardApp::setWeatherScreensEnabled(bool enabled) {
 void DashboardApp::requestDisplayRefresh(bool full, unsigned long delayMs) {
     _pendingRefresh = true;
     _pendingFullRefresh = _pendingFullRefresh || full;
+
+    // Ordinary data refreshes may modify any part of the screen, so they
+    // intentionally discard a pending cursor-only dirty region.
+    _pendingDisplayRegionValid = false;
+    _pendingCapturePreview = true;
+
     const unsigned long requestedAt = millis() + delayMs;
-    if (_displayRefreshNotBefore == 0 || static_cast<long>(requestedAt - _displayRefreshNotBefore) > 0) {
+    if (_displayRefreshNotBefore == 0 ||
+        static_cast<long>(requestedAt - _displayRefreshNotBefore) > 0) {
         _displayRefreshNotBefore = requestedAt;
     }
 }
 
-void DashboardApp::requestNavigationDisplayRefresh(bool full, unsigned long delayMs) {
+void DashboardApp::requestNavigationDisplayRefresh(
+    bool full,
+    unsigned long delayMs,
+    const DisplayRegion* region,
+    bool capturePreview) {
+
+    const bool hadPending = _pendingRefresh;
     _pendingRefresh = true;
     _pendingFullRefresh = _pendingFullRefresh || full;
 
-    // Navigation is interactive and must outrank a delayed automatic refresh.
-    // Repeated joystick actions intentionally reset this short deadline so a
-    // burst of moves renders only the final focus.
+    if (_pendingFullRefresh) {
+        _pendingDisplayRegionValid = false;
+        _pendingCapturePreview = true;
+    } else if (!hadPending) {
+        if (region != nullptr && region->valid()) {
+            _pendingDisplayRegion = *region;
+            _pendingDisplayRegionValid = true;
+        } else {
+            _pendingDisplayRegionValid = false;
+        }
+        _pendingCapturePreview = capturePreview;
+    } else if (_pendingDisplayRegionValid &&
+               region != nullptr &&
+               region->valid()) {
+        _pendingDisplayRegion =
+            unionDisplayRegions(_pendingDisplayRegion, *region);
+        _pendingCapturePreview =
+            _pendingCapturePreview || capturePreview;
+    } else {
+        // An older pending request already needs the whole screen, or this
+        // navigation action itself needs the whole screen.
+        _pendingDisplayRegionValid = false;
+        _pendingCapturePreview =
+            _pendingCapturePreview || capturePreview;
+    }
+
+    // Navigation is interactive and outranks a delayed automatic refresh.
+    // A short resettable deadline still coalesces contact bounce / rapid taps.
     _displayRefreshNotBefore = millis() + delayMs;
 }
 
@@ -791,9 +831,46 @@ void DashboardApp::loop() {
 
     NavigationAction joystickAction;
     if (_joystick.poll(joystickAction)) {
+        const NavigationState previousNavigation =
+            _navigationController.getState();
+        NavigationLayout previousLayout;
+        if (previousNavigation.area == NavigationArea::Page) {
+            _navigationController.buildCurrentLayout(previousLayout);
+        }
+
+        _physicalNavigationChanged = false;
+        _physicalNavigationFullRefresh = false;
         _handlingPhysicalNavigation = true;
         _navigationController.handleAction(joystickAction);
         _handlingPhysicalNavigation = false;
+
+        if (_physicalNavigationChanged) {
+            const NavigationState currentNavigation =
+                _navigationController.getState();
+            NavigationLayout currentLayout;
+            if (currentNavigation.area == NavigationArea::Page) {
+                _navigationController.buildCurrentLayout(currentLayout);
+            }
+
+            syncWeatherDisplayForActiveScreen(false);
+
+            const DisplayRegion dirtyRegion =
+                navigationDirtyRegion(
+                    previousNavigation,
+                    previousLayout,
+                    currentNavigation,
+                    currentLayout);
+
+            if (_physicalNavigationFullRefresh) {
+                requestNavigationDisplayRefresh(true, 40UL, nullptr, true);
+            } else {
+                requestNavigationDisplayRefresh(
+                    false,
+                    40UL,
+                    dirtyRegion.valid() ? &dirtyRegion : nullptr,
+                    false);
+            }
+        }
     }
 
     const bool displayInitDelayElapsed = static_cast<long>(millis() - _displayInitNotBefore) >= 0;
@@ -877,9 +954,24 @@ void DashboardApp::loop() {
         refreshWeatherDisplayFromCache(true);
     }
 
-    if (displayStatus.ready && _pendingRefresh && static_cast<long>(millis() - _displayRefreshNotBefore) >= 0) {
-        if (_displayWorker.enqueue(_screenManager.getActiveScreen(), _dataModel, _pendingFullRefresh)) {
-            _pendingRefresh = false; _pendingFullRefresh = false; _displayRefreshNotBefore = 0;
+    if (displayStatus.ready &&
+        _pendingRefresh &&
+        static_cast<long>(millis() - _displayRefreshNotBefore) >= 0) {
+
+        const DisplayRegion* region =
+            _pendingDisplayRegionValid ? &_pendingDisplayRegion : nullptr;
+
+        if (_displayWorker.enqueue(
+                _screenManager.getActiveScreen(),
+                _dataModel,
+                _pendingFullRefresh,
+                region,
+                _pendingCapturePreview)) {
+            _pendingRefresh = false;
+            _pendingFullRefresh = false;
+            _pendingDisplayRegionValid = false;
+            _pendingCapturePreview = true;
+            _displayRefreshNotBefore = 0;
         }
     }
 
