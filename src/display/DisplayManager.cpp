@@ -19,7 +19,10 @@ void DisplayManager::requestRefresh(bool full) {
     }
 }
 
-void DisplayManager::renderScreen(IScreen* screen, const DataModel& dataModel, bool forceFullRefresh) {
+void DisplayManager::renderScreen(IScreen* screen, const DataModel& dataModel,
+                                  bool forceFullRefresh,
+                                  const DisplayRegion* partialRegion,
+                                  bool capturePreview) {
     if (!screen) {
         Serial.println("[DISPLAY] ERROR: Zadna obrazovka k vykresleni!");
         return;
@@ -29,9 +32,17 @@ void DisplayManager::renderScreen(IScreen* screen, const DataModel& dataModel, b
 
     Performance::Scope timing(full ? Performance::DisplayFull : Performance::DisplayPartial);
     const unsigned long renderStarted = millis();
-    Serial.printf("[DISPLAY][%lu ms] Vykresluji obrazovku '%s' (Rezim: %s)...\n", millis(),
-                  screen->getId().c_str(), 
-                  full ? "FULL REFRESH" : "PARTIAL REFRESH");
+    if (!full && partialRegion != nullptr && partialRegion->valid()) {
+        Serial.printf(
+            "[DISPLAY][%lu ms] Vykresluji obrazovku '%s' (PARTIAL REGION %d,%d %dx%d)...\n",
+            millis(), screen->getId().c_str(),
+            partialRegion->x, partialRegion->y,
+            partialRegion->width, partialRegion->height);
+    } else {
+        Serial.printf("[DISPLAY][%lu ms] Vykresluji obrazovku '%s' (Rezim: %s)...\n", millis(),
+                      screen->getId().c_str(),
+                      full ? "FULL REFRESH" : "PARTIAL REFRESH");
+    }
 
     if (full) {
         // Older Waveshare 7.5" V2 panels can leave the final image noticeably
@@ -44,6 +55,12 @@ void DisplayManager::renderScreen(IScreen* screen, const DataModel& dataModel, b
         } while (_display.nextFrame());
 
         _display.beginFrame(true);
+    } else if (partialRegion != nullptr && partialRegion->valid()) {
+        _display.beginPartialFrame(
+            partialRegion->x,
+            partialRegion->y,
+            partialRegion->width,
+            partialRegion->height);
     } else {
         _display.beginFrame(true);
     }
@@ -56,6 +73,8 @@ void DisplayManager::renderScreen(IScreen* screen, const DataModel& dataModel, b
     _forceFullRefresh = false;
 
     _display.powerOff();
-    if (_preview != nullptr) _preview->capture(*screen, dataModel, full);
+    if (capturePreview && _preview != nullptr) {
+        _preview->capture(*screen, dataModel, full);
+    }
     Serial.printf("[DISPLAY][%lu ms] Vykresleni dokonceno za %lu ms.\n", millis(), millis() - renderStarted);
 }

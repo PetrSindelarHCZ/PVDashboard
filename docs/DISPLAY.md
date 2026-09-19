@@ -28,6 +28,13 @@ Běžné aktualizace stejné obrazovky používají diferenciální partial refr
 plochy 800 × 480. **Počet partial refreshů sám o sobě full refresh nevyvolává.**
 
 Více požadavků vzniklých krátce po sobě se slučuje a full požadavek má přednost.
+
+Fyzická joysticková navigace má optimalizovanou cestu: při změně focusu se
+předává dirty region starého/nového kurzoru a Sidebar používá pouze levý pruh.
+Přepnutí obrazovky z joysticku používá celoplošný differential partial refresh;
+čistící full refresh zůstává pro start a explicitní požadavky. Mezikroky fyzické
+navigace navíc nepřegenerovávají celý serverový preview snapshot.
+
 Dlouhodobý 24hodinový test ghostingu této politiky zůstává otevřený.
 
 ## DisplayWorker a preview

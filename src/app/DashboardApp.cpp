@@ -1,6 +1,7 @@
 #include "DashboardApp.h"
 #include <math.h>
 #include "../diagnostics/Performance.h"
+#include "../screens/ScreenStyle.h"
 #include "../../include/AppConfig.h"
 #include "../../include/Version.h"
 
@@ -88,6 +89,89 @@ bool weatherDisplayDataChanged(const WeatherData& a, const WeatherData& b) {
            a.hourlyCount != b.hourlyCount;
 }
 
+DisplayRegion expandedNavigationRegion(const NavigationRect& bounds) {
+    constexpr int16_t Margin = 8;
+
+    int16_t x1 = bounds.x - Margin;
+    int16_t y1 = bounds.y - Margin;
+    int16_t x2 = bounds.x + bounds.width + Margin;
+    int16_t y2 = bounds.y + bounds.height + Margin;
+
+    if (x1 < 0) x1 = 0;
+    if (y1 < 0) y1 = 0;
+    if (x2 > ScreenStyle::Width) x2 = ScreenStyle::Width;
+    if (y2 > ScreenStyle::Height) y2 = ScreenStyle::Height;
+
+    DisplayRegion region;
+    region.x = x1;
+    region.y = y1;
+    region.width = x2 - x1;
+    region.height = y2 - y1;
+    return region;
+}
+
+DisplayRegion unionDisplayRegions(const DisplayRegion& a, const DisplayRegion& b) {
+    if (!a.valid()) return b;
+    if (!b.valid()) return a;
+
+    const int16_t x1 = min(a.x, b.x);
+    const int16_t y1 = min(a.y, b.y);
+    const int16_t x2 = max(
+        static_cast<int16_t>(a.x + a.width),
+        static_cast<int16_t>(b.x + b.width));
+    const int16_t y2 = max(
+        static_cast<int16_t>(a.y + a.height),
+        static_cast<int16_t>(b.y + b.height));
+
+    DisplayRegion region;
+    region.x = x1;
+    region.y = y1;
+    region.width = x2 - x1;
+    region.height = y2 - y1;
+    return region;
+}
+
+DisplayRegion navigationDirtyRegion(
+    const NavigationState& previousState,
+    const NavigationLayout& previousLayout,
+    const NavigationState& currentState,
+    const NavigationLayout& currentLayout) {
+
+    if (previousState.area == NavigationArea::Sidebar &&
+        currentState.area == NavigationArea::Sidebar) {
+        DisplayRegion sidebar;
+        sidebar.x = 0;
+        sidebar.y = ScreenStyle::HeaderHeight;
+        sidebar.width = ScreenStyle::SidebarWidth + 2;
+        sidebar.height = ScreenStyle::Height - ScreenStyle::HeaderHeight;
+        return sidebar;
+    }
+
+    if (previousState.area == NavigationArea::Page &&
+        currentState.area == NavigationArea::Page) {
+        DisplayRegion dirty;
+
+        const int oldIndex = previousLayout.find(previousState.focusId);
+        if (oldIndex >= 0) {
+            dirty = expandedNavigationRegion(previousLayout.elements[oldIndex].bounds);
+        }
+
+        const int newIndex = currentLayout.find(currentState.focusId);
+        if (newIndex >= 0) {
+            dirty = unionDisplayRegions(
+                dirty,
+                expandedNavigationRegion(currentLayout.elements[newIndex].bounds));
+        }
+
+        return dirty;
+    }
+
+    // Pager changes data/content, and transitions between Sidebar/Pager/Page
+    // affect distant areas at once. Let those use the normal full-window
+    // partial refresh.
+    return DisplayRegion();
+}
+
 }
 
 DashboardApp::DashboardApp()
@@ -156,6 +240,7 @@ void DashboardApp::setup() {
     _dataModel.weather.locationCount =
         min<uint8_t>(cfg.weather.locationCount, MaxWeatherLocations);
     _navigationController.syncToActiveScreen();
+    _joystick.begin();
 
     _wifiManager.onStatusChange([this](bool connected, const String& ip) {
         Serial.printf("[APP] Wi-Fi zmena stavu -> Connected: %d, IP: %s\n", connected, ip.c_str());
@@ -229,8 +314,15 @@ void DashboardApp::setup() {
         });
 
     _navigationController.onChange([this](bool fullRefresh) {
+        if (_handlingPhysicalNavigation) {
+            _physicalNavigationChanged = true;
+            _physicalNavigationFullRefresh =
+                _physicalNavigationFullRefresh || fullRefresh;
+            return;
+        }
+
         syncWeatherDisplayForActiveScreen(false);
-        requestDisplayRefresh(fullRefresh, 50);
+        requestNavigationDisplayRefresh(fullRefresh, 50UL, nullptr, true);
     });
 
     _webServer.onScreenChange([this](const String& screenId) { onScreenSwitchRequested(screenId); });
@@ -537,8 +629,58 @@ void DashboardApp::setWeatherScreensEnabled(bool enabled) {
 void DashboardApp::requestDisplayRefresh(bool full, unsigned long delayMs) {
     _pendingRefresh = true;
     _pendingFullRefresh = _pendingFullRefresh || full;
+
+    // Ordinary data refreshes may modify any part of the screen, so they
+    // intentionally discard a pending cursor-only dirty region.
+    _pendingDisplayRegionValid = false;
+    _pendingCapturePreview = true;
+
     const unsigned long requestedAt = millis() + delayMs;
-    if (_displayRefreshNotBefore == 0 || static_cast<long>(requestedAt - _displayRefreshNotBefore) > 0) _displayRefreshNotBefore = requestedAt;
+    if (_displayRefreshNotBefore == 0 ||
+        static_cast<long>(requestedAt - _displayRefreshNotBefore) > 0) {
+        _displayRefreshNotBefore = requestedAt;
+    }
+}
+
+void DashboardApp::requestNavigationDisplayRefresh(
+    bool full,
+    unsigned long delayMs,
+    const DisplayRegion* region,
+    bool capturePreview) {
+
+    const bool hadPending = _pendingRefresh;
+    _pendingRefresh = true;
+    _pendingFullRefresh = _pendingFullRefresh || full;
+
+    if (_pendingFullRefresh) {
+        _pendingDisplayRegionValid = false;
+        _pendingCapturePreview = true;
+    } else if (!hadPending) {
+        if (region != nullptr && region->valid()) {
+            _pendingDisplayRegion = *region;
+            _pendingDisplayRegionValid = true;
+        } else {
+            _pendingDisplayRegionValid = false;
+        }
+        _pendingCapturePreview = capturePreview;
+    } else if (_pendingDisplayRegionValid &&
+               region != nullptr &&
+               region->valid()) {
+        _pendingDisplayRegion =
+            unionDisplayRegions(_pendingDisplayRegion, *region);
+        _pendingCapturePreview =
+            _pendingCapturePreview || capturePreview;
+    } else {
+        // An older pending request already needs the whole screen, or this
+        // navigation action itself needs the whole screen.
+        _pendingDisplayRegionValid = false;
+        _pendingCapturePreview =
+            _pendingCapturePreview || capturePreview;
+    }
+
+    // Navigation is interactive and outranks a delayed automatic refresh.
+    // A short resettable deadline still coalesces contact bounce / rapid taps.
+    _displayRefreshNotBefore = millis() + delayMs;
 }
 
 void DashboardApp::requestAutomaticDisplayRefresh() {
@@ -687,6 +829,54 @@ void DashboardApp::loop() {
     _timeService.loop();
     _webServer.loop();
 
+    NavigationAction joystickAction;
+    if (_joystick.poll(joystickAction)) {
+        const NavigationState previousNavigation =
+            _navigationController.getState();
+        NavigationLayout previousLayout;
+        if (previousNavigation.area == NavigationArea::Page) {
+            _navigationController.buildCurrentLayout(previousLayout);
+        }
+
+        _physicalNavigationChanged = false;
+        _physicalNavigationFullRefresh = false;
+        _handlingPhysicalNavigation = true;
+        _navigationController.handleAction(joystickAction);
+        _handlingPhysicalNavigation = false;
+
+        if (_physicalNavigationChanged) {
+            const NavigationState currentNavigation =
+                _navigationController.getState();
+            NavigationLayout currentLayout;
+            if (currentNavigation.area == NavigationArea::Page) {
+                _navigationController.buildCurrentLayout(currentLayout);
+            }
+
+            syncWeatherDisplayForActiveScreen(false);
+
+            const DisplayRegion dirtyRegion =
+                navigationDirtyRegion(
+                    previousNavigation,
+                    previousLayout,
+                    currentNavigation,
+                    currentLayout);
+
+            if (_physicalNavigationFullRefresh) {
+                // Screen changes triggered from the physical joystick stay
+                // interactive: use a full-window differential partial refresh.
+                // Startup/manual maintenance still use the slow cleaning full
+                // refresh path.
+                requestNavigationDisplayRefresh(false, 40UL, nullptr, false);
+            } else {
+                requestNavigationDisplayRefresh(
+                    false,
+                    40UL,
+                    dirtyRegion.valid() ? &dirtyRegion : nullptr,
+                    false);
+            }
+        }
+    }
+
     const bool displayInitDelayElapsed = static_cast<long>(millis() - _displayInitNotBefore) >= 0;
     const bool displayInitFallbackElapsed = static_cast<long>(millis() - _displayInitNotBefore) >= 5000;
     if (!_displayWorkerStarted && displayInitDelayElapsed && (_timeService.isSynced() || displayInitFallbackElapsed)) {
@@ -768,9 +958,24 @@ void DashboardApp::loop() {
         refreshWeatherDisplayFromCache(true);
     }
 
-    if (displayStatus.ready && _pendingRefresh && static_cast<long>(millis() - _displayRefreshNotBefore) >= 0) {
-        if (_displayWorker.enqueue(_screenManager.getActiveScreen(), _dataModel, _pendingFullRefresh)) {
-            _pendingRefresh = false; _pendingFullRefresh = false; _displayRefreshNotBefore = 0;
+    if (displayStatus.ready &&
+        _pendingRefresh &&
+        static_cast<long>(millis() - _displayRefreshNotBefore) >= 0) {
+
+        const DisplayRegion* region =
+            _pendingDisplayRegionValid ? &_pendingDisplayRegion : nullptr;
+
+        if (_displayWorker.enqueue(
+                _screenManager.getActiveScreen(),
+                _dataModel,
+                _pendingFullRefresh,
+                region,
+                _pendingCapturePreview)) {
+            _pendingRefresh = false;
+            _pendingFullRefresh = false;
+            _pendingDisplayRegionValid = false;
+            _pendingCapturePreview = true;
+            _displayRefreshNotBefore = 0;
         }
     }
 

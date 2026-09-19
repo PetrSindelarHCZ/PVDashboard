@@ -38,8 +38,14 @@
 - [x] obecný pager pro vícepodstránkové obrazovky,
 - [x] Weather pager používá pořadí uložených lokalit a zobrazuje právě volenou lokalitu.
 
-Fyzické GPIO joysticku, debounce, auto-repeat a akce `OK` nad konkrétním
-prvkem zatím implementované nejsou.
+Fyzický pětisměrný joystick je připojen přímo do stejného `NavigationController`
+jako WebUI: UP GPIO16, DOWN GPIO17, LEFT GPIO18, RIGHT GPIO32 a OK GPIO33.
+Vstupy jsou active LOW s interním `INPUT_PULLUP` a 20ms debounce. Směrová tlačítka
+mají auto-repeat po 450 ms a potom po 140 ms; OK zůstává jednorázové. Fyzická
+navigace používá rychlý display path: Sidebar a Page focus obnovují pouze
+dotčenou oblast, mezikroky negenerují celý WebUI preview a přepnutí obrazovky
+používá full-window differential partial refresh místo pomalého čistícího full
+refreshu. Akce `OK` nad konkrétním prvkem zatím implementované nejsou.
 
 ### Dynamická viditelnost modulů
 
@@ -134,8 +140,10 @@ jde pouze o možnou budoucí úvahu.
 
 ### Fyzické ovládání
 
-Softwarový model navigace a WebUI joystick jsou hotové. Fyzický pětisměrný
-ovladač zatím nemá finální GPIO/pinout ani obsluhu tlačítek.
+Pětisměrný ovladač má finální pinout UP=GPIO16, DOWN=GPIO17, LEFT=GPIO18,
+RIGHT=GPIO32 a OK=GPIO33. Firmware používá interní pull-upy, active-LOW logiku a 20ms debounce.
+Směry podporují auto-repeat; OK je jednorázové. Samostatná
+tlačítka SET a RESET zatím nejsou do firmware připojena.
 
 ### Refresh politika
 
@@ -146,7 +154,7 @@ Krátké testy a chování fronty jsou ověřené. Stále chybí dlouhodobý ale
 ## Nejbližší otevřené body
 
 Nejbližší práce je dlouhodobý test ghostingu, rozšíření host-side testů,
-fyzický joystick a napojení prvních reálných čidel. Úplný budoucí plán je
+ověření fyzického joysticku na zařízení a napojení dalších reálných čidel. Úplný budoucí plán je
 v [ROADMAP.md](ROADMAP.md).
 
 ## Dokumentace

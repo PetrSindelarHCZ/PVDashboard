@@ -156,6 +156,26 @@ void EpaperDisplay::beginFrame(bool partial) {
     _epd.firstPage();
 }
 
+void EpaperDisplay::beginPartialFrame(int16_t x, int16_t y, int16_t w, int16_t h) {
+    _isPartial = true;
+
+    const int16_t clippedX = x < 0 ? 0 : x;
+    const int16_t clippedY = y < 0 ? 0 : y;
+    const int16_t requestedRight = x + w;
+    const int16_t requestedBottom = y + h;
+    const int16_t right = requestedRight > _epd.width() ? _epd.width() : requestedRight;
+    const int16_t bottom = requestedBottom > _epd.height() ? _epd.height() : requestedBottom;
+    const int16_t clippedW = right - clippedX;
+    const int16_t clippedH = bottom - clippedY;
+
+    if (clippedW <= 0 || clippedH <= 0) {
+        _epd.setPartialWindow(0, 0, _epd.width(), _epd.height());
+    } else {
+        _epd.setPartialWindow(clippedX, clippedY, clippedW, clippedH);
+    }
+    _epd.firstPage();
+}
+
 bool EpaperDisplay::nextFrame() {
     return _epd.nextPage();
 }

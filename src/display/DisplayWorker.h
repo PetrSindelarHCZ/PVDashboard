@@ -13,7 +13,9 @@ public:
     explicit DisplayWorker(DisplayManager& displayManager);
 
     bool begin();
-    bool enqueue(IScreen* screen, const DataModel& dataModel, bool full);
+    bool enqueue(IScreen* screen, const DataModel& dataModel, bool full,
+                 const DisplayRegion* partialRegion = nullptr,
+                 bool capturePreview = true);
     DisplayTaskStatus getStatus();
     void setMemoryHeavyGate(SemaphoreHandle_t gate);
 
@@ -29,6 +31,9 @@ private:
     IScreen* _pendingScreen = nullptr;
     bool _hasPending = false;
     bool _pendingFull = false;
+    bool _pendingHasRegion = false;
+    DisplayRegion _pendingRegion;
+    bool _pendingCapturePreview = true;
     DisplayTaskStatus _status;
 
     static void taskEntry(void* parameter);

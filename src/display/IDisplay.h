@@ -2,6 +2,15 @@
 #include <Arduino.h>
 #include <Adafruit_GFX.h>
 
+struct DisplayRegion {
+    int16_t x = 0;
+    int16_t y = 0;
+    int16_t width = 0;
+    int16_t height = 0;
+
+    bool valid() const { return width > 0 && height > 0; }
+};
+
 class IDisplay {
 public:
     virtual ~IDisplay() = default;
@@ -37,6 +46,10 @@ public:
     virtual int16_t height() const = 0;
 
     virtual void beginFrame(bool partial = false) = 0;
+    virtual void beginPartialFrame(int16_t x, int16_t y, int16_t w, int16_t h) {
+        (void)x; (void)y; (void)w; (void)h;
+        beginFrame(true);
+    }
     virtual bool nextFrame() = 0;
     virtual void powerOff() = 0;
 };

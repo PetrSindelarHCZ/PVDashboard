@@ -13,6 +13,7 @@
 #include "../screens/WeatherScreen.h"
 #include "../screens/DiagnosticsScreen.h"
 #include "../navigation/NavigationController.h"
+#include "../input/FiveWayJoystick.h"
 #include "../network/WifiManager.h"
 #include "../network/WifiSignalLevel.h"
 #include "../network/TimeService.h"
@@ -39,6 +40,7 @@ private:
     DisplayWorker _displayWorker;
     ScreenManager _screenManager;
     NavigationController _navigationController;
+    FiveWayJoystick _joystick;
 
     HomeScreen _homeScreen;
     SolarScreen _solarScreen;
@@ -66,6 +68,12 @@ private:
     bool _pendingRefresh = false;
     bool _pendingFullRefresh = false;
     bool _displayWorkerStarted = false;
+    bool _handlingPhysicalNavigation = false;
+    bool _physicalNavigationChanged = false;
+    bool _physicalNavigationFullRefresh = false;
+    bool _pendingDisplayRegionValid = false;
+    DisplayRegion _pendingDisplayRegion;
+    bool _pendingCapturePreview = true;
     bool _pendingWifiSave = false;
     String _pendingWifiSsid;
     String _pendingWifiPassword;
@@ -88,6 +96,9 @@ private:
     void setPoolScreenEnabled(bool enabled);
     void setWeatherScreensEnabled(bool enabled);
     void requestDisplayRefresh(bool full, unsigned long delayMs = 0);
+    void requestNavigationDisplayRefresh(bool full, unsigned long delayMs,
+                                         const DisplayRegion* region = nullptr,
+                                         bool capturePreview = true);
     void requestAutomaticDisplayRefresh();
     void onScreenSwitchRequested(const String& screenId);
     void onRefreshRequested(bool full);

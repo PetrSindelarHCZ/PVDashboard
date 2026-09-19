@@ -24,6 +24,7 @@ mezi WebUI, datovými zdroji a displejem.
 - **src/screens**: čisté renderery bez síťové komunikace a jejich navigační layouty.
 - **src/display**: abstrakce displeje, asynchronní worker, preview a refresh politika.
 - **src/navigation**: společný stavový automat Sidebar / Pager / Page a geometrická navigace.
+- **src/input**: fyzický pětisměrný joystick, GPIO vstupy a debounce.
 - **src/network**: Wi-Fi, NTP, HTTP API, virtuální joystick a vložené WebUI.
 - **src/config**: konfigurace uložená v NVS.
 - **src/update**: příjem ručně nahraného OTA obrazu.
@@ -37,10 +38,11 @@ pracují pouze s DataModel a kreslicím rozhraním.
 Současná hlavní smyčka postupně:
 
 1. obslouží Wi-Fi, NTP a jeden krok synchronního webového serveru,
-2. aktualizuje systémová data,
-3. předá připravený snímek dat display workeru,
-4. podle intervalů synchronně načte GoodWe a AZRouter,
-5. aktualizuje diagnostiku a čeká 20 ms.
+2. načte pětisměrný joystick a předá případnou akci NavigationControlleru,
+3. aktualizuje systémová data,
+4. předá připravený snímek dat display workeru,
+5. podle intervalů synchronně načte GoodWe a AZRouter,
+6. aktualizuje diagnostiku a čeká 20 ms.
 
 DisplayWorker je jediným vlastníkem DisplayManageru a e-paper ovladače. Požadavky
 ukládá do chráněného jednopolohového bufferu, slučuje změny a renderuje konzistentní
