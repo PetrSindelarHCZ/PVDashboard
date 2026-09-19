@@ -38,14 +38,29 @@ Používaná znaménka:
 
 - transport: lokální HTTP bez autentizace,
 - standardní port: 8081,
-- /api/v1/power: výkon, energie a tok sítě,
-- /api/v1/status: systémová teplota jako záložní hodnota,
-- /api/v1/devices: preferovaná teplota připojeného zařízení nebo bojleru.
+- /api/v1/power:
+  - `output.power` id 0–2 = jednotlivé výstupy/fáze,
+  - `output.power` id 3 = celkový vytěžený výkon,
+  - `output.energy` id 4 = dnešní vytěžená/uložená energie v kWh,
+  - `input.power` id 0–2 = výkon sítě po fázích; dashboard z nich skládá součet,
+- /api/v1/status:
+  - `system.temperature` = teplota elektroniky/master jednotky; **není to bojler**,
+- /api/v1/devices:
+  - `power.temperature` = skutečná teplota TUV/bojleru,
+  - `power.totalPower` = aktuální výkon připojeného TUV zařízení.
 
-Za úspěch celé aktualizace se považuje platná odpověď /api/v1/power.
-Connect timeout je 400 ms a timeout odpovědi 1 000 ms. Když hlavní endpoint
-selže, doplňkové dotazy se v daném cyklu neprovedou. Jejich samostatné selhání
-nezneplatní již přijatá výkonová data.
+Každá AZRouter veličina má samostatný příznak platnosti. Platný /power endpoint
+proto může znamenat Online AZRouter, ale například bez dostupné teploty bojleru;
+UI v takovém případě ukazuje `--`, nikoli nulu nebo starou demonstrační hodnotu.
+
+Za úspěch celé aktualizace se považuje platná odpověď /api/v1/power s alespoň
+jednou rozpoznanou výkonovou/energetickou veličinou. Connect timeout je 400 ms
+a timeout odpovědi 1 000 ms. Když hlavní endpoint selže, doplňkové dotazy se v
+daném cyklu neprovedou. Jejich samostatné selhání nezneplatní již přijatá
+výkonová data.
+
+`DataModel` už neinicializuje GoodWe ani AZRouter demonstračními hodnotami.
+Před prvním úspěšným pollingem proto FVE UI zobrazuje nedostupné hodnoty.
 
 ## Společné chování GoodWe a AZRouteru
 
