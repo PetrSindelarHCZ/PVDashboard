@@ -245,7 +245,10 @@ String homeLayoutResponseJson(const HomeLayoutConfig& config, const DataModel& d
     addSource("weather.outdoorHumidityPercent", "Venkovní vlhkost", "%", 0, false);
     addSource("weather.surfacePressureHpa", "Tlak", "hPa", 0, false);
     addSource("weather.windSpeedKmh", "Vítr", "km/h", 1, false);
-    addSource("inside.livingRoomTempC", "Obývák", "°C", 1, false);
+    addSource("inside.temperatureC", "BME280 teplota", "°C", 1, false);
+    addSource("inside.humidityPercent", "BME280 vlhkost", "%", 0, false);
+    addSource("inside.pressureHpa", "BME280 tlak", "hPa", 1, false);
+    addSource("inside.livingRoomTempC", "Obývák (BME280)", "°C", 1, false);
     addSource("inside.bedroomTempC", "Ložnice", "°C", 1, false);
     addSource("inside.poolTempC", "Bazén uvnitř modelu", "°C", 1, false);
     addSource("pool.waterTempC", "Bazén voda", "°C", 1, false);

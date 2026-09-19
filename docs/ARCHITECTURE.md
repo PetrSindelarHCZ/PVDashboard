@@ -5,7 +5,8 @@
 ~~~text
 GoodWe UDP ───────┐
 AZRouter HTTP ────┼─> DataModel ─> Screen ─> DisplayWorker ─> DisplayManager ─> EpaperDisplay
-Weather HTTPS ────┘       ^          ^              └──────────────> DisplayPreview
+Weather HTTPS ────┤       ^          ^              └──────────────> DisplayPreview
+BME280 I²C ───────┘       |          |
                            |          |
 Telefon ─> WebServer ─> NavigationController ─> ScreenManager
                  ├─> ConfigManager/NVS
@@ -45,6 +46,11 @@ DisplayWorker je jediným vlastníkem DisplayManageru a e-paper ovladače. Poža
 ukládá do chráněného jednopolohového bufferu, slučuje změny a renderuje konzistentní
 kopii DataModel v samostatné FreeRTOS úloze. Síťové polling operace zatím zůstávají
 v hlavní smyčce a při timeoutu mohou krátce zdržet WebUI.
+
+BME280 je lokální zdroj v hlavní smyčce. Používá I²C na SDA GPIO21 / SCL GPIO22,
+zkouší adresy 0x76 a 0x77, měří teplotu, relativní vlhkost a tlak a zapisuje je
+do `InsideData`. Polling běží i bez Wi-Fi a při chybě se senzor při dalším pokusu
+znovu inicializuje.
 
 WeatherWorker načítá internetovou předpověď v samostatné FreeRTOS úloze.
 Konkrétní klient je vybrán přes IWeatherProvider; Open-Meteo a MET Norway proto

@@ -42,10 +42,25 @@ inline bool resolveValue(const DataModel& dm, const String& source, float& value
         return true;
     }
 
-    if (source == "inside.livingRoomTempC") value = dm.inside.livingRoomTempC;
-    else if (source == "inside.bedroomTempC") value = dm.inside.bedroomTempC;
-    else if (source == "inside.poolTempC") value = dm.inside.poolTempC;
-    else if (source.startsWith("pool.")) {
+    if (source.startsWith("inside.")) {
+        if (source == "inside.temperatureC" ||
+            source == "inside.humidityPercent" ||
+            source == "inside.pressureHpa" ||
+            source == "inside.livingRoomTempC") {
+            if (!dm.inside.status.available) return false;
+            if (source == "inside.temperatureC") value = dm.inside.temperatureC;
+            else if (source == "inside.humidityPercent") value = dm.inside.humidityPercent;
+            else if (source == "inside.pressureHpa") value = dm.inside.pressureHpa;
+            else value = dm.inside.livingRoomTempC;
+        } else if (source == "inside.bedroomTempC") {
+            value = dm.inside.bedroomTempC;
+        } else if (source == "inside.poolTempC") {
+            value = dm.inside.poolTempC;
+        } else {
+            return false;
+        }
+        return true;
+    } else if (source.startsWith("pool.")) {
         if (!dm.pool.enabled) return false;
         if (source == "pool.waterTempC") value = dm.pool.waterTempC;
         else if (source == "pool.targetTempC") value = dm.pool.targetTempC;

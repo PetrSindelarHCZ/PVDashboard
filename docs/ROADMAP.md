@@ -35,8 +35,9 @@ před zapojením je nutné znovu ověřit boot-strapping a vazby konkrétní des
 
 ### Vnitřní prostředí
 
-- [ ] připojit BME280 pro teplotu, vlhkost a tlak,
-- [ ] napojit hodnoty do DataModelu.
+- [x] implementovat BME280 přes I²C (SDA GPIO21 / SCL GPIO22, adresy 0x76/0x77),
+- [x] napojit teplotu, vlhkost a tlak do DataModelu,
+- [ ] fyzicky připojit 4pinový modul a ověřit měření na cílové desce.
 
 
 ### Bazén

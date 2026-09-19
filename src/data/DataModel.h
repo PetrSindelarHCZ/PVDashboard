@@ -86,7 +86,15 @@ struct WeatherData {
 };
 
 struct InsideData {
-    float livingRoomTempC = 22.4f;
+    DataSourceStatus status;
+    float temperatureC = 0.0f;
+    int humidityPercent = 0;
+    float pressureHpa = 0.0f;
+    uint32_t lastUpdateMs = 0;
+
+    // Existing UI-compatible fields. livingRoomTempC is populated from BME280;
+    // the remaining values stay as placeholders until their real sensors exist.
+    float livingRoomTempC = 0.0f;
     float bedroomTempC = 21.8f;
     float poolTempC = 25.1f;
 };

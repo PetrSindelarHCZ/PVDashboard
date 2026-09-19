@@ -154,7 +154,34 @@ void drawIndoorCard(IDisplay& display, const DataModel& dm, const LayoutWidget& 
     const int16_t h = widget.height;
 
     const uint16_t color = cardTextColor(style);
-    drawHomeCardBackground(display, widget, style, "UVNITŘ - DEMO");
+    drawHomeCardBackground(display, widget, style, "UVNITŘ");
+
+    auto drawBmeTemperature = [&](int16_t valueX, int16_t valueY) {
+        ScreenStyle::useValue(display, color);
+        display.setCursor(valueX, valueY);
+        if (dm.inside.status.available) {
+            display.printf("%.1f °C", dm.inside.temperatureC);
+        } else {
+            display.print("--.- °C");
+        }
+    };
+
+    auto drawBmeDetails = [&](int16_t valueX, int16_t humidityY, int16_t pressureY) {
+        ScreenStyle::useBody(display, color);
+        display.setCursor(valueX, humidityY);
+        if (dm.inside.status.available) {
+            display.printf("Vlhkost: %d %%", dm.inside.humidityPercent);
+        } else {
+            display.print("Vlhkost: -- %");
+        }
+
+        display.setCursor(valueX, pressureY);
+        if (dm.inside.status.available) {
+            display.printf("Tlak: %.0f hPa", dm.inside.pressureHpa);
+        } else {
+            display.print("Tlak: ---- hPa");
+        }
+    };
 
     if (w >= 500) {
         const int16_t leftX = x + 20;
@@ -163,23 +190,22 @@ void drawIndoorCard(IDisplay& display, const DataModel& dm, const LayoutWidget& 
         ScreenStyle::useBody(display, color);
         display.setCursor(leftX, y + 62);
         display.print("Obývák");
-        ScreenStyle::useValue(display, color);
-        display.setCursor(leftX, y + 87);
-        display.printf("%.1f °C", dm.inside.livingRoomTempC);
+        drawBmeTemperature(leftX, y + 87);
+        drawBmeDetails(leftX, y + 132, y + 167);
 
         ScreenStyle::useBody(display, color);
-        display.setCursor(leftX, y + 172);
+        display.setCursor(rightX, y + 62);
         display.print("Ložnice");
         ScreenStyle::useValue(display, color);
-        display.setCursor(leftX, y + 197);
+        display.setCursor(rightX, y + 87);
         display.printf("%.1f °C", dm.inside.bedroomTempC);
 
         if (dm.pool.enabled) {
             ScreenStyle::useBody(display, color);
-            display.setCursor(rightX, y + 62);
+            display.setCursor(rightX, y + 172);
             display.print("Bazén");
             ScreenStyle::useValue(display, color);
-            display.setCursor(rightX, y + 87);
+            display.setCursor(rightX, y + 197);
             display.printf("%.1f °C", dm.inside.poolTempC);
         }
         return;
@@ -190,23 +216,24 @@ void drawIndoorCard(IDisplay& display, const DataModel& dm, const LayoutWidget& 
     ScreenStyle::useBody(display, color);
     display.setCursor(valueX, y + 62);
     display.print("Obývák");
-    ScreenStyle::useValue(display, color);
-    display.setCursor(valueX, y + 87);
-    display.printf("%.1f °C", dm.inside.livingRoomTempC);
+    drawBmeTemperature(valueX, y + 87);
+    drawBmeDetails(valueX, y + 132, y + 167);
 
-    ScreenStyle::useBody(display, color);
-    display.setCursor(valueX, y + 132);
-    display.print("Ložnice");
-    ScreenStyle::useValue(display, color);
-    display.setCursor(valueX, y + 157);
-    display.printf("%.1f °C", dm.inside.bedroomTempC);
-
-    if (dm.pool.enabled) {
+    if (h >= 250) {
         ScreenStyle::useBody(display, color);
-        display.setCursor(valueX, y + 202);
+        display.setCursor(valueX, y + 205);
+        display.print("Ložnice");
+        ScreenStyle::useValue(display, color);
+        display.setCursor(valueX, y + 230);
+        display.printf("%.1f °C", dm.inside.bedroomTempC);
+    }
+
+    if (dm.pool.enabled && h >= 350) {
+        ScreenStyle::useBody(display, color);
+        display.setCursor(valueX, y + 285);
         display.print("Bazén");
         ScreenStyle::useValue(display, color);
-        display.setCursor(valueX, y + 227);
+        display.setCursor(valueX, y + 310);
         display.printf("%.1f °C", dm.inside.poolTempC);
     }
 }
