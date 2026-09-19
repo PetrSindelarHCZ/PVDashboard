@@ -24,7 +24,8 @@ Zbývá fyzická vrstva:
 - [x] napojit pětisměrný joystick do NavigationControlleru,
 - [x] implementovat debounce,
 - [ ] ověřit pinout a chování na fyzickém zařízení,
-- [ ] implementovat long-press / auto-repeat,
+- [x] implementovat auto-repeat směrových tlačítek,
+- [ ] podle potřeby doplnit samostatné long-press akce,
 - [ ] definovat akce OK nad konkrétními prvky,
 - [ ] podle potřeby doplnit ruční override navigace pro atypický layout.
 
