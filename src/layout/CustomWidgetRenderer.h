@@ -24,11 +24,25 @@ inline bool resolveValue(const DataModel& dm, const String& source, float& value
 
     if (source.startsWith("azrouter.")) {
         if (!dm.azrouter.enabled || !dm.azrouter.status.available) return false;
-        if (source == "azrouter.gridPowerW") value = dm.azrouter.gridPowerW;
-        else if (source == "azrouter.routedPowerW") value = dm.azrouter.routedPowerW;
-        else if (source == "azrouter.routedEnergyTodayKWh") value = dm.azrouter.routedEnergyTodayKWh;
-        else if (source == "azrouter.boilerTempC") value = dm.azrouter.boilerTempC;
-        else return false;
+
+        if (source == "azrouter.gridPowerW") {
+            if (!dm.azrouter.hasGridPower) return false;
+            value = dm.azrouter.gridPowerW;
+        } else if (source == "azrouter.routedPowerW") {
+            if (!dm.azrouter.hasRoutedPower) return false;
+            value = dm.azrouter.routedPowerW;
+        } else if (source == "azrouter.routedEnergyTodayKWh") {
+            if (!dm.azrouter.hasRoutedEnergyToday) return false;
+            value = dm.azrouter.routedEnergyTodayKWh;
+        } else if (source == "azrouter.boilerTempC") {
+            if (!dm.azrouter.hasBoilerTemp) return false;
+            value = dm.azrouter.boilerTempC;
+        } else if (source == "azrouter.systemTempC") {
+            if (!dm.azrouter.hasSystemTemp) return false;
+            value = dm.azrouter.systemTempC;
+        } else {
+            return false;
+        }
         return true;
     }
 
