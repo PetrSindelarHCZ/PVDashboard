@@ -231,7 +231,12 @@ void DashboardApp::setup() {
 
     _navigationController.onChange([this](bool fullRefresh) {
         syncWeatherDisplayForActiveScreen(false);
-        requestDisplayRefresh(fullRefresh, 50);
+
+        // Physical joystick presses are often clustered. Delay the e-paper
+        // slightly so several quick moves collapse into one render of the
+        // final focus. WebUI keeps the original near-immediate response.
+        const unsigned long delayMs = _handlingPhysicalNavigation ? 250UL : 50UL;
+        requestDisplayRefresh(fullRefresh, delayMs);
     });
 
     _webServer.onScreenChange([this](const String& screenId) { onScreenSwitchRequested(screenId); });
@@ -690,7 +695,9 @@ void DashboardApp::loop() {
 
     NavigationAction joystickAction;
     if (_joystick.poll(joystickAction)) {
+        _handlingPhysicalNavigation = true;
         _navigationController.handleAction(joystickAction);
+        _handlingPhysicalNavigation = false;
     }
 
     const bool displayInitDelayElapsed = static_cast<long>(millis() - _displayInitNotBefore) >= 0;
