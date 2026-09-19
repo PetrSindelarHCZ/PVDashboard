@@ -29,15 +29,29 @@ void SolarScreen::render(IDisplay& display, const DataModel& dm) {
         ScreenStyle::drawCard(display, 75, 63, 710, 402, "AZ ROUTER");
         ScreenStyle::useMetric(display);
         display.setCursor(105, 150);
-        display.printf("%.0f W", dm.azrouter.routedPowerW);
+        if (dm.azrouter.status.available && dm.azrouter.hasRoutedPower)
+            display.printf("%.0f W", dm.azrouter.routedPowerW);
+        else
+            display.print("-- W");
 
         ScreenStyle::useBody(display);
         display.setCursor(105, 205);
-        display.printf("Bojler: %.1f °C", dm.azrouter.boilerTempC);
+        if (dm.azrouter.status.available && dm.azrouter.hasBoilerTemp)
+            display.printf("Bojler: %.1f °C", dm.azrouter.boilerTempC);
+        else
+            display.print("Bojler: -- °C");
+
         display.setCursor(105, 245);
-        display.printf("Dnes: %.1f kWh", dm.azrouter.routedEnergyTodayKWh);
+        if (dm.azrouter.status.available && dm.azrouter.hasRoutedEnergyToday)
+            display.printf("Dnes: %.1f kWh", dm.azrouter.routedEnergyTodayKWh);
+        else
+            display.print("Dnes: -- kWh");
+
         display.setCursor(105, 285);
-        display.printf("Síť: %+.0f W", dm.azrouter.gridPowerW);
+        if (dm.azrouter.status.available && dm.azrouter.hasGridPower)
+            display.printf("Síť: %+.0f W", dm.azrouter.gridPowerW);
+        else
+            display.print("Síť: -- W");
         display.setCursor(105, 335);
         display.printf("Status: %s", dm.azrouter.status.available ? "Online" : "Nedostupné");
 
@@ -51,33 +65,46 @@ void SolarScreen::render(IDisplay& display, const DataModel& dm) {
     ScreenStyle::drawCard(display, 75, 63, 225, 190, "SOLÁRNÍ VÝROBA");
     ScreenStyle::useMetric(display);
     display.setCursor(90, 145);
-    display.printf("%.0f W", dm.solar.productionPowerW);
+    if (dm.solar.status.available) display.printf("%.0f W", dm.solar.productionPowerW);
+    else display.print("-- W");
     ScreenStyle::useBody(display);
     display.setCursor(90, 185);
-    display.printf("Dnes: %.1f kWh", dm.solar.energyTodayKWh);
+    if (dm.solar.status.available) display.printf("Dnes: %.1f kWh", dm.solar.energyTodayKWh);
+    else display.print("Dnes: -- kWh");
     display.setCursor(90, 210);
     display.printf("Status: %s", dm.solar.status.available ? "Online" : "Nedostupné");
 
     ScreenStyle::drawCard(display, 315, 63, 225, 190, "BATERIE");
     ScreenStyle::useMetric(display);
     display.setCursor(330, 145);
-    display.printf("%.0f %%", dm.solar.batterySocPercent);
+    if (dm.solar.status.available) display.printf("%.0f %%", dm.solar.batterySocPercent);
+    else display.print("-- %");
     ScreenStyle::useBody(display);
     display.setCursor(330, 185);
-    display.printf("Tok: %+.0f W", dm.solar.batteryPowerW);
+    if (dm.solar.status.available) display.printf("Tok: %+.0f W", dm.solar.batteryPowerW);
+    else display.print("Tok: -- W");
     display.setCursor(330, 210);
-    display.printf("Stav: %s", dm.solar.batteryPowerW < 0 ? "Nabíjení" :
-                   (dm.solar.batteryPowerW > 0 ? "Vybíjení" : "Klid"));
+    if (dm.solar.status.available) {
+        display.printf("Stav: %s", dm.solar.batteryPowerW < 0 ? "Nabíjení" :
+                       (dm.solar.batteryPowerW > 0 ? "Vybíjení" : "Klid"));
+    } else {
+        display.print("Stav: Nedostupné");
+    }
 
     ScreenStyle::drawCard(display, 555, 63, 230, 190, "DISTRIBUCE");
     ScreenStyle::useMetric(display);
     display.setCursor(570, 145);
-    display.printf("%+.0f W", dm.solar.gridPowerW);
+    if (dm.solar.status.available) display.printf("%+.0f W", dm.solar.gridPowerW);
+    else display.print("-- W");
     ScreenStyle::useBody(display);
     display.setCursor(570, 185);
-    display.print(dm.solar.gridPowerW >= 0 ? "Přetok do sítě" : "Nákup ze sítě");
+    if (dm.solar.status.available)
+        display.print(dm.solar.gridPowerW >= 0 ? "Přetok do sítě" : "Nákup ze sítě");
+    else
+        display.print("Data nedostupná");
     display.setCursor(570, 215);
-    display.printf("Dům: %.0f W", dm.solar.houseConsumptionW);
+    if (dm.solar.status.available) display.printf("Dům: %.0f W", dm.solar.houseConsumptionW);
+    else display.print("Dům: -- W");
 
     const int16_t historyWidth = dm.azrouter.enabled ? 470 : 710;
     ScreenStyle::drawCard(display, 75, 268, historyWidth, 197, "DNEŠNÍ PRŮBĚH FVE");
@@ -133,12 +160,21 @@ void SolarScreen::render(IDisplay& display, const DataModel& dm) {
         ScreenStyle::drawCard(display, 555, 268, 230, 197, "AZ ROUTER / STAV");
         ScreenStyle::useMetric(display);
         display.setCursor(570, 340);
-        display.printf("%.0f W", dm.azrouter.routedPowerW);
+        if (dm.azrouter.status.available && dm.azrouter.hasRoutedPower)
+            display.printf("%.0f W", dm.azrouter.routedPowerW);
+        else
+            display.print("-- W");
         ScreenStyle::useBody(display);
         display.setCursor(570, 375);
-        display.printf("Bojler: %.1f °C", dm.azrouter.boilerTempC);
+        if (dm.azrouter.status.available && dm.azrouter.hasBoilerTemp)
+            display.printf("Bojler: %.1f °C", dm.azrouter.boilerTempC);
+        else
+            display.print("Bojler: -- °C");
         display.setCursor(570, 405);
-        display.printf("Dnes: %.1f kWh", dm.azrouter.routedEnergyTodayKWh);
+        if (dm.azrouter.status.available && dm.azrouter.hasRoutedEnergyToday)
+            display.printf("Dnes: %.1f kWh", dm.azrouter.routedEnergyTodayKWh);
+        else
+            display.print("Dnes: -- kWh");
         display.setCursor(570, 438);
         display.printf("GW %s | AZ %s",
                        dm.solar.status.available ? "OK" : "OFF",
