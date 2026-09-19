@@ -19,8 +19,11 @@ public:
 
 private:
     struct ButtonState {
-        uint8_t pin = 0;
-        NavigationAction action = NavigationAction::Up;
+        ButtonState(uint8_t pinValue, NavigationAction actionValue)
+            : pin(pinValue), action(actionValue) {}
+
+        uint8_t pin;
+        NavigationAction action;
         bool rawPressed = false;
         bool stablePressed = false;
         unsigned long lastRawChangeMs = 0;
