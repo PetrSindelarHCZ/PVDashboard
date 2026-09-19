@@ -156,6 +156,7 @@ void DashboardApp::setup() {
     _dataModel.weather.locationCount =
         min<uint8_t>(cfg.weather.locationCount, MaxWeatherLocations);
     _navigationController.syncToActiveScreen();
+    _joystick.begin();
 
     _wifiManager.onStatusChange([this](bool connected, const String& ip) {
         Serial.printf("[APP] Wi-Fi zmena stavu -> Connected: %d, IP: %s\n", connected, ip.c_str());
@@ -686,6 +687,11 @@ void DashboardApp::loop() {
     _wifiManager.loop();
     _timeService.loop();
     _webServer.loop();
+
+    NavigationAction joystickAction;
+    if (_joystick.poll(joystickAction)) {
+        _navigationController.handleAction(joystickAction);
+    }
 
     const bool displayInitDelayElapsed = static_cast<long>(millis() - _displayInitNotBefore) >= 0;
     const bool displayInitFallbackElapsed = static_cast<long>(millis() - _displayInitNotBefore) >= 5000;
