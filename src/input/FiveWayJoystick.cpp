@@ -7,6 +7,7 @@ void FiveWayJoystick::begin() {
         button.rawPressed = pressed;
         button.stablePressed = pressed;
         button.lastRawChangeMs = millis();
+        button.nextRepeatMs = 0;
     }
 
     _started = true;
@@ -40,10 +41,32 @@ bool FiveWayJoystick::poll(NavigationAction& action) {
 
         button.stablePressed = button.rawPressed;
 
-        // Only the press edge generates navigation. Release only rearms it.
-        if (button.stablePressed && !eventReady) {
+        if (button.stablePressed) {
+            button.nextRepeatMs = now + RepeatDelayMs;
+            if (!eventReady) {
+                eventReady = true;
+                eventAction = button.action;
+            }
+        } else {
+            button.nextRepeatMs = 0;
+        }
+    }
+
+    // Direction buttons repeat while held. OK stays one-shot to avoid
+    // accidental repeated activation.
+    if (!eventReady) {
+        for (auto& button : _buttons) {
+            if (!button.stablePressed ||
+                button.action == NavigationAction::Ok ||
+                button.nextRepeatMs == 0 ||
+                static_cast<long>(now - button.nextRepeatMs) < 0) {
+                continue;
+            }
+
+            button.nextRepeatMs = now + RepeatIntervalMs;
             eventReady = true;
             eventAction = button.action;
+            break;
         }
     }
 
