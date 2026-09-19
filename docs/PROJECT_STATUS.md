@@ -1,6 +1,6 @@
 # Aktuální stav projektu
 
-> Stav k **18. 9. 2026**. Tento dokument je stručný provozní přehled toho, co je
+> Stav k **19. 9. 2026**. Tento dokument je stručný provozní přehled toho, co je
 > v aktuálním `masteru` hotové, co je pouze částečné a co zůstává plánem.
 > Technické detaily jsou v odkazovaných specializovaných dokumentech.
 
@@ -122,8 +122,14 @@ stále demonstrační; reálný DS18B20/Wi-Fi uzel zatím není připojen.
 
 ### Vnitřní prostředí
 
-Layout a demonstrační hodnoty existují. BME280 zatím není připojený. Měření
-CO₂ není součástí aktuálního plánu; jde pouze o možnou budoucí úvahu.
+Firmware má připravenou podporu BME280 přes I²C na GPIO21/GPIO22, automatickou
+detekci adres 0x76/0x77, periodický polling a napojení teploty, vlhkosti a tlaku
+do `InsideData`. Stav a hodnoty jsou dostupné také v `/api/status`.
+
+Fyzické zapojení konkrétního 4pinového modulu ještě není na zařízení ověřené,
+proto tato část zůstává částečně hotová. Ložnice a další hodnoty vnitřního
+prostředí jsou nadále demonstrační. Měření CO₂ není součástí aktuálního plánu;
+jde pouze o možnou budoucí úvahu.
 
 ### Fyzické ovládání
 
