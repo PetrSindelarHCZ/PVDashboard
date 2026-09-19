@@ -32,10 +32,22 @@ struct SolarData {
 struct AZRouterData {
     bool enabled = true;
     DataSourceStatus status;
+
     float gridPowerW = 0.0f;
+    bool hasGridPower = false;
+
     float routedPowerW = 0.0f;
+    bool hasRoutedPower = false;
+
     float routedEnergyTodayKWh = 0.0f;
+    bool hasRoutedEnergyToday = false;
+
     float boilerTempC = 0.0f;
+    bool hasBoilerTemp = false;
+
+    float systemTempC = 0.0f;
+    bool hasSystemTemp = false;
+
     uint32_t lastUpdateMs = 0;
 };
 
