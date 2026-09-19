@@ -13,6 +13,16 @@
 #define EPD_MOSI  14
 
 // ==========================================
+// Pětisměrný navigační ovladač
+// Tlačítka spínají GPIO proti GND (active LOW)
+// ==========================================
+#define JOY_UP_PIN     16
+#define JOY_DOWN_PIN   17
+#define JOY_LEFT_PIN   18
+#define JOY_RIGHT_PIN  32
+#define JOY_OK_PIN     33
+
+// ==========================================
 // Rozměry displeje
 // ==========================================
 #define DISPLAY_WIDTH   800
