@@ -20,16 +20,18 @@ Nejbližší priority:
 Softwarová navigace Sidebar / Pager / Page a WebUI joystick jsou hotové.
 Zbývá fyzická vrstva:
 
-- [ ] vybrat a ověřit GPIO konkrétní revize Waveshare desky,
-- [ ] připojit pětisměrný joystick,
-- [ ] implementovat debounce,
+- [x] zvolit GPIO pro pětisměrný joystick,
+- [x] napojit pětisměrný joystick do NavigationControlleru,
+- [x] implementovat debounce,
+- [ ] ověřit pinout a chování na fyzickém zařízení,
 - [ ] implementovat long-press / auto-repeat,
 - [ ] definovat akce OK nad konkrétními prvky,
 - [ ] podle potřeby doplnit ruční override navigace pro atypický layout.
 
-Pro I²C čidla je preferovaný pár SDA GPIO21 / SCL GPIO22. Dříve zvažované
-GPIO pro tlačítka jsou 16, 17, 18, 19, 23, 32 a 33; nejde o finální pinout a
-před zapojením je nutné znovu ověřit boot-strapping a vazby konkrétní desky.
+Aktuální joystick pinout je UP GPIO16, DOWN GPIO17, LEFT GPIO18, RIGHT GPIO32
+a OK GPIO33. Všechny vstupy používají interní pull-up a tlačítka spínají proti
+GND. SET a RESET zatím nejsou součástí firmware. Pro I²C čidla zůstává pár
+SDA GPIO21 / SCL GPIO22.
 
 ## C — skutečná data domácnosti
 
