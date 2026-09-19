@@ -2,14 +2,15 @@
 
 #include <Arduino.h>
 #include "../navigation/NavigationTypes.h"
+#include "../../include/AppConfig.h"
 
 class FiveWayJoystick {
 public:
-    static constexpr uint8_t UpPin = 16;
-    static constexpr uint8_t DownPin = 17;
-    static constexpr uint8_t LeftPin = 18;
-    static constexpr uint8_t RightPin = 32;
-    static constexpr uint8_t OkPin = 33;
+    static constexpr uint8_t UpPin = JOY_UP_PIN;
+    static constexpr uint8_t DownPin = JOY_DOWN_PIN;
+    static constexpr uint8_t LeftPin = JOY_LEFT_PIN;
+    static constexpr uint8_t RightPin = JOY_RIGHT_PIN;
+    static constexpr uint8_t OkPin = JOY_OK_PIN;
     static constexpr uint32_t DebounceMs = 30;
 
     void begin();
