@@ -8,6 +8,8 @@ namespace {
 constexpr uint32_t MinimumPollIntervalMs = 1000;
 constexpr uint32_t MaximumBackoffMs = 300000;
 constexpr uint8_t MaximumBackoffShift = 5;
+constexpr uint32_t Bme280PollIntervalMs = 10000;
+constexpr uint32_t Bme280DisplayRefreshIntervalMs = 60000;
 
 uint32_t pollDelayMs(uint32_t intervalSeconds, uint8_t failureStreak) {
     uint64_t baseMs = static_cast<uint64_t>(intervalSeconds) * 1000ULL;
@@ -121,6 +123,12 @@ void DashboardApp::setup() {
     _displayPreview.init(); // tiled preview; komprimovany snapshot se drzi mimo TLS DRAM
     const auto& cfg = _configManager.get();
     _homeScreen.setLayoutConfig(&cfg.display.homeLayout);
+
+    // Local environmental sensor is independent of Wi-Fi. The 4-pin BME280
+    // shares the preferred I2C bus on SDA GPIO21 / SCL GPIO22.
+    _bme280Sensor.update(_dataModel.inside);
+    _lastBme280Sync = millis();
+
     applyWifiAddressing(cfg.wifi);
 
     _dataModel.solar.enabled = cfg.goodwe.enabled;
@@ -767,6 +775,36 @@ void DashboardApp::loop() {
     }
 
     unsigned long now = millis();
+
+    if (now - _lastBme280Sync >= Bme280PollIntervalMs) {
+        const bool wasAvailable = _dataModel.inside.status.available;
+        const float previousTemperature = _dataModel.inside.temperatureC;
+        const int previousHumidity = _dataModel.inside.humidityPercent;
+        const float previousPressure = _dataModel.inside.pressureHpa;
+
+        const bool success = _bme280Sensor.update(_dataModel.inside);
+        _lastBme280Sync = millis();
+
+        const bool availabilityChanged =
+            wasAvailable != _dataModel.inside.status.available;
+        const bool valuesChanged =
+            success &&
+            (fabsf(previousTemperature - _dataModel.inside.temperatureC) >= 0.2f ||
+             abs(previousHumidity - _dataModel.inside.humidityPercent) >= 1 ||
+             fabsf(previousPressure - _dataModel.inside.pressureHpa) >= 1.0f);
+
+        const unsigned long refreshNow = millis();
+        const bool refreshIntervalElapsed =
+            _lastBme280DisplayRefresh == 0 ||
+            refreshNow - _lastBme280DisplayRefresh >= Bme280DisplayRefreshIntervalMs;
+
+        if (availabilityChanged || (valuesChanged && refreshIntervalElapsed)) {
+            _lastBme280DisplayRefresh = refreshNow;
+            requestAutomaticDisplayRefresh();
+        }
+    }
+
+    now = millis();
     if (_wifiManager.isConnected()) {
         const auto& cfg = _configManager.get();
         bool availabilityChanged = false;
