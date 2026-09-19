@@ -13,6 +13,7 @@
 #include "../screens/WeatherScreen.h"
 #include "../screens/DiagnosticsScreen.h"
 #include "../navigation/NavigationController.h"
+#include "../input/FiveWayJoystick.h"
 #include "../network/WifiManager.h"
 #include "../network/WifiSignalLevel.h"
 #include "../network/TimeService.h"
@@ -39,6 +40,7 @@ private:
     DisplayWorker _displayWorker;
     ScreenManager _screenManager;
     NavigationController _navigationController;
+    FiveWayJoystick _joystick;
 
     HomeScreen _homeScreen;
     SolarScreen _solarScreen;
