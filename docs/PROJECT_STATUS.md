@@ -41,10 +41,11 @@
 Fyzický pětisměrný joystick je připojen přímo do stejného `NavigationController`
 jako WebUI: UP GPIO16, DOWN GPIO17, LEFT GPIO18, RIGHT GPIO32 a OK GPIO33.
 Vstupy jsou active LOW s interním `INPUT_PULLUP` a 20ms debounce. Směrová tlačítka
-mají auto-repeat po 450 ms a potom po 140 ms; OK zůstává jednorázové. Navigační
-refresh má prioritu před odloženými automatickými refreshi a rychlé fyzické
-stisky se 250 ms slučují do jednoho e-paper renderu. Akce `OK` nad konkrétním
-prvkem zatím implementované nejsou.
+mají auto-repeat po 450 ms a potom po 140 ms; OK zůstává jednorázové. Fyzická
+navigace používá rychlý display path: Sidebar a Page focus obnovují pouze
+dotčenou oblast, mezikroky negenerují celý WebUI preview a přepnutí obrazovky
+používá full-window differential partial refresh místo pomalého čistícího full
+refreshu. Akce `OK` nad konkrétním prvkem zatím implementované nejsou.
 
 ### Dynamická viditelnost modulů
 
