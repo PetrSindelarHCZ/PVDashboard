@@ -40,8 +40,11 @@
 
 Fyzický pětisměrný joystick je připojen přímo do stejného `NavigationController`
 jako WebUI: UP GPIO16, DOWN GPIO17, LEFT GPIO18, RIGHT GPIO32 a OK GPIO33.
-Vstupy jsou active LOW s interním `INPUT_PULLUP` a 30ms debounce. Auto-repeat
-při držení a akce `OK` nad konkrétním prvkem zatím implementované nejsou.
+Vstupy jsou active LOW s interním `INPUT_PULLUP` a 20ms debounce. Směrová tlačítka
+mají auto-repeat po 450 ms a potom po 140 ms; OK zůstává jednorázové. Navigační
+refresh má prioritu před odloženými automatickými refreshi a rychlé fyzické
+stisky se 250 ms slučují do jednoho e-paper renderu. Akce `OK` nad konkrétním
+prvkem zatím implementované nejsou.
 
 ### Dynamická viditelnost modulů
 
@@ -137,8 +140,8 @@ jde pouze o možnou budoucí úvahu.
 ### Fyzické ovládání
 
 Pětisměrný ovladač má finální pinout UP=GPIO16, DOWN=GPIO17, LEFT=GPIO18,
-RIGHT=GPIO32 a OK=GPIO33. Firmware používá interní pull-upy, active-LOW logiku
-a 30ms debounce; každý stisk vyvolá právě jednu navigační akci. Samostatná
+RIGHT=GPIO32 a OK=GPIO33. Firmware používá interní pull-upy, active-LOW logiku a 20ms debounce.
+Směry podporují auto-repeat; OK je jednorázové. Samostatná
 tlačítka SET a RESET zatím nejsou do firmware připojena.
 
 ### Refresh politika
