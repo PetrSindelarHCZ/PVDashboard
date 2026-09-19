@@ -862,7 +862,11 @@ void DashboardApp::loop() {
                     currentLayout);
 
             if (_physicalNavigationFullRefresh) {
-                requestNavigationDisplayRefresh(true, 40UL, nullptr, true);
+                // Screen changes triggered from the physical joystick stay
+                // interactive: use a full-window differential partial refresh.
+                // Startup/manual maintenance still use the slow cleaning full
+                // refresh path.
+                requestNavigationDisplayRefresh(false, 40UL, nullptr, false);
             } else {
                 requestNavigationDisplayRefresh(
                     false,
