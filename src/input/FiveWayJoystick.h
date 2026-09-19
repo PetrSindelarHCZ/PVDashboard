@@ -11,7 +11,9 @@ public:
     static constexpr uint8_t LeftPin = JOY_LEFT_PIN;
     static constexpr uint8_t RightPin = JOY_RIGHT_PIN;
     static constexpr uint8_t OkPin = JOY_OK_PIN;
-    static constexpr uint32_t DebounceMs = 30;
+    static constexpr uint32_t DebounceMs = 20;
+    static constexpr uint32_t RepeatDelayMs = 450;
+    static constexpr uint32_t RepeatIntervalMs = 140;
 
     void begin();
 
@@ -28,6 +30,7 @@ private:
         bool rawPressed = false;
         bool stablePressed = false;
         unsigned long lastRawChangeMs = 0;
+        unsigned long nextRepeatMs = 0;
     };
 
     ButtonState _buttons[5] = {
