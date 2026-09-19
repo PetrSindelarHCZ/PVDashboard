@@ -1661,6 +1661,16 @@ void DashboardWebServer::handleApiStatus() {
 
     JsonObject azObj = doc["azrouter"].to<JsonObject>();
     azObj["available"] = _dataModel.azrouter.status.available;
+    azObj["routedPowerW"] =
+        _dataModel.azrouter.hasRoutedPower ? _dataModel.azrouter.routedPowerW : nullptr;
+    azObj["routedEnergyTodayKWh"] =
+        _dataModel.azrouter.hasRoutedEnergyToday ? _dataModel.azrouter.routedEnergyTodayKWh : nullptr;
+    azObj["gridPowerW"] =
+        _dataModel.azrouter.hasGridPower ? _dataModel.azrouter.gridPowerW : nullptr;
+    azObj["boilerTempC"] =
+        _dataModel.azrouter.hasBoilerTemp ? _dataModel.azrouter.boilerTempC : nullptr;
+    azObj["systemTempC"] =
+        _dataModel.azrouter.hasSystemTemp ? _dataModel.azrouter.systemTempC : nullptr;
     if (_dataModel.azrouter.status.lastSuccessMs == 0) {
         azObj["lastUpdateAgeSeconds"] = nullptr;
     } else {
