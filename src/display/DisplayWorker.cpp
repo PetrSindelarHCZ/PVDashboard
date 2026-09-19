@@ -74,10 +74,10 @@ bool DisplayWorker::enqueue(IScreen* screen, const DataModel& dataModel, bool fu
 
     if (_pendingFull || partialRegion == nullptr || !partialRegion->valid()) {
         _pendingHasRegion = false;
-    } else if (!hadPending || !_pendingHasRegion) {
+    } else if (!hadPending) {
         _pendingRegion = *partialRegion;
         _pendingHasRegion = true;
-    } else {
+    } else if (_pendingHasRegion) {
         const int16_t x1 = min(_pendingRegion.x, partialRegion->x);
         const int16_t y1 = min(_pendingRegion.y, partialRegion->y);
         const int16_t x2 = max(
@@ -91,6 +91,8 @@ bool DisplayWorker::enqueue(IScreen* screen, const DataModel& dataModel, bool fu
         _pendingRegion.width = x2 - x1;
         _pendingRegion.height = y2 - y1;
     }
+    // If an older pending request already covers the whole screen,
+    // keep it whole-screen; a later cursor region must not narrow it.
 
     _pendingCapturePreview =
         hadPending ? (_pendingCapturePreview || capturePreview) : capturePreview;
