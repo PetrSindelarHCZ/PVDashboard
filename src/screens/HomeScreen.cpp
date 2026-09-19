@@ -165,7 +165,15 @@ void drawIndoorCard(IDisplay& display, const DataModel& dm, const LayoutWidget& 
         display.print("Obývák");
         ScreenStyle::useValue(display, color);
         display.setCursor(leftX, y + 87);
+        if (dm.inside.status.available) {
+            if (dm.inside.status.available) {
         display.printf("%.1f °C", dm.inside.livingRoomTempC);
+    } else {
+        display.print("--.- °C");
+    }
+        } else {
+            display.print("--.- °C");
+        }
 
         ScreenStyle::useBody(display, color);
         display.setCursor(leftX, y + 172);
