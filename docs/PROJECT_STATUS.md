@@ -1,6 +1,6 @@
 # Aktuální stav projektu
 
-> Stav k **19. 9. 2026**. Tento dokument je stručný provozní přehled toho, co je
+> Stav k **20. 9. 2026**. Tento dokument je stručný provozní přehled toho, co je
 > v aktuálním `masteru` hotové, co je pouze částečné a co zůstává plánem.
 > Technické detaily jsou v odkazovaných specializovaných dokumentech.
 
