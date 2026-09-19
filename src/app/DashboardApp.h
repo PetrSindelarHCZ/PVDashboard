@@ -68,6 +68,7 @@ private:
     bool _pendingRefresh = false;
     bool _pendingFullRefresh = false;
     bool _displayWorkerStarted = false;
+    bool _handlingPhysicalNavigation = false;
     bool _pendingWifiSave = false;
     String _pendingWifiSsid;
     String _pendingWifiPassword;
