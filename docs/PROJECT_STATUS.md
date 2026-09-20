@@ -113,6 +113,11 @@ refreshu. Akce `OK` nad konkrétním prvkem zatím implementované nejsou.
 Polling GoodWe a AZRouteru zůstává synchronní v hlavní smyčce; jednotlivý
 timeout proto může krátce zvýšit odezvu WebUI.
 
+WebUI používá jeden sdílený 5s `/api/status` poller. Weather/source-status
+widgety odebírají jeho snapshot místo vlastních paralelních pollerů; skrytá
+záložka polling zastaví. Běžný status je odlehčený, detailní performance a
+AZRouter diagnostika jsou dostupné přes `/api/status?details=1`.
+
 ### OTA a release
 
 - [x] ruční OTA se SHA-256,
