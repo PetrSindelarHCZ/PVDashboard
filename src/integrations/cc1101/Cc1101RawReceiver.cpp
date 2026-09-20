@@ -53,6 +53,8 @@ volatile uint16_t pulseCount = 0;
 volatile uint32_t lastEdgeUs = 0;
 volatile uint32_t lastActivityUs = 0;
 volatile uint32_t lastCarrierSeenUs = 0;
+volatile uint16_t carrierHighEdges = 0;
+volatile uint16_t carrierHoldEdges = 0;
 volatile bool overflowed = false;
 volatile bool receiverReady = false;
 volatile bool captureSuppressed = false;
@@ -224,7 +226,13 @@ void IRAM_ATTR onRawEdge() {
 
     if (carrierHigh) {
         lastCarrierSeenUs = now;
+        if (carrierHighEdges != 0xFFFF) {
+            ++carrierHighEdges;
+        }
     } else {
+        if (carrierHoldEdges != 0xFFFF) {
+            ++carrierHoldEdges;
+        }
         // Some weather protocols contain intentional long OOK gaps inside
         // one packet. GDO2 carrier-sense can fall during those gaps, so keep
         // accepting GDO0 edges for a short grace period after the last
@@ -1541,7 +1549,12 @@ bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
     return true;
 }
 
-void printBurst(const int32_t* data, uint16_t count, bool wasOverflowed) {
+void printBurst(
+    const int32_t* data,
+    uint16_t count,
+    bool wasOverflowed,
+    uint16_t csHighEdges,
+    uint16_t csHoldEdges) {
     constexpr uint16_t FullRawPrintLimit = 160;
 
     if (wasOverflowed || count > FullRawPrintLimit) {
@@ -1558,8 +1571,59 @@ void printBurst(const int32_t* data, uint16_t count, bool wasOverflowed) {
             if (us < 400) ++shortCount;
         }
 
+        uint16_t tfaPairs = 0;
+        uint16_t nexusPairs = 0;
+        uint16_t plausiblePairs = 0;
+        for (uint16_t i = 0; i + 1 < count; ++i) {
+            if (data[i] <= 0 || data[i + 1] >= 0) continue;
+
+            const uint32_t highUs = static_cast<uint32_t>(data[i]);
+            const uint32_t lowUs = static_cast<uint32_t>(-data[i + 1]);
+            if (highUs < 300 || highUs > 800) continue;
+
+            ++plausiblePairs;
+            if ((lowUs >= 1500 && lowUs <= 2800) ||
+                (lowUs >= 3200 && lowUs <= 5000)) {
+                ++tfaPairs;
+            }
+            if ((lowUs >= 700 && lowUs <= 1400) ||
+                (lowUs >= 1600 && lowUs <= 2500)) {
+                ++nexusPairs;
+            }
+        }
+
+        const uint32_t csTotal =
+            static_cast<uint32_t>(csHighEdges) +
+            static_cast<uint32_t>(csHoldEdges);
+        const double csPercent =
+            csTotal
+                ? 100.0 * static_cast<double>(csHighEdges) /
+                      static_cast<double>(csTotal)
+                : 0.0;
+        const double tfaScore =
+            plausiblePairs
+                ? 100.0 * static_cast<double>(tfaPairs) /
+                      static_cast<double>(plausiblePairs)
+                : 0.0;
+        const double nexusScore =
+            plausiblePairs
+                ? 100.0 * static_cast<double>(nexusPairs) /
+                      static_cast<double>(plausiblePairs)
+                : 0.0;
+
+        const char* shape = "mixed";
+        double shapeScore = 0.0;
+        if (plausiblePairs >= 24 && tfaScore >= 70.0) {
+            shape = "TFA-2/4ms?";
+            shapeScore = tfaScore;
+        } else if (plausiblePairs >= 24 && nexusScore >= 70.0) {
+            shape = "NEXUS-1/2ms?";
+            shapeScore = nexusScore;
+        }
+
         Serial.printf(
-            "[CC1101][RX][LONG] pulses=%u%s min=%lu us max=%lu us avg=%lu us short<400=%u (%.0f%%)",
+            "[CC1101][RX][LONG] pulses=%u%s min=%lu us max=%lu us avg=%lu us "
+            "short<400=%u (%.0f%%) cs=%u/%lu (%.0f%%) shape=%s",
             static_cast<unsigned>(count),
             wasOverflowed ? " OVERFLOW" : "",
             static_cast<unsigned long>(minUs == 0xFFFFFFFFUL ? 0 : minUs),
@@ -1569,7 +1633,15 @@ void printBurst(const int32_t* data, uint16_t count, bool wasOverflowed) {
             count
                 ? 100.0 * static_cast<double>(shortCount) /
                       static_cast<double>(count)
-                : 0.0);
+                : 0.0,
+            static_cast<unsigned>(csHighEdges),
+            static_cast<unsigned long>(csTotal),
+            csPercent,
+            shape);
+
+        if (shapeScore > 0.0) {
+            Serial.printf(" score=%.0f%%", shapeScore);
+        }
 
         // For protocol discovery keep a bounded raw prefix even for long
         // captures. Repeating weather-sensor packets normally expose their
@@ -1628,6 +1700,8 @@ bool begin() {
     lastEdgeUs = 0;
     lastActivityUs = 0;
     lastCarrierSeenUs = 0;
+    carrierHighEdges = 0;
+    carrierHoldEdges = 0;
     overflowed = false;
 
     pinMode(CC1101_CS_PIN, OUTPUT);
@@ -1692,6 +1766,8 @@ void loop() {
     static int32_t snapshot[MaximumPulseCount];
     uint16_t snapshotCount = 0;
     bool snapshotOverflow = false;
+    uint16_t snapshotCarrierHighEdges = 0;
+    uint16_t snapshotCarrierHoldEdges = 0;
 
     noInterrupts();
     snapshotCount = pulseCount;
@@ -1702,9 +1778,13 @@ void loop() {
         snapshot[i] = pulses[i];
     }
     snapshotOverflow = overflowed;
+    snapshotCarrierHighEdges = carrierHighEdges;
+    snapshotCarrierHoldEdges = carrierHoldEdges;
     pulseCount = 0;
     lastEdgeUs = 0;
     lastActivityUs = 0;
+    carrierHighEdges = 0;
+    carrierHoldEdges = 0;
     overflowed = false;
     interrupts();
 
@@ -1715,7 +1795,12 @@ void loop() {
         !tryPrintRepeatedManchester(snapshot, snapshotCount) &&
         !tryPrintPwm67(snapshot, snapshotCount) &&
         !tryPrintPwm67Candidate(snapshot, snapshotCount)) {
-        printBurst(snapshot, snapshotCount, snapshotOverflow);
+        printBurst(
+            snapshot,
+            snapshotCount,
+            snapshotOverflow,
+            snapshotCarrierHighEdges,
+            snapshotCarrierHoldEdges);
     }
 }
 
@@ -1728,6 +1813,8 @@ void setSuppressed(bool suppressed) {
         pulseCount = 0;
         lastEdgeUs = 0;
         lastActivityUs = 0;
+        carrierHighEdges = 0;
+        carrierHoldEdges = 0;
         overflowed = false;
         changed = true;
     }
