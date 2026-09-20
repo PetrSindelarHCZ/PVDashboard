@@ -107,7 +107,10 @@ String customNtpServersJson(const std::vector<String>& servers) {
     return response;
 }
 
-String homeLayoutResponseJson(const HomeLayoutConfig& config, const DataModel& dataModel) {
+String homeLayoutResponseJson(
+    const HomeLayoutConfig& config,
+    const RfSensorsConfig& rfSensors,
+    const DataModel& dataModel) {
     JsonDocument doc;
     doc["screen"] = "home";
     doc["customized"] = config.customized;
@@ -277,11 +280,13 @@ String homeLayoutResponseJson(const HomeLayoutConfig& config, const DataModel& d
     addSource("system.wifiRssi", "Wi-Fi RSSI", "dBm", 0, false);
     addSource("system.uptimeSeconds", "Uptime", "s", 0, false);
 
-    for (uint8_t i = 0;
-         i < dataModel.rfSensors.sensorCount && i < MaxRfSensors;
-         ++i) {
-        const RfSensorData& sensor = dataModel.rfSensors.sensors[i];
-        if (!sensor.configured || sensor.slotId.isEmpty()) continue;
+    const uint8_t rfSensorCount =
+        rfSensors.sensorCount > MaxRfSensors
+            ? MaxRfSensors
+            : rfSensors.sensorCount;
+    for (uint8_t i = 0; i < rfSensorCount; ++i) {
+        const RfSensorConfig& sensor = rfSensors.sensors[i];
+        if (sensor.slotId.isEmpty()) continue;
 
         String baseLabel = sensor.name;
         if (baseLabel.isEmpty()) {
@@ -326,7 +331,7 @@ void DashboardWebServer::onHomeLayoutConfig(HomeLayoutConfigCallback callback) {
         _server.send(
             200,
             "application/json",
-            homeLayoutResponseJson(_config.display.homeLayout, _dataModel));
+            homeLayoutResponseJson(_config.display.homeLayout, _config.rfSensors, _dataModel));
     });
 
     _server.on("/api/layout/home", HTTP_POST, [this]() {
@@ -362,7 +367,7 @@ void DashboardWebServer::onHomeLayoutConfig(HomeLayoutConfigCallback callback) {
         _server.send(
             200,
             "application/json",
-            homeLayoutResponseJson(_config.display.homeLayout, _dataModel));
+            homeLayoutResponseJson(_config.display.homeLayout, _config.rfSensors, _dataModel));
     });
 
     _server.on("/api/layout/home/reset", HTTP_POST, [this]() {
@@ -387,7 +392,7 @@ void DashboardWebServer::onHomeLayoutConfig(HomeLayoutConfigCallback callback) {
         _server.send(
             200,
             "application/json",
-            homeLayoutResponseJson(_config.display.homeLayout, _dataModel));
+            homeLayoutResponseJson(_config.display.homeLayout, _config.rfSensors, _dataModel));
     });
 }
 
