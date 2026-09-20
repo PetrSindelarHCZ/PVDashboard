@@ -2,6 +2,7 @@
 #include <math.h>
 #include "../diagnostics/Performance.h"
 #include "../integrations/cc1101/Cc1101Diagnostics.h"
+#include "../integrations/cc1101/Cc1101RawReceiver.h"
 #include "../screens/ScreenStyle.h"
 #include "../../include/AppConfig.h"
 #include "../../include/Version.h"
@@ -197,6 +198,7 @@ void DashboardApp::setup() {
     // Verify the physically connected 433 MHz transceiver before the display
     // takes ownership of the global SPI object with its own MISO pin.
     Cc1101Diagnostics::probe();
+    Cc1101RawReceiver::begin();
 
     _configManager.begin();
 
@@ -842,6 +844,7 @@ void DashboardApp::onRefreshRequested(bool full) {
 
 void DashboardApp::loop() {
     Performance::Scope loopTiming(Performance::Loop);
+    Cc1101RawReceiver::loop();
     _wifiManager.loop();
     _timeService.loop();
     _webServer.loop();
