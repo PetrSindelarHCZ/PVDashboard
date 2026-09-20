@@ -211,6 +211,15 @@ void DashboardApp::setup() {
         Serial.println("[APP] Memory-heavy gate pripraven pro Display/TLS.");
     }
 
+    _networkClientGate = xSemaphoreCreateMutex();
+    if (_networkClientGate == nullptr) {
+        Serial.println("[APP] VAROVANI: network-client gate se nepodarilo vytvorit.");
+    } else {
+        _webServer.setNetworkClientGate(_networkClientGate);
+        _weatherWorker.setNetworkClientGate(_networkClientGate);
+        Serial.println("[APP] Network-client gate pripraven pro Web/TLS.");
+    }
+
     _displayPreview.init(); // tiled preview; komprimovany snapshot se drzi mimo TLS DRAM
     const auto& cfg = _configManager.get();
     _homeScreen.setLayoutConfig(&cfg.display.homeLayout);
