@@ -83,14 +83,17 @@ inline void drawSolarStatus(IDisplay& d, int16_t x, int16_t y, bool available) {
 }
 
 inline void drawRouterStatus(IDisplay& d, int16_t x, int16_t y, bool available) {
-    // Heating element in a tank (AZRouter surplus-energy heating).
-    d.drawRoundRect(x + 3, y + 2, 26, 28, 5, 1);
-    d.drawRoundRect(x + 4, y + 3, 24, 26, 4, 1);
-    d.fillRect(x + 9, y + 8, 14, 2, 1);
-    d.fillRect(x + 21, y + 10, 2, 5, 1);
-    d.fillRect(x + 9, y + 14, 14, 2, 1);
-    d.fillRect(x + 9, y + 16, 2, 5, 1);
-    d.fillRect(x + 9, y + 20, 14, 2, 1);
+    // Neutral AZRouter icon: incoming energy is routed into three phases.
+    d.drawRoundRect(x + 2, y + 3, 28, 26, 4, 1);
+    d.fillRect(x + 7, y + 9, 8, 2, 1);
+    d.drawLine(x + 15, y + 10, x + 20, y + 10, 1);
+    d.drawLine(x + 20, y + 10, x + 20, y + 22, 1);
+    d.fillCircle(x + 20, y + 10, 2, 1);
+    d.fillCircle(x + 20, y + 16, 2, 1);
+    d.fillCircle(x + 20, y + 22, 2, 1);
+    d.drawLine(x + 20, y + 10, x + 26, y + 10, 1);
+    d.drawLine(x + 20, y + 16, x + 26, y + 16, 1);
+    d.drawLine(x + 20, y + 22, x + 26, y + 22, 1);
     if (!available) drawDisconnected(d, x, y);
 }
 
