@@ -40,9 +40,10 @@ GitHub release tag používá formát **v1.YY.denRoku.pořadí** (např. **v1.26
 
 ## Měření odezvy
 
-Firmware publikuje kumulativní diagnostiku v /api/status pod performance.
-Měří hlavní smyčku, obsluhu webu, status handler, GoodWe, jednotlivé operace
-AZRouteru a oba režimy e-paper refreshu.
+Firmware publikuje běžný odlehčený stav přes `/api/status`. Kumulativní
+výkonnostní diagnostiku přidá `/api/status?details=1` pod objektem
+`performance`. Měří hlavní smyčku, obsluhu webu, status handler, GoodWe,
+jednotlivé operace AZRouteru a oba režimy e-paper refreshu.
 
 Doporučené měření:
 
