@@ -59,6 +59,12 @@ volatile bool overflowed = false;
 volatile bool receiverReady = false;
 volatile bool captureSuppressed = false;
 
+SensorObservationCallback sensorObservationCallback;
+
+void publishSensorObservation(const RfSensorObservation& observation) {
+    if (sensorObservationCallback) sensorObservationCallback(observation);
+}
+
 constexpr uint8_t Ft017ThSensorCapacity = 8;
 
 struct Ft017ThSensorEntry {
@@ -458,6 +464,18 @@ bool tryPrintTfaTwinPlus(const int32_t* data, uint16_t count) {
         Serial.printf(
             " | raw=%09llX\n",
             static_cast<unsigned long long>(frame));
+
+        RfSensorObservation observation;
+        observation.protocol = "tfa-twin";
+        observation.sensorId = sensorId;
+        observation.channel = channel;
+        observation.hasTemperature = true;
+        observation.temperatureC = temperatureC;
+        observation.hasHumidity = true;
+        observation.humidityPercent = humidity;
+        observation.hasBattery = true;
+        observation.batteryOk = !batteryLow;
+        publishSensorObservation(observation);
         return true;
     }
 
@@ -625,6 +643,18 @@ bool tryPrintNexusTh(const int32_t* data, uint16_t count) {
         Serial.printf(
             " | raw=%09llX\n",
             static_cast<unsigned long long>(frame));
+
+        RfSensorObservation observation;
+        observation.protocol = "nexus-th";
+        observation.sensorId = id;
+        observation.channel = channel;
+        observation.hasTemperature = true;
+        observation.temperatureC = temperatureC;
+        observation.hasHumidity = true;
+        observation.humidityPercent = humidity;
+        observation.hasBattery = true;
+        observation.batteryOk = batteryOk;
+        publishSensorObservation(observation);
         return true;
     }
 
@@ -1005,6 +1035,18 @@ bool tryPrintAuriolHg02832(const int32_t* data, uint16_t count) {
             bytes[2],
             bytes[3],
             bytes[4]);
+
+        RfSensorObservation observation;
+        observation.protocol = "auriol";
+        observation.sensorId = id;
+        observation.channel = channel;
+        observation.hasTemperature = true;
+        observation.temperatureC = temperatureC;
+        observation.hasHumidity = true;
+        observation.humidityPercent = humidity;
+        observation.hasBattery = true;
+        observation.batteryOk = !batteryLow;
+        publishSensorObservation(observation);
         return true;
     }
 
@@ -1370,6 +1412,18 @@ bool tryPrintFt017Th(const char* decoded, uint16_t frameBits) {
         static_cast<unsigned>(humidityRaw12),
         static_cast<unsigned>(unknownA),
         static_cast<unsigned>(unknownB));
+
+    RfSensorObservation observation;
+    observation.protocol = "ft017th";
+    observation.sensorId = candidateId;
+    observation.channel = 0;
+    observation.hasTemperature = true;
+    observation.temperatureC = temperatureC;
+    observation.hasHumidity = true;
+    observation.humidityPercent =
+        static_cast<int>(humidityPercent + 0.5f);
+    observation.hasBattery = false;
+    publishSensorObservation(observation);
     return true;
 }
 
@@ -1689,6 +1743,10 @@ void printBurst(
 }
 
 } // namespace
+
+void onSensorObservation(SensorObservationCallback callback) {
+    sensorObservationCallback = callback;
+}
 
 bool begin() {
     receiverReady = false;
