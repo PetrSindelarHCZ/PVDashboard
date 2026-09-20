@@ -55,6 +55,47 @@ volatile bool overflowed = false;
 volatile bool receiverReady = false;
 volatile bool captureSuppressed = false;
 
+constexpr uint8_t Ft017ThSensorCapacity = 8;
+
+struct Ft017ThSensorEntry {
+    bool used = false;
+    uint16_t candidateId = 0;
+    uint16_t unknownA = 0;
+    uint8_t unknownB = 0;
+    float temperatureC = 0.0f;
+    float humidityPercent = 0.0f;
+    uint32_t packetCount = 0;
+    uint32_t firstSeenMs = 0;
+    uint32_t lastSeenMs = 0;
+};
+
+Ft017ThSensorEntry ft017ThSensors[Ft017ThSensorCapacity];
+
+Ft017ThSensorEntry& sensorEntryFor(uint16_t candidateId) {
+    Ft017ThSensorEntry* freeEntry = nullptr;
+    Ft017ThSensorEntry* oldestEntry = &ft017ThSensors[0];
+
+    for (auto& entry : ft017ThSensors) {
+        if (entry.used && entry.candidateId == candidateId) {
+            return entry;
+        }
+        if (!entry.used && freeEntry == nullptr) {
+            freeEntry = &entry;
+        }
+        if (!entry.used || entry.lastSeenMs < oldestEntry->lastSeenMs) {
+            oldestEntry = &entry;
+        }
+    }
+
+    Ft017ThSensorEntry& selected =
+        freeEntry != nullptr ? *freeEntry : *oldestEntry;
+    selected = Ft017ThSensorEntry{};
+    selected.used = true;
+    selected.candidateId = candidateId;
+    selected.firstSeenMs = millis();
+    return selected;
+}
+
 bool waitForChipReady() {
     const uint32_t started = micros();
     while (digitalRead(CC1101_MISO_PIN) == HIGH) {
@@ -229,8 +270,11 @@ bool tryPrintFt017Th(const char* decoded, uint16_t frameBits) {
         return value;
     };
 
+    const uint16_t candidateId = readBits(9, 9);
+    const uint16_t unknownA = readBits(18, 15);
     const uint16_t temperatureRaw12 = readBits(33, 12);
     const uint16_t humidityRaw12 = readBits(45, 12);
+    const uint8_t unknownB = static_cast<uint8_t>(readBits(57, 8));
 
     const float temperatureC =
         (static_cast<float>(temperatureRaw12 << 4) / 576.077364f) - 40.0f;
@@ -242,12 +286,29 @@ bool tryPrintFt017Th(const char* decoded, uint16_t frameBits) {
         return false;
     }
 
+    Ft017ThSensorEntry& sensor = sensorEntryFor(candidateId);
+    const uint32_t nowMs = millis();
+    sensor.used = true;
+    sensor.candidateId = candidateId;
+    sensor.unknownA = unknownA;
+    sensor.unknownB = unknownB;
+    sensor.temperatureC = temperatureC;
+    sensor.humidityPercent = humidityPercent;
+    ++sensor.packetCount;
+    sensor.lastSeenMs = nowMs;
+
     Serial.printf(
-        "[CC1101][FT017TH] temp=%.1f C humidity=%.1f %% | rawT=%u rawH=%u\n",
+        "[CC1101][FT017TH] id=0x%03X temp=%.1f C humidity=%.1f %% "
+        "| packets=%lu age=%lu s | rawT=%u rawH=%u unkA=0x%04X unkB=0x%02X\n",
+        static_cast<unsigned>(candidateId),
         temperatureC,
         humidityPercent,
+        static_cast<unsigned long>(sensor.packetCount),
+        static_cast<unsigned long>((nowMs - sensor.firstSeenMs) / 1000UL),
         static_cast<unsigned>(temperatureRaw12),
-        static_cast<unsigned>(humidityRaw12));
+        static_cast<unsigned>(humidityRaw12),
+        static_cast<unsigned>(unknownA),
+        static_cast<unsigned>(unknownB));
     return true;
 }
 
@@ -455,6 +516,9 @@ void printBurst(const int32_t* data, uint16_t count, bool wasOverflowed) {
 bool begin() {
     receiverReady = false;
     captureSuppressed = false;
+    for (auto& sensor : ft017ThSensors) {
+        sensor = Ft017ThSensorEntry{};
+    }
     pulseCount = 0;
     lastEdgeUs = 0;
     lastActivityUs = 0;
