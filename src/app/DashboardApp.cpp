@@ -844,7 +844,6 @@ void DashboardApp::onRefreshRequested(bool full) {
 
 void DashboardApp::loop() {
     Performance::Scope loopTiming(Performance::Loop);
-    Cc1101RawReceiver::loop();
     _wifiManager.loop();
     _timeService.loop();
     _webServer.loop();
@@ -905,6 +904,13 @@ void DashboardApp::loop() {
     }
 
     const DisplayTaskStatus displayStatus = _displayWorker.getStatus();
+
+    const bool displayElectricallyActive =
+        displayStatus.state == DisplayTaskState::Initializing ||
+        displayStatus.state == DisplayTaskState::RenderingPartial ||
+        displayStatus.state == DisplayTaskState::RenderingFull;
+    Cc1101RawReceiver::setSuppressed(displayElectricallyActive);
+    Cc1101RawReceiver::loop();
     if (displayStatus.lastCompletedMs != 0 && displayStatus.lastCompletedMs != _lastScreenRender) {
         _lastScreenRender = displayStatus.lastCompletedMs;
         _lastDisplayUpdate = displayStatus.lastCompletedMs;
