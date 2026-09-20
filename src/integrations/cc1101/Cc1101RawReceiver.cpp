@@ -230,9 +230,6 @@ void IRAM_ATTR onRawEdge() {
             ++carrierHighEdges;
         }
     } else {
-        if (carrierHoldEdges != 0xFFFF) {
-            ++carrierHoldEdges;
-        }
         // Some weather protocols contain intentional long OOK gaps inside
         // one packet. GDO2 carrier-sense can fall during those gaps, so keep
         // accepting GDO0 edges for a short grace period after the last
@@ -244,6 +241,9 @@ void IRAM_ATTR onRawEdge() {
         if (carrierAge > CarrierHoldUs) {
             lastEdgeUs = 0;
             return;
+        }
+        if (carrierHoldEdges != 0xFFFF) {
+            ++carrierHoldEdges;
         }
     }
 
