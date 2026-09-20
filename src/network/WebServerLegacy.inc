@@ -1670,17 +1670,22 @@ void DashboardWebServer::handleApiStatus() {
     displayObj["lastDurationMs"] = displayStatus.lastDurationMs;
     displayObj["lastCompletedMs"] = displayStatus.lastCompletedMs;
     displayObj["stackHighWaterWords"] = displayStatus.stackHighWaterWords;
-    JsonObject perf = doc["performance"].to<JsonObject>();
-    perf["uptimeMs"] = millis();
-    for (int i = 0; i < Performance::Count; ++i) {
-        const auto metric = static_cast<Performance::Metric>(i);
-        const auto value = Performance::stats(metric);
-        JsonObject item = perf[Performance::name(metric)].to<JsonObject>();
-        item["count"] = value.count;
-        item["avgMs"] = value.count ? (double)value.totalMs / value.count : 0;
-        item["maxMs"] = value.maxMs;
-        item["lastMs"] = value.lastMs;
-        item["lastEndMs"] = value.lastEndMs;
+    const bool includeDetails =
+        _server.hasArg("details") && _server.arg("details") != "0";
+
+    if (includeDetails) {
+        JsonObject perf = doc["performance"].to<JsonObject>();
+        perf["uptimeMs"] = millis();
+        for (int i = 0; i < Performance::Count; ++i) {
+            const auto metric = static_cast<Performance::Metric>(i);
+            const auto value = Performance::stats(metric);
+            JsonObject item = perf[Performance::name(metric)].to<JsonObject>();
+            item["count"] = value.count;
+            item["avgMs"] = value.count ? (double)value.totalMs / value.count : 0;
+            item["maxMs"] = value.maxMs;
+            item["lastMs"] = value.lastMs;
+            item["lastEndMs"] = value.lastEndMs;
+        }
     }
 
     JsonObject systemConfigObj = doc["systemConfig"].to<JsonObject>();
@@ -1722,37 +1727,40 @@ void DashboardWebServer::handleApiStatus() {
     if (_dataModel.azrouter.hasMasterBoost) azObj["masterBoost"] = _dataModel.azrouter.masterBoost;
     else azObj["masterBoost"] = nullptr;
 
-    JsonArray gridPhases = azObj["gridPhases"].to<JsonArray>();
-    JsonArray routedPhases = azObj["routedPhases"].to<JsonArray>();
-    for (uint8_t phase = 0; phase < 3; ++phase) {
-        JsonObject grid = gridPhases.add<JsonObject>();
-        grid["phase"] = phase + 1;
-        if (_dataModel.azrouter.hasGridPhasePower[phase]) grid["powerW"] = _dataModel.azrouter.gridPhasePowerW[phase];
-        else grid["powerW"] = nullptr;
-        if (_dataModel.azrouter.hasGridPhaseCurrent[phase]) grid["currentA"] = _dataModel.azrouter.gridPhaseCurrentA[phase];
-        else grid["currentA"] = nullptr;
-        if (_dataModel.azrouter.hasGridPhaseVoltage[phase]) grid["voltageV"] = _dataModel.azrouter.gridPhaseVoltageV[phase];
-        else grid["voltageV"] = nullptr;
-        if (_dataModel.azrouter.hasGridPhaseStatus[phase]) grid["connected"] = _dataModel.azrouter.gridPhaseConnected[phase];
-        else grid["connected"] = nullptr;
+    if (includeDetails) {
+        JsonArray gridPhases = azObj["gridPhases"].to<JsonArray>();
+        JsonArray routedPhases = azObj["routedPhases"].to<JsonArray>();
+        for (uint8_t phase = 0; phase < 3; ++phase) {
+            JsonObject grid = gridPhases.add<JsonObject>();
+            grid["phase"] = phase + 1;
+            if (_dataModel.azrouter.hasGridPhasePower[phase]) grid["powerW"] = _dataModel.azrouter.gridPhasePowerW[phase];
+            else grid["powerW"] = nullptr;
+            if (_dataModel.azrouter.hasGridPhaseCurrent[phase]) grid["currentA"] = _dataModel.azrouter.gridPhaseCurrentA[phase];
+            else grid["currentA"] = nullptr;
+            if (_dataModel.azrouter.hasGridPhaseVoltage[phase]) grid["voltageV"] = _dataModel.azrouter.gridPhaseVoltageV[phase];
+            else grid["voltageV"] = nullptr;
+            if (_dataModel.azrouter.hasGridPhaseStatus[phase]) grid["connected"] = _dataModel.azrouter.gridPhaseConnected[phase];
+            else grid["connected"] = nullptr;
 
-        JsonObject routed = routedPhases.add<JsonObject>();
-        routed["phase"] = phase + 1;
-        if (_dataModel.azrouter.hasRoutedPhasePower[phase]) routed["powerW"] = _dataModel.azrouter.routedPhasePowerW[phase];
-        else routed["powerW"] = nullptr;
+            JsonObject routed = routedPhases.add<JsonObject>();
+            routed["phase"] = phase + 1;
+            if (_dataModel.azrouter.hasRoutedPhasePower[phase]) routed["powerW"] = _dataModel.azrouter.routedPhasePowerW[phase];
+            else routed["powerW"] = nullptr;
+        }
+
+        JsonObject energy = azObj["energy"].to<JsonObject>();
+        if (_dataModel.azrouter.hasRoutedEnergyTotal) energy["totalKWh"] = _dataModel.azrouter.routedEnergyTotalKWh;
+        else energy["totalKWh"] = nullptr;
+        if (_dataModel.azrouter.hasRoutedEnergyYear) energy["yearKWh"] = _dataModel.azrouter.routedEnergyYearKWh;
+        else energy["yearKWh"] = nullptr;
+        if (_dataModel.azrouter.hasRoutedEnergyMonth) energy["monthKWh"] = _dataModel.azrouter.routedEnergyMonthKWh;
+        else energy["monthKWh"] = nullptr;
+        if (_dataModel.azrouter.hasRoutedEnergyWeek) energy["weekKWh"] = _dataModel.azrouter.routedEnergyWeekKWh;
+        else energy["weekKWh"] = nullptr;
+        if (_dataModel.azrouter.hasRoutedEnergyToday) energy["todayKWh"] = _dataModel.azrouter.routedEnergyTodayKWh;
+        else energy["todayKWh"] = nullptr;
+
     }
-
-    JsonObject energy = azObj["energy"].to<JsonObject>();
-    if (_dataModel.azrouter.hasRoutedEnergyTotal) energy["totalKWh"] = _dataModel.azrouter.routedEnergyTotalKWh;
-    else energy["totalKWh"] = nullptr;
-    if (_dataModel.azrouter.hasRoutedEnergyYear) energy["yearKWh"] = _dataModel.azrouter.routedEnergyYearKWh;
-    else energy["yearKWh"] = nullptr;
-    if (_dataModel.azrouter.hasRoutedEnergyMonth) energy["monthKWh"] = _dataModel.azrouter.routedEnergyMonthKWh;
-    else energy["monthKWh"] = nullptr;
-    if (_dataModel.azrouter.hasRoutedEnergyWeek) energy["weekKWh"] = _dataModel.azrouter.routedEnergyWeekKWh;
-    else energy["weekKWh"] = nullptr;
-    if (_dataModel.azrouter.hasRoutedEnergyToday) energy["todayKWh"] = _dataModel.azrouter.routedEnergyTodayKWh;
-    else energy["todayKWh"] = nullptr;
 
     // Device-level telemetry remains available internally, but is not exposed
     // as dashboard master telemetry because it depends on the attached load.
@@ -1833,6 +1841,8 @@ void DashboardWebServer::handleApiStatus() {
 
     String response;
     serializeJson(doc, response);
+    _server.sendHeader("Cache-Control", "no-store");
+    _server.sendHeader("Connection", "close");
     _server.send(200, "application/json", response);
 }
 
