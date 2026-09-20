@@ -43,7 +43,8 @@ constexpr uint32_t ChipReadyTimeoutUs = 10000;
 
 // Pulse filtering / burst framing.
 constexpr uint32_t MinimumPulseUs = 70;
-constexpr uint32_t BurstGapUs = 12000;
+constexpr uint32_t BurstGapUs = 18000;
+constexpr uint32_t CarrierHoldUs = 16000;
 constexpr uint16_t MinimumBurstPulses = 8;
 constexpr uint16_t MaximumPulseCount = 768;
 
@@ -51,6 +52,7 @@ volatile int32_t pulses[MaximumPulseCount];
 volatile uint16_t pulseCount = 0;
 volatile uint32_t lastEdgeUs = 0;
 volatile uint32_t lastActivityUs = 0;
+volatile uint32_t lastCarrierSeenUs = 0;
 volatile bool overflowed = false;
 volatile bool receiverReady = false;
 volatile bool captureSuppressed = false;
@@ -217,15 +219,26 @@ void IRAM_ATTR onRawEdge() {
         return;
     }
 
-    // Ignore raw slicer chatter until CC1101 declares a carrier.
-    if (digitalRead(CC1101_GDO2_PIN) == LOW) {
-        // Break pulse timing across periods without carrier, but keep the
-        // timestamp of the last real burst activity so loop() can close it.
-        lastEdgeUs = 0;
-        return;
+    const uint32_t now = micros();
+    const bool carrierHigh = digitalRead(CC1101_GDO2_PIN) == HIGH;
+
+    if (carrierHigh) {
+        lastCarrierSeenUs = now;
+    } else {
+        // Some weather protocols contain intentional long OOK gaps inside
+        // one packet. GDO2 carrier-sense can fall during those gaps, so keep
+        // accepting GDO0 edges for a short grace period after the last
+        // confirmed carrier instead of cutting the frame immediately.
+        const uint32_t carrierAge =
+            lastCarrierSeenUs == 0
+                ? 0xFFFFFFFFUL
+                : static_cast<uint32_t>(now - lastCarrierSeenUs);
+        if (carrierAge > CarrierHoldUs) {
+            lastEdgeUs = 0;
+            return;
+        }
     }
 
-    const uint32_t now = micros();
     lastActivityUs = now;
     const uint32_t previous = lastEdgeUs;
     lastEdgeUs = now;
@@ -640,10 +653,40 @@ bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
 }
 
 void printBurst(const int32_t* data, uint16_t count, bool wasOverflowed) {
+    constexpr uint16_t FullRawPrintLimit = 160;
+
+    if (wasOverflowed || count > FullRawPrintLimit) {
+        uint32_t minUs = 0xFFFFFFFFUL;
+        uint32_t maxUs = 0;
+        uint32_t totalUs = 0;
+        uint16_t shortCount = 0;
+        for (uint16_t i = 0; i < count; ++i) {
+            const uint32_t us = static_cast<uint32_t>(
+                data[i] >= 0 ? data[i] : -data[i]);
+            if (us < minUs) minUs = us;
+            if (us > maxUs) maxUs = us;
+            totalUs += us;
+            if (us < 400) ++shortCount;
+        }
+
+        Serial.printf(
+            "[CC1101][RX][NOISE] pulses=%u%s min=%lu us max=%lu us avg=%lu us short<400=%u (%.0f%%)\n",
+            static_cast<unsigned>(count),
+            wasOverflowed ? " OVERFLOW" : "",
+            static_cast<unsigned long>(minUs == 0xFFFFFFFFUL ? 0 : minUs),
+            static_cast<unsigned long>(maxUs),
+            static_cast<unsigned long>(count ? totalUs / count : 0),
+            static_cast<unsigned>(shortCount),
+            count
+                ? 100.0 * static_cast<double>(shortCount) /
+                      static_cast<double>(count)
+                : 0.0);
+        return;
+    }
+
     Serial.printf(
-        "[CC1101][RX] burst pulses=%u%s | ",
-        static_cast<unsigned>(count),
-        wasOverflowed ? " OVERFLOW" : "");
+        "[CC1101][RX] burst pulses=%u | ",
+        static_cast<unsigned>(count));
 
     for (uint16_t i = 0; i < count; ++i) {
         const int32_t pulse = data[i];
@@ -653,7 +696,6 @@ void printBurst(const int32_t* data, uint16_t count, bool wasOverflowed) {
             Serial.print(' ');
         }
 
-        // Keep serial lines reasonably sized and readable.
         if ((i + 1) % 32 == 0 && i + 1 < count) {
             Serial.println();
             Serial.print("[CC1101][RX]   ");
@@ -673,6 +715,7 @@ bool begin() {
     pulseCount = 0;
     lastEdgeUs = 0;
     lastActivityUs = 0;
+    lastCarrierSeenUs = 0;
     overflowed = false;
 
     pinMode(CC1101_CS_PIN, OUTPUT);
