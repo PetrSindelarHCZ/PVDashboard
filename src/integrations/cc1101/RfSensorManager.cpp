@@ -65,7 +65,7 @@ void RfSensorManager::applyConfig(const RfSensorsConfig& config) {
     _dataModel.rfSensors.sensorCount = configuredCount;
     for (uint8_t i = 0; i < MaxRfSensors; ++i) {
         RfSensorData next;
-        if (i < _config->sensorCount) {
+        if (i < configuredCount) {
             const RfSensorConfig& sensor = _config->sensors[i];
             next.configured = true;
             next.slotId = sensor.slotId;
@@ -286,7 +286,11 @@ bool RfSensorManager::removeSensor(
     RfSensorsConfig& updated,
     String& error) const {
 
-    updated = _config;
+    if (_config == nullptr) {
+        error = "Správa RF čidel ještě není inicializovaná.";
+        return false;
+    }
+    updated = *_config;
     for (uint8_t i = 0; i < updated.sensorCount && i < MaxRfSensors; ++i) {
         if (updated.sensors[i].slotId != slotId) continue;
         for (uint8_t j = i + 1; j < updated.sensorCount; ++j) {
