@@ -176,8 +176,8 @@ void RfSensorManager::loop() {
 }
 
 void RfSensorManager::startScan(uint32_t durationMs) {
-    if (durationMs < 10000) durationMs = 10000;
-    if (durationMs > 120000) durationMs = 120000;
+    if (durationMs < 30000) durationMs = 30000;
+    if (durationMs > 180000) durationMs = 180000;
     for (auto& item : _discovered) item = DiscoveredSensor{};
     _scanStartedMs = millis();
     _scanDurationMs = durationMs;
