@@ -216,7 +216,7 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
         }
         if (button) {
             button.disabled = scanning;
-            button.textContent = scanning ? 'Skenuji…' : 'Vyhledat okolní čidla';
+            button.textContent = scanning ? 'Skenuji…' : 'Vyhledat okolní čidla (90 s)';
         }
     }
 
@@ -253,7 +253,7 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
         if (button) button.disabled = true;
         const ok = await postAction(
             '/api/rf-sensors/scan',
-            {durationSeconds:'30'},
+            {durationSeconds:'90'},
             'Scan 433 MHz čidel spuštěn');
         if (!ok && button) button.disabled = false;
     }
@@ -273,7 +273,7 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
             </div>
             <div class="rf-sensor-hint">
                 Scan zachytává jen čidla, jejichž protokol dashboard umí bezpečně dekódovat.
-                Scan trvá 30 s; čidlo se uloží až po stisku Přidat.
+                Scan trvá 90 s; čidlo se uloží až po stisku Přidat.
             </div>
             <div class="rf-sensor-section-title">Uložená čidla</div>
             <div class="rf-sensor-list" id="rfSensorConfigured"></div>
