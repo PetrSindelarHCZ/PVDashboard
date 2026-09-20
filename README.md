@@ -90,7 +90,8 @@ URL a SHA-256 získané přímo z GitHub release, ověří celý obraz a potom s
 
 | Metoda | Endpoint | Účel |
 | --- | --- | --- |
-| GET | /api/status | Stav systému, zdrojů a výkonnostní metriky |
+| GET | /api/status | Odlehčený stav systému a zdrojů |
+| GET | /api/status?details=1 | Stav systému včetně výkonnostních a podrobných AZRouter metrik |
 | GET | /api/screens | Seznam obrazovek |
 | POST | /api/screens/{id}/activate | Aktivace obrazovky |
 | GET | /api/navigation | Stav navigace, focus a geometrie focusovatelných prvků |
