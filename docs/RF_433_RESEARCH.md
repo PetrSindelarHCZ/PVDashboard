@@ -531,3 +531,45 @@ Při dalším cíleném testu:
 3. zachytit nejbližší `[LONG]` burst,
 4. porovnat opakované timingové bloky,
 5. teprve poté vytvořit skutečný WS 77 TH decoder.
+
+
+## Hyundai WS Senzor 77 TH / Nexus-TH potvrzený timing
+
+Nový dlouhý capture fyzického Hyundai čidla ukázal velmi čistý PPM přenos:
+
+- HIGH pulz přibližně 0,45–0,56 ms,
+- LOW ~1,0 ms = 0,
+- LOW ~2,0 ms = 1,
+- LOW ~4,0 ms = oddělovač opakovaného rámce,
+- rámec má 36 bitů a opakuje se vícekrát.
+
+První rekonstruovaný rámec:
+
+```text
+010101111001000010100110111101001100
+hex: 0x5790A6F4C
+```
+
+Struktura sedí přesně na rodinu **Nexus-TH**:
+
+```text
+[id0][id1][flags][temp0][temp1][temp2][0xF][humi0][humi1]
+```
+
+Dekódované hodnoty z rámce:
+
+- ID: 0x57
+- kanál: 2
+- battery: OK
+- test: OFF
+- teplota: 16,6 °C
+- vlhkost: 76 %
+
+Na diagnostické větvi je přidán decoder `[CC1101][NEXUS-TH]`, který vyžaduje
+minimálně 3 identická 36bitová opakování, konstantní nibble 0xF a validní rozsah
+kanálu/vlhkosti. Tím se omezuje riziko false-positive, protože Nexus-TH nemá
+skutečný checksum.
+
+Fyzické potvrzení konkrétního modelu Hyundai WS Senzor 77 TH je velmi silné;
+pro definitivní uzavření stačí porovnat uvedenou teplotu/vlhkost a CH2 s displejem
+a přepínačem čidla.
