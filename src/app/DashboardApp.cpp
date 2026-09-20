@@ -933,6 +933,7 @@ void DashboardApp::loop() {
         displayStatus.state == DisplayTaskState::RenderingFull;
     Cc1101RawReceiver::setSuppressed(displayElectricallyActive);
     Cc1101RawReceiver::loop();
+    _rfSensorManager.loop();
     if (displayStatus.lastCompletedMs != 0 && displayStatus.lastCompletedMs != _lastScreenRender) {
         _lastScreenRender = displayStatus.lastCompletedMs;
         _lastDisplayUpdate = displayStatus.lastCompletedMs;
