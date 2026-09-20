@@ -1572,7 +1572,21 @@ void DashboardWebServer::begin() {
 void DashboardWebServer::loop() {
     Performance::webTick();
     Performance::Scope timing(Performance::WebService);
+
+    const uint32_t startedMs = millis();
     _server.handleClient();
+    const uint32_t elapsedMs = millis() - startedMs;
+
+    if (elapsedMs >= 500UL) {
+        WiFiClient client = _server.client();
+        const IPAddress remote = client ? client.remoteIP() : IPAddress();
+        Serial.printf(
+            "[WEB][STALL] handleClient=%lu ms | uri=%s | remote=%s | connected=%d\n",
+            static_cast<unsigned long>(elapsedMs),
+            _server.uri().c_str(),
+            remote.toString().c_str(),
+            client ? client.connected() : 0);
+    }
 }
 
 void DashboardWebServer::onScreenChange(ScreenChangeCallback callback) {
