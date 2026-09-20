@@ -87,6 +87,36 @@ protokolů; gateway má zůstat samostatná.
 Cloud nesmí být podmínkou pro lokální funkci dashboardu a firmware nemá být
 těsně svázaný s jedním poskytovatelem.
 
+
+## H — logování, diagnostika a odolnost komunikace
+
+Cílem je diagnostikovat dlouhodobý provoz bez nutnosti připojeného Serial Monitoru
+a současně omezit potřebu restartovat celé ESP při výpadku jedné integrace.
+
+- [ ] zavést jednotné logovací API s úrovněmi Error / Warning / Info / Debug / Trace,
+- [ ] podporovat více výstupů stejného logu: Serial, WebUI ring-buffer a vzdálený Syslog,
+- [ ] přidat do WebUI konfiguraci log levelu, povolených výstupů a adresy/portu Syslog serveru,
+- [ ] udržovat v RAM omezený ring-buffer posledních zpráv pro stránku WebUI → Logs,
+- [ ] neposílat běžné provozní logy průběžně do flash; vzdálenou historii řešit přes síť,
+- [ ] automaticky přidávat k důležitým záznamům firmware verzi, uptime a diagnostiku paměti,
+- [ ] při startu logovat reset reason a případnou informaci o předchozím panic/watchdog resetu,
+- [ ] doplnit detailní GoodWe diagnostiku TX/RX: typ požadavku, délku odpovědi, dobu odezvy,
+      timeouty, CRC chyby a počet po sobě jdoucích selhání,
+- [ ] evidovat čas poslední úspěšné GoodWe komunikace, počet reconnectů a stav klienta/socketu,
+- [ ] při problému s GoodWe současně logovat stav AZRouteru, Wi-Fi/RSSI a free heap,
+      aby bylo možné odlišit lokální problém GoodWe od obecného síťového problému ESP,
+- [ ] ověřit, zda se GoodWe požadavky nepřekrývají a zda je vždy dokončen jeden request
+      před odesláním dalšího,
+- [ ] implementovat stupňovaný GoodWe recovery mechanismus: opakování požadavku →
+      znovuvytvoření socketu/klienta → nová inicializace komunikace,
+- [ ] restart celého ESP použít až jako poslední nouzový krok po selhání izolovaného recovery,
+- [ ] ověřit dlouhodobým testem reálného GoodWe stav, kdy GoodWe přestane odpovídat,
+      zatímco AZRouter pokračuje v normální komunikaci.
+
+Lokální komunikace GoodWe nevyžaduje uživatelské přihlášení; diagnostika se proto
+má soustředit na stav lokálního protokolu, pořadí požadavků, socket/klient,
+časování a případné chyby nebo degradaci Wi-Fi modulu měniče.
+
 ## G — volitelné / k dalšímu průzkumu
 
 - [ ] ČHMÚ provider, pouze pokud půjde bezpečně omezit objem regionálních dat,
