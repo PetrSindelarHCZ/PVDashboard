@@ -45,7 +45,7 @@ constexpr uint32_t ChipReadyTimeoutUs = 10000;
 constexpr uint32_t MinimumPulseUs = 70;
 constexpr uint32_t BurstGapUs = 12000;
 constexpr uint16_t MinimumBurstPulses = 8;
-constexpr uint16_t MaximumPulseCount = 256;
+constexpr uint16_t MaximumPulseCount = 768;
 
 volatile int32_t pulses[MaximumPulseCount];
 volatile uint16_t pulseCount = 0;
@@ -53,6 +53,7 @@ volatile uint32_t lastEdgeUs = 0;
 volatile uint32_t lastActivityUs = 0;
 volatile bool overflowed = false;
 volatile bool receiverReady = false;
+volatile bool captureSuppressed = false;
 
 bool waitForChipReady() {
     const uint32_t started = micros();
@@ -171,6 +172,10 @@ bool configureReceiver(const SPISettings& settings) {
 }
 
 void IRAM_ATTR onRawEdge() {
+    if (captureSuppressed) {
+        return;
+    }
+
     // Ignore raw slicer chatter until CC1101 declares a carrier.
     if (digitalRead(CC1101_GDO2_PIN) == LOW) {
         // Break pulse timing across periods without carrier, but keep the
@@ -234,6 +239,7 @@ void printBurst(const int32_t* data, uint16_t count, bool wasOverflowed) {
 
 bool begin() {
     receiverReady = false;
+    captureSuppressed = false;
     pulseCount = 0;
     lastEdgeUs = 0;
     lastActivityUs = 0;
@@ -318,6 +324,27 @@ void loop() {
     interrupts();
 
     printBurst(snapshot, snapshotCount, snapshotOverflow);
+}
+
+void setSuppressed(bool suppressed) {
+    bool changed = false;
+
+    noInterrupts();
+    if (captureSuppressed != suppressed) {
+        captureSuppressed = suppressed;
+        pulseCount = 0;
+        lastEdgeUs = 0;
+        lastActivityUs = 0;
+        overflowed = false;
+        changed = true;
+    }
+    interrupts();
+
+    if (changed) {
+        Serial.printf(
+            "[CC1101][RX] capture %s kvuli aktivite e-paperu.\n",
+            suppressed ? "PAUSED" : "RESUMED");
+    }
 }
 
 bool isReady() {
