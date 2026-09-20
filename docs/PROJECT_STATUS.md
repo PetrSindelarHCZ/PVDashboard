@@ -104,6 +104,8 @@ už stav `enabled` respektují; jde o drobný UI dluh, ne o problém pollingu.
 - [x] zachování posledních platných dat a samostatný stav dostupnosti/stáří,
 - [x] automatické obnovení pollingu po návratu zdroje,
 - [x] samostatný host a port pro každý zdroj,
+- [x] AZRouter login přes WebUI credentials včetně Bearer token/session cookie a re-loginu po 401/403,
+- [x] AZRouter heslo zůstává v NVS a není vraceno přes status API,
 - [x] odstraněny startovní demo hodnoty GoodWe/AZRouter; před prvním validním pollingem UI zobrazuje nedostupnost,
 - [x] AZRouter rozlišuje platnost výkonu, dnešní energie, sítě, teploty bojleru a teploty master jednotky,
 - [x] `status.system.temperature` je diagnostická teplota AZRouteru a už se nepoužívá jako teplota bojleru,
