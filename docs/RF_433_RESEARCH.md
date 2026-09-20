@@ -579,7 +579,7 @@ odvodit z cíleného capture po stisku RESET / při vložení baterií, ideáln�
 okamžiku bliknutí LED.
 
 
-## Hyundai WS Senzor 77 TH – Carrin / KW9010 lead
+## Hyundai WS Senzor 77 TH – potvrzený TFA Twin Plus / KW9010 protokol
 
 Další průzkum ukázal silnou OEM stopu na výrobce **Carrin Electronics**.
 Řada Carrin používá stejné konstrukční prvky jako Hyundai WS Senzor 77 TH
@@ -601,14 +601,28 @@ Tento protokol používá:
 - teplotu, vlhkost, ID, kanál, stav baterie,
 - nibble checksum.
 
-Na diagnostické větvi byl přidán kandidátní decoder
-`[CC1101][TFA-TWIN]`. Hyundai zatím není tímto protokolem potvrzený;
-decoder má sloužit k ověření při dalším cíleném RESET testu. Validní shoda
-musí mít opakovaný 36bitový rámec, smysluplné hodnoty a správný checksum.
+Na diagnostické větvi je decoder `[CC1101][TFA-TWIN]`.
 
-Poslední capture po RESET testu neobsahoval jednoznačný čistý TFA/KW9010 rámec.
-Je možné, že konkrétní vysílání proběhlo během e-paper `capture PAUSED` okna,
-nebo Hyundai používá jinou Carrin variantu.
+Fyzické Hyundai WS Senzor 77 TH bylo nyní potvrzeno jako kompatibilní s tímto
+protokolem. Zachycený rámec:
+
+```text
+[CC1101][TFA-TWIN] id=0x2F temp=24.6 C humidity=20 % channel=1 battery=OK repeats=4 checksum=OK | packets=2 interval=32.1 s | raw=F546F00DD
+```
+
+Uživatel potvrdil, že zjištěná teplota, vlhkost i kanál odpovídaly skutečnému
+stavu senzoru. Tím je identifikace uzavřena:
+
+- fyzický model: Hyundai WS Senzor 77 TH,
+- RF rodina: TFA Twin Plus 30.3049 / Conrad KW9010 / Ea2 BL999,
+- modulace: OOK/PPM,
+- délka rámce: 36 bitů,
+- přenáší: ID, channel, battery, temperature, humidity, checksum,
+- pozorovaný interval: přibližně 32 s,
+- ID se může po resetu / výměně baterií změnit.
+
+Tag `[TFA-TWIN]` zůstává záměrně generický, protože stejný protokol používá
+více přeznačených senzorů.
 
 
 ## Carrier-sense diagnostika dlouhých burstů
