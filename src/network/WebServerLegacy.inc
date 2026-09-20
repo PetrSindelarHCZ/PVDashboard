@@ -770,12 +770,17 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         }
 
         async function updateStatus() {
-            if (statusRequestInFlight || githubUpdateBusy) return;
+            if (document.hidden || statusRequestInFlight || githubUpdateBusy) return;
             statusRequestInFlight = true;
             const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 2500);
+            // 2.5 s was too aggressive for a weak Wi-Fi link / busy ESP and
+            // caused the browser to abort while WebServer was still sending.
+            const timeout = setTimeout(() => controller.abort(), 8000);
             try {
-                const res = await fetch('/api/status', { signal: controller.signal });
+                const res = await fetch('/api/status', {
+                    signal: controller.signal,
+                    cache: 'no-store'
+                });
                 if (!res.ok) throw new Error('Status HTTP ' + res.status);
                 const data = await res.json();
 
@@ -1394,7 +1399,10 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
             setGithubUpdateBusy(false);
         }
 
-        setInterval(updateStatus, 3000);
+        const statusTimer = setInterval(updateStatus, 5000);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) updateStatus();
+        });
         updateStatus();
     </script>
 
