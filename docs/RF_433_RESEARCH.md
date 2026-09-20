@@ -533,9 +533,9 @@ Při dalším cíleném testu:
 5. teprve poté vytvořit skutečný WS 77 TH decoder.
 
 
-## Hyundai WS Senzor 77 TH / Nexus-TH potvrzený timing
+## Neidentifikované Nexus-TH čidlo v dosahu
 
-Nový dlouhý capture fyzického Hyundai čidla ukázal velmi čistý PPM přenos:
+Nový dlouhý capture ukázal velmi čistý PPM přenos rodiny Nexus-TH:
 
 - HIGH pulz přibližně 0,45–0,56 ms,
 - LOW ~1,0 ms = 0,
@@ -570,6 +570,10 @@ minimálně 3 identická 36bitová opakování, konstantní nibble 0xF a validn�
 kanálu/vlhkosti. Tím se omezuje riziko false-positive, protože Nexus-TH nemá
 skutečný checksum.
 
-Fyzické potvrzení konkrétního modelu Hyundai WS Senzor 77 TH je velmi silné;
-pro definitivní uzavření stačí porovnat uvedenou teplotu/vlhkost a CH2 s displejem
-a přepínačem čidla.
+Tento rámec byl původně pracovně přiřazen fyzickému Hyundai senzoru, ale uživatel
+potvrdil, že Hyundai v danou chvíli ukazoval přibližně 24 °C. Dekódovaných 16,6 °C
+proto Hyundai neodpovídá. Jde tedy o jiné Nexus-TH kompatibilní čidlo v dosahu.
+
+Hyundai WS Senzor 77 TH zůstává neidentifikovaný a jeho skutečný protokol je třeba
+odvodit z cíleného capture po stisku RESET / při vložení baterií, ideálně s poznámkou
+okamžiku bliknutí LED.
