@@ -4,8 +4,9 @@
 #include <math.h>
 
 namespace {
-constexpr int MaxAttempts = 2;
-constexpr uint32_t ResponseTimeoutMs = 700;
+constexpr int MaxAttempts = 3;
+constexpr uint32_t ResponseTimeoutMs = 900;
+constexpr uint32_t RetryDelayMs = 40;
 }
 
 // Modbus RTU CRC16 (polynomial 0xA001, init 0xFFFF)
@@ -53,7 +54,6 @@ GoodWeClient::GoodWeClient() {
 void GoodWeClient::begin(const String& host, uint16_t port) {
     _host = host;
     _port = port;
-    _udp.begin(0);
     _remoteIpKnown = _remoteIp.fromString(_host);
     if (!_remoteIpKnown) {
         _remoteIpKnown = WiFi.hostByName(_host.c_str(), _remoteIp) == 1;
@@ -65,7 +65,13 @@ bool GoodWeClient::readHoldingRegisters(uint16_t startRegister, uint16_t count,
                                         uint8_t* dataOut, size_t dataCapacity,
                                         size_t& dataLength) {
     dataLength = 0;
-    if (count == 0 || count > 125 || dataCapacity < static_cast<size_t>(count) * 2) {
+    if (count == 0 || count > 125 ||
+        dataCapacity < static_cast<size_t>(count) * 2) {
+        Serial.printf(
+            "[GOODWE][RX] invalid request %u/%u capacity=%u\n",
+            startRegister,
+            count,
+            static_cast<unsigned>(dataCapacity));
         return false;
     }
 
@@ -84,38 +90,121 @@ bool GoodWeClient::readHoldingRegisters(uint16_t startRegister, uint16_t count,
     uint8_t buffer[320];
 
     for (int attempt = 1; attempt <= MaxAttempts; ++attempt) {
-        while (_udp.parsePacket() > 0) {
-            _udp.flush();
-        }
-
-        if (!_udp.beginPacket(_host.c_str(), _port)) continue;
-        _udp.write(request, sizeof(request));
-        if (!_udp.endPacket()) continue;
-
-        const unsigned long started = millis();
-        int packetSize = 0;
-        while (millis() - started < ResponseTimeoutMs) {
-            packetSize = _udp.parsePacket();
-            if (packetSize <= 0) {
-                delay(10);
-                continue;
-            }
-
-            const bool validPort = _udp.remotePort() == _port;
-            const bool validHost = !_remoteIpKnown || _udp.remoteIP() == _remoteIp;
-            if (validPort && validHost) break;
-
-            _udp.flush();
-            packetSize = 0;
-        }
-
-        if (packetSize < 5) {
-            if (packetSize > 0) _udp.flush();
+        // GoodWe UDP adapters are more reliable when each exchange gets a
+        // fresh local socket. This mirrors PVDeviceCapture and the reference
+        // Python goodwe library (UDP keep_alive=false).
+        WiFiUDP udp;
+        if (!udp.begin(0)) {
+            Serial.printf(
+                "[GOODWE][UDP] %u/%u attempt %d/%d: socket begin FAILED | free=%u maxBlock=%u\n",
+                startRegister,
+                count,
+                attempt,
+                MaxAttempts,
+                ESP.getFreeHeap(),
+                ESP.getMaxAllocHeap());
+            if (attempt < MaxAttempts) delay(RetryDelayMs);
             continue;
         }
 
-        const int len = _udp.read(buffer, sizeof(buffer));
-        if (len < 5) continue;
+        const bool packetStarted = _remoteIpKnown
+            ? udp.beginPacket(_remoteIp, _port)
+            : udp.beginPacket(_host.c_str(), _port);
+
+        if (!packetStarted) {
+            Serial.printf(
+                "[GOODWE][TX] %u/%u attempt %d/%d: beginPacket FAILED\n",
+                startRegister, count, attempt, MaxAttempts);
+            udp.stop();
+            if (attempt < MaxAttempts) delay(RetryDelayMs);
+            continue;
+        }
+
+        const size_t written = udp.write(request, sizeof(request));
+        if (written != sizeof(request) || !udp.endPacket()) {
+            Serial.printf(
+                "[GOODWE][TX] %u/%u attempt %d/%d: send FAILED written=%u/%u\n",
+                startRegister,
+                count,
+                attempt,
+                MaxAttempts,
+                static_cast<unsigned>(written),
+                static_cast<unsigned>(sizeof(request)));
+            udp.stop();
+            if (attempt < MaxAttempts) delay(RetryDelayMs);
+            continue;
+        }
+
+        const uint32_t started = millis();
+        int packetSize = 0;
+        bool sawForeignPacket = false;
+
+        while (millis() - started < ResponseTimeoutMs) {
+            packetSize = udp.parsePacket();
+            if (packetSize <= 0) {
+                delay(5);
+                continue;
+            }
+
+            const IPAddress sourceIp = udp.remoteIP();
+            const uint16_t sourcePort = udp.remotePort();
+            const bool validPort = sourcePort == _port;
+            const bool validHost = !_remoteIpKnown || sourceIp == _remoteIp;
+
+            if (validPort && validHost) {
+                break;
+            }
+
+            sawForeignPacket = true;
+            Serial.printf(
+                "[GOODWE][RX] %u/%u attempt %d/%d: ignored packet %d B from %s:%u\n",
+                startRegister,
+                count,
+                attempt,
+                MaxAttempts,
+                packetSize,
+                sourceIp.toString().c_str(),
+                sourcePort);
+            udp.flush();
+            packetSize = 0;
+        }
+
+        const uint32_t elapsed = millis() - started;
+
+        if (packetSize < 5) {
+            Serial.printf(
+                "[GOODWE][RX] %u/%u attempt %d/%d: TIMEOUT after %lu ms%s\n",
+                startRegister,
+                count,
+                attempt,
+                MaxAttempts,
+                static_cast<unsigned long>(elapsed),
+                sawForeignPacket ? " (foreign packet seen)" : "");
+            if (packetSize > 0) udp.flush();
+            udp.stop();
+            if (attempt < MaxAttempts) delay(RetryDelayMs);
+            continue;
+        }
+
+        const IPAddress sourceIp = udp.remoteIP();
+        const uint16_t sourcePort = udp.remotePort();
+        const int len = udp.read(buffer, sizeof(buffer));
+        udp.stop();
+
+        if (len < 5) {
+            Serial.printf(
+                "[GOODWE][RX] %u/%u attempt %d/%d: short read packet=%d read=%d from %s:%u\n",
+                startRegister,
+                count,
+                attempt,
+                MaxAttempts,
+                packetSize,
+                len,
+                sourceIp.toString().c_str(),
+                sourcePort);
+            if (attempt < MaxAttempts) delay(RetryDelayMs);
+            continue;
+        }
 
         size_t rtuOffset = 0;
         if (len >= 2 && buffer[0] == 0xAA && buffer[1] == 0x55) {
@@ -124,34 +213,105 @@ bool GoodWeClient::readHoldingRegisters(uint16_t startRegister, uint16_t count,
 
         const uint8_t* rtu = buffer + rtuOffset;
         const size_t rtuLen = static_cast<size_t>(len) - rtuOffset;
-        if (rtuLen < 5) continue;
-
-        const uint16_t receivedCrc = static_cast<uint16_t>(rtu[rtuLen - 2] | (rtu[rtuLen - 1] << 8));
-        const uint16_t calcCrc = calculateCrc(rtu, rtuLen - 2);
-        if (receivedCrc != calcCrc) {
-            Serial.printf("[GOODWE] CRC mismatch %u/%u: recv=0x%04X calc=0x%04X\n",
-                          startRegister, count, receivedCrc, calcCrc);
+        if (rtuLen < 5) {
+            Serial.printf(
+                "[GOODWE][RX] %u/%u attempt %d/%d: RTU too short len=%u\n",
+                startRegister,
+                count,
+                attempt,
+                MaxAttempts,
+                static_cast<unsigned>(rtuLen));
+            if (attempt < MaxAttempts) delay(RetryDelayMs);
             continue;
         }
 
-        if (rtu[0] != 0xF7) continue;
+        const uint16_t receivedCrc =
+            static_cast<uint16_t>(rtu[rtuLen - 2] |
+                                  (rtu[rtuLen - 1] << 8));
+        const uint16_t calcCrc =
+            calculateCrc(rtu, rtuLen - 2);
+
+        if (receivedCrc != calcCrc) {
+            Serial.printf(
+                "[GOODWE][RX] %u/%u attempt %d/%d: CRC mismatch len=%d from %s:%u recv=0x%04X calc=0x%04X\n",
+                startRegister,
+                count,
+                attempt,
+                MaxAttempts,
+                len,
+                sourceIp.toString().c_str(),
+                sourcePort,
+                receivedCrc,
+                calcCrc);
+            if (attempt < MaxAttempts) delay(RetryDelayMs);
+            continue;
+        }
+
+        if (rtu[0] != 0xF7) {
+            Serial.printf(
+                "[GOODWE][RX] %u/%u attempt %d/%d: unexpected unit 0x%02X\n",
+                startRegister, count, attempt, MaxAttempts, rtu[0]);
+            if (attempt < MaxAttempts) delay(RetryDelayMs);
+            continue;
+        }
+
         if ((rtu[1] & 0x80) != 0) {
-            Serial.printf("[GOODWE] Modbus exception %u/%u: 0x%02X\n",
-                          startRegister, count, rtu[2]);
+            Serial.printf(
+                "[GOODWE][RX] %u/%u: Modbus exception 0x%02X\n",
+                startRegister, count, rtu[2]);
             return false;
         }
-        if (rtu[1] != 0x03) continue;
+
+        if (rtu[1] != 0x03) {
+            Serial.printf(
+                "[GOODWE][RX] %u/%u attempt %d/%d: unexpected function 0x%02X\n",
+                startRegister, count, attempt, MaxAttempts, rtu[1]);
+            if (attempt < MaxAttempts) delay(RetryDelayMs);
+            continue;
+        }
 
         const uint8_t byteCount = rtu[2];
-        if (byteCount != count * 2 || rtuLen != static_cast<size_t>(3 + byteCount + 2)) {
+        const size_t expectedRtuLen =
+            static_cast<size_t>(3 + byteCount + 2);
+        if (byteCount != count * 2 || rtuLen != expectedRtuLen) {
+            Serial.printf(
+                "[GOODWE][RX] %u/%u attempt %d/%d: length mismatch packet=%d rtu=%u bytes=%u expectedBytes=%u\n",
+                startRegister,
+                count,
+                attempt,
+                MaxAttempts,
+                len,
+                static_cast<unsigned>(rtuLen),
+                byteCount,
+                static_cast<unsigned>(count * 2));
+            if (attempt < MaxAttempts) delay(RetryDelayMs);
             continue;
         }
 
         memcpy(dataOut, rtu + 3, byteCount);
         dataLength = byteCount;
+
+        if (attempt > 1 || elapsed >= 100) {
+            Serial.printf(
+                "[GOODWE][RX] %u/%u OK attempt %d/%d: %d B from %s:%u in %lu ms%s\n",
+                startRegister,
+                count,
+                attempt,
+                MaxAttempts,
+                len,
+                sourceIp.toString().c_str(),
+                sourcePort,
+                static_cast<unsigned long>(elapsed),
+                rtuOffset == 2 ? " AA55" : "");
+        }
         return true;
     }
 
+    Serial.printf(
+        "[GOODWE][RX] %u/%u FAILED after %d attempts\n",
+        startRegister,
+        count,
+        MaxAttempts);
     return false;
 }
 
