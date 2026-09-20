@@ -1705,16 +1705,58 @@ void DashboardWebServer::handleApiStatus() {
     azObj["available"] = _dataModel.azrouter.status.available;
     azObj["authenticated"] = _dataModel.azrouter.authenticated;
     azObj["authMode"] = _dataModel.azrouter.authMode;
+
     if (_dataModel.azrouter.hasRoutedPower) azObj["routedPowerW"] = _dataModel.azrouter.routedPowerW;
     else azObj["routedPowerW"] = nullptr;
-    if (_dataModel.azrouter.hasRoutedEnergyToday) azObj["routedEnergyTodayKWh"] = _dataModel.azrouter.routedEnergyTodayKWh;
-    else azObj["routedEnergyTodayKWh"] = nullptr;
     if (_dataModel.azrouter.hasGridPower) azObj["gridPowerW"] = _dataModel.azrouter.gridPowerW;
     else azObj["gridPowerW"] = nullptr;
-    if (_dataModel.azrouter.hasBoilerTemp) azObj["boilerTempC"] = _dataModel.azrouter.boilerTempC;
-    else azObj["boilerTempC"] = nullptr;
     if (_dataModel.azrouter.hasSystemTemp) azObj["systemTempC"] = _dataModel.azrouter.systemTempC;
     else azObj["systemTempC"] = nullptr;
+
+    if (_dataModel.azrouter.hasSystemStatus) azObj["systemStatusCode"] = _dataModel.azrouter.systemStatusCode;
+    else azObj["systemStatusCode"] = nullptr;
+    if (_dataModel.azrouter.hasHdo) azObj["hdo"] = _dataModel.azrouter.hdoOn;
+    else azObj["hdo"] = nullptr;
+    if (_dataModel.azrouter.hasMode) azObj["modeCode"] = _dataModel.azrouter.modeCode;
+    else azObj["modeCode"] = nullptr;
+    if (_dataModel.azrouter.hasMasterBoost) azObj["masterBoost"] = _dataModel.azrouter.masterBoost;
+    else azObj["masterBoost"] = nullptr;
+
+    JsonArray gridPhases = azObj["gridPhases"].to<JsonArray>();
+    JsonArray routedPhases = azObj["routedPhases"].to<JsonArray>();
+    for (uint8_t phase = 0; phase < 3; ++phase) {
+        JsonObject grid = gridPhases.add<JsonObject>();
+        grid["phase"] = phase + 1;
+        if (_dataModel.azrouter.hasGridPhasePower[phase]) grid["powerW"] = _dataModel.azrouter.gridPhasePowerW[phase];
+        else grid["powerW"] = nullptr;
+        if (_dataModel.azrouter.hasGridPhaseCurrent[phase]) grid["currentA"] = _dataModel.azrouter.gridPhaseCurrentA[phase];
+        else grid["currentA"] = nullptr;
+        if (_dataModel.azrouter.hasGridPhaseVoltage[phase]) grid["voltageV"] = _dataModel.azrouter.gridPhaseVoltageV[phase];
+        else grid["voltageV"] = nullptr;
+        if (_dataModel.azrouter.hasGridPhaseStatus[phase]) grid["connected"] = _dataModel.azrouter.gridPhaseConnected[phase];
+        else grid["connected"] = nullptr;
+
+        JsonObject routed = routedPhases.add<JsonObject>();
+        routed["phase"] = phase + 1;
+        if (_dataModel.azrouter.hasRoutedPhasePower[phase]) routed["powerW"] = _dataModel.azrouter.routedPhasePowerW[phase];
+        else routed["powerW"] = nullptr;
+    }
+
+    JsonObject energy = azObj["energy"].to<JsonObject>();
+    if (_dataModel.azrouter.hasRoutedEnergyTotal) energy["totalKWh"] = _dataModel.azrouter.routedEnergyTotalKWh;
+    else energy["totalKWh"] = nullptr;
+    if (_dataModel.azrouter.hasRoutedEnergyYear) energy["yearKWh"] = _dataModel.azrouter.routedEnergyYearKWh;
+    else energy["yearKWh"] = nullptr;
+    if (_dataModel.azrouter.hasRoutedEnergyMonth) energy["monthKWh"] = _dataModel.azrouter.routedEnergyMonthKWh;
+    else energy["monthKWh"] = nullptr;
+    if (_dataModel.azrouter.hasRoutedEnergyWeek) energy["weekKWh"] = _dataModel.azrouter.routedEnergyWeekKWh;
+    else energy["weekKWh"] = nullptr;
+    if (_dataModel.azrouter.hasRoutedEnergyToday) energy["todayKWh"] = _dataModel.azrouter.routedEnergyTodayKWh;
+    else energy["todayKWh"] = nullptr;
+
+    // Device-level telemetry remains available internally, but is not exposed
+    // as dashboard master telemetry because it depends on the attached load.
+
     if (_dataModel.azrouter.status.lastSuccessMs == 0) {
         azObj["lastUpdateAgeSeconds"] = nullptr;
     } else {
