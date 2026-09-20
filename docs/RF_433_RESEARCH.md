@@ -271,3 +271,167 @@ Při příštím sezení nezačínat znovu identifikací PWM67. Nejprve:
 
 Tím zůstane průzkum otevřený i pro další domácí nebo sousední 433MHz senzory a
 nezaměří se předčasně jen na dva dnes rozpoznané zdroje.
+
+
+## Připravený domácí test: Hyundai + SilverCrest/Lidl
+
+K dispozici jsou dvě fyzická čidla pro cílený laboratorní test:
+
+1. **Hyundai** – přesný model zatím není potvrzen.
+2. **SilverCrest / Lidl** – přesný model/IAN zatím není potvrzen; u Lidl senzorů
+   se často používá značka Auriol a existuje více navzájem odlišných protokolů.
+
+Při příštím testu je ideální nejprve vyfotit zadní štítek obou čidel
+(model, IAN, FCC/CE údaje, přepínač kanálu, tlačítko TX/RESET). Samotný RF test
+ale může začít i bez přesného modelu.
+
+### Hyundai – velmi silný kandidát: Hyundai WS SENZOR
+
+Projekt rtl_433 obsahuje přímo dekodér **Hyundai WS SENZOR Remote Temperature
+Sensor**. Pokud fyzické Hyundai čidlo odpovídá této rodině, očekáváme:
+
+- frekvence: **433,92 MHz**,
+- perioda vysílání: přibližně **33 s**,
+- modulace: OOK PPM / distance coding,
+- vlastní RF pulse přibližně **224 µs**,
+- mezera pro bit 0 přibližně **1032 µs**,
+- mezera pro bit 1 přibližně **1992 µs**,
+- mezera mezi opakovanými pakety přibližně **4016 µs**,
+- zpráva má **24 bitů**,
+- stejná zpráva se v jednom přenosu opakuje až **23×**.
+
+Datové pole:
+
+```text
+TTTTTTTT TTTTBSCC IIIIIIII
+```
+
+kde:
+
+- `T` = signed teplota ×10 v °C,
+- `B` = stav baterie,
+- `S` = startup / vložení baterie / TX tlačítko,
+- `CC` = kanál 1–3,
+- `I` = 8bit ID senzoru.
+
+To je velmi užitečný fingerprint. Pokud po vložení baterie uvidíme zhruba
+každých 33 s dlouhý burst tvořený množstvím krátkých ~0,2ms pulzů a mezer
+~1/2 ms a zároveň opakování 24bitového rámce, je pravděpodobnost shody velmi
+vysoká.
+
+Poznámka: některé dříve zachycené „chaotické“ raw bursty obsahovaly hodně
+krátkých pulzů a delší mezery. Zpětně proto není bezpečné všechny podobné
+bursty označovat za šum; část může být protokol typu Hyundai WS. Ověřit až
+cíleným testem s jediným zapnutým čidlem.
+
+### SilverCrest / Lidl / Auriol – známé kandidátní rodiny
+
+Bez modelového označení nelze vybrat jediný protokol. V rtl_433 existuje více
+Lidl/Auriol rodin, mimo jiné:
+
+#### Auriol AFW 2 A1, IAN 311588
+
+- ~60 s mezi přenosy,
+- 36 bitů,
+- 12 identických opakování,
+- OOK PPM,
+- krátká/dlouhá vzdálenost přibližně 576 / 1536 µs,
+- obsahuje ID, baterii, TX tlačítko, kanál, teplotu a vlhkost.
+
+#### Auriol HG02832 / HG05124A-DCF
+
+- OOK PWM,
+- krátký pulz ~252 µs,
+- dlouhý ~612 µs,
+- sync ~860 µs,
+- 40bitový rámec,
+- obsahuje ID, vlhkost, battery/TX/channel flags, teplotu a checksum,
+- mezi pakety je velmi dlouhá mezera přibližně 61 ms.
+
+#### Auriol HG04641A, Lidl IAN 307350
+
+- OOK PPM,
+- fixní pulse přibližně 510 µs,
+- mezera ~980 µs pro 0 a ~1976 µs pro 1,
+- 36bitový rámec,
+- stejná zpráva se opakuje 4×,
+- obsahuje 16bit ID, battery flag, teplotu a 4bit checksum.
+
+#### Auriol AFT 77 B2
+
+- 68 bitů,
+- alespoň 3 opakování,
+- před paketem 9 sync pulzů kolem 1900 µs,
+- datový pulse ~488 µs,
+- mezera ~488 µs pro 0 a ~976 µs pro 1,
+- obsahuje ID, flags, znaménko, BCD teplotu a dvě integrity hodnoty.
+
+#### Auriol AHFL 433B2 IPX4
+
+- 42 bitů,
+- OOK PPM,
+- typické vzdálenosti přibližně 2,1 / 4,15 ms,
+- obsahuje ID, baterii, TX tlačítko, kanál, teplotu, vlhkost a checksum.
+
+Existují i další Auriol/SilverCrest varianty. Proto je model/IAN ze štítku
+nejrychlejší cesta k přesnému dekodéru.
+
+### Doporučený testovací postup
+
+Aby bylo možné každý RF podpis přiřadit bez pochybností:
+
+1. **Obě čidla bez baterií.**
+   Nechat CC1101 několik minut běžet jako baseline a zaznamenat okolní
+   FT017TH, PWM67 a ostatní provoz.
+
+2. **Pouze Hyundai.**
+   Vložit baterie a zaznamenat přesný čas.
+   Pokud má TX/RESET tlačítko, jednou jej stisknout.
+   Nechat běžet alespoň 3–5 minut, aby byly vidět opakované periody.
+
+3. **Hyundai – změna teploty.**
+   Zahřát čidlo v ruce nebo jej na chvíli přesunout do chladnějšího prostoru.
+   Nesnažit se o extrémní teploty; cílem je pouze několik stupňů změny.
+   Pokud lze přepnout kanál 1/2/3, zachytit každý kanál zvlášť.
+
+4. **Hyundai vypnout.**
+   Vyjmout baterii a chvíli ověřit, že nově nalezená periodická rodina zmizela.
+
+5. **Pouze SilverCrest/Lidl.**
+   Stejný postup: vložení baterie, případný TX/RESET, několik minut capture,
+   změna teploty/vlhkosti a případně změna kanálu.
+
+6. **Nakonec obě čidla současně.**
+   Ověřit, že je decoder/fingerprint umí odlišit i při překrývajícím se
+   běžném provozu.
+
+### Co při testu zapisovat
+
+Pro každý zásah si poznamenat čas alespoň na sekundy:
+
+```text
+19:10:00 Hyundai – vložena baterie
+19:10:15 Hyundai – TX stisk
+19:12:00 Hyundai – zahřívám v ruce
+19:14:00 Hyundai – vyjmuta baterie
+
+19:16:00 SilverCrest – vložena baterie
+...
+```
+
+Pak lze RF log časově korelovat bez hádání.
+
+### Co má firmware před testem umět
+
+Současná diagnostická větev už poskytuje raw bursty a dekodéry FT017TH/PWM67.
+Další vhodný krok před cíleným domácím testem:
+
+- přidat fingerprint kandidátů typu **Hyundai WS**,
+- u neznámých burstů evidovat dominantní pulzy a počet opakovaných bloků,
+- zachovat alespoň jeden úplný RAW vzorek každého nového fingerprintu,
+- neskrývat burst jen proto, že má mnoho krátkých pulzů,
+- později podle modelového štítku přidat konkrétní Auriol/SilverCrest decoder.
+
+Implementaci konkrétního Hyundai decoderu je vhodné dokončit až po prvním
+cíleném capture, aby se potvrdilo, že fyzické čidlo je skutečně rodina
+Hyundai WS SENZOR a ne jiný model prodávaný pod stejnou značkou.
