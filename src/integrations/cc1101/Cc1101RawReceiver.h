@@ -10,6 +10,10 @@ bool begin();
 // as H/L pulse lengths in microseconds.
 void loop();
 
+// Temporarily discard RF captures while the e-paper is electrically active.
+// This helps distinguish real 433 MHz traffic from local display interference.
+void setSuppressed(bool suppressed);
+
 bool isReady();
 
 }
