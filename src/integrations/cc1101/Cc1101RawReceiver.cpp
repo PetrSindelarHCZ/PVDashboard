@@ -462,10 +462,31 @@ bool tryPrintPwm67(const int32_t* data, uint16_t count) {
         bits[bitCount] = '\0';
         if (bitCount < MinimumDecodedBits) continue;
 
+        bool truncatedFooter = false;
         bool partialBit = false;
         char partialValue = '?';
         uint32_t partialHighUs = 0;
+
+        // If the capture ends immediately after a valid long HIGH, repeated
+        // observations show this is the final logical 1 and the LOW footer
+        // was simply not captured.
         if (!footerTerminatedBit &&
+            pos + 1 == count &&
+            level(data[pos]) == 'H') {
+            const uint32_t highUs = duration(data[pos]);
+            if (highUs >= LongHighMin &&
+                highUs <= LongHighMax &&
+                bitCount < sizeof(bits) - 1) {
+                bits[bitCount++] = '1';
+                bits[bitCount] = '\0';
+                truncatedFooter = true;
+                partialHighUs = highUs;
+                ++pos;
+            }
+        }
+
+        if (!footerTerminatedBit &&
+            !truncatedFooter &&
             pos < count &&
             level(data[pos]) == 'H') {
             partialHighUs = duration(data[pos]);
@@ -503,6 +524,10 @@ bool tryPrintPwm67(const int32_t* data, uint16_t count) {
             Serial.printf(
                 " footer=%lu us",
                 static_cast<unsigned long>(footerLowUs));
+        } else if (truncatedFooter) {
+            Serial.printf(
+                " truncated-footer(H%lu)",
+                static_cast<unsigned long>(partialHighUs));
         } else if (partialBit) {
             Serial.printf(
                 " +%c?(H%lu)",
