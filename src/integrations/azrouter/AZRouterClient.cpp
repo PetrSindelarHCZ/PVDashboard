@@ -437,9 +437,9 @@ bool AZRouterClient::update(AZRouterData& azData) {
     JsonDocument statusDoc;
     String optionalError;
     if (getJson("/api/v1/status", statusDoc, Performance::AzStatus, optionalError)) {
-        JsonVariantConst system = statusDoc["system"];
+        JsonObjectConst system = statusDoc["system"].as<JsonObjectConst>();
 
-        if (!system["status"].isNull()) {
+        if (!system.isNull() && !system["status"].isNull()) {
             azData.systemStatusCode = system["status"].as<int>();
             azData.hasSystemStatus = true;
         }
