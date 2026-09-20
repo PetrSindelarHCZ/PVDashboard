@@ -583,7 +583,7 @@ bool ConfigManager::setUserConfiguration(const AppConfig& config) {
     const bool layoutSaved = saveHomeLayout(preferences, config.display.homeLayout);
     preferences.end();
     if (!layoutSaved) return false;
-    _config.system = config.system; _config.wifi = config.wifi; _config.display = config.display; _config.goodwe = config.goodwe; _config.azrouter = importedAzrouter; _config.pool = config.pool; _config.weather = normalizedWeather;
+    _config.system = config.system; _config.wifi = config.wifi; _config.display = config.display; _config.goodwe = config.goodwe; _config.azrouter = importedAzrouter; _config.pool = config.pool; _config.rfSensors = config.rfSensors; _config.weather = normalizedWeather;
     rememberWifi(config.wifi.ssid, config.wifi.password, true);
     Serial.println("[CONFIG] YAML konfigurace importovana do NVS.");
     return true;
