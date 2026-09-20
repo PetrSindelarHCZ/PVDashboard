@@ -32,6 +32,8 @@ struct SolarData {
 struct AZRouterData {
     bool enabled = true;
     DataSourceStatus status;
+    bool authenticated = false;
+    String authMode = "anonymous";
 
     float gridPowerW = 0.0f;
     bool hasGridPower = false;
