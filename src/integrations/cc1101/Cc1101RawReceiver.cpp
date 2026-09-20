@@ -312,12 +312,18 @@ bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
     decoded[bestBitCount] = '\0';
 
     uint16_t frameBits = 0;
-    uint16_t repeats = 0;
+    uint16_t fullRepeats = 0;
+    uint16_t partialBits = 0;
 
+    // A real RF burst often loses the first/last half-bit at carrier-sense
+    // boundaries. Do not require the decoded length to be an exact multiple
+    // of the frame size. Accept two complete identical frames plus an
+    // identical partial repeat.
     for (uint16_t period = 16; period <= bestBitCount / 2; ++period) {
-        if ((bestBitCount % period) != 0) continue;
+        const uint16_t candidateFullRepeats = bestBitCount / period;
+        const uint16_t candidatePartialBits = bestBitCount % period;
+        if (candidateFullRepeats < 2) continue;
 
-        const uint16_t candidateRepeats = bestBitCount / period;
         bool identical = true;
         for (uint16_t i = period; i < bestBitCount && identical; ++i) {
             if (decoded[i] != decoded[i % period]) {
@@ -327,12 +333,13 @@ bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
 
         if (identical) {
             frameBits = period;
-            repeats = candidateRepeats;
+            fullRepeats = candidateFullRepeats;
+            partialBits = candidatePartialBits;
             break;
         }
     }
 
-    if (repeats < 2 || frameBits == 0) return false;
+    if (fullRepeats < 2 || frameBits == 0) return false;
 
     const uint32_t shortAverage =
         shortCount ? shortTotal / shortCount : 0;
@@ -340,15 +347,43 @@ bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
         longCount ? longTotal / longCount : 0;
 
     Serial.printf(
-        "[CC1101][MC] frame=%u bits repeats=%u | half~%lu us double~%lu us | ",
+        "[CC1101][MC] frame=%u bits repeats=%u",
         static_cast<unsigned>(frameBits),
-        static_cast<unsigned>(repeats),
+        static_cast<unsigned>(fullRepeats));
+    if (partialBits > 0) {
+        Serial.printf(
+            "+%u/%u",
+            static_cast<unsigned>(partialBits),
+            static_cast<unsigned>(frameBits));
+    }
+    Serial.printf(
+        " | half~%lu us double~%lu us | bits=",
         static_cast<unsigned long>(shortAverage),
         static_cast<unsigned long>(longAverage));
 
     for (uint16_t i = 0; i < frameBits; ++i) {
         Serial.print(decoded[i]);
     }
+
+    Serial.print(" | hex=");
+    const uint16_t fullBytes = frameBits / 8;
+    for (uint16_t byteIndex = 0; byteIndex < fullBytes; ++byteIndex) {
+        uint8_t value = 0;
+        for (uint8_t bit = 0; bit < 8; ++bit) {
+            value <<= 1;
+            if (decoded[byteIndex * 8 + bit] == '1') value |= 1;
+        }
+        if (byteIndex > 0) Serial.print(' ');
+        if (value < 0x10) Serial.print('0');
+        Serial.print(value, HEX);
+    }
+    if ((frameBits % 8) != 0) {
+        Serial.print(" +");
+        for (uint16_t i = fullBytes * 8; i < frameBits; ++i) {
+            Serial.print(decoded[i]);
+        }
+    }
+
     Serial.println();
     return true;
 }
