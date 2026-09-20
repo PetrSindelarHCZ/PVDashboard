@@ -889,6 +889,133 @@ void DashboardWebServer::onWifiDisconnect(WifiDisconnectCallback callback) {
     _wifiDisconnectCallback = callback;
 }
 
+void DashboardWebServer::onRfSensorManagement(
+    RfSensorStatusCallback statusCallback,
+    RfSensorScanCallback scanCallback,
+    RfSensorAddCallback addCallback,
+    RfSensorRenameCallback renameCallback,
+    RfSensorRemoveCallback removeCallback) {
+
+    _rfSensorStatusCallback = statusCallback;
+    _rfSensorScanCallback = scanCallback;
+    _rfSensorAddCallback = addCallback;
+    _rfSensorRenameCallback = renameCallback;
+    _rfSensorRemoveCallback = removeCallback;
+
+    _server.on("/api/rf-sensors", HTTP_GET, [this]() {
+        if (!_rfSensorStatusCallback) {
+            _server.send(
+                503,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"RF sensor management unavailable\"}");
+            return;
+        }
+        _server.sendHeader("Cache-Control", "no-store");
+        _server.send(200, "application/json", _rfSensorStatusCallback());
+    });
+
+    _server.on("/api/rf-sensors/scan", HTTP_POST, [this]() {
+        if (!_rfSensorScanCallback) {
+            _server.send(
+                503,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"RF sensor scan unavailable\"}");
+            return;
+        }
+
+        long durationSeconds = 30;
+        if (_server.hasArg("durationSeconds")) {
+            durationSeconds = _server.arg("durationSeconds").toInt();
+        }
+        if (durationSeconds < 10) durationSeconds = 10;
+        if (durationSeconds > 120) durationSeconds = 120;
+
+        _rfSensorScanCallback(
+            static_cast<uint32_t>(durationSeconds) * 1000UL);
+
+        JsonDocument doc;
+        doc["status"] = "started";
+        doc["durationSeconds"] = durationSeconds;
+        String response;
+        serializeJson(doc, response);
+        _server.sendHeader("Cache-Control", "no-store");
+        _server.send(200, "application/json", response);
+    });
+
+    _server.on("/api/rf-sensors/add", HTTP_POST, [this]() {
+        if (!_rfSensorAddCallback || !_server.hasArg("bindingKey")) {
+            _server.send(
+                400,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"Chybí identifikace čidla\"}");
+            return;
+        }
+
+        String error;
+        const String bindingKey = _server.arg("bindingKey");
+        const String name = _server.hasArg("name") ? _server.arg("name") : "";
+        if (!_rfSensorAddCallback(bindingKey, name, error)) {
+            JsonDocument doc;
+            doc["status"] = "error";
+            doc["message"] = error.isEmpty() ? "Čidlo nelze přidat" : error;
+            String response;
+            serializeJson(doc, response);
+            _server.send(409, "application/json", response);
+            return;
+        }
+
+        _server.send(200, "application/json", "{\"status\":\"saved\"}");
+    });
+
+    _server.on("/api/rf-sensors/rename", HTTP_POST, [this]() {
+        if (!_rfSensorRenameCallback || !_server.hasArg("slotId")) {
+            _server.send(
+                400,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"Chybí interní ID čidla\"}");
+            return;
+        }
+
+        String error;
+        const String slotId = _server.arg("slotId");
+        const String name = _server.hasArg("name") ? _server.arg("name") : "";
+        if (!_rfSensorRenameCallback(slotId, name, error)) {
+            JsonDocument doc;
+            doc["status"] = "error";
+            doc["message"] = error.isEmpty() ? "Čidlo nelze přejmenovat" : error;
+            String response;
+            serializeJson(doc, response);
+            _server.send(404, "application/json", response);
+            return;
+        }
+
+        _server.send(200, "application/json", "{\"status\":\"saved\"}");
+    });
+
+    _server.on("/api/rf-sensors/remove", HTTP_POST, [this]() {
+        if (!_rfSensorRemoveCallback || !_server.hasArg("slotId")) {
+            _server.send(
+                400,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"Chybí interní ID čidla\"}");
+            return;
+        }
+
+        String error;
+        if (!_rfSensorRemoveCallback(_server.arg("slotId"), error)) {
+            JsonDocument doc;
+            doc["status"] = "error";
+            doc["message"] = error.isEmpty() ? "Čidlo nelze odebrat" : error;
+            String response;
+            serializeJson(doc, response);
+            _server.send(404, "application/json", response);
+            return;
+        }
+
+        _server.send(200, "application/json", "{\"status\":\"removed\"}");
+    });
+}
+
 void DashboardWebServer::handleExtendedRoot() {
     const char* bodyEnd = strstr(INDEX_HTML, "</body>");
     _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
