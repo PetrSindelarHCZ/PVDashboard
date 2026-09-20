@@ -64,6 +64,9 @@ private:
     // Serializuje pametove narocne operace: e-paper render/preview a weather TLS.
     // ESP32-WROOM bez PSRAM nema dost velky souvisly DRAM blok pro obe soucasne.
     SemaphoreHandle_t _memoryHeavyGate = nullptr;
+    // Serializes local WebServer socket servicing against outbound weather TLS
+    // so both do not compete for scarce internal Wi-Fi/TLS buffers.
+    SemaphoreHandle_t _networkClientGate = nullptr;
 
     bool _pendingRefresh = false;
     bool _pendingFullRefresh = false;
