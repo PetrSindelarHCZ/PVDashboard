@@ -212,6 +212,150 @@ void IRAM_ATTR onRawEdge() {
             : static_cast<int32_t>(duration); // previous level was HIGH
 }
 
+
+bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
+    // Look for the longest clean run matching the ~500 us Manchester signal
+    // seen during RF discovery. A logical bit consists of two half-bits;
+    // equal adjacent half-bits are represented by a ~1000 us raw pulse.
+    uint16_t bestStart = 0;
+    uint16_t bestLength = 0;
+    uint16_t runStart = 0;
+    uint16_t runLength = 0;
+
+    for (uint16_t i = 0; i < count; ++i) {
+        const uint32_t duration =
+            static_cast<uint32_t>(data[i] >= 0 ? data[i] : -data[i]);
+        const bool plausible = duration >= 300 && duration <= 1250;
+
+        if (plausible) {
+            if (runLength == 0) runStart = i;
+            ++runLength;
+            if (runLength > bestLength) {
+                bestStart = runStart;
+                bestLength = runLength;
+            }
+        } else {
+            runLength = 0;
+        }
+    }
+
+    if (bestLength < 40) return false;
+
+    static char halfBits[MaximumPulseCount * 2 + 2];
+    uint16_t halfCount = 0;
+    uint32_t shortTotal = 0;
+    uint16_t shortCount = 0;
+    uint32_t longTotal = 0;
+    uint16_t longCount = 0;
+
+    for (uint16_t i = bestStart;
+         i < static_cast<uint16_t>(bestStart + bestLength);
+         ++i) {
+        const int32_t pulse = data[i];
+        const char level = pulse >= 0 ? 'H' : 'L';
+        const uint32_t duration =
+            static_cast<uint32_t>(pulse >= 0 ? pulse : -pulse);
+
+        uint8_t halfBitCount = 0;
+        if (duration < 750) {
+            halfBitCount = 1;
+            shortTotal += duration;
+            ++shortCount;
+        } else {
+            halfBitCount = 2;
+            longTotal += duration;
+            ++longCount;
+        }
+
+        for (uint8_t j = 0; j < halfBitCount; ++j) {
+            if (halfCount >= sizeof(halfBits) - 1) return false;
+            halfBits[halfCount++] = level;
+        }
+    }
+
+    static char decoded[(MaximumPulseCount * 2) / 2 + 2];
+    uint16_t bestBitCount = 0;
+    uint16_t bestInvalid = 0xFFFF;
+
+    for (uint8_t offset = 0; offset <= 1; ++offset) {
+        uint16_t bitCount = 0;
+        uint16_t invalid = 0;
+
+        for (uint16_t i = offset; i + 1 < halfCount; i += 2) {
+            const char first = halfBits[i];
+            const char second = halfBits[i + 1];
+            if (first == 'H' && second == 'L') {
+                decoded[bitCount++] = '1';
+            } else if (first == 'L' && second == 'H') {
+                decoded[bitCount++] = '0';
+            } else {
+                ++invalid;
+                decoded[bitCount++] = '?';
+            }
+        }
+
+        if (invalid < bestInvalid) {
+            bestInvalid = invalid;
+            bestBitCount = bitCount;
+
+            // Keep the best result in the second half of the temporary buffer
+            // so trying the other alignment cannot destroy it.
+            for (uint16_t i = 0; i < bitCount; ++i) {
+                halfBits[i] = decoded[i];
+            }
+        }
+    }
+
+    if (bestInvalid != 0 || bestBitCount < 32) return false;
+
+    // Restore the selected decoded bits from temporary storage.
+    for (uint16_t i = 0; i < bestBitCount; ++i) {
+        decoded[i] = halfBits[i];
+    }
+    decoded[bestBitCount] = '\0';
+
+    uint16_t frameBits = 0;
+    uint16_t repeats = 0;
+
+    for (uint16_t period = 16; period <= bestBitCount / 2; ++period) {
+        if ((bestBitCount % period) != 0) continue;
+
+        const uint16_t candidateRepeats = bestBitCount / period;
+        bool identical = true;
+        for (uint16_t i = period; i < bestBitCount && identical; ++i) {
+            if (decoded[i] != decoded[i % period]) {
+                identical = false;
+            }
+        }
+
+        if (identical) {
+            frameBits = period;
+            repeats = candidateRepeats;
+            break;
+        }
+    }
+
+    if (repeats < 2 || frameBits == 0) return false;
+
+    const uint32_t shortAverage =
+        shortCount ? shortTotal / shortCount : 0;
+    const uint32_t longAverage =
+        longCount ? longTotal / longCount : 0;
+
+    Serial.printf(
+        "[CC1101][MC] frame=%u bits repeats=%u | half~%lu us double~%lu us | ",
+        static_cast<unsigned>(frameBits),
+        static_cast<unsigned>(repeats),
+        static_cast<unsigned long>(shortAverage),
+        static_cast<unsigned long>(longAverage));
+
+    for (uint16_t i = 0; i < frameBits; ++i) {
+        Serial.print(decoded[i]);
+    }
+    Serial.println();
+    return true;
+}
+
 void printBurst(const int32_t* data, uint16_t count, bool wasOverflowed) {
     Serial.printf(
         "[CC1101][RX] burst pulses=%u%s | ",
@@ -323,7 +467,9 @@ void loop() {
     overflowed = false;
     interrupts();
 
-    printBurst(snapshot, snapshotCount, snapshotOverflow);
+    if (!tryPrintRepeatedManchester(snapshot, snapshotCount)) {
+        printBurst(snapshot, snapshotCount, snapshotOverflow);
+    }
 }
 
 void setSuppressed(bool suppressed) {
