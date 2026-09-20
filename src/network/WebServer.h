@@ -34,6 +34,14 @@ public:
     using HomeLayoutConfigCallback = std::function<bool(const HomeLayoutConfig& layout)>;
     using FactoryResetCallback = std::function<bool()>;
     using ConfigImportCallback = std::function<bool(const AppConfig& config)>;
+    using RfSensorStatusCallback = std::function<String()>;
+    using RfSensorScanCallback = std::function<void(uint32_t durationMs)>;
+    using RfSensorAddCallback =
+        std::function<bool(const String& bindingKey, const String& name, String& error)>;
+    using RfSensorRenameCallback =
+        std::function<bool(const String& slotId, const String& name, String& error)>;
+    using RfSensorRemoveCallback =
+        std::function<bool(const String& slotId, String& error)>;
 
     DashboardWebServer(uint16_t port, DataModel& dataModel, ScreenManager& screenManager, const AppConfig& config);
 
@@ -311,6 +319,12 @@ public:
     void onHomeLayoutConfig(HomeLayoutConfigCallback callback);
     void onFactoryReset(FactoryResetCallback callback);
     void onConfigImport(ConfigImportCallback callback);
+    void onRfSensorManagement(
+        RfSensorStatusCallback statusCallback,
+        RfSensorScanCallback scanCallback,
+        RfSensorAddCallback addCallback,
+        RfSensorRenameCallback renameCallback,
+        RfSensorRemoveCallback removeCallback);
 
 private:
     WebServer _server;
@@ -338,6 +352,11 @@ private:
     HomeLayoutConfigCallback _homeLayoutConfigCallback;
     FactoryResetCallback _factoryResetCallback;
     ConfigImportCallback _configImportCallback;
+    RfSensorStatusCallback _rfSensorStatusCallback;
+    RfSensorScanCallback _rfSensorScanCallback;
+    RfSensorAddCallback _rfSensorAddCallback;
+    RfSensorRenameCallback _rfSensorRenameCallback;
+    RfSensorRemoveCallback _rfSensorRemoveCallback;
     OtaManager _otaManager;
     String _githubUpdateVersion;
     String _githubUpdateUrl;
