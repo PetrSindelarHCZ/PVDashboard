@@ -222,7 +222,7 @@ String homeLayoutResponseJson(const HomeLayoutConfig& config, const DataModel& d
     graphStyles.add("bars");
 
     JsonArray sources = custom["dataSources"].to<JsonArray>();
-    auto addSource = [&sources](const char* id, const char* label, const char* unit,
+    auto addSource = [&sources](const String& id, const String& label, const String& unit,
                                 uint8_t decimals, bool history) {
         JsonObject item = sources.add<JsonObject>();
         item["id"] = id;
@@ -275,6 +275,41 @@ String homeLayoutResponseJson(const HomeLayoutConfig& config, const DataModel& d
     addSource("pool.airHumidityPercent", "Bazén vlhkost", "%", 0, false);
     addSource("system.wifiRssi", "Wi-Fi RSSI", "dBm", 0, false);
     addSource("system.uptimeSeconds", "Uptime", "s", 0, false);
+
+    for (uint8_t i = 0;
+         i < dataModel.rfSensors.sensorCount && i < MaxRfSensors;
+         ++i) {
+        const RfSensorData& sensor = dataModel.rfSensors.sensors[i];
+        if (!sensor.configured || sensor.slotId.isEmpty()) continue;
+
+        String baseLabel = sensor.name;
+        if (baseLabel.isEmpty()) {
+            baseLabel = sensor.protocol;
+            baseLabel += " 0x";
+            baseLabel += String(sensor.sensorId, HEX);
+            if (sensor.channel > 0) {
+                baseLabel += " CH";
+                baseLabel += String(sensor.channel);
+            }
+        }
+
+        if (sensor.hasTemperature) {
+            addSource(
+                "rf." + sensor.slotId + ".temperatureC",
+                baseLabel + " – teplota",
+                "°C",
+                1,
+                false);
+        }
+        if (sensor.hasHumidity) {
+            addSource(
+                "rf." + sensor.slotId + ".humidityPercent",
+                baseLabel + " – vlhkost",
+                "%",
+                0,
+                false);
+        }
+    }
 
     String response;
     serializeJson(doc, response);
