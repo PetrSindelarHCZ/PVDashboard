@@ -32,10 +32,53 @@ struct SolarData {
 struct AZRouterData {
     bool enabled = true;
     DataSourceStatus status;
+    bool authenticated = false;
+    String authMode = "anonymous";
+
     float gridPowerW = 0.0f;
+    bool hasGridPower = false;
+    float gridPhasePowerW[3] = {};
+    bool hasGridPhasePower[3] = {};
+    float gridPhaseVoltageV[3] = {};
+    bool hasGridPhaseVoltage[3] = {};
+    float gridPhaseCurrentA[3] = {};
+    bool hasGridPhaseCurrent[3] = {};
+    bool gridPhaseConnected[3] = {};
+    bool hasGridPhaseStatus[3] = {};
+
     float routedPowerW = 0.0f;
+    bool hasRoutedPower = false;
+    float routedPhasePowerW[3] = {};
+    bool hasRoutedPhasePower[3] = {};
+
+    float routedEnergyTotalKWh = 0.0f;
+    bool hasRoutedEnergyTotal = false;
+    float routedEnergyYearKWh = 0.0f;
+    bool hasRoutedEnergyYear = false;
+    float routedEnergyMonthKWh = 0.0f;
+    bool hasRoutedEnergyMonth = false;
+    float routedEnergyWeekKWh = 0.0f;
+    bool hasRoutedEnergyWeek = false;
     float routedEnergyTodayKWh = 0.0f;
+    bool hasRoutedEnergyToday = false;
+
+    int8_t systemStatusCode = -1; // 0 online, 1 offline, 2 updating
+    bool hasSystemStatus = false;
+    bool hdoOn = false;
+    bool hasHdo = false;
+    int8_t modeCode = -1; // 0 summer, 1 winter
+    bool hasMode = false;
+    bool masterBoost = false;
+    bool hasMasterBoost = false;
+
+    float systemTempC = 0.0f;
+    bool hasSystemTemp = false;
+
+    // Device-level telemetry is still received for diagnostics/future use,
+    // but is intentionally not presented as AZRouter master data.
     float boilerTempC = 0.0f;
+    bool hasBoilerTemp = false;
+
     uint32_t lastUpdateMs = 0;
 };
 

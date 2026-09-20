@@ -178,6 +178,8 @@ bool ConfigManager::begin() {
     if (preferences.isKey("az_host")) _config.azrouter.host = preferences.getString("az_host", _config.azrouter.host);
     _config.azrouter.port = preferences.getUShort("az_port", _config.azrouter.port);
     _config.azrouter.pollIntervalSeconds = preferences.getUInt("az_interval", _config.azrouter.pollIntervalSeconds);
+    if (preferences.isKey("az_user")) _config.azrouter.username = preferences.getString("az_user", "");
+    if (preferences.isKey("az_password")) _config.azrouter.password = preferences.getString("az_password", "");
     _config.pool.enabled = preferences.getBool("pool_enabled", _config.pool.enabled);
     _config.weather.enabled = preferences.getBool("wx_enabled", _config.weather.enabled);
     if (preferences.isKey("wx_provider")) _config.weather.provider = preferences.getString("wx_provider", _config.weather.provider);
@@ -347,7 +349,8 @@ void ConfigManager::setSources(const GoodWeConfig& goodwe, const AZRouterConfig&
     _config.goodwe = goodwe; _config.azrouter = azrouter;
     Preferences preferences; preferences.begin("dashboard", false);
     preferences.putBool("gw_enabled", goodwe.enabled); preferences.putString("gw_host", goodwe.host); preferences.putUShort("gw_port", goodwe.port); preferences.putUInt("gw_interval", goodwe.pollIntervalSeconds);
-    preferences.putBool("az_enabled", azrouter.enabled); preferences.putString("az_host", azrouter.host); preferences.putUShort("az_port", azrouter.port); preferences.putUInt("az_interval", azrouter.pollIntervalSeconds); preferences.end();
+    preferences.putBool("az_enabled", azrouter.enabled); preferences.putString("az_host", azrouter.host); preferences.putUShort("az_port", azrouter.port); preferences.putUInt("az_interval", azrouter.pollIntervalSeconds);
+    preferences.putString("az_user", azrouter.username); preferences.putString("az_password", azrouter.password); preferences.end();
 }
 
 void ConfigManager::setPool(const PoolConfig& pool) {
@@ -407,7 +410,15 @@ bool ConfigManager::setUserConfiguration(const AppConfig& config) {
     preferences.putString("wifi_ssid", config.wifi.ssid); preferences.putString("wifi_password", config.wifi.password);
     preferences.putBool("wifi_dhcp", config.wifi.dhcp); preferences.putString("wifi_ip", config.wifi.ipAddress); preferences.putString("wifi_mask", config.wifi.subnetMask); preferences.putString("wifi_gw", config.wifi.gateway); preferences.putString("wifi_dns1", config.wifi.dns1); preferences.putString("wifi_dns2", config.wifi.dns2);
     preferences.putBool("gw_enabled", config.goodwe.enabled); preferences.putString("gw_host", config.goodwe.host); preferences.putUShort("gw_port", config.goodwe.port); preferences.putUInt("gw_interval", config.goodwe.pollIntervalSeconds);
-    preferences.putBool("az_enabled", config.azrouter.enabled); preferences.putString("az_host", config.azrouter.host); preferences.putUShort("az_port", config.azrouter.port); preferences.putUInt("az_interval", config.azrouter.pollIntervalSeconds);
+    AZRouterConfig importedAzrouter = config.azrouter;
+    // AZRouter credentials are intentionally excluded from YAML backups.
+    // Keep locally stored credentials when importing a backup.
+    if (importedAzrouter.username.isEmpty() && importedAzrouter.password.isEmpty()) {
+        importedAzrouter.username = _config.azrouter.username;
+        importedAzrouter.password = _config.azrouter.password;
+    }
+    preferences.putBool("az_enabled", importedAzrouter.enabled); preferences.putString("az_host", importedAzrouter.host); preferences.putUShort("az_port", importedAzrouter.port); preferences.putUInt("az_interval", importedAzrouter.pollIntervalSeconds);
+    preferences.putString("az_user", importedAzrouter.username); preferences.putString("az_password", importedAzrouter.password);
     preferences.putBool("pool_enabled", config.pool.enabled);
     WeatherConfig normalizedWeather = config.weather;
     normalizedWeather.syncActiveCoordinates();
@@ -420,7 +431,7 @@ bool ConfigManager::setUserConfiguration(const AppConfig& config) {
     const bool layoutSaved = saveHomeLayout(preferences, config.display.homeLayout);
     preferences.end();
     if (!layoutSaved) return false;
-    _config.system = config.system; _config.wifi = config.wifi; _config.display = config.display; _config.goodwe = config.goodwe; _config.azrouter = config.azrouter; _config.pool = config.pool; _config.weather = normalizedWeather;
+    _config.system = config.system; _config.wifi = config.wifi; _config.display = config.display; _config.goodwe = config.goodwe; _config.azrouter = importedAzrouter; _config.pool = config.pool; _config.weather = normalizedWeather;
     rememberWifi(config.wifi.ssid, config.wifi.password, true);
     Serial.println("[CONFIG] YAML konfigurace importovana do NVS.");
     return true;

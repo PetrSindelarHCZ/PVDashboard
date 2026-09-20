@@ -24,11 +24,62 @@ inline bool resolveValue(const DataModel& dm, const String& source, float& value
 
     if (source.startsWith("azrouter.")) {
         if (!dm.azrouter.enabled || !dm.azrouter.status.available) return false;
-        if (source == "azrouter.gridPowerW") value = dm.azrouter.gridPowerW;
-        else if (source == "azrouter.routedPowerW") value = dm.azrouter.routedPowerW;
-        else if (source == "azrouter.routedEnergyTodayKWh") value = dm.azrouter.routedEnergyTodayKWh;
-        else if (source == "azrouter.boilerTempC") value = dm.azrouter.boilerTempC;
-        else return false;
+
+        if (source == "azrouter.gridPowerW") {
+            if (!dm.azrouter.hasGridPower) return false;
+            value = dm.azrouter.gridPowerW;
+        } else if (source == "azrouter.gridL1PowerW" ||
+                   source == "azrouter.gridL2PowerW" ||
+                   source == "azrouter.gridL3PowerW") {
+            const uint8_t phase = source == "azrouter.gridL1PowerW" ? 0 :
+                                  (source == "azrouter.gridL2PowerW" ? 1 : 2);
+            if (!dm.azrouter.hasGridPhasePower[phase]) return false;
+            value = dm.azrouter.gridPhasePowerW[phase];
+        } else if (source == "azrouter.gridL1VoltageV" ||
+                   source == "azrouter.gridL2VoltageV" ||
+                   source == "azrouter.gridL3VoltageV") {
+            const uint8_t phase = source == "azrouter.gridL1VoltageV" ? 0 :
+                                  (source == "azrouter.gridL2VoltageV" ? 1 : 2);
+            if (!dm.azrouter.hasGridPhaseVoltage[phase]) return false;
+            value = dm.azrouter.gridPhaseVoltageV[phase];
+        } else if (source == "azrouter.gridL1CurrentA" ||
+                   source == "azrouter.gridL2CurrentA" ||
+                   source == "azrouter.gridL3CurrentA") {
+            const uint8_t phase = source == "azrouter.gridL1CurrentA" ? 0 :
+                                  (source == "azrouter.gridL2CurrentA" ? 1 : 2);
+            if (!dm.azrouter.hasGridPhaseCurrent[phase]) return false;
+            value = dm.azrouter.gridPhaseCurrentA[phase];
+        } else if (source == "azrouter.routedPowerW") {
+            if (!dm.azrouter.hasRoutedPower) return false;
+            value = dm.azrouter.routedPowerW;
+        } else if (source == "azrouter.routedL1PowerW" ||
+                   source == "azrouter.routedL2PowerW" ||
+                   source == "azrouter.routedL3PowerW") {
+            const uint8_t phase = source == "azrouter.routedL1PowerW" ? 0 :
+                                  (source == "azrouter.routedL2PowerW" ? 1 : 2);
+            if (!dm.azrouter.hasRoutedPhasePower[phase]) return false;
+            value = dm.azrouter.routedPhasePowerW[phase];
+        } else if (source == "azrouter.routedEnergyTodayKWh") {
+            if (!dm.azrouter.hasRoutedEnergyToday) return false;
+            value = dm.azrouter.routedEnergyTodayKWh;
+        } else if (source == "azrouter.routedEnergyWeekKWh") {
+            if (!dm.azrouter.hasRoutedEnergyWeek) return false;
+            value = dm.azrouter.routedEnergyWeekKWh;
+        } else if (source == "azrouter.routedEnergyMonthKWh") {
+            if (!dm.azrouter.hasRoutedEnergyMonth) return false;
+            value = dm.azrouter.routedEnergyMonthKWh;
+        } else if (source == "azrouter.routedEnergyYearKWh") {
+            if (!dm.azrouter.hasRoutedEnergyYear) return false;
+            value = dm.azrouter.routedEnergyYearKWh;
+        } else if (source == "azrouter.routedEnergyTotalKWh") {
+            if (!dm.azrouter.hasRoutedEnergyTotal) return false;
+            value = dm.azrouter.routedEnergyTotalKWh;
+        } else if (source == "azrouter.systemTempC") {
+            if (!dm.azrouter.hasSystemTemp) return false;
+            value = dm.azrouter.systemTempC;
+        } else {
+            return false;
+        }
         return true;
     }
 

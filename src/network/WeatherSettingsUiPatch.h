@@ -743,8 +743,12 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
             const response = await postState(saved);
             if (!response.ok) throw new Error('HTTP ' + response.status);
             showToast('Aktualizace počasí spuštěna');
-            setTimeout(() => refreshFromStatus(false, false), 500);
-            setTimeout(() => refreshFromStatus(false, false), 1800);
+            setTimeout(() => {
+                if (window.dashboardUpdateStatus) window.dashboardUpdateStatus();
+            }, 500);
+            setTimeout(() => {
+                if (window.dashboardUpdateStatus) window.dashboardUpdateStatus();
+            }, 1800);
         } catch (_) {
             showToast('Aktualizaci počasí se nepodařilo spustit');
         } finally {
@@ -821,12 +825,14 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
         if (detailRow) detailRow.hidden = !enabled;
     }
 
-    async function refreshFromStatus(loadConfig, overwriteFields) {
+    async function refreshFromStatus(loadConfig, overwriteFields, snapshot = null) {
         try {
-            const response = await fetch('/api/status', {cache:'no-store'});
-            if (!response.ok) return false;
-
-            const data = await response.json();
+            let data = snapshot;
+            if (!data) {
+                const response = await fetch('/api/status', {cache:'no-store'});
+                if (!response.ok) return false;
+                data = await response.json();
+            }
             renderWeatherStatus(data);
             setWeatherScreenVisibility(data?.weather?.enabled !== false);
 
@@ -1032,11 +1038,14 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
             });
         });
 
-        refreshFromStatus(true, true);
-        statusRefreshTimer = setInterval(
-            () => refreshFromStatus(false, false),
-            5000
-        );
+        if (window.dashboardLastStatus) {
+            refreshFromStatus(true, true, window.dashboardLastStatus);
+        } else {
+            refreshFromStatus(true, true);
+        }
+        window.addEventListener('dashboard-status', event => {
+            refreshFromStatus(false, false, event.detail);
+        });
     }
 
     if (document.readyState === 'loading') {

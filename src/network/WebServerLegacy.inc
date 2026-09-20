@@ -603,6 +603,19 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                         </div>
                         <div class="source-field-row">
                             <div class="source-field">
+                                <label for="azUser">Uživatel</label>
+                                <input class="wifi-input" id="azUser" autocomplete="username"
+                                       maxlength="64" placeholder="WebUI uživatel">
+                            </div>
+                            <div class="source-field">
+                                <label for="azPassword">Heslo</label>
+                                <input class="wifi-input" id="azPassword" type="password"
+                                       autocomplete="current-password" maxlength="128"
+                                       placeholder="prázdné = zachovat uložené">
+                            </div>
+                        </div>
+                        <div class="source-field-row">
+                            <div class="source-field">
                                 <label for="azPort">Port</label>
                                 <input class="wifi-input" id="azPort" type="number" min="1" max="65535" placeholder="80" required>
                             </div>
@@ -611,7 +624,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                                 <input class="wifi-input" id="azInterval" type="number" min="1" max="3600" required>
                             </div>
                         </div>
-                        <div class="field-help">AZRouter · lokální síťové připojení</div>
+                        <div class="field-help" id="azAuthHelp">AZRouter · přihlášení používá stejné údaje jako WebUI.</div>
                     </section>
                 </div>
                 <button class="btn btn-secondary source-save" type="submit">Uložit datové zdroje a restartovat</button>
@@ -757,14 +770,21 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         }
 
         async function updateStatus() {
-            if (statusRequestInFlight || githubUpdateBusy) return;
+            if (document.hidden || statusRequestInFlight || githubUpdateBusy) return;
             statusRequestInFlight = true;
             const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 2500);
+            // 2.5 s was too aggressive for a weak Wi-Fi link / busy ESP and
+            // caused the browser to abort while WebServer was still sending.
+            const timeout = setTimeout(() => controller.abort(), 8000);
             try {
-                const res = await fetch('/api/status', { signal: controller.signal });
+                const res = await fetch('/api/status', {
+                    signal: controller.signal,
+                    cache: 'no-store'
+                });
                 if (!res.ok) throw new Error('Status HTTP ' + res.status);
                 const data = await res.json();
+                window.dashboardLastStatus = data;
+                window.dispatchEvent(new CustomEvent('dashboard-status', { detail: data }));
 
                 if (data.sources) {
                     setSolarScreenVisibility(
@@ -777,8 +797,23 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 document.getElementById('githubCurrentVersion').innerText = 'v' + data.firmware;
                 document.getElementById('statScreen').innerText = data.screen;
                 document.getElementById('statWifi').innerText = data.wifi.rssi + ' dBm';
-                document.getElementById('statGoodwe').innerText = data.goodwe.available ? 'OK' : 'Offline';
-                document.getElementById('statAzrouter').innerText = data.azrouter.available ? 'OK' : 'Offline';
+                const gwEnabled = data.sources?.goodwe?.enabled !== false;
+                const azEnabled = data.sources?.azrouter?.enabled !== false;
+                document.getElementById('statGoodwe').innerText =
+                    gwEnabled ? (data.goodwe.available ? 'OK' : 'Offline') : 'Vypnuto';
+                const azModeLabels = {
+                    bearer: 'token',
+                    cookie: 'cookie',
+                    'login-no-session': 'login',
+                    anonymous: 'bez loginu',
+                    invalid: 'neúplné údaje',
+                    'login-failed': 'login chyba',
+                    disabled: ''
+                };
+                const azMode = azModeLabels[data.azrouter.authMode] || data.azrouter.authMode || '';
+                document.getElementById('statAzrouter').innerText = azEnabled
+                    ? ((data.azrouter.available ? 'OK' : 'Offline') + (azMode ? ' · ' + azMode : ''))
+                    : 'Vypnuto';
                 document.getElementById('statWeather').innerText = data.weather.available ? data.weather.provider : (data.weather.enabled ? 'Offline' : 'Vypnuto');
                 document.getElementById('statGoodweUpdate').innerText = formatDataAge(data.goodwe.lastUpdateAgeSeconds);
                 document.getElementById('statAzrouterUpdate').innerText = formatDataAge(data.azrouter.lastUpdateAgeSeconds);
@@ -820,6 +855,18 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     document.getElementById('azPort').value = az.port;
                     document.getElementById('azInterval').value = az.interval;
                     document.getElementById('azEnabled').checked = az.enabled;
+                    document.getElementById('azUser').value = az.username || '';
+                    const azPassword = document.getElementById('azPassword');
+                    azPassword.value = '';
+                    azPassword.placeholder = az.passwordConfigured
+                        ? 'uloženo — prázdné = zachovat'
+                        : 'heslo do AZRouter WebUI';
+                    const azAuthHelp = document.getElementById('azAuthHelp');
+                    if (azAuthHelp) {
+                        azAuthHelp.textContent = az.passwordConfigured
+                            ? 'Přihlašovací údaje jsou uložené. Heslo se do prohlížeče neposílá.'
+                            : 'AZRouter · přihlášení používá stejné údaje jako WebUI.';
+                    }
                     sourceConfigLoaded = true;
                 }
 
@@ -1071,7 +1118,9 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 azHost: document.getElementById('azHost').value,
                 azPort: document.getElementById('azPort').value,
                 azInterval: document.getElementById('azInterval').value,
-                azEnabled: document.getElementById('azEnabled').checked ? '1' : '0'
+                azEnabled: document.getElementById('azEnabled').checked ? '1' : '0',
+                azUser: document.getElementById('azUser').value,
+                azPassword: document.getElementById('azPassword').value
             });
             const response = await fetch('/api/config/sources', {
                 method: 'POST',
@@ -1352,7 +1401,11 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
             setGithubUpdateBusy(false);
         }
 
-        setInterval(updateStatus, 3000);
+        window.dashboardUpdateStatus = updateStatus;
+        const statusTimer = setInterval(updateStatus, 5000);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) updateStatus();
+        });
         updateStatus();
     </script>
 
@@ -1628,17 +1681,22 @@ void DashboardWebServer::handleApiStatus() {
     displayObj["lastDurationMs"] = displayStatus.lastDurationMs;
     displayObj["lastCompletedMs"] = displayStatus.lastCompletedMs;
     displayObj["stackHighWaterWords"] = displayStatus.stackHighWaterWords;
-    JsonObject perf = doc["performance"].to<JsonObject>();
-    perf["uptimeMs"] = millis();
-    for (int i = 0; i < Performance::Count; ++i) {
-        const auto metric = static_cast<Performance::Metric>(i);
-        const auto value = Performance::stats(metric);
-        JsonObject item = perf[Performance::name(metric)].to<JsonObject>();
-        item["count"] = value.count;
-        item["avgMs"] = value.count ? (double)value.totalMs / value.count : 0;
-        item["maxMs"] = value.maxMs;
-        item["lastMs"] = value.lastMs;
-        item["lastEndMs"] = value.lastEndMs;
+    const bool includeDetails =
+        _server.hasArg("details") && _server.arg("details") != "0";
+
+    if (includeDetails) {
+        JsonObject perf = doc["performance"].to<JsonObject>();
+        perf["uptimeMs"] = millis();
+        for (int i = 0; i < Performance::Count; ++i) {
+            const auto metric = static_cast<Performance::Metric>(i);
+            const auto value = Performance::stats(metric);
+            JsonObject item = perf[Performance::name(metric)].to<JsonObject>();
+            item["count"] = value.count;
+            item["avgMs"] = value.count ? (double)value.totalMs / value.count : 0;
+            item["maxMs"] = value.maxMs;
+            item["lastMs"] = value.lastMs;
+            item["lastEndMs"] = value.lastEndMs;
+        }
     }
 
     JsonObject systemConfigObj = doc["systemConfig"].to<JsonObject>();
@@ -1661,6 +1719,63 @@ void DashboardWebServer::handleApiStatus() {
 
     JsonObject azObj = doc["azrouter"].to<JsonObject>();
     azObj["available"] = _dataModel.azrouter.status.available;
+    azObj["authenticated"] = _dataModel.azrouter.authenticated;
+    azObj["authMode"] = _dataModel.azrouter.authMode;
+
+    if (_dataModel.azrouter.hasRoutedPower) azObj["routedPowerW"] = _dataModel.azrouter.routedPowerW;
+    else azObj["routedPowerW"] = nullptr;
+    if (_dataModel.azrouter.hasGridPower) azObj["gridPowerW"] = _dataModel.azrouter.gridPowerW;
+    else azObj["gridPowerW"] = nullptr;
+    if (_dataModel.azrouter.hasSystemTemp) azObj["systemTempC"] = _dataModel.azrouter.systemTempC;
+    else azObj["systemTempC"] = nullptr;
+
+    if (_dataModel.azrouter.hasSystemStatus) azObj["systemStatusCode"] = _dataModel.azrouter.systemStatusCode;
+    else azObj["systemStatusCode"] = nullptr;
+    if (_dataModel.azrouter.hasHdo) azObj["hdo"] = _dataModel.azrouter.hdoOn;
+    else azObj["hdo"] = nullptr;
+    if (_dataModel.azrouter.hasMode) azObj["modeCode"] = _dataModel.azrouter.modeCode;
+    else azObj["modeCode"] = nullptr;
+    if (_dataModel.azrouter.hasMasterBoost) azObj["masterBoost"] = _dataModel.azrouter.masterBoost;
+    else azObj["masterBoost"] = nullptr;
+
+    if (includeDetails) {
+        JsonArray gridPhases = azObj["gridPhases"].to<JsonArray>();
+        JsonArray routedPhases = azObj["routedPhases"].to<JsonArray>();
+        for (uint8_t phase = 0; phase < 3; ++phase) {
+            JsonObject grid = gridPhases.add<JsonObject>();
+            grid["phase"] = phase + 1;
+            if (_dataModel.azrouter.hasGridPhasePower[phase]) grid["powerW"] = _dataModel.azrouter.gridPhasePowerW[phase];
+            else grid["powerW"] = nullptr;
+            if (_dataModel.azrouter.hasGridPhaseCurrent[phase]) grid["currentA"] = _dataModel.azrouter.gridPhaseCurrentA[phase];
+            else grid["currentA"] = nullptr;
+            if (_dataModel.azrouter.hasGridPhaseVoltage[phase]) grid["voltageV"] = _dataModel.azrouter.gridPhaseVoltageV[phase];
+            else grid["voltageV"] = nullptr;
+            if (_dataModel.azrouter.hasGridPhaseStatus[phase]) grid["connected"] = _dataModel.azrouter.gridPhaseConnected[phase];
+            else grid["connected"] = nullptr;
+
+            JsonObject routed = routedPhases.add<JsonObject>();
+            routed["phase"] = phase + 1;
+            if (_dataModel.azrouter.hasRoutedPhasePower[phase]) routed["powerW"] = _dataModel.azrouter.routedPhasePowerW[phase];
+            else routed["powerW"] = nullptr;
+        }
+
+        JsonObject energy = azObj["energy"].to<JsonObject>();
+        if (_dataModel.azrouter.hasRoutedEnergyTotal) energy["totalKWh"] = _dataModel.azrouter.routedEnergyTotalKWh;
+        else energy["totalKWh"] = nullptr;
+        if (_dataModel.azrouter.hasRoutedEnergyYear) energy["yearKWh"] = _dataModel.azrouter.routedEnergyYearKWh;
+        else energy["yearKWh"] = nullptr;
+        if (_dataModel.azrouter.hasRoutedEnergyMonth) energy["monthKWh"] = _dataModel.azrouter.routedEnergyMonthKWh;
+        else energy["monthKWh"] = nullptr;
+        if (_dataModel.azrouter.hasRoutedEnergyWeek) energy["weekKWh"] = _dataModel.azrouter.routedEnergyWeekKWh;
+        else energy["weekKWh"] = nullptr;
+        if (_dataModel.azrouter.hasRoutedEnergyToday) energy["todayKWh"] = _dataModel.azrouter.routedEnergyTodayKWh;
+        else energy["todayKWh"] = nullptr;
+
+    }
+
+    // Device-level telemetry remains available internally, but is not exposed
+    // as dashboard master telemetry because it depends on the attached load.
+
     if (_dataModel.azrouter.status.lastSuccessMs == 0) {
         azObj["lastUpdateAgeSeconds"] = nullptr;
     } else {
@@ -1711,6 +1826,8 @@ void DashboardWebServer::handleApiStatus() {
     sourceAz["host"] = _config.azrouter.host;
     sourceAz["port"] = _config.azrouter.port;
     sourceAz["interval"] = _config.azrouter.pollIntervalSeconds;
+    sourceAz["username"] = _config.azrouter.username;
+    sourceAz["passwordConfigured"] = !_config.azrouter.password.isEmpty();
     JsonObject sourcePool = sourcesObj["pool"].to<JsonObject>();
     sourcePool["enabled"] = _config.pool.enabled;
     JsonObject sourceWeather = sourcesObj["weather"].to<JsonObject>();
@@ -1735,6 +1852,8 @@ void DashboardWebServer::handleApiStatus() {
 
     String response;
     serializeJson(doc, response);
+    _server.sendHeader("Cache-Control", "no-store");
+    _server.sendHeader("Connection", "close");
     _server.send(200, "application/json", response);
 }
 
@@ -1909,13 +2028,25 @@ void DashboardWebServer::handleApiSourceConfig() {
     const bool azEnabled = _server.arg("azEnabled") == "1";
     const String gwHost = _server.arg("gwHost");
     const String azHost = _server.arg("azHost");
+    String azUser = _server.hasArg("azUser") ? _server.arg("azUser") : _config.azrouter.username;
+    String azPassword = _server.hasArg("azPassword") ? _server.arg("azPassword") : "";
+    azUser.trim();
     long gwPort = _server.arg("gwPort").toInt();
     long azPort = _server.arg("azPort").toInt();
     long gwInterval = _server.arg("gwInterval").toInt();
     long azInterval = _server.arg("azInterval").toInt();
+    auto invalidCredentialText = [](const String& value, size_t maxLength) {
+        if (value.length() > maxLength) return true;
+        for (size_t i = 0; i < value.length(); ++i) {
+            if (static_cast<uint8_t>(value[i]) < 0x20) return true;
+        }
+        return false;
+    };
+
     if ((gwEnabled && gwHost.isEmpty()) || (azEnabled && azHost.isEmpty()) ||
         gwPort < 1 || gwPort > 65535 || azPort < 1 || azPort > 65535 ||
-        gwInterval < 1 || gwInterval > 3600 || azInterval < 1 || azInterval > 3600) {
+        gwInterval < 1 || gwInterval > 3600 || azInterval < 1 || azInterval > 3600 ||
+        invalidCredentialText(azUser, 64) || invalidCredentialText(azPassword, 128)) {
         _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid source setting\"}");
         return;
     }
@@ -1927,11 +2058,21 @@ void DashboardWebServer::handleApiSourceConfig() {
         goodwe.port = static_cast<uint16_t>(gwPort);
         goodwe.pollIntervalSeconds = static_cast<uint32_t>(gwInterval);
 
-        AZRouterConfig azrouter;
+        AZRouterConfig azrouter = _config.azrouter;
         azrouter.enabled = azEnabled;
         azrouter.host = azHost;
         azrouter.port = static_cast<uint16_t>(azPort);
         azrouter.pollIntervalSeconds = static_cast<uint32_t>(azInterval);
+        azrouter.username = azUser;
+
+        // Never send the stored password back to the browser. An empty field
+        // means "keep current password". Clearing the username switches back
+        // to anonymous mode and clears the stored password as well.
+        if (azUser.isEmpty()) {
+            azrouter.password = "";
+        } else if (!azPassword.isEmpty()) {
+            azrouter.password = azPassword;
+        }
 
         _server.send(200, "application/json", "{\"status\":\"saved\"}");
         _sourceConfigCallback(goodwe, azrouter);

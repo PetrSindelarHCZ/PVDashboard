@@ -1,18 +1,221 @@
 #include "AZRouterClient.h"
-#include "../../diagnostics/Performance.h"
+#include <math.h>
 
 namespace {
 constexpr int32_t ConnectTimeoutMs = 400;
 constexpr uint16_t ResponseTimeoutMs = 1000;
+
+bool readNumber(JsonVariantConst value, float& result) {
+    if (value.isNull()) return false;
+
+    const bool numeric =
+        value.is<int>() ||
+        value.is<unsigned int>() ||
+        value.is<long>() ||
+        value.is<unsigned long>() ||
+        value.is<float>() ||
+        value.is<double>();
+
+    if (!numeric) return false;
+
+    result = value.as<float>();
+    return isfinite(result);
+}
 }
 
 AZRouterClient::AZRouterClient() {
 }
 
-void AZRouterClient::begin(const String& host, uint16_t port) {
+void AZRouterClient::begin(const String& host, uint16_t port,
+                           const String& username,
+                           const String& password) {
     _host = host;
     _port = port;
-    Serial.printf("[AZROUTER] Inicializován klient HTTP http://%s:%u/\n", _host.c_str(), _port);
+    _username = username;
+    _password = password;
+    clearSession();
+
+    Serial.printf(
+        "[AZROUTER] Inicializován klient HTTP http://%s:%u/ | auth=%s\n",
+        _host.c_str(),
+        _port,
+        credentialsConfigured() ? "configured" : "anonymous");
+}
+
+bool AZRouterClient::credentialsConfigured() const {
+    return !_username.isEmpty() && !_password.isEmpty();
+}
+
+void AZRouterClient::clearSession() {
+    _bearerToken = "";
+    _sessionCookie = "";
+    _loginCompleted = false;
+}
+
+String AZRouterClient::firstCookiePair(const String& setCookie) {
+    if (setCookie.isEmpty()) return "";
+
+    int end = setCookie.indexOf(';');
+    if (end < 0) end = setCookie.length();
+
+    String cookie = setCookie.substring(0, end);
+    cookie.trim();
+    return cookie;
+}
+
+void AZRouterClient::addAuthHeaders(HTTPClient& http) {
+    http.addHeader("Accept", "application/json");
+    if (!_bearerToken.isEmpty()) {
+        http.addHeader("Authorization", "Bearer " + _bearerToken);
+    } else if (!_sessionCookie.isEmpty()) {
+        http.addHeader("Cookie", _sessionCookie);
+    }
+}
+
+bool AZRouterClient::login(String& errorMessage) {
+    errorMessage = "";
+
+    if (!credentialsConfigured()) {
+        errorMessage = "Credentials not configured";
+        return false;
+    }
+
+    const String url =
+        "http://" + _host + ":" + String(_port) + "/api/v1/login";
+
+    HTTPClient http;
+    if (!http.begin(url)) {
+        errorMessage = "Login HTTP begin failed";
+        return false;
+    }
+
+    http.setConnectTimeout(ConnectTimeoutMs);
+    http.setTimeout(ResponseTimeoutMs);
+
+    const char* headerKeys[] = {"Set-Cookie"};
+    http.collectHeaders(headerKeys, 1);
+    http.addHeader("Accept", "application/json");
+    http.addHeader("Content-Type", "application/json");
+
+    JsonDocument requestDoc;
+    JsonObject data = requestDoc["data"].to<JsonObject>();
+    data["username"] = _username;
+    data["password"] = _password;
+
+    String payload;
+    serializeJson(requestDoc, payload);
+
+    const int httpCode = http.POST(payload);
+    if (httpCode < 200 || httpCode >= 300) {
+        errorMessage = "Login HTTP " + String(httpCode);
+        http.end();
+        clearSession();
+        return false;
+    }
+
+    const String setCookie = http.header("Set-Cookie");
+    JsonDocument responseDoc;
+    const DeserializationError jsonError =
+        deserializeJson(responseDoc, http.getStream());
+    http.end();
+
+    clearSession();
+
+    if (!jsonError) {
+        const char* keys[] = {
+            "token", "access_token", "accessToken", "jwt", "session"
+        };
+
+        for (const char* key : keys) {
+            const char* value = responseDoc[key].as<const char*>();
+            if (value != nullptr && value[0] != '\0') {
+                _bearerToken = value;
+                break;
+            }
+        }
+
+        if (_bearerToken.isEmpty() && responseDoc["data"].is<JsonObject>()) {
+            JsonObjectConst responseData = responseDoc["data"].as<JsonObjectConst>();
+            for (const char* key : keys) {
+                const char* value = responseData[key].as<const char*>();
+                if (value != nullptr && value[0] != '\0') {
+                    _bearerToken = value;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (_bearerToken.isEmpty()) {
+        _sessionCookie = firstCookiePair(setCookie);
+    }
+    _loginCompleted = true;
+
+    if (!_bearerToken.isEmpty()) {
+        Serial.println("[AZROUTER][AUTH] Přihlášení OK, používám Bearer token.");
+    } else if (!_sessionCookie.isEmpty()) {
+        Serial.println("[AZROUTER][AUTH] Přihlášení OK, používám session cookie.");
+    } else {
+        // Some firmware variants can return HTTP 2xx without a token in JSON.
+        // Continue and let the following authenticated endpoint reveal whether
+        // the login is IP/session based or insufficient.
+        Serial.println(
+            "[AZROUTER][AUTH] Login HTTP OK, ale odpověď neobsahuje token ani cookie.");
+    }
+
+    return true;
+}
+
+bool AZRouterClient::getJson(const char* path,
+                             JsonDocument& doc,
+                             Performance::Metric metric,
+                             String& errorMessage,
+                             bool allowRelogin) {
+    const String url = "http://" + _host + ":" + String(_port) + path;
+    Performance::Scope timing(metric);
+
+    HTTPClient http;
+    if (!http.begin(url)) {
+        errorMessage = "HTTP begin failed";
+        return false;
+    }
+
+    http.setConnectTimeout(ConnectTimeoutMs);
+    http.setTimeout(ResponseTimeoutMs);
+    addAuthHeaders(http);
+
+    const int httpCode = http.GET();
+
+    if ((httpCode == HTTP_CODE_UNAUTHORIZED || httpCode == HTTP_CODE_FORBIDDEN) &&
+        allowRelogin && credentialsConfigured()) {
+        http.end();
+        clearSession();
+
+        String loginError;
+        if (!login(loginError)) {
+            errorMessage = loginError;
+            return false;
+        }
+
+        return getJson(path, doc, metric, errorMessage, false);
+    }
+
+    if (httpCode != HTTP_CODE_OK) {
+        errorMessage = "HTTP " + String(httpCode);
+        http.end();
+        return false;
+    }
+
+    const DeserializationError jsonError =
+        deserializeJson(doc, http.getStream());
+    http.end();
+
+    if (jsonError) {
+        errorMessage = "JSON " + String(jsonError.c_str());
+        return false;
+    }
+
+    return true;
 }
 
 bool AZRouterClient::update(AZRouterData& azData) {
@@ -21,109 +224,338 @@ bool AZRouterClient::update(AZRouterData& azData) {
         return false;
     }
 
-    auto getJson = [this](const char* path, JsonDocument& doc, Performance::Metric metric, String& errorMessage) {
-        const String url = "http://" + _host + ":" + String(_port) + path;
-        Performance::Scope timing(metric);
+    const bool partialCredentials =
+        (!_username.isEmpty() && _password.isEmpty()) ||
+        (_username.isEmpty() && !_password.isEmpty());
 
-        if (!_http.begin(url)) {
-            errorMessage = "HTTP begin failed";
+    if (partialCredentials) {
+        azData.authenticated = false;
+        azData.authMode = "invalid";
+        azData.status.recordError("Incomplete credentials");
+        return false;
+    }
+
+    if (credentialsConfigured() && !_loginCompleted) {
+        String loginError;
+        if (!login(loginError)) {
+            azData.authenticated = false;
+            azData.authMode = "login-failed";
+            azData.status.recordError(loginError);
             return false;
         }
+    }
 
-        _http.setConnectTimeout(ConnectTimeoutMs);
-        _http.setTimeout(ResponseTimeoutMs);
-        const int httpCode = _http.GET();
-        if (httpCode != HTTP_CODE_OK) {
-            errorMessage = "HTTP " + String(httpCode);
-            _http.end();
-            return false;
-        }
+    azData.authenticated =
+        credentialsConfigured() && _loginCompleted;
+    azData.authMode =
+        !_bearerToken.isEmpty() ? "bearer" :
+        (!_sessionCookie.isEmpty() ? "cookie" :
+         (credentialsConfigured() ? "login-no-session" : "anonymous"));
 
-        const DeserializationError jsonError = deserializeJson(doc, _http.getStream());
-        _http.end();
-        if (jsonError) {
-            errorMessage = "JSON " + String(jsonError.c_str());
-            return false;
-        }
-        return true;
-    };
-
-    // /power je hlavní endpoint. Když neodpoví, další dva požadavky by jen
-    // prodloužily blokování stejného nedostupného zařízení.
+    // /power is the mandatory endpoint. Optional endpoint failures must not
+    // invalidate otherwise usable power/grid data.
     JsonDocument powerDoc;
     String powerError;
     if (!getJson("/api/v1/power", powerDoc, Performance::AzPower, powerError)) {
+        azData.authenticated =
+            !_bearerToken.isEmpty() || !_sessionCookie.isEmpty();
         azData.status.recordError(powerError);
         return false;
     }
 
+    // A successful cycle rebuilds per-metric validity from the received JSON.
+    azData.gridPowerW = 0.0f;
+    azData.hasGridPower = false;
+    azData.routedPowerW = 0.0f;
+    azData.hasRoutedPower = false;
+
+    for (uint8_t phase = 0; phase < 3; ++phase) {
+        azData.gridPhasePowerW[phase] = 0.0f;
+        azData.hasGridPhasePower[phase] = false;
+        azData.gridPhaseVoltageV[phase] = 0.0f;
+        azData.hasGridPhaseVoltage[phase] = false;
+        azData.gridPhaseCurrentA[phase] = 0.0f;
+        azData.hasGridPhaseCurrent[phase] = false;
+        azData.gridPhaseConnected[phase] = false;
+        azData.hasGridPhaseStatus[phase] = false;
+        azData.routedPhasePowerW[phase] = 0.0f;
+        azData.hasRoutedPhasePower[phase] = false;
+    }
+
+    azData.routedEnergyTotalKWh = 0.0f;
+    azData.hasRoutedEnergyTotal = false;
+    azData.routedEnergyYearKWh = 0.0f;
+    azData.hasRoutedEnergyYear = false;
+    azData.routedEnergyMonthKWh = 0.0f;
+    azData.hasRoutedEnergyMonth = false;
+    azData.routedEnergyWeekKWh = 0.0f;
+    azData.hasRoutedEnergyWeek = false;
+    azData.routedEnergyTodayKWh = 0.0f;
+    azData.hasRoutedEnergyToday = false;
+
+    azData.systemStatusCode = -1;
+    azData.hasSystemStatus = false;
+    azData.hdoOn = false;
+    azData.hasHdo = false;
+    azData.modeCode = -1;
+    azData.hasMode = false;
+    azData.masterBoost = false;
+    azData.hasMasterBoost = false;
+    azData.systemTempC = 0.0f;
+    azData.hasSystemTemp = false;
+
+    azData.boilerTempC = 0.0f;
+    azData.hasBoilerTemp = false;
+
+    // Master routed power:
+    // output.power id 0..2 = routed power per phase
+    // output.power id 3    = routed total
     if (powerDoc["output"]["power"].is<JsonArray>()) {
-        float sumPower = 0.0f;
-        float id3Power = 0.0f;
-        bool hasId3 = false;
+        float phaseSum = 0.0f;
+        bool hasPhaseValue = false;
+        float routedTotal = 0.0f;
+        bool hasRoutedTotal = false;
 
-        for (JsonObject item : powerDoc["output"]["power"].as<JsonArray>()) {
+        for (JsonObjectConst item : powerDoc["output"]["power"].as<JsonArrayConst>()) {
             const int id = item["id"] | -1;
-            const float value = item["value"] | 0.0f;
-            if (id == 3) {
-                id3Power = value;
-                hasId3 = true;
-            } else if (id >= 0 && id <= 2) {
-                sumPower += value;
+            float value = 0.0f;
+            if (!readNumber(item["value"], value)) continue;
+
+            if (id >= 0 && id <= 2) {
+                azData.routedPhasePowerW[id] = value;
+                azData.hasRoutedPhasePower[id] = true;
+                phaseSum += value;
+                hasPhaseValue = true;
+            } else if (id == 3) {
+                routedTotal = value;
+                hasRoutedTotal = true;
             }
         }
-        azData.routedPowerW = (hasId3 && id3Power > 0.0f) ? id3Power : sumPower;
+
+        if (hasRoutedTotal) {
+            azData.routedPowerW = routedTotal;
+            azData.hasRoutedPower = true;
+        } else if (hasPhaseValue) {
+            azData.routedPowerW = phaseSum;
+            azData.hasRoutedPower = true;
+        }
     }
 
+    // Saved/routed energy: total, year, month, week, today.
     if (powerDoc["output"]["energy"].is<JsonArray>()) {
-        for (JsonObject item : powerDoc["output"]["energy"].as<JsonArray>()) {
-            if ((item["id"] | -1) == 4) {
-                azData.routedEnergyTodayKWh = item["value"] | 0.0f;
+        for (JsonObjectConst item : powerDoc["output"]["energy"].as<JsonArrayConst>()) {
+            const int id = item["id"] | -1;
+            float value = 0.0f;
+            if (!readNumber(item["value"], value) || value < 0.0f) continue;
+
+            switch (id) {
+                case 0:
+                    azData.routedEnergyTotalKWh = value;
+                    azData.hasRoutedEnergyTotal = true;
+                    break;
+                case 1:
+                    azData.routedEnergyYearKWh = value;
+                    azData.hasRoutedEnergyYear = true;
+                    break;
+                case 2:
+                    azData.routedEnergyMonthKWh = value;
+                    azData.hasRoutedEnergyMonth = true;
+                    break;
+                case 3:
+                    azData.routedEnergyWeekKWh = value;
+                    azData.hasRoutedEnergyWeek = true;
+                    break;
+                case 4:
+                    azData.routedEnergyTodayKWh = value;
+                    azData.hasRoutedEnergyToday = true;
+                    break;
+                default:
+                    break;
             }
         }
     }
 
+    // Grid phase data. Voltage/current are reported by AZRouter in mV/mA.
     if (powerDoc["input"]["power"].is<JsonArray>()) {
         float gridSum = 0.0f;
-        for (JsonObject item : powerDoc["input"]["power"].as<JsonArray>()) {
+        bool hasGridPhase = false;
+        for (JsonObjectConst item : powerDoc["input"]["power"].as<JsonArrayConst>()) {
             const int id = item["id"] | -1;
-            if (id >= 0 && id <= 2) {
-                gridSum += (item["value"] | 0.0f);
-            }
+            if (id < 0 || id > 2) continue;
+            float value = 0.0f;
+            if (!readNumber(item["value"], value)) continue;
+            azData.gridPhasePowerW[id] = value;
+            azData.hasGridPhasePower[id] = true;
+            gridSum += value;
+            hasGridPhase = true;
         }
-        azData.gridPowerW = gridSum;
+        if (hasGridPhase) {
+            azData.gridPowerW = gridSum;
+            azData.hasGridPower = true;
+        }
     }
 
-    // Doplňkové endpointy neovlivňují dostupnost hlavních výkonových dat.
+    if (powerDoc["input"]["voltage"].is<JsonArray>()) {
+        for (JsonObjectConst item : powerDoc["input"]["voltage"].as<JsonArrayConst>()) {
+            const int id = item["id"] | -1;
+            if (id < 0 || id > 2) continue;
+            float value = 0.0f;
+            if (!readNumber(item["value"], value)) continue;
+            azData.gridPhaseVoltageV[id] = value / 1000.0f;
+            azData.hasGridPhaseVoltage[id] = true;
+        }
+    }
+
+    if (powerDoc["input"]["current"].is<JsonArray>()) {
+        for (JsonObjectConst item : powerDoc["input"]["current"].as<JsonArrayConst>()) {
+            const int id = item["id"] | -1;
+            if (id < 0 || id > 2) continue;
+            float value = 0.0f;
+            if (!readNumber(item["value"], value)) continue;
+            azData.gridPhaseCurrentA[id] = value / 1000.0f;
+            azData.hasGridPhaseCurrent[id] = true;
+        }
+    }
+
+    if (powerDoc["input"]["status"].is<JsonArray>()) {
+        for (JsonObjectConst item : powerDoc["input"]["status"].as<JsonArrayConst>()) {
+            const int id = item["id"] | -1;
+            if (id < 0 || id > 2 || item["value"].isNull()) continue;
+            // AZRouter WebUI/HA mapping: 0 = connected, 1 = disconnected.
+            azData.gridPhaseConnected[id] = item["value"].as<int>() == 0;
+            azData.hasGridPhaseStatus[id] = true;
+        }
+    }
+
+    if (!azData.hasRoutedPower &&
+        !azData.hasRoutedEnergyToday &&
+        !azData.hasGridPower) {
+        azData.status.recordError("Power payload missing metrics");
+        return false;
+    }
+
     JsonDocument statusDoc;
     String optionalError;
     if (getJson("/api/v1/status", statusDoc, Performance::AzStatus, optionalError)) {
-        if (statusDoc["system"]["temperature"].is<float>() && azData.boilerTempC <= 0.0f) {
-            azData.boilerTempC = statusDoc["system"]["temperature"].as<float>();
+        JsonObjectConst system = statusDoc["system"].as<JsonObjectConst>();
+
+        if (!system.isNull() && !system["status"].isNull()) {
+            azData.systemStatusCode = system["status"].as<int>();
+            azData.hasSystemStatus = true;
+        }
+        if (!system["hdo"].isNull()) {
+            azData.hdoOn = system["hdo"].as<int>() != 0;
+            azData.hasHdo = true;
+        }
+        if (!system["mode"].isNull()) {
+            azData.modeCode = system["mode"].as<int>();
+            azData.hasMode = true;
+        }
+        if (!system["masterBoost"].isNull()) {
+            azData.masterBoost = system["masterBoost"].as<int>() != 0;
+            azData.hasMasterBoost = true;
+        }
+
+        float systemTemp = 0.0f;
+        if (readNumber(system["temperature"], systemTemp) &&
+            systemTemp > -40.0f && systemTemp < 125.0f) {
+            azData.systemTempC = systemTemp;
+            azData.hasSystemTemp = true;
         }
     } else {
         Serial.printf("[AZROUTER] Volitelný /status selhal: %s\n", optionalError.c_str());
     }
 
+    // Smart Slave / TUV device telemetry.
     JsonDocument devicesDoc;
     optionalError = "";
     if (getJson("/api/v1/devices", devicesDoc, Performance::AzDevices, optionalError)) {
-        if (devicesDoc["power"]["temperature"].is<float>()) {
-            const float deviceTemp = devicesDoc["power"]["temperature"].as<float>();
-            if (deviceTemp > 0.0f) {
-                azData.boilerTempC = deviceTemp;
+        // Known firmware/captures can return either one device object, a list,
+        // or {"devices":[...]}. Prefer a Power/Smart Slave (deviceType 1).
+        JsonObjectConst boilerDevice;
+
+        if (devicesDoc.is<JsonObject>()) {
+            JsonObjectConst root = devicesDoc.as<JsonObjectConst>();
+            if (root["devices"].is<JsonArray>()) {
+                for (JsonObjectConst item : root["devices"].as<JsonArrayConst>()) {
+                    const String deviceType = item["deviceType"] | "";
+                    if (deviceType == "1" || item["deviceType"].as<int>() == 1) {
+                        boilerDevice = item;
+                        break;
+                    }
+                }
+            } else if (root["power"].is<JsonObject>()) {
+                boilerDevice = root;
+            }
+        } else if (devicesDoc.is<JsonArray>()) {
+            for (JsonObjectConst item : devicesDoc.as<JsonArrayConst>()) {
+                const String deviceType = item["deviceType"] | "";
+                if (deviceType == "1" || item["deviceType"].as<int>() == 1) {
+                    boilerDevice = item;
+                    break;
+                }
+            }
+        }
+
+        if (!boilerDevice.isNull()) {
+            const String deviceName = boilerDevice["common"]["name"] | "";
+            const String deviceType = boilerDevice["deviceType"] | "";
+            Serial.printf(
+                "[AZROUTER][DEV] type=%s name='%s' totalPower=%s temperature=%s\n",
+                deviceType.c_str(),
+                deviceName.c_str(),
+                boilerDevice["power"]["totalPower"].isNull()
+                    ? "<missing>"
+                    : String(boilerDevice["power"]["totalPower"].as<float>(), 1).c_str(),
+                boilerDevice["power"]["temperature"].isNull()
+                    ? "<missing>"
+                    : String(boilerDevice["power"]["temperature"].as<float>(), 1).c_str());
+
+            float boilerTemp = 0.0f;
+            if (readNumber(boilerDevice["power"]["temperature"], boilerTemp) &&
+                boilerTemp > 0.0f && boilerTemp < 150.0f) {
+                azData.boilerTempC = boilerTemp;
+                azData.hasBoilerTemp = true;
             }
         }
     } else {
         Serial.printf("[AZROUTER] Volitelný /devices selhal: %s\n", optionalError.c_str());
     }
 
+    azData.authenticated =
+        credentialsConfigured() && _loginCompleted;
+    azData.authMode =
+        !_bearerToken.isEmpty() ? "bearer" :
+        (!_sessionCookie.isEmpty() ? "cookie" :
+         (credentialsConfigured() ? "login-no-session" : "anonymous"));
+
     azData.lastUpdateMs = millis();
     azData.status.recordSuccess();
-    Serial.printf("[AZROUTER] Vytěžování: %.0f W | Bojler: %.1f °C | Dnes: %.1f kWh | Síť AZ: %.0f W\n",
-                  azData.routedPowerW,
-                  azData.boilerTempC,
-                  azData.routedEnergyTodayKWh,
-                  azData.gridPowerW);
+
+    Serial.printf(
+        "[AZROUTER] auth=%s | valid route=%d energyToday=%d grid=%d boilerTemp=%d systemTemp=%d\n",
+        azData.authMode.c_str(),
+        azData.hasRoutedPower,
+        azData.hasRoutedEnergyToday,
+        azData.hasGridPower,
+        azData.hasBoilerTemp,
+        azData.hasSystemTemp);
+
+    if (azData.hasRoutedPower) {
+        Serial.printf("[AZROUTER] Vytěžování: %.0f W\n", azData.routedPowerW);
+    }
+    if (azData.hasBoilerTemp) {
+        Serial.printf("[AZROUTER] Bojler: %.1f °C\n", azData.boilerTempC);
+    }
+    if (azData.hasRoutedEnergyToday) {
+        Serial.printf("[AZROUTER] Dnes: %.1f kWh\n", azData.routedEnergyTodayKWh);
+    }
+    if (azData.hasGridPower) {
+        Serial.printf("[AZROUTER] Síť AZ: %+.0f W\n", azData.gridPowerW);
+    }
+    if (azData.hasSystemTemp) {
+        Serial.printf("[AZROUTER] Teplota jednotky: %.1f °C\n", azData.systemTempC);
+    }
+
     return true;
 }

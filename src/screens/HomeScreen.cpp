@@ -87,31 +87,36 @@ void drawEnergyCard(IDisplay& display, const DataModel& dm, const LayoutWidget& 
         display.print("Výroba FVE");
         ScreenStyle::useValue(display, color);
         display.setCursor(leftX, y + 87);
-        display.printf("%.1f kW", dm.solar.productionPowerW / 1000.0f);
+        if (dm.solar.status.available) display.printf("%.1f kW", dm.solar.productionPowerW / 1000.0f);
+        else display.print("--.- kW");
 
         ScreenStyle::useBody(display, color);
         display.setCursor(leftX, y + 172);
         display.print("Spotřeba domu");
         ScreenStyle::useValue(display, color);
         display.setCursor(leftX, y + 197);
-        display.printf("%.1f kW", dm.solar.houseConsumptionW / 1000.0f);
+        if (dm.solar.status.available) display.printf("%.1f kW", dm.solar.houseConsumptionW / 1000.0f);
+        else display.print("--.- kW");
 
         ScreenStyle::useBody(display, color);
         display.setCursor(rightX, y + 62);
         display.print("Distribuce");
         ScreenStyle::useValue(display, color);
         display.setCursor(rightX, y + 87);
-        display.printf("%+.1f kW", dm.solar.gridPowerW / 1000.0f);
+        if (dm.solar.status.available) display.printf("%+.1f kW", dm.solar.gridPowerW / 1000.0f);
+        else display.print("--.- kW");
 
         ScreenStyle::useBody(display, color);
         display.setCursor(rightX, y + 172);
         display.print("Baterie");
         ScreenStyle::useValue(display, color);
         display.setCursor(rightX, y + 197);
-        display.printf("%.0f %%", dm.solar.batterySocPercent);
+        if (dm.solar.status.available) display.printf("%.0f %%", dm.solar.batterySocPercent);
+        else display.print("-- %");
         ScreenStyle::useBody(display, color);
         display.setCursor(rightX, y + 237);
-        display.printf("%+.0f W", dm.solar.batteryPowerW);
+        if (dm.solar.status.available) display.printf("%+.0f W", dm.solar.batteryPowerW);
+        else display.print("-- W");
         return;
     }
 
@@ -122,28 +127,34 @@ void drawEnergyCard(IDisplay& display, const DataModel& dm, const LayoutWidget& 
     display.print("Výroba FVE");
     ScreenStyle::useValue(display, color);
     display.setCursor(valueX, y + 87);
-    display.printf("%.1f kW", dm.solar.productionPowerW / 1000.0f);
+    if (dm.solar.status.available) display.printf("%.1f kW", dm.solar.productionPowerW / 1000.0f);
+    else display.print("--.- kW");
 
     ScreenStyle::useBody(display, color);
     display.setCursor(valueX, y + 132);
     display.print("Spotřeba domu");
     ScreenStyle::useValue(display, color);
     display.setCursor(valueX, y + 157);
-    display.printf("%.1f kW", dm.solar.houseConsumptionW / 1000.0f);
+    if (dm.solar.status.available) display.printf("%.1f kW", dm.solar.houseConsumptionW / 1000.0f);
+    else display.print("--.- kW");
 
     ScreenStyle::useBody(display, color);
     display.setCursor(valueX, y + 202);
     display.print("Distribuce");
     ScreenStyle::useValue(display, color);
     display.setCursor(valueX, y + 227);
-    display.printf("%+.1f kW", dm.solar.gridPowerW / 1000.0f);
+    if (dm.solar.status.available) display.printf("%+.1f kW", dm.solar.gridPowerW / 1000.0f);
+    else display.print("--.- kW");
 
     ScreenStyle::useBody(display, color);
     display.setCursor(valueX, y + 272);
     display.print("Baterie");
     ScreenStyle::useValue(display, color);
     display.setCursor(valueX, y + 297);
-    display.printf("%.0f %% (%+.0f W)", dm.solar.batterySocPercent, dm.solar.batteryPowerW);
+    if (dm.solar.status.available)
+        display.printf("%.0f %% (%+.0f W)", dm.solar.batterySocPercent, dm.solar.batteryPowerW);
+    else
+        display.print("-- % (-- W)");
 }
 
 void drawIndoorCard(IDisplay& display, const DataModel& dm, const LayoutWidget& widget,

@@ -1,18 +1,9 @@
 #include "DataModel.h"
 
 DataModel::DataModel() {
+    // All telemetry starts unavailable/zero. Real integrations populate values
+    // only after a successful poll; UI must use status/validity flags.
     updateSystemMetrics();
-    
-    // Testovací data pro zobrazení
-    solar.productionPowerW = 3400.0f;
-    solar.houseConsumptionW = 1200.0f;
-    solar.gridPowerW = -800.0f; // přetok 800W
-    solar.energyTodayKWh = 18.4f;
-    solar.batterySocPercent = 78.0f;
-    solar.batteryPowerW = 1400.0f;
-    azrouter.routedPowerW = 1400.0f;
-    azrouter.routedEnergyTodayKWh = 6.2f;
-    azrouter.boilerTempC = 56.5f;
 }
 
 void DataModel::updateSystemMetrics() {

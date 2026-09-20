@@ -432,8 +432,14 @@ void DashboardApp::setup() {
         }
 
         if (azrouter.enabled) {
-            _azrouterClient.begin(azrouter.host, azrouter.port);
+            _azrouterClient.begin(
+                azrouter.host,
+                azrouter.port,
+                azrouter.username,
+                azrouter.password);
         } else {
+            _dataModel.azrouter.authenticated = false;
+            _dataModel.azrouter.authMode = "disabled";
             _dataModel.azrouter.status.recordError("Disabled");
         }
 
@@ -536,7 +542,13 @@ void DashboardApp::setup() {
     _webServer.begin();
 
     if (cfg.goodwe.enabled) _goodweClient.begin(cfg.goodwe.host, cfg.goodwe.port);
-    if (cfg.azrouter.enabled) _azrouterClient.begin(cfg.azrouter.host, cfg.azrouter.port);
+    if (cfg.azrouter.enabled) {
+        _azrouterClient.begin(
+            cfg.azrouter.host,
+            cfg.azrouter.port,
+            cfg.azrouter.username,
+            cfg.azrouter.password);
+    }
     _weatherWorker.begin(cfg.weather);
 
     _lastGoodweSync = millis();

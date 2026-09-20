@@ -145,7 +145,9 @@ První elementy:
   a spotřeby domu.
 
 Dynamické elementy používají stabilní klíč `source`, například
-`solar.productionPowerW`, `weather.outdoorTempC`, `inside.temperatureC`,
+`solar.productionPowerW`, `azrouter.routedPowerW`,
+`azrouter.routedL1PowerW`, `azrouter.routedEnergyTodayKWh`,
+`azrouter.systemTempC`, `weather.outdoorTempC`, `inside.temperatureC`,
 `inside.humidityPercent`, `inside.pressureHpa` nebo `pool.waterTempC`.
 Katalog podporovaných zdrojů vrací
 `GET /api/layout/home` v objektu `customWidget.dataSources`, takže WebUI

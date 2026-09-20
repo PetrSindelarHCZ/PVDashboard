@@ -1,6 +1,6 @@
 # Aktuální stav projektu
 
-> Stav k **19. 9. 2026**. Tento dokument je stručný provozní přehled toho, co je
+> Stav k **20. 9. 2026**. Tento dokument je stručný provozní přehled toho, co je
 > v aktuálním `masteru` hotové, co je pouze částečné a co zůstává plánem.
 > Technické detaily jsou v odkazovaných specializovaných dokumentech.
 
@@ -57,13 +57,11 @@ refreshu. Akce `OK` nad konkrétním prvkem zatím implementované nejsou.
 - [x] FVE obrazovka existuje, pokud je aktivní alespoň jeden z obou zdrojů,
 - [x] při vypnutí obou zdrojů se FVE odstraní ze sidebaru; pokud byla právě
   otevřená, aktivuje se Domov,
-- [x] FVE obrazovka skládá obsah podle aktivních zdrojů,
+- [x] FVE obrazovka používá pager **Přehled / GoodWe / AZRouter** podle aktivních zdrojů,
+- [x] AZRouter podstránka zobrazuje master L1/L2/L3, vytěžování, energii, HDO, režim, Boost a teplotu jednotky,
+- [x] device-level údaje AZRouteru (např. bojler) se na dashboardu nezobrazují,
 - [x] stavové ikony v záhlaví se kreslí pouze pro zapnuté zdroje,
 - [x] navigace se po dynamické registraci/odregistraci obrazovek synchronizuje.
-
-Poznámka: stručný stavový panel ve WebUI ještě u vypnutého GoodWe/AZRouteru
-používá text „Offline“. Konfigurace, e-ink diagnostika a dynamická viditelnost
-už stav `enabled` respektují; jde o drobný UI dluh, ne o problém pollingu.
 
 ### Počasí
 
@@ -104,10 +102,21 @@ už stav `enabled` respektují; jde o drobný UI dluh, ne o problém pollingu.
 - [x] zachování posledních platných dat a samostatný stav dostupnosti/stáří,
 - [x] automatické obnovení pollingu po návratu zdroje,
 - [x] samostatný host a port pro každý zdroj,
+- [x] AZRouter login přes WebUI credentials včetně Bearer token/session cookie a re-loginu po 401/403,
+- [x] AZRouter heslo zůstává v NVS a není vraceno přes status API,
+- [x] odstraněny startovní demo hodnoty GoodWe/AZRouter; před prvním validním pollingem UI zobrazuje nedostupnost,
+- [x] AZRouter rozlišuje platnost master výkonu po fázích, sítě, energií a systémových stavů,
+- [x] `status.system.temperature` je diagnostická teplota AZRouter masteru,
+- [x] `devices` se dál přijímá, ale jeho výkon/teplota se nepoužívají pro master dashboard,
 - [x] vývojový simulátor je v samostatném repozitáři `Dashboard.DeviceSimulator`.
 
 Polling GoodWe a AZRouteru zůstává synchronní v hlavní smyčce; jednotlivý
 timeout proto může krátce zvýšit odezvu WebUI.
+
+WebUI používá jeden sdílený 5s `/api/status` poller. Weather/source-status
+widgety odebírají jeho snapshot místo vlastních paralelních pollerů; skrytá
+záložka polling zastaví. Běžný status je odlehčený, detailní performance a
+AZRouter diagnostika jsou dostupné přes `/api/status?details=1`.
 
 ### OTA a release
 

@@ -89,12 +89,16 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
         const lines=['Endpoint: '+endpoint,'Stav: '+stateText,'Poslední úspěšná komunikace: '+formatAge(age),'Interval dotazování: '+interval+' s'];
         if(!enabled)lines.push('Zdroj je v konfiguraci vypnutý.');el.dataset.tooltip=lines.join('\n');
     }
-    async function refreshDeviceStatus(){
-        try{const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),2500);const response=await fetch('/api/status',{cache:'no-store',signal:controller.signal});clearTimeout(timeout);if(!response.ok)throw new Error();const data=await response.json();defs.forEach(def=>updateOne(def,data));}
-        catch(_){defs.forEach(def=>{const el=document.getElementById(def.id);if(!el)return;el.classList.remove('ok','syncing');el.classList.add('error');const text=el.querySelector('.source-device-status-text');if(text)text.textContent='Chyba';el.dataset.tooltip='Stav zařízení se nepodařilo načíst.';});}
+    function applyDeviceStatus(data){
+        if(!data)return;
+        defs.forEach(def=>updateOne(def,data));
     }
-    window.dashboardRefreshSourceStatus=refreshDeviceStatus;
-    refreshDeviceStatus();setInterval(refreshDeviceStatus,5000);
+    window.dashboardRefreshSourceStatus=()=>{
+        if(window.dashboardLastStatus)applyDeviceStatus(window.dashboardLastStatus);
+        if(window.dashboardUpdateStatus)window.dashboardUpdateStatus();
+    };
+    window.addEventListener('dashboard-status',event=>applyDeviceStatus(event.detail));
+    if(window.dashboardLastStatus)applyDeviceStatus(window.dashboardLastStatus);
 })();
 </script>
 

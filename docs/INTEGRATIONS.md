@@ -36,16 +36,46 @@ Používaná znaménka:
 
 ## AZRouter
 
-- transport: lokální HTTP bez autentizace,
+- transport: lokální HTTP API,
+- volitelná autentizace používá stejné jméno a heslo jako AZRouter WebUI,
+- klient nejprve volá `POST /api/v1/login` s payloadem
+  `{"data":{"username":"...","password":"..."}}`,
+- pokud login vrátí token, další požadavky posílají `Authorization: Bearer ...`,
+- pokud login vrátí session cookie, klient ji posílá přes `Cookie`,
+- při HTTP 401/403 se session zahodí, provede jeden re-login a požadavek se jednou zopakuje,
+- bez uložených credentials zůstává zachováno anonymní čtení pro firmware, který jej dovoluje,
 - standardní port: 8081,
-- /api/v1/power: výkon, energie a tok sítě,
-- /api/v1/status: systémová teplota jako záložní hodnota,
-- /api/v1/devices: preferovaná teplota připojeného zařízení nebo bojleru.
+- /api/v1/power:
+  - `output.power` id 0–2 = vytěžený výkon L1/L2/L3,
+  - `output.power` id 3 = celkový vytěžený výkon,
+  - `output.energy` id 0–4 = celkem / rok / měsíc / týden / dnes,
+  - `input.power` id 0–2 = výkon sítě L1/L2/L3; dashboard z nich skládá součet,
+  - `input.current` id 0–2 = proud L1/L2/L3 v mA,
+  - `input.voltage` id 0–2 = napětí L1/L2/L3 v mV,
+  - `input.status` id 0–2 = stav připojení jednotlivých fází,
+- /api/v1/status:
+  - `system.temperature` = teplota elektroniky/master jednotky; **není to bojler**,
+- /api/v1/devices:
+  - endpoint se nadále načítá kvůli diagnostice a budoucímu rozšíření,
+  - údaje připojeného zařízení se ale **nepoužívají jako masterová data AZRouteru**,
+  - zejména `devices.power.totalPower` už nepřepisuje `output.power[3]`.
 
-Za úspěch celé aktualizace se považuje platná odpověď /api/v1/power.
-Connect timeout je 400 ms a timeout odpovědi 1 000 ms. Když hlavní endpoint
-selže, doplňkové dotazy se v daném cyklu neprovedou. Jejich samostatné selhání
-nezneplatní již přijatá výkonová data.
+Každá AZRouter veličina má samostatný příznak platnosti. FVE UI používá
+masterová data z `/power` a `/status`; device-level informace se na dashboardu
+nezobrazují.
+
+Za úspěch celé aktualizace se považuje platná odpověď /api/v1/power s alespoň
+jednou rozpoznanou výkonovou/energetickou veličinou. Connect timeout je 400 ms
+a timeout odpovědi 1 000 ms. Když hlavní endpoint selže, doplňkové dotazy se v
+daném cyklu neprovedou. Jejich samostatné selhání nezneplatní již přijatá
+výkonová data.
+
+`DataModel` už neinicializuje GoodWe ani AZRouter demonstračními hodnotami.
+Před prvním úspěšným pollingem proto FVE UI zobrazuje nedostupné hodnoty.
+
+AZRouter username/password se ukládají pouze do lokální NVS. WebUI nikdy
+nevrací uložené heslo zpět do prohlížeče; prázdné heslo při uložení znamená
+zachovat stávající. YAML export záměrně AZRouter credentials neobsahuje.
 
 ## Společné chování GoodWe a AZRouteru
 
@@ -61,8 +91,14 @@ Při vypnutí zdroje:
 - FVE obrazovka zůstane jen pokud je aktivní alespoň jeden energetický zdroj.
 
 Při vypnutí obou zdrojů se FVE odstraní ze ScreenManageru i sidebaru. Pokud byla
-právě aktivní, dashboard přejde na Home. Rozložení SolarScreen se přizpůsobuje
-režimu GoodWe + AZRouter, pouze GoodWe nebo pouze AZRouter.
+právě aktivní, dashboard přejde na Home.
+
+FVE obrazovka používá obecný pager:
+- **Přehled** — společné KPI GoodWe + AZRouter,
+- **GoodWe** — výroba, baterie, distribuce a denní graf,
+- **AZRouter** — master stav, L1/L2/L3, vytěžování a uložená energie.
+
+Rozložení SolarScreen se přizpůsobuje režimu GoodWe + AZRouter, pouze GoodWe nebo pouze AZRouter.
 
 Každý aktivní zdroj publikuje kromě hodnot také dostupnost, čas posledního
 úspěchu/pokusu, počet chyb a poslední chybu. Při výpadku zůstávají v DataModelu

@@ -86,6 +86,8 @@ struct AZRouterConfig {
     String host = "";
     uint16_t port = 8081;
     uint32_t pollIntervalSeconds = 10;
+    String username = "";
+    String password = "";
 };
 
 constexpr uint8_t MaxWeatherLocations = 8;
@@ -144,7 +146,7 @@ struct PoolConfig {
 };
 
 struct AppConfig {
-    uint8_t schemaVersion = 10;
+    uint8_t schemaVersion = 11;
     SystemConfig system;
     WifiConfig wifi;
     DisplayConfig display;
