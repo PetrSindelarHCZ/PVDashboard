@@ -71,6 +71,55 @@ Pracovní název pro další periodický zdroj. `PWM67` znamená dostatečně č
 paket pro současný decoder; `PWM67?` znamená charakteristický sync kandidát,
 ale poškozenou/neúplnou preambuli nebo data.
 
+## Potvrzený Lidl/SilverCrest senzor – Auriol HG02832 / HG05124A-DCF
+
+Fyzické čidlo označované uživatelem jako Lidl/SilverCrest bylo cíleným capture
+prakticky potvrzeno jako rodina **Auriol HG02832 / HG05124A-DCF**.
+
+Zachycený validní rámec:
+
+```text
+FD 4C 80 B3 35
+```
+
+Dekódované hodnoty:
+
+- ID: **0xFD**,
+- teplota: **17,9 °C**,
+- vlhkost: **76 %**,
+- kanál: **1**,
+- baterie: **LOW**,
+- TX flag: vypnutý,
+- checksum: **platný**.
+
+Uživatel potvrdil, že dekódované hodnoty i stav odpovídají skutečnému čidlu.
+
+Pozorované časování:
+
+- preambule/sync kolem **0,8–0,9 ms**,
+- krátký datový HIGH přibližně **0,25–0,30 ms**,
+- dlouhý datový HIGH přibližně **0,60–0,66 ms**,
+- rámec má **40 bitů**,
+- datové pole obsahuje ID, vlhkost, battery/TX/channel flags, teplotu a checksum.
+
+Na diagnostické větvi je implementován decoder s výstupem:
+
+```text
+[CC1101][AURIOL] id=0xFD temp=17.9 C humidity=76 % channel=1 battery=LOW tx=OFF | checksum=OK ...
+```
+
+Decoder vyžaduje odpovídající preambuli, 40bitový timing a platný checksum; nemá
+tedy klasifikovat náhodný RF šum jen podle podobných délek pulzů.
+
+### Co ještě ověřit
+
+- periodu vysílání v běžném provozu,
+- reakci `tx=ON` po stisku TX/RESET, pokud jej senzor má,
+- změnu channel bitů při přepnutí kanálu,
+- stav battery po vložení čerstvých baterií,
+- zda ID 0xFD zůstává po výměně baterií stejné,
+- případně více kusů stejné rodiny a jejich odlišení podle ID.
+
 ## Rodina 1 – FT017TH
 
 ### Co je potvrzené
@@ -278,8 +327,8 @@ nezaměří se předčasně jen na dva dnes rozpoznané zdroje.
 K dispozici jsou dvě fyzická čidla pro cílený laboratorní test:
 
 1. **Hyundai** – přesný model zatím není potvrzen.
-2. **SilverCrest / Lidl** – přesný model/IAN zatím není potvrzen; u Lidl senzorů
-   se často používá značka Auriol a existuje více navzájem odlišných protokolů.
+2. **SilverCrest / Lidl** – fyzické čidlo už bylo RF capturem potvrzeno jako
+   rodina **Auriol HG02832 / HG05124A-DCF**; viz potvrzený decoder výše.
 
 Při příštím testu je ideální nejprve vyfotit zadní štítek obou čidel
 (model, IAN, FCC/CE údaje, přepínač kanálu, tlačítko TX/RESET). Samotný RF test
