@@ -22,6 +22,7 @@
 #include "../integrations/azrouter/AZRouterClient.h"
 #include "../integrations/weather/WeatherWorker.h"
 #include "../integrations/bme280/Bme280Sensor.h"
+#include "../integrations/cc1101/RfSensorManager.h"
 
 class DashboardApp {
 public:
@@ -33,6 +34,7 @@ public:
 private:
     ConfigManager _configManager;
     DataModel _dataModel;
+    RfSensorManager _rfSensorManager;
 
     EpaperDisplay _epaperDisplay;
     DisplayPreview _displayPreview;
@@ -86,6 +88,7 @@ private:
     unsigned long _lastAzrouterSync = 0;
     unsigned long _lastBme280Sync = 0;
     unsigned long _lastBme280DisplayRefresh = 0;
+    unsigned long _lastRfSensorDisplayRefresh = 0;
     uint8_t _goodweFailureStreak = 0;
     uint8_t _azrouterFailureStreak = 0;
     unsigned long _lastScreenRender = 0;
