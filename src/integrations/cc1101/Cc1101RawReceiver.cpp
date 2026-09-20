@@ -213,6 +213,44 @@ void IRAM_ATTR onRawEdge() {
 }
 
 
+bool tryPrintFt017Th(const char* decoded, uint16_t frameBits) {
+    if (frameBits != 65) return false;
+
+    for (uint8_t i = 0; i < 9; ++i) {
+        if (decoded[i] != '1') return false;
+    }
+
+    auto readBits = [decoded](uint16_t start, uint8_t count) -> uint16_t {
+        uint16_t value = 0;
+        for (uint8_t i = 0; i < count; ++i) {
+            value <<= 1;
+            if (decoded[start + i] == '1') value |= 1;
+        }
+        return value;
+    };
+
+    const uint16_t temperatureRaw12 = readBits(33, 12);
+    const uint16_t humidityRaw12 = readBits(45, 12);
+
+    const float temperatureC =
+        (static_cast<float>(temperatureRaw12 << 4) / 576.077364f) - 40.0f;
+    const float humidityPercent =
+        (static_cast<float>(humidityRaw12 << 4) / 51451.432435f) * 100.0f;
+
+    if (temperatureC < -45.0f || temperatureC > 65.0f ||
+        humidityPercent < 0.0f || humidityPercent > 105.0f) {
+        return false;
+    }
+
+    Serial.printf(
+        "[CC1101][FT017TH] temp=%.1f C humidity=%.1f %% | rawT=%u rawH=%u\n",
+        temperatureC,
+        humidityPercent,
+        static_cast<unsigned>(temperatureRaw12),
+        static_cast<unsigned>(humidityRaw12));
+    return true;
+}
+
 bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
     // Look for the longest clean run matching the ~500 us Manchester signal
     // seen during RF discovery. A logical bit consists of two half-bits;
@@ -385,6 +423,7 @@ bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
     }
 
     Serial.println();
+    tryPrintFt017Th(decoded, frameBits);
     return true;
 }
 
