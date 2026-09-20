@@ -22,6 +22,7 @@ struct SolarData {
     float houseConsumptionW = 0.0f;
     float gridPowerW = 0.0f;
     float energyTodayKWh = 0.0f;
+    bool batteryPresent = false;
     float batterySocPercent = 0.0f;
     float batteryPowerW = 0.0f;
     uint32_t lastUpdateMs = 0;
