@@ -36,7 +36,7 @@ private:
 
     DataModel& _dataModel;
     const RfSensorsConfig* _config = nullptr;
-    DiscoveredSensor _discovered[MaxRfDiscoveredSensors];
+    DiscoveredSensor* _discovered = nullptr;
     uint32_t _scanStartedMs = 0;
     uint32_t _scanDurationMs = 0;
 
