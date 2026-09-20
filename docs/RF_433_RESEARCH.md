@@ -363,6 +363,25 @@ kde:
 - `CC` = kanál 1–3,
 - `I` = 8bit ID senzoru.
 
+
+Na diagnostické větvi je nyní přidán experimentální decoder
+`[CC1101][HYUNDAI]`. Nemění globální RF framing ani ISR; místo toho skenuje
+i dlouhý/overflow raw snapshot a hledá:
+
+- 24 PPM bitů s krátkým HIGH pulzem a LOW mezerou ~1/2 ms,
+- následný ~4ms packet separator,
+- minimálně **4 identická opakování stejného 24bitového rámce**.
+
+Požadavek na opakování je důležitý, protože Hyundai WS protokol nemá checksum.
+Pokud se hypotéza potvrdí, výstup bude například:
+
+```text
+[CC1101][HYUNDAI] id=0x.. temp=.. C channel=.. battery=.. startup=.. repeats=.. | raw=.. .. ..
+```
+
+Teprve po reálném zachycení fyzického Hyundai senzoru má být protokol označen
+jako potvrzený.
+
 To je velmi užitečný fingerprint. Pokud po vložení baterie uvidíme zhruba
 každých 33 s dlouhý burst tvořený množstvím krátkých ~0,2ms pulzů a mezer
 ~1/2 ms a zároveň opakování 24bitového rámce, je pravděpodobnost shody velmi
