@@ -1,6 +1,7 @@
 #include "RfSensorManager.h"
 
 #include <ArduinoJson.h>
+#include <new>
 
 namespace {
 constexpr uint32_t SensorOfflineAfterMs = 5UL * 60UL * 1000UL;
@@ -97,6 +98,7 @@ int RfSensorManager::configuredIndexFor(
 }
 
 int RfSensorManager::discoveredIndexFor(const String& bindingKey) const {
+    if (_discovered == nullptr) return -1;
     for (uint8_t i = 0; i < MaxRfDiscoveredSensors; ++i) {
         if (!_discovered[i].used) continue;
         if (_discovered[i].observation.bindingKey() == bindingKey) return i;
@@ -105,6 +107,7 @@ int RfSensorManager::discoveredIndexFor(const String& bindingKey) const {
 }
 
 int RfSensorManager::freeDiscoveredIndex() const {
+    if (_discovered == nullptr) return -1;
     int oldestIndex = -1;
     uint32_t oldestSeen = 0;
     for (uint8_t i = 0; i < MaxRfDiscoveredSensors; ++i) {
@@ -178,7 +181,22 @@ void RfSensorManager::loop() {
 void RfSensorManager::startScan(uint32_t durationMs) {
     if (durationMs < 30000) durationMs = 30000;
     if (durationMs > 180000) durationMs = 180000;
-    for (auto& item : _discovered) item = DiscoveredSensor{};
+
+    if (_discovered == nullptr) {
+        _discovered =
+            new (std::nothrow) DiscoveredSensor[MaxRfDiscoveredSensors];
+        if (_discovered == nullptr) {
+            _scanStartedMs = 0;
+            _scanDurationMs = 0;
+            Serial.println(
+                "[RF-SENSORS] Scan nelze spustit: nedostatek heap pameti.");
+            return;
+        }
+    }
+
+    for (uint8_t i = 0; i < MaxRfDiscoveredSensors; ++i) {
+        _discovered[i] = DiscoveredSensor{};
+    }
     _scanStartedMs = millis();
     _scanDurationMs = durationMs;
 }
@@ -361,7 +379,10 @@ String RfSensorManager::statusJson() const {
     }
 
     JsonArray discovered = doc["discovered"].to<JsonArray>();
-    for (const auto& found : _discovered) {
+    for (uint8_t discoveredIndex = 0;
+         _discovered != nullptr && discoveredIndex < MaxRfDiscoveredSensors;
+         ++discoveredIndex) {
+        const DiscoveredSensor& found = _discovered[discoveredIndex];
         if (!found.used) continue;
         const RfSensorObservation& observation = found.observation;
         JsonObject item = discovered.add<JsonObject>();
