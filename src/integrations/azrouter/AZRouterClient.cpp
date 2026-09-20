@@ -49,6 +49,7 @@ bool AZRouterClient::credentialsConfigured() const {
 void AZRouterClient::clearSession() {
     _bearerToken = "";
     _sessionCookie = "";
+    _loginCompleted = false;
 }
 
 String AZRouterClient::firstCookiePair(const String& setCookie) {
@@ -126,7 +127,7 @@ bool AZRouterClient::login(String& errorMessage) {
         };
 
         for (const char* key : keys) {
-            const char* value = responseDoc[key] | nullptr;
+            const char* value = responseDoc[key].as<const char*>();
             if (value != nullptr && value[0] != '\0') {
                 _bearerToken = value;
                 break;
@@ -136,7 +137,7 @@ bool AZRouterClient::login(String& errorMessage) {
         if (_bearerToken.isEmpty() && responseDoc["data"].is<JsonObject>()) {
             JsonObjectConst responseData = responseDoc["data"].as<JsonObjectConst>();
             for (const char* key : keys) {
-                const char* value = responseData[key] | nullptr;
+                const char* value = responseData[key].as<const char*>();
                 if (value != nullptr && value[0] != '\0') {
                     _bearerToken = value;
                     break;
@@ -148,6 +149,7 @@ bool AZRouterClient::login(String& errorMessage) {
     if (_bearerToken.isEmpty()) {
         _sessionCookie = firstCookiePair(setCookie);
     }
+    _loginCompleted = true;
 
     if (!_bearerToken.isEmpty()) {
         Serial.println("[AZROUTER][AUTH] Přihlášení OK, používám Bearer token.");
@@ -233,9 +235,7 @@ bool AZRouterClient::update(AZRouterData& azData) {
         return false;
     }
 
-    if (credentialsConfigured() &&
-        _bearerToken.isEmpty() &&
-        _sessionCookie.isEmpty()) {
+    if (credentialsConfigured() && !_loginCompleted) {
         String loginError;
         if (!login(loginError)) {
             azData.authenticated = false;
@@ -246,7 +246,7 @@ bool AZRouterClient::update(AZRouterData& azData) {
     }
 
     azData.authenticated =
-        !_bearerToken.isEmpty() || !_sessionCookie.isEmpty();
+        credentialsConfigured() && _loginCompleted;
     azData.authMode =
         !_bearerToken.isEmpty() ? "bearer" :
         (!_sessionCookie.isEmpty() ? "cookie" :
@@ -417,7 +417,7 @@ bool AZRouterClient::update(AZRouterData& azData) {
     }
 
     azData.authenticated =
-        !_bearerToken.isEmpty() || !_sessionCookie.isEmpty();
+        credentialsConfigured() && _loginCompleted;
     azData.authMode =
         !_bearerToken.isEmpty() ? "bearer" :
         (!_sessionCookie.isEmpty() ? "cookie" :
