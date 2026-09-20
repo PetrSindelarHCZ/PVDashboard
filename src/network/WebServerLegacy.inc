@@ -1950,13 +1950,25 @@ void DashboardWebServer::handleApiSourceConfig() {
     const bool azEnabled = _server.arg("azEnabled") == "1";
     const String gwHost = _server.arg("gwHost");
     const String azHost = _server.arg("azHost");
+    String azUser = _server.hasArg("azUser") ? _server.arg("azUser") : _config.azrouter.username;
+    String azPassword = _server.hasArg("azPassword") ? _server.arg("azPassword") : "";
+    azUser.trim();
     long gwPort = _server.arg("gwPort").toInt();
     long azPort = _server.arg("azPort").toInt();
     long gwInterval = _server.arg("gwInterval").toInt();
     long azInterval = _server.arg("azInterval").toInt();
+    auto invalidCredentialText = [](const String& value, size_t maxLength) {
+        if (value.length() > maxLength) return true;
+        for (size_t i = 0; i < value.length(); ++i) {
+            if (static_cast<uint8_t>(value[i]) < 0x20) return true;
+        }
+        return false;
+    };
+
     if ((gwEnabled && gwHost.isEmpty()) || (azEnabled && azHost.isEmpty()) ||
         gwPort < 1 || gwPort > 65535 || azPort < 1 || azPort > 65535 ||
-        gwInterval < 1 || gwInterval > 3600 || azInterval < 1 || azInterval > 3600) {
+        gwInterval < 1 || gwInterval > 3600 || azInterval < 1 || azInterval > 3600 ||
+        invalidCredentialText(azUser, 64) || invalidCredentialText(azPassword, 128)) {
         _server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid source setting\"}");
         return;
     }
@@ -1968,11 +1980,21 @@ void DashboardWebServer::handleApiSourceConfig() {
         goodwe.port = static_cast<uint16_t>(gwPort);
         goodwe.pollIntervalSeconds = static_cast<uint32_t>(gwInterval);
 
-        AZRouterConfig azrouter;
+        AZRouterConfig azrouter = _config.azrouter;
         azrouter.enabled = azEnabled;
         azrouter.host = azHost;
         azrouter.port = static_cast<uint16_t>(azPort);
         azrouter.pollIntervalSeconds = static_cast<uint32_t>(azInterval);
+        azrouter.username = azUser;
+
+        // Never send the stored password back to the browser. An empty field
+        // means "keep current password". Clearing the username switches back
+        // to anonymous mode and clears the stored password as well.
+        if (azUser.isEmpty()) {
+            azrouter.password = "";
+        } else if (!azPassword.isEmpty()) {
+            azrouter.password = azPassword;
+        }
 
         _server.send(200, "application/json", "{\"status\":\"saved\"}");
         _sourceConfigCallback(goodwe, azrouter);
