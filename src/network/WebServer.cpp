@@ -5,6 +5,7 @@
 #include "WifiUiPatch.h"
 #include "WifiKnownDialogPatch.h"
 #include "WeatherSettingsUiPatch.h"
+#include "RfSensorSettingsUiPatch.h"
 #include "DisplayPreviewUiPatch.h"
 #include "NavigationUiPatch.h"
 #include "LayoutEditorUiPatch.h"
@@ -1030,6 +1031,7 @@ void DashboardWebServer::handleExtendedRoot() {
         _server.sendContent_P(WIFI_UI_PATCH);
         _server.sendContent_P(WIFI_KNOWN_DIALOG_PATCH);
         _server.sendContent_P(WEATHER_SETTINGS_UI_PATCH);
+        _server.sendContent_P(RF_SENSOR_SETTINGS_UI_PATCH);
         _server.sendContent_P(DISPLAY_PREVIEW_UI_PATCH);
         _server.sendContent_P(NAVIGATION_UI_PATCH);
         _server.sendContent_P(LAYOUT_EDITOR_UI_PATCH);
@@ -1042,6 +1044,7 @@ void DashboardWebServer::handleExtendedRoot() {
         _server.sendContent_P(WIFI_UI_PATCH);
         _server.sendContent_P(WIFI_KNOWN_DIALOG_PATCH);
         _server.sendContent_P(WEATHER_SETTINGS_UI_PATCH);
+        _server.sendContent_P(RF_SENSOR_SETTINGS_UI_PATCH);
         _server.sendContent_P(DISPLAY_PREVIEW_UI_PATCH);
         _server.sendContent_P(NAVIGATION_UI_PATCH);
         _server.sendContent_P(LAYOUT_EDITOR_UI_PATCH);
