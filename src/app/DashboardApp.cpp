@@ -438,6 +438,8 @@ void DashboardApp::setup() {
                 azrouter.username,
                 azrouter.password);
         } else {
+            _dataModel.azrouter.authenticated = false;
+            _dataModel.azrouter.authMode = "disabled";
             _dataModel.azrouter.status.recordError("Disabled");
         }
 
