@@ -267,6 +267,173 @@ void IRAM_ATTR onRawEdge() {
 }
 
 
+bool tryPrintNexusTh(const int32_t* data, uint16_t count) {
+    // Nexus temperature/humidity protocol family.
+    //
+    // Observed on the physical Hyundai WS Senzor 77 TH:
+    //   HIGH pulse ~0.45-0.56 ms
+    //   LOW gap  ~1.0 ms => 0
+    //   LOW gap  ~2.0 ms => 1
+    //   LOW sync ~4.0 ms between repeated 36-bit frames
+    //
+    // Payload (9 nibbles / 36 bits):
+    //   [id0][id1][flags][temp0][temp1][temp2][0xF][humi0][humi1]
+    // flags = B T C C, temperature = signed 12-bit / 10.
+    //
+    // The protocol has no checksum, so require repeated identical rows plus
+    // the constant 0xF nibble and sane channel/humidity values.
+    constexpr uint32_t PulseMinUs = 350;
+    constexpr uint32_t PulseMaxUs = 700;
+    constexpr uint32_t ZeroGapMinUs = 700;
+    constexpr uint32_t ZeroGapMaxUs = 1300;
+    constexpr uint32_t OneGapMinUs = 1600;
+    constexpr uint32_t OneGapMaxUs = 2400;
+    constexpr uint32_t SyncGapMinUs = 3000;
+    constexpr uint32_t SyncGapMaxUs = 5000;
+    constexpr uint8_t FrameBits = 36;
+    constexpr uint8_t MinimumRepeats = 3;
+
+    auto duration = [](int32_t pulse) -> uint32_t {
+        return static_cast<uint32_t>(pulse >= 0 ? pulse : -pulse);
+    };
+
+    uint64_t rows[16] = {};
+    uint8_t rowBits[16] = {};
+    uint8_t rowCount = 0;
+    uint64_t current = 0;
+    uint8_t currentBits = 0;
+
+    for (uint16_t i = 0; i + 1 < count; ++i) {
+        if (data[i] <= 0 || data[i + 1] >= 0) {
+            continue;
+        }
+
+        const uint32_t pulseUs = duration(data[i]);
+        if (pulseUs < PulseMinUs || pulseUs > PulseMaxUs) {
+            continue;
+        }
+
+        const uint32_t gapUs = duration(data[i + 1]);
+
+        if (gapUs >= ZeroGapMinUs && gapUs <= ZeroGapMaxUs) {
+            if (currentBits < 63) {
+                current <<= 1;
+                ++currentBits;
+            } else {
+                current = 0;
+                currentBits = 0;
+            }
+            ++i;
+            continue;
+        }
+
+        if (gapUs >= OneGapMinUs && gapUs <= OneGapMaxUs) {
+            if (currentBits < 63) {
+                current = (current << 1) | 1ULL;
+                ++currentBits;
+            } else {
+                current = 0;
+                currentBits = 0;
+            }
+            ++i;
+            continue;
+        }
+
+        if (gapUs >= SyncGapMinUs && gapUs <= SyncGapMaxUs) {
+            if (rowCount < 16 && currentBits > 0) {
+                rows[rowCount] = current;
+                rowBits[rowCount] = currentBits;
+                ++rowCount;
+            }
+            current = 0;
+            currentBits = 0;
+            ++i;
+            continue;
+        }
+    }
+
+    if (rowCount < MinimumRepeats) {
+        return false;
+    }
+
+    for (uint8_t r = 0; r < rowCount; ++r) {
+        if (rowBits[r] != FrameBits) continue;
+
+        uint8_t repeats = 1;
+        for (uint8_t s = static_cast<uint8_t>(r + 1); s < rowCount; ++s) {
+            if (rowBits[s] == FrameBits && rows[s] == rows[r]) {
+                ++repeats;
+            }
+        }
+        if (repeats < MinimumRepeats) continue;
+
+        const uint64_t frame = rows[r];
+        const uint8_t id =
+            static_cast<uint8_t>((frame >> 28) & 0xFF);
+        const uint8_t flags =
+            static_cast<uint8_t>((frame >> 24) & 0x0F);
+        const uint16_t tempRaw12 =
+            static_cast<uint16_t>((frame >> 12) & 0x0FFF);
+        const uint8_t constantNibble =
+            static_cast<uint8_t>((frame >> 8) & 0x0F);
+        const uint8_t humidity =
+            static_cast<uint8_t>(frame & 0xFF);
+
+        if (constantNibble != 0x0F) continue;
+
+        const uint8_t channel =
+            static_cast<uint8_t>((flags & 0x03) + 1);
+        if (channel > 3 || humidity > 100) continue;
+
+        int16_t signedTemp = static_cast<int16_t>(tempRaw12);
+        if ((signedTemp & 0x0800) != 0) {
+            signedTemp = static_cast<int16_t>(signedTemp | 0xF000);
+        }
+        const float temperatureC =
+            static_cast<float>(signedTemp) * 0.1f;
+
+        if (temperatureC < -60.0f || temperatureC > 80.0f) {
+            continue;
+        }
+
+        const bool batteryOk = (flags & 0x08) != 0;
+        const bool testMode = (flags & 0x04) != 0;
+
+        static uint32_t packetCount = 0;
+        static uint32_t lastSeenMs = 0;
+        const uint32_t nowMs = millis();
+        const uint32_t intervalMs =
+            lastSeenMs == 0 ? 0 : nowMs - lastSeenMs;
+        lastSeenMs = nowMs;
+        ++packetCount;
+
+        Serial.printf(
+            "[CC1101][NEXUS-TH] id=0x%02X temp=%.1f C humidity=%u %% "
+            "channel=%u battery=%s test=%s repeats=%u | packets=%lu",
+            static_cast<unsigned>(id),
+            temperatureC,
+            static_cast<unsigned>(humidity),
+            static_cast<unsigned>(channel),
+            batteryOk ? "OK" : "LOW",
+            testMode ? "ON" : "OFF",
+            static_cast<unsigned>(repeats),
+            static_cast<unsigned long>(packetCount));
+
+        if (intervalMs > 0) {
+            Serial.printf(
+                " interval=%.1f s",
+                static_cast<double>(intervalMs) / 1000.0);
+        }
+
+        Serial.printf(
+            " | raw=%09llX\n",
+            static_cast<unsigned long long>(frame));
+        return true;
+    }
+
+    return false;
+}
+
 bool tryPrintHyundaiWs(const int32_t* data, uint16_t count) {
     // Hyundai WS SENZOR Remote Temperature Sensor, based on the protocol
     // documented by rtl_433.
@@ -1352,7 +1519,8 @@ void loop() {
     overflowed = false;
     interrupts();
 
-    if (!tryPrintHyundaiWs(snapshot, snapshotCount) &&
+    if (!tryPrintNexusTh(snapshot, snapshotCount) &&
+        !tryPrintHyundaiWs(snapshot, snapshotCount) &&
         !tryPrintAuriolHg02832(snapshot, snapshotCount) &&
         !tryPrintRepeatedManchester(snapshot, snapshotCount) &&
         !tryPrintPwm67(snapshot, snapshotCount) &&
