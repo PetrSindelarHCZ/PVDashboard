@@ -13,6 +13,18 @@
 #define EPD_MOSI  14
 
 // ==========================================
+// CC1101 433 MHz adapter
+// SCK/MOSI are shared physically with the e-paper wiring.
+// Startup diagnostics temporarily uses MISO GPIO19 and releases SPI afterwards.
+// ==========================================
+#define CC1101_CS_PIN    23
+#define CC1101_SCK_PIN   13
+#define CC1101_MISO_PIN  19
+#define CC1101_MOSI_PIN  14
+#define CC1101_GDO0_PIN  36
+#define CC1101_GDO2_PIN  39
+
+// ==========================================
 // Pětisměrný navigační ovladač
 // Tlačítka spínají GPIO proti GND (active LOW)
 // ==========================================

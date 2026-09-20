@@ -57,6 +57,33 @@ void WeatherWorker::setMemoryHeavyGate(SemaphoreHandle_t gate) {
     _memoryHeavyGate = gate;
 }
 
+void WeatherWorker::setNetworkClientGate(SemaphoreHandle_t gate) {
+    _networkClientGate = gate;
+}
+
+bool WeatherWorker::takeNetworkClientGate() {
+    if (_networkClientGate == nullptr) return true;
+
+    bool waitingLogged = false;
+    while (!_stopRequested) {
+        if (xSemaphoreTake(
+                _networkClientGate,
+                pdMS_TO_TICKS(250)) == pdTRUE) {
+            if (waitingLogged) {
+                Serial.println("[WEATHER] Network gate ziskan, TLS muze zacit.");
+            }
+            return true;
+        }
+
+        if (!waitingLogged) {
+            Serial.println("[WEATHER] Cekam na network gate pred TLS...");
+            waitingLogged = true;
+        }
+    }
+
+    return false;
+}
+
 bool WeatherWorker::takeMemoryHeavyGate() {
     if (_memoryHeavyGate == nullptr) return true;
 
@@ -799,6 +826,12 @@ void WeatherWorker::taskLoop() {
                 "Unsupported provider");
         } else {
             if (!takeMemoryHeavyGate()) break;
+            if (!takeNetworkClientGate()) {
+                if (_memoryHeavyGate != nullptr) {
+                    xSemaphoreGive(_memoryHeavyGate);
+                }
+                break;
+            }
 
             Serial.printf(
                 "[WEATHER] Fetch %s: %s (%.5f, %.5f)%s | "
@@ -818,6 +851,9 @@ void WeatherWorker::taskLoop() {
                     targetConfig,
                     working);
 
+            if (_networkClientGate != nullptr) {
+                xSemaphoreGive(_networkClientGate);
+            }
             if (_memoryHeavyGate != nullptr) {
                 xSemaphoreGive(_memoryHeavyGate);
             }

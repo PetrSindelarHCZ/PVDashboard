@@ -172,6 +172,7 @@ v [ROADMAP.md](ROADMAP.md).
 - [Displej a refresh strategie](DISPLAY.md)
 - [Externí integrace](INTEGRATIONS.md)
 - [Testování a diagnostika](TESTING.md)
+- [433 MHz / CC1101 – stav průzkumu a další postup](RF_433_RESEARCH.md)
 - [Roadmapa](ROADMAP.md)
 
 Git historie je archivem starších specifikací, měření a jednorázových auditů.

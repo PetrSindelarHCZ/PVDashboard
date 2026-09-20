@@ -14,7 +14,6 @@ public:
 private:
     String _host;
     uint16_t _port = 8899;
-    WiFiUDP _udp;
     IPAddress _remoteIp;
     bool _remoteIpKnown = false;
 

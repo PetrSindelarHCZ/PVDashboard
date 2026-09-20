@@ -1,6 +1,8 @@
 #include "DashboardApp.h"
 #include <math.h>
 #include "../diagnostics/Performance.h"
+#include "../integrations/cc1101/Cc1101Diagnostics.h"
+#include "../integrations/cc1101/Cc1101RawReceiver.h"
 #include "../screens/ScreenStyle.h"
 #include "../../include/AppConfig.h"
 #include "../../include/Version.h"
@@ -193,6 +195,11 @@ void DashboardApp::setup() {
     Serial.printf("  Build: %s\n", FIRMWARE_BUILD_DATE);
     Serial.println("==========================================");
 
+    // Verify the physically connected 433 MHz transceiver before the display
+    // takes ownership of the global SPI object with its own MISO pin.
+    Cc1101Diagnostics::probe();
+    Cc1101RawReceiver::begin();
+
     _configManager.begin();
 
     _memoryHeavyGate = xSemaphoreCreateMutex();
@@ -202,6 +209,15 @@ void DashboardApp::setup() {
         _displayWorker.setMemoryHeavyGate(_memoryHeavyGate);
         _weatherWorker.setMemoryHeavyGate(_memoryHeavyGate);
         Serial.println("[APP] Memory-heavy gate pripraven pro Display/TLS.");
+    }
+
+    _networkClientGate = xSemaphoreCreateMutex();
+    if (_networkClientGate == nullptr) {
+        Serial.println("[APP] VAROVANI: network-client gate se nepodarilo vytvorit.");
+    } else {
+        _webServer.setNetworkClientGate(_networkClientGate);
+        _weatherWorker.setNetworkClientGate(_networkClientGate);
+        Serial.println("[APP] Network-client gate pripraven pro Web/TLS.");
     }
 
     _displayPreview.init(); // tiled preview; komprimovany snapshot se drzi mimo TLS DRAM
@@ -897,6 +913,13 @@ void DashboardApp::loop() {
     }
 
     const DisplayTaskStatus displayStatus = _displayWorker.getStatus();
+
+    const bool displayElectricallyActive =
+        displayStatus.state == DisplayTaskState::Initializing ||
+        displayStatus.state == DisplayTaskState::RenderingPartial ||
+        displayStatus.state == DisplayTaskState::RenderingFull;
+    Cc1101RawReceiver::setSuppressed(displayElectricallyActive);
+    Cc1101RawReceiver::loop();
     if (displayStatus.lastCompletedMs != 0 && displayStatus.lastCompletedMs != _lastScreenRender) {
         _lastScreenRender = displayStatus.lastCompletedMs;
         _lastDisplayUpdate = displayStatus.lastCompletedMs;

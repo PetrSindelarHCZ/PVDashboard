@@ -1571,8 +1571,37 @@ void DashboardWebServer::begin() {
 
 void DashboardWebServer::loop() {
     Performance::webTick();
-    Performance::Scope timing(Performance::WebService);
-    _server.handleClient();
+
+    // Weather HTTPS temporarily owns this gate while its TLS buffers are live.
+    // Do not accept/read local HTTP clients at the same time: on ESP32-WROOM
+    // both paths compete for internal RAM used by WiFiClient receive buffers.
+    if (_networkClientGate != nullptr &&
+        xSemaphoreTake(_networkClientGate, 0) != pdTRUE) {
+        return;
+    }
+
+    {
+        Performance::Scope timing(Performance::WebService);
+
+        const uint32_t startedMs = millis();
+        _server.handleClient();
+        const uint32_t elapsedMs = millis() - startedMs;
+
+        if (elapsedMs >= 500UL) {
+            WiFiClient client = _server.client();
+            const IPAddress remote = client ? client.remoteIP() : IPAddress();
+            Serial.printf(
+                "[WEB][STALL] handleClient=%lu ms | uri=%s | remote=%s | connected=%d\n",
+                static_cast<unsigned long>(elapsedMs),
+                _server.uri().c_str(),
+                remote.toString().c_str(),
+                client ? client.connected() : 0);
+        }
+    }
+
+    if (_networkClientGate != nullptr) {
+        xSemaphoreGive(_networkClientGate);
+    }
 }
 
 void DashboardWebServer::onScreenChange(ScreenChangeCallback callback) {
