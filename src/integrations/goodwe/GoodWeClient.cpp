@@ -1,6 +1,7 @@
 #include "GoodWeClient.h"
 #include "../../diagnostics/Performance.h"
 #include <WiFi.h>
+#include <math.h>
 
 namespace {
 constexpr int MaxAttempts = 2;
