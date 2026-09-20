@@ -791,7 +791,17 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 document.getElementById('statScreen').innerText = data.screen;
                 document.getElementById('statWifi').innerText = data.wifi.rssi + ' dBm';
                 document.getElementById('statGoodwe').innerText = data.goodwe.available ? 'OK' : 'Offline';
-                document.getElementById('statAzrouter').innerText = data.azrouter.available ? 'OK' : 'Offline';
+                const azModeLabels = {
+                    bearer: 'token',
+                    cookie: 'cookie',
+                    'login-no-session': 'login',
+                    anonymous: 'bez loginu',
+                    invalid: 'neúplné údaje',
+                    'login-failed': 'login chyba'
+                };
+                const azMode = azModeLabels[data.azrouter.authMode] || data.azrouter.authMode || '';
+                document.getElementById('statAzrouter').innerText =
+                    (data.azrouter.available ? 'OK' : 'Offline') + (azMode ? ' · ' + azMode : '');
                 document.getElementById('statWeather').innerText = data.weather.available ? data.weather.provider : (data.weather.enabled ? 'Offline' : 'Vypnuto');
                 document.getElementById('statGoodweUpdate').innerText = formatDataAge(data.goodwe.lastUpdateAgeSeconds);
                 document.getElementById('statAzrouterUpdate').innerText = formatDataAge(data.azrouter.lastUpdateAgeSeconds);
