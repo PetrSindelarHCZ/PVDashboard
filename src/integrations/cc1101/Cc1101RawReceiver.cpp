@@ -324,6 +324,8 @@ bool tryPrintPwm67(const int32_t* data, uint16_t count) {
     constexpr uint32_t LongHighMax = 2300;
     constexpr uint32_t ShortLowMin = 450;
     constexpr uint32_t ShortLowMax = 1100;
+    constexpr uint32_t FooterLowMin = 2500;
+    constexpr uint32_t FooterLowMax = 16000;
     constexpr uint32_t SyncHighMin = 6000;
     constexpr uint32_t SyncHighMax = 8500;
     constexpr uint32_t SyncLowMin = 8500;
@@ -399,13 +401,37 @@ bool tryPrintPwm67(const int32_t* data, uint16_t count) {
             pos += 2;
         }
 
+        bool footerTerminatedBit = false;
+        uint32_t footerLowUs = 0;
+
+        // Repeated captures end the data section with a normal long HIGH
+        // (~1.8 ms) followed by a much longer LOW. The LOW varied from
+        // ~3.1 ms to ~12.1 ms, so interpret this as the final logical 1
+        // followed by an end-of-frame/inter-frame gap.
+        if (pos + 1 < count &&
+            level(data[pos]) == 'H' &&
+            level(data[pos + 1]) == 'L') {
+            const uint32_t highUs = duration(data[pos]);
+            const uint32_t lowUs = duration(data[pos + 1]);
+            if (highUs >= LongHighMin && highUs <= LongHighMax &&
+                lowUs >= FooterLowMin && lowUs <= FooterLowMax &&
+                bitCount < sizeof(bits) - 1) {
+                bits[bitCount++] = '1';
+                footerTerminatedBit = true;
+                footerLowUs = lowUs;
+                pos += 2;
+            }
+        }
+
         bits[bitCount] = '\0';
         if (bitCount < MinimumDecodedBits) continue;
 
         bool partialBit = false;
         char partialValue = '?';
         uint32_t partialHighUs = 0;
-        if (pos < count && level(data[pos]) == 'H') {
+        if (!footerTerminatedBit &&
+            pos < count &&
+            level(data[pos]) == 'H') {
             partialHighUs = duration(data[pos]);
             if (partialHighUs >= ShortHighMin &&
                 partialHighUs <= ShortHighMax) {
@@ -437,7 +463,11 @@ bool tryPrintPwm67(const int32_t* data, uint16_t count) {
             static_cast<unsigned>(bitCount),
             bits);
 
-        if (partialBit) {
+        if (footerTerminatedBit) {
+            Serial.printf(
+                " footer=%lu us",
+                static_cast<unsigned long>(footerLowUs));
+        } else if (partialBit) {
             Serial.printf(
                 " +%c?(H%lu)",
                 partialValue,
