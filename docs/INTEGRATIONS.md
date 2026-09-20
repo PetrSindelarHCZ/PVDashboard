@@ -46,19 +46,23 @@ Používaná znaménka:
 - bez uložených credentials zůstává zachováno anonymní čtení pro firmware, který jej dovoluje,
 - standardní port: 8081,
 - /api/v1/power:
-  - `output.power` id 0–2 = jednotlivé výstupy/fáze,
+  - `output.power` id 0–2 = vytěžený výkon L1/L2/L3,
   - `output.power` id 3 = celkový vytěžený výkon,
-  - `output.energy` id 4 = dnešní vytěžená/uložená energie v kWh,
-  - `input.power` id 0–2 = výkon sítě po fázích; dashboard z nich skládá součet,
+  - `output.energy` id 0–4 = celkem / rok / měsíc / týden / dnes,
+  - `input.power` id 0–2 = výkon sítě L1/L2/L3; dashboard z nich skládá součet,
+  - `input.current` id 0–2 = proud L1/L2/L3 v mA,
+  - `input.voltage` id 0–2 = napětí L1/L2/L3 v mV,
+  - `input.status` id 0–2 = stav připojení jednotlivých fází,
 - /api/v1/status:
   - `system.temperature` = teplota elektroniky/master jednotky; **není to bojler**,
 - /api/v1/devices:
-  - `power.temperature` = skutečná teplota TUV/bojleru,
-  - `power.totalPower` = aktuální výkon připojeného TUV zařízení.
+  - endpoint se nadále načítá kvůli diagnostice a budoucímu rozšíření,
+  - údaje připojeného zařízení se ale **nepoužívají jako masterová data AZRouteru**,
+  - zejména `devices.power.totalPower` už nepřepisuje `output.power[3]`.
 
-Každá AZRouter veličina má samostatný příznak platnosti. Platný /power endpoint
-proto může znamenat Online AZRouter, ale například bez dostupné teploty bojleru;
-UI v takovém případě ukazuje `--`, nikoli nulu nebo starou demonstrační hodnotu.
+Každá AZRouter veličina má samostatný příznak platnosti. FVE UI používá
+masterová data z `/power` a `/status`; device-level informace se na dashboardu
+nezobrazují.
 
 Za úspěch celé aktualizace se považuje platná odpověď /api/v1/power s alespoň
 jednou rozpoznanou výkonovou/energetickou veličinou. Connect timeout je 400 ms
@@ -87,8 +91,14 @@ Při vypnutí zdroje:
 - FVE obrazovka zůstane jen pokud je aktivní alespoň jeden energetický zdroj.
 
 Při vypnutí obou zdrojů se FVE odstraní ze ScreenManageru i sidebaru. Pokud byla
-právě aktivní, dashboard přejde na Home. Rozložení SolarScreen se přizpůsobuje
-režimu GoodWe + AZRouter, pouze GoodWe nebo pouze AZRouter.
+právě aktivní, dashboard přejde na Home.
+
+FVE obrazovka používá obecný pager:
+- **Přehled** — společné KPI GoodWe + AZRouter,
+- **GoodWe** — výroba, baterie, distribuce a denní graf,
+- **AZRouter** — master stav, L1/L2/L3, vytěžování a uložená energie.
+
+Rozložení SolarScreen se přizpůsobuje režimu GoodWe + AZRouter, pouze GoodWe nebo pouze AZRouter.
 
 Každý aktivní zdroj publikuje kromě hodnot také dostupnost, čas posledního
 úspěchu/pokusu, počet chyb a poslední chybu. Při výpadku zůstávají v DataModelu
