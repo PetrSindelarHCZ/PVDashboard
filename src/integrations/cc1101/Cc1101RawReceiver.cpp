@@ -254,6 +254,157 @@ void IRAM_ATTR onRawEdge() {
 }
 
 
+bool tryPrintPwm67(const int32_t* data, uint16_t count) {
+    // Unknown periodic 433 MHz source seen roughly every 67 seconds.
+    // Signature observed repeatedly:
+    //   7x (L ~1.9 ms, H ~0.7 ms)
+    //   L ~1.9 ms, H ~7.2 ms, L ~10.3 ms
+    // followed by pulse-width encoded bits:
+    //   0 = H short (~0.7 ms), L long (~1.9 ms)
+    //   1 = H long  (~1.8 ms), L short (~0.8 ms)
+    constexpr uint32_t LongLowMin = 1500;
+    constexpr uint32_t LongLowMax = 2300;
+    constexpr uint32_t ShortHighMin = 450;
+    constexpr uint32_t ShortHighMax = 1050;
+    constexpr uint32_t LongHighMin = 1500;
+    constexpr uint32_t LongHighMax = 2300;
+    constexpr uint32_t ShortLowMin = 450;
+    constexpr uint32_t ShortLowMax = 1100;
+    constexpr uint32_t SyncHighMin = 6000;
+    constexpr uint32_t SyncHighMax = 8500;
+    constexpr uint32_t SyncLowMin = 8500;
+    constexpr uint32_t SyncLowMax = 11500;
+    constexpr uint8_t MinimumPreambleLows = 6;
+    constexpr uint8_t MinimumDecodedBits = 6;
+
+    auto level = [](int32_t pulse) -> char {
+        return pulse >= 0 ? 'H' : 'L';
+    };
+    auto duration = [](int32_t pulse) -> uint32_t {
+        return static_cast<uint32_t>(pulse >= 0 ? pulse : -pulse);
+    };
+
+    for (uint16_t syncStart = 0; syncStart + 2 < count; ++syncStart) {
+        const int32_t syncLead = data[syncStart];
+        const int32_t syncHigh = data[syncStart + 1];
+        const int32_t syncLow = data[syncStart + 2];
+
+        if (level(syncLead) != 'L' ||
+            duration(syncLead) < LongLowMin ||
+            duration(syncLead) > LongLowMax ||
+            level(syncHigh) != 'H' ||
+            duration(syncHigh) < SyncHighMin ||
+            duration(syncHigh) > SyncHighMax ||
+            level(syncLow) != 'L' ||
+            duration(syncLow) < SyncLowMin ||
+            duration(syncLow) > SyncLowMax) {
+            continue;
+        }
+
+        uint8_t preambleLows = 1; // syncLead is the final ~1.9 ms preamble low.
+        int32_t i = static_cast<int32_t>(syncStart) - 2;
+        while (i >= 0) {
+            const int32_t lowPulse = data[i];
+            const int32_t highPulse = data[i + 1];
+            if (level(lowPulse) != 'L' ||
+                duration(lowPulse) < LongLowMin ||
+                duration(lowPulse) > LongLowMax ||
+                level(highPulse) != 'H' ||
+                duration(highPulse) < ShortHighMin ||
+                duration(highPulse) > ShortHighMax) {
+                break;
+            }
+            ++preambleLows;
+            i -= 2;
+        }
+
+        if (preambleLows < MinimumPreambleLows) continue;
+
+        char bits[64];
+        uint8_t bitCount = 0;
+        uint16_t pos = syncStart + 3;
+
+        while (pos + 1 < count && bitCount < sizeof(bits) - 1) {
+            const int32_t highPulse = data[pos];
+            const int32_t lowPulse = data[pos + 1];
+            if (level(highPulse) != 'H' || level(lowPulse) != 'L') break;
+
+            const uint32_t highUs = duration(highPulse);
+            const uint32_t lowUs = duration(lowPulse);
+
+            if (highUs >= ShortHighMin && highUs <= ShortHighMax &&
+                lowUs >= LongLowMin && lowUs <= LongLowMax) {
+                bits[bitCount++] = '0';
+            } else if (highUs >= LongHighMin && highUs <= LongHighMax &&
+                       lowUs >= ShortLowMin && lowUs <= ShortLowMax) {
+                bits[bitCount++] = '1';
+            } else {
+                break;
+            }
+
+            pos += 2;
+        }
+
+        bits[bitCount] = '\0';
+        if (bitCount < MinimumDecodedBits) continue;
+
+        bool partialBit = false;
+        char partialValue = '?';
+        uint32_t partialHighUs = 0;
+        if (pos < count && level(data[pos]) == 'H') {
+            partialHighUs = duration(data[pos]);
+            if (partialHighUs >= ShortHighMin &&
+                partialHighUs <= ShortHighMax) {
+                partialBit = true;
+                partialValue = '0';
+            } else if (partialHighUs >= LongHighMin &&
+                       partialHighUs <= LongHighMax) {
+                partialBit = true;
+                partialValue = '1';
+            }
+        }
+
+        static uint32_t packetCount = 0;
+        static uint32_t lastSeenMs = 0;
+        const uint32_t nowMs = millis();
+        const uint32_t intervalMs =
+            lastSeenMs == 0 ? 0 : nowMs - lastSeenMs;
+        lastSeenMs = nowMs;
+        ++packetCount;
+
+        Serial.printf(
+            "[CC1101][PWM67] preamble=%u bits=%u data=%s",
+            static_cast<unsigned>(preambleLows),
+            static_cast<unsigned>(bitCount),
+            bits);
+
+        if (partialBit) {
+            Serial.printf(
+                " +%c?(H%lu)",
+                partialValue,
+                static_cast<unsigned long>(partialHighUs));
+        }
+
+        Serial.printf(
+            " | sync=L%lu H%lu L%lu | packets=%lu",
+            static_cast<unsigned long>(duration(syncLead)),
+            static_cast<unsigned long>(duration(syncHigh)),
+            static_cast<unsigned long>(duration(syncLow)),
+            static_cast<unsigned long>(packetCount));
+
+        if (intervalMs > 0) {
+            Serial.printf(
+                " interval=%.1f s",
+                static_cast<double>(intervalMs) / 1000.0);
+        }
+
+        Serial.println();
+        return true;
+    }
+
+    return false;
+}
+
 bool tryPrintFt017Th(const char* decoded, uint16_t frameBits) {
     if (frameBits != 65) return false;
 
@@ -602,7 +753,8 @@ void loop() {
     overflowed = false;
     interrupts();
 
-    if (!tryPrintRepeatedManchester(snapshot, snapshotCount)) {
+    if (!tryPrintRepeatedManchester(snapshot, snapshotCount) &&
+        !tryPrintPwm67(snapshot, snapshotCount)) {
         printBurst(snapshot, snapshotCount, snapshotOverflow);
     }
 }
