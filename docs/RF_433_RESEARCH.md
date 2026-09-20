@@ -609,3 +609,31 @@ musí mít opakovaný 36bitový rámec, smysluplné hodnoty a správný checksum
 Poslední capture po RESET testu neobsahoval jednoznačný čistý TFA/KW9010 rámec.
 Je možné, že konkrétní vysílání proběhlo během e-paper `capture PAUSED` okna,
 nebo Hyundai používá jinou Carrin variantu.
+
+
+## Carrier-sense diagnostika dlouhých burstů
+
+Pro rozlišení skutečného RF provozu od chatteru datového sliceru byla doplněna
+diagnostika GDO2 carrier-sense přímo v ISR.
+
+U každého dlouhého burstu se nyní vypisuje například:
+
+```text
+cs=650/700 (93%)
+```
+
+První hodnota je počet zachycených hran při aktivním GDO2 carrier-sense,
+druhá je součet carrier-high + povolených hran během krátkého carrier-hold okna.
+Vyšší podíl znamená silnější důkaz, že burst vznikl při skutečně detekovaném RF
+nosném signálu; nízký podíl ukazuje spíš na přechody sliceru během hold okna.
+
+Současně se dlouhé bursty orientačně klasifikují podle timingového tvaru:
+
+- `shape=TFA-2/4ms?` pro HIGH přibližně 0,3-0,8 ms a LOW mezery ~2/4 ms,
+- `shape=NEXUS-1/2ms?` pro HIGH přibližně 0,3-0,8 ms a LOW mezery ~1/2 ms,
+- `shape=mixed` pro ostatní provoz.
+
+Toto je pouze fingerprint pro výzkum, nikoli plnohodnotný decoder.
+Číselné RSSI zatím není čteno: CC1101 sdílí SPI s e-paperem a RSSI odečtené až
+po 18ms konci burstu by většinou reprezentovalo šumové pozadí, nikoli sílu
+ukončeného paketu.
