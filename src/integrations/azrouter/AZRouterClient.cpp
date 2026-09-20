@@ -398,6 +398,19 @@ bool AZRouterClient::update(AZRouterData& azData) {
         }
 
         if (!boilerDevice.isNull()) {
+            const String deviceName = boilerDevice["common"]["name"] | "";
+            const String deviceType = boilerDevice["deviceType"] | "";
+            Serial.printf(
+                "[AZROUTER][DEV] type=%s name='%s' totalPower=%s temperature=%s\n",
+                deviceType.c_str(),
+                deviceName.c_str(),
+                boilerDevice["power"]["totalPower"].isNull()
+                    ? "<missing>"
+                    : String(boilerDevice["power"]["totalPower"].as<float>(), 1).c_str(),
+                boilerDevice["power"]["temperature"].isNull()
+                    ? "<missing>"
+                    : String(boilerDevice["power"]["temperature"].as<float>(), 1).c_str());
+
             float boilerPower = 0.0f;
             if (readNumber(boilerDevice["power"]["totalPower"], boilerPower) &&
                 boilerPower >= 0.0f) {
