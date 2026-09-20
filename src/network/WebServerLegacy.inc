@@ -790,18 +790,23 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 document.getElementById('githubCurrentVersion').innerText = 'v' + data.firmware;
                 document.getElementById('statScreen').innerText = data.screen;
                 document.getElementById('statWifi').innerText = data.wifi.rssi + ' dBm';
-                document.getElementById('statGoodwe').innerText = data.goodwe.available ? 'OK' : 'Offline';
+                const gwEnabled = data.sources?.goodwe?.enabled !== false;
+                const azEnabled = data.sources?.azrouter?.enabled !== false;
+                document.getElementById('statGoodwe').innerText =
+                    gwEnabled ? (data.goodwe.available ? 'OK' : 'Offline') : 'Vypnuto';
                 const azModeLabels = {
                     bearer: 'token',
                     cookie: 'cookie',
                     'login-no-session': 'login',
                     anonymous: 'bez loginu',
                     invalid: 'neúplné údaje',
-                    'login-failed': 'login chyba'
+                    'login-failed': 'login chyba',
+                    disabled: ''
                 };
                 const azMode = azModeLabels[data.azrouter.authMode] || data.azrouter.authMode || '';
-                document.getElementById('statAzrouter').innerText =
-                    (data.azrouter.available ? 'OK' : 'Offline') + (azMode ? ' · ' + azMode : '');
+                document.getElementById('statAzrouter').innerText = azEnabled
+                    ? ((data.azrouter.available ? 'OK' : 'Offline') + (azMode ? ' · ' + azMode : ''))
+                    : 'Vypnuto';
                 document.getElementById('statWeather').innerText = data.weather.available ? data.weather.provider : (data.weather.enabled ? 'Offline' : 'Vypnuto');
                 document.getElementById('statGoodweUpdate').innerText = formatDataAge(data.goodwe.lastUpdateAgeSeconds);
                 document.getElementById('statAzrouterUpdate').innerText = formatDataAge(data.azrouter.lastUpdateAgeSeconds);
