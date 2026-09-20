@@ -62,12 +62,12 @@ String AZRouterClient::firstCookiePair(const String& setCookie) {
     return cookie;
 }
 
-void AZRouterClient::addAuthHeaders() {
-    _http.addHeader("Accept", "application/json");
+void AZRouterClient::addAuthHeaders(HTTPClient& http) {
+    http.addHeader("Accept", "application/json");
     if (!_bearerToken.isEmpty()) {
-        _http.addHeader("Authorization", "Bearer " + _bearerToken);
+        http.addHeader("Authorization", "Bearer " + _bearerToken);
     } else if (!_sessionCookie.isEmpty()) {
-        _http.addHeader("Cookie", _sessionCookie);
+        http.addHeader("Cookie", _sessionCookie);
     }
 }
 
@@ -82,18 +82,19 @@ bool AZRouterClient::login(String& errorMessage) {
     const String url =
         "http://" + _host + ":" + String(_port) + "/api/v1/login";
 
-    if (!_http.begin(url)) {
+    HTTPClient http;
+    if (!http.begin(url)) {
         errorMessage = "Login HTTP begin failed";
         return false;
     }
 
-    _http.setConnectTimeout(ConnectTimeoutMs);
-    _http.setTimeout(ResponseTimeoutMs);
+    http.setConnectTimeout(ConnectTimeoutMs);
+    http.setTimeout(ResponseTimeoutMs);
 
     const char* headerKeys[] = {"Set-Cookie"};
-    _http.collectHeaders(headerKeys, 1);
-    _http.addHeader("Accept", "application/json");
-    _http.addHeader("Content-Type", "application/json");
+    http.collectHeaders(headerKeys, 1);
+    http.addHeader("Accept", "application/json");
+    http.addHeader("Content-Type", "application/json");
 
     JsonDocument requestDoc;
     JsonObject data = requestDoc["data"].to<JsonObject>();
@@ -103,19 +104,19 @@ bool AZRouterClient::login(String& errorMessage) {
     String payload;
     serializeJson(requestDoc, payload);
 
-    const int httpCode = _http.POST(payload);
+    const int httpCode = http.POST(payload);
     if (httpCode < 200 || httpCode >= 300) {
         errorMessage = "Login HTTP " + String(httpCode);
-        _http.end();
+        http.end();
         clearSession();
         return false;
     }
 
-    const String setCookie = _http.header("Set-Cookie");
+    const String setCookie = http.header("Set-Cookie");
     JsonDocument responseDoc;
     const DeserializationError jsonError =
-        deserializeJson(responseDoc, _http.getStream());
-    _http.end();
+        deserializeJson(responseDoc, http.getStream());
+    http.end();
 
     clearSession();
 
@@ -171,20 +172,21 @@ bool AZRouterClient::getJson(const char* path,
     const String url = "http://" + _host + ":" + String(_port) + path;
     Performance::Scope timing(metric);
 
-    if (!_http.begin(url)) {
+    HTTPClient http;
+    if (!http.begin(url)) {
         errorMessage = "HTTP begin failed";
         return false;
     }
 
-    _http.setConnectTimeout(ConnectTimeoutMs);
-    _http.setTimeout(ResponseTimeoutMs);
-    addAuthHeaders();
+    http.setConnectTimeout(ConnectTimeoutMs);
+    http.setTimeout(ResponseTimeoutMs);
+    addAuthHeaders(http);
 
-    const int httpCode = _http.GET();
+    const int httpCode = http.GET();
 
     if ((httpCode == HTTP_CODE_UNAUTHORIZED || httpCode == HTTP_CODE_FORBIDDEN) &&
         allowRelogin && credentialsConfigured()) {
-        _http.end();
+        http.end();
         clearSession();
 
         String loginError;
@@ -198,13 +200,13 @@ bool AZRouterClient::getJson(const char* path,
 
     if (httpCode != HTTP_CODE_OK) {
         errorMessage = "HTTP " + String(httpCode);
-        _http.end();
+        http.end();
         return false;
     }
 
     const DeserializationError jsonError =
-        deserializeJson(doc, _http.getStream());
-    _http.end();
+        deserializeJson(doc, http.getStream());
+    http.end();
 
     if (jsonError) {
         errorMessage = "JSON " + String(jsonError.c_str());
