@@ -21,11 +21,10 @@ private:
     String _password;
     String _bearerToken;
     String _sessionCookie;
-    HTTPClient _http;
 
     bool credentialsConfigured() const;
     void clearSession();
-    void addAuthHeaders();
+    void addAuthHeaders(HTTPClient& http);
     bool login(String& errorMessage);
     bool getJson(const char* path, JsonDocument& doc,
                  Performance::Metric metric,
