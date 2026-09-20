@@ -268,12 +268,44 @@ bool AZRouterClient::update(AZRouterData& azData) {
     azData.hasGridPower = false;
     azData.routedPowerW = 0.0f;
     azData.hasRoutedPower = false;
+
+    for (uint8_t phase = 0; phase < 3; ++phase) {
+        azData.gridPhasePowerW[phase] = 0.0f;
+        azData.hasGridPhasePower[phase] = false;
+        azData.gridPhaseVoltageV[phase] = 0.0f;
+        azData.hasGridPhaseVoltage[phase] = false;
+        azData.gridPhaseCurrentA[phase] = 0.0f;
+        azData.hasGridPhaseCurrent[phase] = false;
+        azData.gridPhaseConnected[phase] = false;
+        azData.hasGridPhaseStatus[phase] = false;
+        azData.routedPhasePowerW[phase] = 0.0f;
+        azData.hasRoutedPhasePower[phase] = false;
+    }
+
+    azData.routedEnergyTotalKWh = 0.0f;
+    azData.hasRoutedEnergyTotal = false;
+    azData.routedEnergyYearKWh = 0.0f;
+    azData.hasRoutedEnergyYear = false;
+    azData.routedEnergyMonthKWh = 0.0f;
+    azData.hasRoutedEnergyMonth = false;
+    azData.routedEnergyWeekKWh = 0.0f;
+    azData.hasRoutedEnergyWeek = false;
     azData.routedEnergyTodayKWh = 0.0f;
     azData.hasRoutedEnergyToday = false;
-    azData.boilerTempC = 0.0f;
-    azData.hasBoilerTemp = false;
+
+    azData.systemStatusCode = -1;
+    azData.hasSystemStatus = false;
+    azData.hdoOn = false;
+    azData.hasHdo = false;
+    azData.modeCode = -1;
+    azData.hasMode = false;
+    azData.masterBoost = false;
+    azData.hasMasterBoost = false;
     azData.systemTempC = 0.0f;
     azData.hasSystemTemp = false;
+
+    azData.boilerTempC = 0.0f;
+    azData.hasBoilerTemp = false;
 
     // Master routed power:
     // output.power id 0..2 = routed power per phase
@@ -290,6 +322,8 @@ bool AZRouterClient::update(AZRouterData& azData) {
             if (!readNumber(item["value"], value)) continue;
 
             if (id >= 0 && id <= 2) {
+                azData.routedPhasePowerW[id] = value;
+                azData.hasRoutedPhasePower[id] = true;
                 phaseSum += value;
                 hasPhaseValue = true;
             } else if (id == 3) {
@@ -307,39 +341,89 @@ bool AZRouterClient::update(AZRouterData& azData) {
         }
     }
 
-    // output.energy id 4 = saved/routed energy today, in kWh.
+    // Saved/routed energy: total, year, month, week, today.
     if (powerDoc["output"]["energy"].is<JsonArray>()) {
         for (JsonObjectConst item : powerDoc["output"]["energy"].as<JsonArrayConst>()) {
-            if ((item["id"] | -1) != 4) continue;
-
+            const int id = item["id"] | -1;
             float value = 0.0f;
-            if (readNumber(item["value"], value) && value >= 0.0f) {
-                azData.routedEnergyTodayKWh = value;
-                azData.hasRoutedEnergyToday = true;
+            if (!readNumber(item["value"], value) || value < 0.0f) continue;
+
+            switch (id) {
+                case 0:
+                    azData.routedEnergyTotalKWh = value;
+                    azData.hasRoutedEnergyTotal = true;
+                    break;
+                case 1:
+                    azData.routedEnergyYearKWh = value;
+                    azData.hasRoutedEnergyYear = true;
+                    break;
+                case 2:
+                    azData.routedEnergyMonthKWh = value;
+                    azData.hasRoutedEnergyMonth = true;
+                    break;
+                case 3:
+                    azData.routedEnergyWeekKWh = value;
+                    azData.hasRoutedEnergyWeek = true;
+                    break;
+                case 4:
+                    azData.routedEnergyTodayKWh = value;
+                    azData.hasRoutedEnergyToday = true;
+                    break;
+                default:
+                    break;
             }
-            break;
         }
     }
 
-    // Grid total is the sum of L1..L3 input power. Keep the API sign as-is.
+    // Grid phase data. Voltage/current are reported by AZRouter in mV/mA.
     if (powerDoc["input"]["power"].is<JsonArray>()) {
         float gridSum = 0.0f;
         bool hasGridPhase = false;
-
         for (JsonObjectConst item : powerDoc["input"]["power"].as<JsonArrayConst>()) {
             const int id = item["id"] | -1;
             if (id < 0 || id > 2) continue;
-
             float value = 0.0f;
             if (!readNumber(item["value"], value)) continue;
-
+            azData.gridPhasePowerW[id] = value;
+            azData.hasGridPhasePower[id] = true;
             gridSum += value;
             hasGridPhase = true;
         }
-
         if (hasGridPhase) {
             azData.gridPowerW = gridSum;
             azData.hasGridPower = true;
+        }
+    }
+
+    if (powerDoc["input"]["voltage"].is<JsonArray>()) {
+        for (JsonObjectConst item : powerDoc["input"]["voltage"].as<JsonArrayConst>()) {
+            const int id = item["id"] | -1;
+            if (id < 0 || id > 2) continue;
+            float value = 0.0f;
+            if (!readNumber(item["value"], value)) continue;
+            azData.gridPhaseVoltageV[id] = value / 1000.0f;
+            azData.hasGridPhaseVoltage[id] = true;
+        }
+    }
+
+    if (powerDoc["input"]["current"].is<JsonArray>()) {
+        for (JsonObjectConst item : powerDoc["input"]["current"].as<JsonArrayConst>()) {
+            const int id = item["id"] | -1;
+            if (id < 0 || id > 2) continue;
+            float value = 0.0f;
+            if (!readNumber(item["value"], value)) continue;
+            azData.gridPhaseCurrentA[id] = value / 1000.0f;
+            azData.hasGridPhaseCurrent[id] = true;
+        }
+    }
+
+    if (powerDoc["input"]["status"].is<JsonArray>()) {
+        for (JsonObjectConst item : powerDoc["input"]["status"].as<JsonArrayConst>()) {
+            const int id = item["id"] | -1;
+            if (id < 0 || id > 2 || item["value"].isNull()) continue;
+            // AZRouter WebUI/HA mapping: 0 = connected, 1 = disconnected.
+            azData.gridPhaseConnected[id] = item["value"].as<int>() == 0;
+            azData.hasGridPhaseStatus[id] = true;
         }
     }
 
@@ -350,14 +434,30 @@ bool AZRouterClient::update(AZRouterData& azData) {
         return false;
     }
 
-    // /status system.temperature is the AZRouter MASTER electronics
-    // temperature. It is diagnostic data and must never be presented as the
-    // boiler/TUV temperature.
     JsonDocument statusDoc;
     String optionalError;
     if (getJson("/api/v1/status", statusDoc, Performance::AzStatus, optionalError)) {
+        JsonVariantConst system = statusDoc["system"];
+
+        if (!system["status"].isNull()) {
+            azData.systemStatusCode = system["status"].as<int>();
+            azData.hasSystemStatus = true;
+        }
+        if (!system["hdo"].isNull()) {
+            azData.hdoOn = system["hdo"].as<int>() != 0;
+            azData.hasHdo = true;
+        }
+        if (!system["mode"].isNull()) {
+            azData.modeCode = system["mode"].as<int>();
+            azData.hasMode = true;
+        }
+        if (!system["masterBoost"].isNull()) {
+            azData.masterBoost = system["masterBoost"].as<int>() != 0;
+            azData.hasMasterBoost = true;
+        }
+
         float systemTemp = 0.0f;
-        if (readNumber(statusDoc["system"]["temperature"], systemTemp) &&
+        if (readNumber(system["temperature"], systemTemp) &&
             systemTemp > -40.0f && systemTemp < 125.0f) {
             azData.systemTempC = systemTemp;
             azData.hasSystemTemp = true;
@@ -410,13 +510,6 @@ bool AZRouterClient::update(AZRouterData& azData) {
                 boilerDevice["power"]["temperature"].isNull()
                     ? "<missing>"
                     : String(boilerDevice["power"]["temperature"].as<float>(), 1).c_str());
-
-            float boilerPower = 0.0f;
-            if (readNumber(boilerDevice["power"]["totalPower"], boilerPower) &&
-                boilerPower >= 0.0f) {
-                azData.routedPowerW = boilerPower;
-                azData.hasRoutedPower = true;
-            }
 
             float boilerTemp = 0.0f;
             if (readNumber(boilerDevice["power"]["temperature"], boilerTemp) &&
