@@ -162,10 +162,6 @@ struct RfSensorData {
     bool configured = false;
     bool available = false;
     String slotId = "";
-    String name = "";
-    String protocol = "";
-    uint32_t sensorId = 0;
-    uint8_t channel = 0;
 
     bool hasTemperature = false;
     float temperatureC = 0.0f;
