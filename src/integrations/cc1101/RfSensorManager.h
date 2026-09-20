@@ -13,7 +13,7 @@ public:
     bool observe(const RfSensorObservation& observation);
     void loop();
 
-    void startScan(uint32_t durationMs = 30000);
+    void startScan(uint32_t durationMs = 90000);
     bool isScanning() const;
     uint32_t scanRemainingMs() const;
     String statusJson() const;
