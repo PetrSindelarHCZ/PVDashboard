@@ -267,6 +267,47 @@ void IRAM_ATTR onRawEdge() {
 }
 
 
+bool tryPrintPwm67Candidate(const int32_t* data, uint16_t count) {
+    constexpr uint32_t SyncLeadLowMin = 1400;
+    constexpr uint32_t SyncLeadLowMax = 2400;
+    constexpr uint32_t SyncHighMin = 6000;
+    constexpr uint32_t SyncHighMax = 8500;
+    constexpr uint32_t SyncLowMin = 8500;
+    constexpr uint32_t SyncLowMax = 12000;
+
+    auto duration = [](int32_t pulse) -> uint32_t {
+        return static_cast<uint32_t>(pulse >= 0 ? pulse : -pulse);
+    };
+
+    for (uint16_t i = 0; i + 2 < count; ++i) {
+        if (data[i] >= 0 || data[i + 1] <= 0 || data[i + 2] >= 0) {
+            continue;
+        }
+
+        const uint32_t leadLow = duration(data[i]);
+        const uint32_t high = duration(data[i + 1]);
+        const uint32_t low = duration(data[i + 2]);
+
+        if (leadLow < SyncLeadLowMin || leadLow > SyncLeadLowMax ||
+            high < SyncHighMin || high > SyncHighMax ||
+            low < SyncLowMin || low > SyncLowMax) {
+            continue;
+        }
+
+        Serial.printf(
+            "[CC1101][PWM67?] sync candidate burst=%u at=%u "
+            "L%lu H%lu L%lu | undecoded\n",
+            static_cast<unsigned>(count),
+            static_cast<unsigned>(i),
+            static_cast<unsigned long>(leadLow),
+            static_cast<unsigned long>(high),
+            static_cast<unsigned long>(low));
+        return true;
+    }
+
+    return false;
+}
+
 bool tryPrintPwm67(const int32_t* data, uint16_t count) {
     // Unknown periodic 433 MHz source seen roughly every 67 seconds.
     // Signature observed repeatedly:
@@ -818,7 +859,8 @@ void loop() {
     interrupts();
 
     if (!tryPrintRepeatedManchester(snapshot, snapshotCount) &&
-        !tryPrintPwm67(snapshot, snapshotCount)) {
+        !tryPrintPwm67(snapshot, snapshotCount) &&
+        !tryPrintPwm67Candidate(snapshot, snapshotCount)) {
         printBurst(snapshot, snapshotCount, snapshotOverflow);
     }
 }
