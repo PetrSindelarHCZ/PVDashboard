@@ -177,7 +177,8 @@ DisplayRegion navigationDirtyRegion(
 }
 
 DashboardApp::DashboardApp()
-    : _epaperDisplay(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY, EPD_SCK, EPD_MISO, EPD_MOSI),
+    : _rfSensorManager(_dataModel),
+      _epaperDisplay(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY, EPD_SCK, EPD_MISO, EPD_MOSI),
       _displayPreview(),
       _displayManager(_epaperDisplay, &_displayPreview),
       _displayWorker(_displayManager),
@@ -201,6 +202,18 @@ void DashboardApp::setup() {
     Cc1101RawReceiver::begin();
 
     _configManager.begin();
+    _rfSensorManager.applyConfig(_configManager.get().rfSensors);
+    Cc1101RawReceiver::onSensorObservation(
+        [this](const RfSensorObservation& observation) {
+            if (!_rfSensorManager.observe(observation)) return;
+
+            const unsigned long now = millis();
+            if (_lastRfSensorDisplayRefresh == 0 ||
+                now - _lastRfSensorDisplayRefresh >= 60000UL) {
+                _lastRfSensorDisplayRefresh = now;
+                requestAutomaticDisplayRefresh();
+            }
+        });
 
     _memoryHeavyGate = xSemaphoreCreateMutex();
     if (_memoryHeavyGate == nullptr) {
