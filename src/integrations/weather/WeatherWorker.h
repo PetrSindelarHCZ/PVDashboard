@@ -18,6 +18,7 @@ public:
     bool copyCached(const String& locationId, WeatherData& weatherData);
     bool requestLocation(const String& locationId);
     void setMemoryHeavyGate(SemaphoreHandle_t gate);
+    void setNetworkClientGate(SemaphoreHandle_t gate);
 
 private:
     static constexpr uint32_t TaskStackBytes = 12288;
@@ -46,6 +47,7 @@ private:
     IWeatherProvider* _provider = nullptr;
     SemaphoreHandle_t _mutex = nullptr;
     SemaphoreHandle_t _memoryHeavyGate = nullptr;
+    SemaphoreHandle_t _networkClientGate = nullptr;
     TaskHandle_t _task = nullptr;
     volatile bool _stopRequested = false;
 
@@ -63,6 +65,7 @@ private:
     void taskLoop();
     void cleanupTaskResources();
     bool takeMemoryHeavyGate();
+    bool takeNetworkClientGate();
 
     IWeatherProvider* providerFor(const String& providerName);
 
