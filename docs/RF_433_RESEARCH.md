@@ -577,3 +577,35 @@ proto Hyundai neodpovídá. Jde tedy o jiné Nexus-TH kompatibilní čidlo v dos
 Hyundai WS Senzor 77 TH zůstává neidentifikovaný a jeho skutečný protokol je třeba
 odvodit z cíleného capture po stisku RESET / při vložení baterií, ideálně s poznámkou
 okamžiku bliknutí LED.
+
+
+## Hyundai WS Senzor 77 TH – Carrin / KW9010 lead
+
+Další průzkum ukázal silnou OEM stopu na výrobce **Carrin Electronics**.
+Řada Carrin používá stejné konstrukční prvky jako Hyundai WS Senzor 77 TH
+(displej čidla, CH1-CH3, RESET, °C/°F, 433 MHz, 2x AAA, podobné rozměry).
+
+V rtl_433 je přímo podporován Carrin/Conrad model **KW9010** pod protokolem:
+
+- TFA Twin Plus 30.3049,
+- Conrad KW9010,
+- Ea2 BL999.
+
+Tento protokol používá:
+
+- OOK/PPM,
+- 36 bitů,
+- LOW gap ~2 ms = 0,
+- LOW gap ~4 ms = 1,
+- oddělení opakovaných rámců ~6-10 ms,
+- teplotu, vlhkost, ID, kanál, stav baterie,
+- nibble checksum.
+
+Na diagnostické větvi byl přidán kandidátní decoder
+`[CC1101][TFA-TWIN]`. Hyundai zatím není tímto protokolem potvrzený;
+decoder má sloužit k ověření při dalším cíleném RESET testu. Validní shoda
+musí mít opakovaný 36bitový rámec, smysluplné hodnoty a správný checksum.
+
+Poslední capture po RESET testu neobsahoval jednoznačný čistý TFA/KW9010 rámec.
+Je možné, že konkrétní vysílání proběhlo během e-paper `capture PAUSED` okna,
+nebo Hyundai používá jinou Carrin variantu.
