@@ -80,6 +80,34 @@ const char* weatherProviderLabel(const String& provider) {
     return provider.c_str();
 }
 
+String rfSensorBaseLabel(const RfSensorConfig& sensor) {
+    if (!sensor.name.isEmpty()) return sensor.name;
+
+    String label = sensor.protocol;
+    label += " 0x";
+    label += String(sensor.sensorId, HEX);
+    if (sensor.channel > 0) {
+        label += " CH";
+        label += String(sensor.channel);
+    }
+    return label;
+}
+
+String rfSensorMetricLabel(const RfSensorConfig& sensor, bool humidity) {
+    String label = rfSensorBaseLabel(sensor);
+    label += humidity ? " – vlhkost" : " – teplota";
+    return label;
+}
+
+const RfSensorConfig* rfSensorBySlot(
+    const RfSensorsConfig& config,
+    const String& slotId) {
+    for (uint8_t i = 0; i < config.sensorCount && i < MaxRfSensors; ++i) {
+        if (config.sensors[i].slotId == slotId) return &config.sensors[i];
+    }
+    return nullptr;
+}
+
 bool weatherDisplayDataChanged(const WeatherData& a, const WeatherData& b) {
     return a.status.available != b.status.available ||
            a.status.lastError != b.status.lastError ||
@@ -589,16 +617,80 @@ void DashboardApp::setup() {
             return true;
         },
         [this](const String& slotId, const String& name, String& error) {
+            const RfSensorsConfig previousRf = _configManager.get().rfSensors;
+            const RfSensorConfig* previousSensor =
+                rfSensorBySlot(previousRf, slotId);
+            if (previousSensor == nullptr) {
+                error = "Uložené čidlo nebylo nalezeno.";
+                return false;
+            }
+
+            const String oldTemperatureLabel =
+                rfSensorMetricLabel(*previousSensor, false);
+            const String oldHumidityLabel =
+                rfSensorMetricLabel(*previousSensor, true);
+
             RfSensorsConfig updated;
             if (!_rfSensorManager.renameSensor(
                     slotId, name, updated, error)) {
                 return false;
             }
+
+            const RfSensorConfig* updatedSensor =
+                rfSensorBySlot(updated, slotId);
+            if (updatedSensor == nullptr) {
+                error = "Aktualizované čidlo nebylo nalezeno.";
+                return false;
+            }
+
             if (!_configManager.setRfSensors(updated)) {
                 error = "Nový název čidla se nepodařilo uložit.";
                 return false;
             }
             _rfSensorManager.applyConfig(_configManager.get().rfSensors);
+
+            // KPI label follows the sensor name only while it still carries
+            // the automatically generated label. User-edited labels remain
+            // untouched.
+            HomeLayoutConfig layout =
+                _configManager.get().display.homeLayout;
+            bool layoutChanged = false;
+            const String temperatureSource =
+                "rf." + slotId + ".temperatureC";
+            const String humiditySource =
+                "rf." + slotId + ".humidityPercent";
+            const String newTemperatureLabel =
+                rfSensorMetricLabel(*updatedSensor, false);
+            const String newHumidityLabel =
+                rfSensorMetricLabel(*updatedSensor, true);
+
+            for (uint8_t w = 0;
+                 w < layout.widgetCount && w < MaxHomeLayoutWidgets;
+                 ++w) {
+                HomeLayoutWidgetConfig& widget = layout.widgets[w];
+                if (widget.type != "custom") continue;
+
+                for (auto& element : widget.elements) {
+                    if (element.type != "kpi") continue;
+
+                    if (element.source == temperatureSource &&
+                        element.label == oldTemperatureLabel) {
+                        element.label = newTemperatureLabel;
+                        layoutChanged = true;
+                    } else if (element.source == humiditySource &&
+                               element.label == oldHumidityLabel) {
+                        element.label = newHumidityLabel;
+                        layoutChanged = true;
+                    }
+                }
+            }
+
+            if (layoutChanged && !_configManager.setHomeLayout(layout)) {
+                Serial.println(
+                    "[RF-SENSORS] Varovani: jmeno cidla ulozeno, "
+                    "ale automaticky KPI popisek se nepodarilo aktualizovat.");
+            }
+
             requestAutomaticDisplayRefresh();
             return true;
         },
