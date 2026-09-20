@@ -603,6 +603,19 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                         </div>
                         <div class="source-field-row">
                             <div class="source-field">
+                                <label for="azUser">Uživatel</label>
+                                <input class="wifi-input" id="azUser" autocomplete="username"
+                                       maxlength="64" placeholder="WebUI uživatel">
+                            </div>
+                            <div class="source-field">
+                                <label for="azPassword">Heslo</label>
+                                <input class="wifi-input" id="azPassword" type="password"
+                                       autocomplete="current-password" maxlength="128"
+                                       placeholder="prázdné = zachovat uložené">
+                            </div>
+                        </div>
+                        <div class="source-field-row">
+                            <div class="source-field">
                                 <label for="azPort">Port</label>
                                 <input class="wifi-input" id="azPort" type="number" min="1" max="65535" placeholder="80" required>
                             </div>
@@ -611,7 +624,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                                 <input class="wifi-input" id="azInterval" type="number" min="1" max="3600" required>
                             </div>
                         </div>
-                        <div class="field-help">AZRouter · lokální síťové připojení</div>
+                        <div class="field-help" id="azAuthHelp">AZRouter · přihlášení používá stejné údaje jako WebUI.</div>
                     </section>
                 </div>
                 <button class="btn btn-secondary source-save" type="submit">Uložit datové zdroje a restartovat</button>
@@ -820,6 +833,18 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     document.getElementById('azPort').value = az.port;
                     document.getElementById('azInterval').value = az.interval;
                     document.getElementById('azEnabled').checked = az.enabled;
+                    document.getElementById('azUser').value = az.username || '';
+                    const azPassword = document.getElementById('azPassword');
+                    azPassword.value = '';
+                    azPassword.placeholder = az.passwordConfigured
+                        ? 'uloženo — prázdné = zachovat'
+                        : 'heslo do AZRouter WebUI';
+                    const azAuthHelp = document.getElementById('azAuthHelp');
+                    if (azAuthHelp) {
+                        azAuthHelp.textContent = az.passwordConfigured
+                            ? 'Přihlašovací údaje jsou uložené. Heslo se do prohlížeče neposílá.'
+                            : 'AZRouter · přihlášení používá stejné údaje jako WebUI.';
+                    }
                     sourceConfigLoaded = true;
                 }
 
@@ -1071,7 +1096,9 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 azHost: document.getElementById('azHost').value,
                 azPort: document.getElementById('azPort').value,
                 azInterval: document.getElementById('azInterval').value,
-                azEnabled: document.getElementById('azEnabled').checked ? '1' : '0'
+                azEnabled: document.getElementById('azEnabled').checked ? '1' : '0',
+                azUser: document.getElementById('azUser').value,
+                azPassword: document.getElementById('azPassword').value
             });
             const response = await fetch('/api/config/sources', {
                 method: 'POST',
@@ -1661,6 +1688,8 @@ void DashboardWebServer::handleApiStatus() {
 
     JsonObject azObj = doc["azrouter"].to<JsonObject>();
     azObj["available"] = _dataModel.azrouter.status.available;
+    azObj["authenticated"] = _dataModel.azrouter.authenticated;
+    azObj["authMode"] = _dataModel.azrouter.authMode;
     if (_dataModel.azrouter.hasRoutedPower) azObj["routedPowerW"] = _dataModel.azrouter.routedPowerW;
     else azObj["routedPowerW"] = nullptr;
     if (_dataModel.azrouter.hasRoutedEnergyToday) azObj["routedEnergyTodayKWh"] = _dataModel.azrouter.routedEnergyTodayKWh;
@@ -1721,6 +1750,8 @@ void DashboardWebServer::handleApiStatus() {
     sourceAz["host"] = _config.azrouter.host;
     sourceAz["port"] = _config.azrouter.port;
     sourceAz["interval"] = _config.azrouter.pollIntervalSeconds;
+    sourceAz["username"] = _config.azrouter.username;
+    sourceAz["passwordConfigured"] = !_config.azrouter.password.isEmpty();
     JsonObject sourcePool = sourcesObj["pool"].to<JsonObject>();
     sourcePool["enabled"] = _config.pool.enabled;
     JsonObject sourceWeather = sourcesObj["weather"].to<JsonObject>();
