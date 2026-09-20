@@ -3,16 +3,33 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include "../../data/DataModel.h"
+#include "../../diagnostics/Performance.h"
 
 class AZRouterClient {
 public:
     AZRouterClient();
 
-    void begin(const String& host, uint16_t port);
+    void begin(const String& host, uint16_t port,
+               const String& username = "",
+               const String& password = "");
     bool update(AZRouterData& azData);
 
 private:
     String _host;
     uint16_t _port = 80;
+    String _username;
+    String _password;
+    String _bearerToken;
+    String _sessionCookie;
     HTTPClient _http;
+
+    bool credentialsConfigured() const;
+    void clearSession();
+    void addAuthHeaders();
+    bool login(String& errorMessage);
+    bool getJson(const char* path, JsonDocument& doc,
+                 Performance::Metric metric,
+                 String& errorMessage,
+                 bool allowRelogin = true);
+    static String firstCookiePair(const String& setCookie);
 };
