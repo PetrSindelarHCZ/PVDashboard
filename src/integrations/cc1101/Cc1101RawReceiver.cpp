@@ -267,6 +267,199 @@ void IRAM_ATTR onRawEdge() {
 }
 
 
+bool tryPrintHyundaiWs(const int32_t* data, uint16_t count) {
+    // Hyundai WS SENZOR Remote Temperature Sensor, based on the protocol
+    // documented by rtl_433.
+    //
+    // OOK/PPM framing:
+    //   HIGH pulse: ~224 us (fixed)
+    //   following LOW gap ~1032 us => 0
+    //   following LOW gap ~1992 us => 1
+    //   after 24 data bits an extra short HIGH is followed by an
+    //   inter-packet LOW gap around 4016 us.
+    // The same 24-bit payload is transmitted repeatedly (typically ~23x).
+    //
+    // There is no checksum, so require several identical repeated frames
+    // before accepting a packet. This also lets us decode the first part of
+    // a long capture even when the shared raw buffer later overflows.
+    constexpr uint32_t PulseMinUs = 120;
+    constexpr uint32_t PulseMaxUs = 420;
+    constexpr uint32_t ZeroGapMinUs = 650;
+    constexpr uint32_t ZeroGapMaxUs = 1450;
+    constexpr uint32_t OneGapMinUs = 1450;
+    constexpr uint32_t OneGapMaxUs = 2550;
+    constexpr uint32_t PacketGapMinUs = 2800;
+    constexpr uint32_t PacketGapMaxUs = 5500;
+    constexpr uint8_t FrameBits = 24;
+    constexpr uint8_t MinimumRepeats = 4;
+
+    auto duration = [](int32_t pulse) -> uint32_t {
+        return static_cast<uint32_t>(pulse >= 0 ? pulse : -pulse);
+    };
+
+    auto decodeFrameAt = [&](uint16_t start,
+                             uint32_t& frame,
+                             uint16_t& nextPos) -> bool {
+        frame = 0;
+        uint16_t pos = start;
+
+        for (uint8_t bit = 0; bit < FrameBits; ++bit) {
+            if (pos + 1 >= count ||
+                data[pos] <= 0 ||
+                data[pos + 1] >= 0) {
+                return false;
+            }
+
+            const uint32_t pulseUs = duration(data[pos]);
+            const uint32_t gapUs = duration(data[pos + 1]);
+
+            if (pulseUs < PulseMinUs || pulseUs > PulseMaxUs) {
+                return false;
+            }
+
+            frame <<= 1;
+            if (gapUs >= ZeroGapMinUs && gapUs < ZeroGapMaxUs) {
+                // logical 0
+            } else if (gapUs >= OneGapMinUs && gapUs <= OneGapMaxUs) {
+                frame |= 1U;
+            } else {
+                return false;
+            }
+
+            pos += 2;
+        }
+
+        // rtl_433's PPM slicer ends a row on a gap above gap_limit.
+        // In the raw waveform this is another normal short HIGH followed by
+        // the ~4 ms packet gap.
+        if (pos + 1 >= count ||
+            data[pos] <= 0 ||
+            data[pos + 1] >= 0) {
+            return false;
+        }
+
+        const uint32_t separatorPulseUs = duration(data[pos]);
+        const uint32_t packetGapUs = duration(data[pos + 1]);
+        if (separatorPulseUs < PulseMinUs ||
+            separatorPulseUs > PulseMaxUs ||
+            packetGapUs < PacketGapMinUs ||
+            packetGapUs > PacketGapMaxUs) {
+            return false;
+        }
+
+        nextPos = static_cast<uint16_t>(pos + 2);
+        return true;
+    };
+
+    for (uint16_t start = 0; start + 49 < count; ++start) {
+        uint32_t firstFrame = 0;
+        uint16_t nextPos = 0;
+        if (!decodeFrameAt(start, firstFrame, nextPos)) {
+            continue;
+        }
+
+        uint8_t repeats = 1;
+        uint16_t scanPos = nextPos;
+
+        while (scanPos + 49 < count && repeats < 32) {
+            uint32_t repeatedFrame = 0;
+            uint16_t repeatedNext = 0;
+            if (decodeFrameAt(scanPos, repeatedFrame, repeatedNext) &&
+                repeatedFrame == firstFrame) {
+                ++repeats;
+                scanPos = repeatedNext;
+                continue;
+            }
+
+            // Allow a few stray pulses between repeats, but do not search so
+            // far that an unrelated transmission can be counted as a repeat.
+            bool recovered = false;
+            const uint16_t recoveryEnd = min<uint16_t>(
+                count,
+                static_cast<uint16_t>(scanPos + 8));
+            for (uint16_t candidate = static_cast<uint16_t>(scanPos + 1);
+                 candidate + 49 < recoveryEnd;
+                 ++candidate) {
+                if (decodeFrameAt(candidate, repeatedFrame, repeatedNext) &&
+                    repeatedFrame == firstFrame) {
+                    ++repeats;
+                    scanPos = repeatedNext;
+                    recovered = true;
+                    break;
+                }
+            }
+            if (!recovered) break;
+        }
+
+        if (repeats < MinimumRepeats) {
+            continue;
+        }
+
+        const uint8_t b0 = static_cast<uint8_t>((firstFrame >> 16) & 0xFF);
+        const uint8_t b1 = static_cast<uint8_t>((firstFrame >> 8) & 0xFF);
+        const uint8_t b2 = static_cast<uint8_t>(firstFrame & 0xFF);
+
+        if ((b0 == 0x00 && b1 == 0x00 && b2 == 0x00) ||
+            (b0 == 0xFF && b1 == 0xFF && b2 == 0xFF)) {
+            continue;
+        }
+
+        const int16_t packedTemperature = static_cast<int16_t>(
+            (static_cast<uint16_t>(b0) << 8) |
+            static_cast<uint16_t>(b1 & 0xF0));
+        const int16_t temperatureDeciC = packedTemperature >> 4;
+        const float temperatureC =
+            static_cast<float>(temperatureDeciC) * 0.1f;
+
+        const bool batteryOk = (b1 & 0x08) != 0;
+        const bool startup = (b1 & 0x04) != 0;
+        const uint8_t channel =
+            static_cast<uint8_t>((b1 & 0x03) + 1);
+        const uint8_t sensorId = b2;
+
+        if (temperatureC < -60.0f ||
+            temperatureC > 80.0f ||
+            channel < 1 ||
+            channel > 3) {
+            continue;
+        }
+
+        static uint32_t packetCount = 0;
+        static uint32_t lastSeenMs = 0;
+        const uint32_t nowMs = millis();
+        const uint32_t intervalMs =
+            lastSeenMs == 0 ? 0 : nowMs - lastSeenMs;
+        lastSeenMs = nowMs;
+        ++packetCount;
+
+        Serial.printf(
+            "[CC1101][HYUNDAI] id=0x%02X temp=%.1f C channel=%u "
+            "battery=%s startup=%s repeats=%u | packets=%lu",
+            static_cast<unsigned>(sensorId),
+            temperatureC,
+            static_cast<unsigned>(channel),
+            batteryOk ? "OK" : "LOW",
+            startup ? "ON" : "OFF",
+            static_cast<unsigned>(repeats),
+            static_cast<unsigned long>(packetCount));
+
+        if (intervalMs > 0) {
+            Serial.printf(
+                " interval=%.1f s",
+                static_cast<double>(intervalMs) / 1000.0);
+        }
+
+        Serial.printf(
+            " | raw=%02X %02X %02X\n",
+            b0,
+            b1,
+            b2);
+        return true;
+    }
+
+    return false;
+}
+
 bool tryPrintAuriolHg02832(const int32_t* data, uint16_t count) {
     // Lidl/Auriol HG02832 / HG05124A-DCF family.
     //
@@ -1136,7 +1329,8 @@ void loop() {
     overflowed = false;
     interrupts();
 
-    if (!tryPrintAuriolHg02832(snapshot, snapshotCount) &&
+    if (!tryPrintHyundaiWs(snapshot, snapshotCount) &&
+        !tryPrintAuriolHg02832(snapshot, snapshotCount) &&
         !tryPrintRepeatedManchester(snapshot, snapshotCount) &&
         !tryPrintPwm67(snapshot, snapshotCount) &&
         !tryPrintPwm67Candidate(snapshot, snapshotCount)) {
