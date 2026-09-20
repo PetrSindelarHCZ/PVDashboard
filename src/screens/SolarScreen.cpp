@@ -167,14 +167,18 @@ void renderOverview(IDisplay& display, const DataModel& dm) {
     ScreenStyle::drawCard(display, 555, 98, 230, 160, "BATERIE");
     ScreenStyle::useMetric(display);
     display.setCursor(570, 170);
-    if (dm.solar.enabled && dm.solar.status.available)
+    if (dm.solar.enabled && dm.solar.status.available && dm.solar.batteryPresent)
         display.printf("%.0f %%", dm.solar.batterySocPercent);
+    else if (dm.solar.enabled && dm.solar.status.available)
+        display.print("Bez baterie");
     else
         display.print("-- %");
     ScreenStyle::useBody(display);
     display.setCursor(570, 215);
-    if (dm.solar.enabled && dm.solar.status.available)
+    if (dm.solar.enabled && dm.solar.status.available && dm.solar.batteryPresent)
         display.printf("%+.0f W", dm.solar.batteryPowerW);
+    else if (dm.solar.enabled && dm.solar.status.available)
+        display.print("Nepřipojena");
     else
         display.print("-- W");
 
@@ -239,16 +243,20 @@ void renderGoodWe(IDisplay& display, const DataModel& dm) {
     ScreenStyle::drawCard(display, 315, 98, 225, 165, "BATERIE");
     ScreenStyle::useMetric(display);
     display.setCursor(330, 170);
-    if (dm.solar.status.available) display.printf("%.0f %%", dm.solar.batterySocPercent);
+    if (dm.solar.status.available && dm.solar.batteryPresent) display.printf("%.0f %%", dm.solar.batterySocPercent);
+    else if (dm.solar.status.available) display.print("Bez baterie");
     else display.print("-- %");
     ScreenStyle::useBody(display);
     display.setCursor(330, 210);
-    if (dm.solar.status.available) display.printf("Tok: %+.0f W", dm.solar.batteryPowerW);
+    if (dm.solar.status.available && dm.solar.batteryPresent) display.printf("Tok: %+.0f W", dm.solar.batteryPowerW);
+    else if (dm.solar.status.available) display.print("Nepřipojena");
     else display.print("Tok: -- W");
     display.setCursor(330, 238);
-    if (dm.solar.status.available) {
+    if (dm.solar.status.available && dm.solar.batteryPresent) {
         display.printf("%s", dm.solar.batteryPowerW < 0 ? "Nabíjení" :
                        (dm.solar.batteryPowerW > 0 ? "Vybíjení" : "Klid"));
+    } else if (dm.solar.status.available) {
+        display.print("Baterie není osazena");
     } else {
         display.print("Nedostupné");
     }
