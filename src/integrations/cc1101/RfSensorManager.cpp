@@ -58,20 +58,17 @@ void RfSensorManager::applyConfig(const RfSensorsConfig& config) {
         previous[i] = _dataModel.rfSensors.sensors[i];
     }
 
-    _config = config;
-    if (_config.sensorCount > MaxRfSensors) _config.sensorCount = MaxRfSensors;
+    _config = &config;
+    const uint8_t configuredCount =
+        config.sensorCount > MaxRfSensors ? MaxRfSensors : config.sensorCount;
 
-    _dataModel.rfSensors.sensorCount = _config.sensorCount;
+    _dataModel.rfSensors.sensorCount = configuredCount;
     for (uint8_t i = 0; i < MaxRfSensors; ++i) {
         RfSensorData next;
-        if (i < _config.sensorCount) {
-            const RfSensorConfig& sensor = _config.sensors[i];
+        if (i < _config->sensorCount) {
+            const RfSensorConfig& sensor = _config->sensors[i];
             next.configured = true;
             next.slotId = sensor.slotId;
-            next.name = sensor.name;
-            next.protocol = sensor.protocol;
-            next.sensorId = sensor.sensorId;
-            next.channel = sensor.channel;
             next.hasTemperature = sensor.hasTemperature;
             next.hasHumidity = sensor.hasHumidity;
             next.hasBattery = sensor.hasBattery;
@@ -92,8 +89,9 @@ void RfSensorManager::applyConfig(const RfSensorsConfig& config) {
 
 int RfSensorManager::configuredIndexFor(
     const RfSensorObservation& observation) const {
-    for (uint8_t i = 0; i < _config.sensorCount && i < MaxRfSensors; ++i) {
-        if (sameBinding(_config.sensors[i], observation)) return i;
+    if (_config == nullptr) return -1;
+    for (uint8_t i = 0; i < _config->sensorCount && i < MaxRfSensors; ++i) {
+        if (sameBinding(_config->sensors[i], observation)) return i;
     }
     return -1;
 }
@@ -226,19 +224,24 @@ bool RfSensorManager::addDiscoveredSensor(
     const RfSensorObservation& observation =
         _discovered[discoveredIndex].observation;
 
-    for (uint8_t i = 0; i < _config.sensorCount && i < MaxRfSensors; ++i) {
-        if (sameBinding(_config.sensors[i], observation)) {
+    if (_config == nullptr) {
+        error = "Správa RF čidel ještě není inicializovaná.";
+        return false;
+    }
+
+    for (uint8_t i = 0; i < _config->sensorCount && i < MaxRfSensors; ++i) {
+        if (sameBinding(_config->sensors[i], observation)) {
             error = "Toto čidlo už je uložené.";
             return false;
         }
     }
 
-    if (_config.sensorCount >= MaxRfSensors) {
+    if (_config->sensorCount >= MaxRfSensors) {
         error = "Je dosažen maximální počet uložených čidel.";
         return false;
     }
 
-    updated = _config;
+    updated = *_config;
     const String slotId = nextSlotId(updated);
     if (slotId.isEmpty()) {
         error = "Nelze vytvořit stabilní identifikátor čidla.";
@@ -263,7 +266,11 @@ bool RfSensorManager::renameSensor(
     RfSensorsConfig& updated,
     String& error) const {
 
-    updated = _config;
+    if (_config == nullptr) {
+        error = "Správa RF čidel ještě není inicializovaná.";
+        return false;
+    }
+    updated = *_config;
     for (uint8_t i = 0; i < updated.sensorCount && i < MaxRfSensors; ++i) {
         if (updated.sensors[i].slotId != slotId) continue;
         updated.sensors[i].name = normalizedName(requestedName);
@@ -304,10 +311,11 @@ String RfSensorManager::statusJson() const {
 
     JsonArray configured = doc["configured"].to<JsonArray>();
     const uint32_t now = millis();
-    for (uint8_t i = 0;
-         i < _config.sensorCount && i < MaxRfSensors;
-         ++i) {
-        const RfSensorConfig& cfg = _config.sensors[i];
+    const uint8_t configuredCount =
+        _config == nullptr ? 0 :
+        (_config->sensorCount > MaxRfSensors ? MaxRfSensors : _config->sensorCount);
+    for (uint8_t i = 0; i < configuredCount; ++i) {
+        const RfSensorConfig& cfg = _config->sensors[i];
         const RfSensorData& data = _dataModel.rfSensors.sensors[i];
 
         JsonObject item = configured.add<JsonObject>();
@@ -365,10 +373,10 @@ String RfSensorManager::statusJson() const {
 
         bool saved = false;
         String slotId;
-        for (uint8_t i = 0; i < _config.sensorCount && i < MaxRfSensors; ++i) {
-            if (!sameBinding(_config.sensors[i], observation)) continue;
+        if (_config != nullptr) for (uint8_t i = 0; i < _config->sensorCount && i < MaxRfSensors; ++i) {
+            if (!sameBinding(_config->sensors[i], observation)) continue;
             saved = true;
-            slotId = _config.sensors[i].slotId;
+            slotId = _config->sensors[i].slotId;
             break;
         }
         item["saved"] = saved;
