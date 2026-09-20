@@ -519,9 +519,9 @@ Po testu, kdy LED fyzického Hyundai čidla prokazatelně blikla a experimentál
 24bitový Hyundai-WS decoder nic nenašel, byla hypotéza starého temperature-only
 protokolu oslabena.
 
-Pro další capture byl raw buffer zvětšen z **768 na 1536 pulzů**. Dlouhé bursty
+Raw buffer zůstává na **768 pulsech**, protože jeho zdvojnásobení přeteklo interní DRAM ESP32. Dlouhé bursty
 se už neoznačují automaticky jako `[NOISE]`, ale jako `[CC1101][RX][LONG]`
-a kromě statistik vypíšou prvních **96 H/L pulzů**. Cíl je získat timingový
+a kromě statistik vypíšou prvních **96 H/L pulzů** i při overflowu. Cíl je získat timingový
 fingerprint neznámého Hyundai TH přenosu bez změny globálního burst framingu
 a bez zásahu do Auriol/PWM67 decoderů.
 
