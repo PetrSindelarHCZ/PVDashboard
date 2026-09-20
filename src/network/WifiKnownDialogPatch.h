@@ -120,7 +120,10 @@ static const char WIFI_KNOWN_DIALOG_PATCH[] PROGMEM = R"wifiknown(
         catch(error){const data={tested:false,portProtocol:def.key==='goodwe'?'UDP':'TCP',message:error.name==='AbortError'?'test vypršel':(error.message||'test selhal')};cache.set(def.key,{data,at:Date.now()});apply(def);return data;}
     }
     window.dashboardTestSourceNetwork=async (key,host='',port='')=>{const def=defs.find(item=>item.key===key);if(!def)return null;return host&&port?testEdited(def,host,port):testConfigured(def);};
-    async function refreshNetworkDiagnostics(){for(const def of defs)await testConfigured(def);}setTimeout(refreshNetworkDiagnostics,1500);setInterval(refreshNetworkDiagnostics,30000);
+    // Active ping/port probes are intentionally manual. Running them periodically
+    // from the synchronous ESP32 WebServer blocks DashboardApp::loop() and can
+    // leave the browser connection aborted while the probe is still executing.
+    // The "Otestovat" buttons below continue to use the active probe on demand.
 })();
 </script>
 
