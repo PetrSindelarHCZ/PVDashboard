@@ -36,7 +36,14 @@ Používaná znaménka:
 
 ## AZRouter
 
-- transport: lokální HTTP bez autentizace,
+- transport: lokální HTTP API,
+- volitelná autentizace používá stejné jméno a heslo jako AZRouter WebUI,
+- klient nejprve volá `POST /api/v1/login` s payloadem
+  `{"data":{"username":"...","password":"..."}}`,
+- pokud login vrátí token, další požadavky posílají `Authorization: Bearer ...`,
+- pokud login vrátí session cookie, klient ji posílá přes `Cookie`,
+- při HTTP 401/403 se session zahodí, provede jeden re-login a požadavek se jednou zopakuje,
+- bez uložených credentials zůstává zachováno anonymní čtení pro firmware, který jej dovoluje,
 - standardní port: 8081,
 - /api/v1/power:
   - `output.power` id 0–2 = jednotlivé výstupy/fáze,
@@ -61,6 +68,10 @@ výkonová data.
 
 `DataModel` už neinicializuje GoodWe ani AZRouter demonstračními hodnotami.
 Před prvním úspěšným pollingem proto FVE UI zobrazuje nedostupné hodnoty.
+
+AZRouter username/password se ukládají pouze do lokální NVS. WebUI nikdy
+nevrací uložené heslo zpět do prohlížeče; prázdné heslo při uložení znamená
+zachovat stávající. YAML export záměrně AZRouter credentials neobsahuje.
 
 ## Společné chování GoodWe a AZRouteru
 
