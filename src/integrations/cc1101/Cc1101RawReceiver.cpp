@@ -46,7 +46,7 @@ constexpr uint32_t MinimumPulseUs = 70;
 constexpr uint32_t BurstGapUs = 18000;
 constexpr uint32_t CarrierHoldUs = 16000;
 constexpr uint16_t MinimumBurstPulses = 8;
-constexpr uint16_t MaximumPulseCount = 1536;
+constexpr uint16_t MaximumPulseCount = 768;
 
 volatile int32_t pulses[MaximumPulseCount];
 volatile uint16_t pulseCount = 0;
