@@ -267,6 +267,195 @@ void IRAM_ATTR onRawEdge() {
 }
 
 
+bool tryPrintTfaTwinPlus(const int32_t* data, uint16_t count) {
+    // TFA Twin Plus 30.3049 / Conrad KW9010 / Ea2 BL999 family.
+    //
+    // rtl_433 documents a 36-bit OOK/PPM frame:
+    //   short LOW gap ~2 ms => 0
+    //   long  LOW gap ~4 ms => 1
+    //   inter-row gap ~6-10 ms
+    //
+    // Carrin Electronics manufactured/rebranded weather sensors in the same
+    // product family as the Hyundai WS Senzor 77 TH, so this is currently a
+    // protocol candidate for the physical Hyundai unit. Do not label it as
+    // Hyundai until values are confirmed against the sensor display.
+    constexpr uint32_t PulseMinUs = 100;
+    constexpr uint32_t PulseMaxUs = 1400;
+    constexpr uint32_t ZeroGapMinUs = 1300;
+    constexpr uint32_t ZeroGapMaxUs = 2900;
+    constexpr uint32_t OneGapMinUs = 3000;
+    constexpr uint32_t OneGapMaxUs = 5600;
+    constexpr uint32_t RowGapMinUs = 6000;
+    constexpr uint32_t RowGapMaxUs = 10000;
+    constexpr uint8_t FrameBits = 36;
+    constexpr uint8_t MinimumRepeats = 2;
+
+    auto duration = [](int32_t pulse) -> uint32_t {
+        return static_cast<uint32_t>(pulse >= 0 ? pulse : -pulse);
+    };
+
+    auto reverse8Local = [](uint8_t v) -> uint8_t {
+        v = static_cast<uint8_t>((v >> 4) | (v << 4));
+        v = static_cast<uint8_t>(((v & 0xCC) >> 2) | ((v & 0x33) << 2));
+        v = static_cast<uint8_t>(((v & 0xAA) >> 1) | ((v & 0x55) << 1));
+        return v;
+    };
+
+    uint64_t rows[12] = {};
+    uint8_t rowBits[12] = {};
+    uint8_t rowCount = 0;
+    uint64_t current = 0;
+    uint8_t currentBits = 0;
+
+    for (uint16_t i = 0; i + 1 < count; ++i) {
+        if (data[i] <= 0 || data[i + 1] >= 0) {
+            continue;
+        }
+
+        const uint32_t pulseUs = duration(data[i]);
+        if (pulseUs < PulseMinUs || pulseUs > PulseMaxUs) {
+            continue;
+        }
+
+        const uint32_t gapUs = duration(data[i + 1]);
+
+        if (gapUs >= ZeroGapMinUs && gapUs <= ZeroGapMaxUs) {
+            if (currentBits < 63) {
+                current <<= 1;
+                ++currentBits;
+            } else {
+                current = 0;
+                currentBits = 0;
+            }
+            ++i;
+            continue;
+        }
+
+        if (gapUs >= OneGapMinUs && gapUs <= OneGapMaxUs) {
+            if (currentBits < 63) {
+                current = (current << 1) | 1ULL;
+                ++currentBits;
+            } else {
+                current = 0;
+                currentBits = 0;
+            }
+            ++i;
+            continue;
+        }
+
+        if (gapUs >= RowGapMinUs && gapUs < RowGapMaxUs) {
+            if (rowCount < 12 && currentBits > 0) {
+                rows[rowCount] = current;
+                rowBits[rowCount] = currentBits;
+                ++rowCount;
+            }
+            current = 0;
+            currentBits = 0;
+            ++i;
+            continue;
+        }
+
+        if (gapUs >= RowGapMaxUs) {
+            if (rowCount < 12 && currentBits > 0) {
+                rows[rowCount] = current;
+                rowBits[rowCount] = currentBits;
+                ++rowCount;
+            }
+            current = 0;
+            currentBits = 0;
+            ++i;
+        }
+    }
+
+    if (rowCount < MinimumRepeats) return false;
+
+    for (uint8_t r = 0; r < rowCount; ++r) {
+        if (rowBits[r] != FrameBits) continue;
+
+        uint8_t repeats = 1;
+        for (uint8_t s = static_cast<uint8_t>(r + 1); s < rowCount; ++s) {
+            if (rowBits[s] == FrameBits && rows[s] == rows[r]) {
+                ++repeats;
+            }
+        }
+        if (repeats < MinimumRepeats) continue;
+
+        const uint64_t frame = rows[r];
+        const uint8_t b0 = static_cast<uint8_t>((frame >> 28) & 0xFF);
+        const uint8_t b1 = static_cast<uint8_t>((frame >> 20) & 0xFF);
+        const uint8_t b2 = static_cast<uint8_t>((frame >> 12) & 0xFF);
+        const uint8_t b3 = static_cast<uint8_t>((frame >> 4) & 0xFF);
+        const uint8_t b4 = static_cast<uint8_t>((frame & 0x0F) << 4);
+
+        const uint8_t rb0 = reverse8Local(b0);
+        const uint8_t rb1 = reverse8Local(b1);
+        const uint8_t rb2 = reverse8Local(b2);
+        const uint8_t rb3 = reverse8Local(b3);
+        const uint8_t rb4 = reverse8Local(b4);
+
+        const uint8_t sumNibbles = static_cast<uint8_t>(
+            (rb0 >> 4) + (rb0 & 0x0F) +
+            (rb1 >> 4) + (rb1 & 0x0F) +
+            (rb2 >> 4) + (rb2 & 0x0F) +
+            (rb3 >> 4) + (rb3 & 0x0F));
+        const uint8_t checksum = static_cast<uint8_t>(rb4 & 0x0F);
+        if (checksum != (sumNibbles & 0x0F)) continue;
+
+        const bool negative = (b2 & 0x07) != 0;
+        const int tempRaw =
+            ((static_cast<int>(rb2) & 0x1F) << 4) |
+            (static_cast<int>(rb1) >> 4);
+        const float temperatureC =
+            (negative ? -((1 << 9) - tempRaw) : tempRaw) * 0.1f;
+
+        const int humidity =
+            (static_cast<int>(rb3) & 0x7F) - 28;
+        const uint8_t sensorId = static_cast<uint8_t>(
+            (rb0 & 0x0F) | ((rb0 & 0xC0) >> 2));
+        const bool batteryLow = (b1 & 0x80) != 0;
+        const uint8_t channel =
+            static_cast<uint8_t>((b0 >> 2) & 0x03);
+
+        if (channel < 1 || channel > 3 ||
+            humidity < 0 || humidity > 100 ||
+            temperatureC < -60.0f || temperatureC > 80.0f) {
+            continue;
+        }
+
+        static uint32_t packetCount = 0;
+        static uint32_t lastSeenMs = 0;
+        const uint32_t nowMs = millis();
+        const uint32_t intervalMs =
+            lastSeenMs == 0 ? 0 : nowMs - lastSeenMs;
+        lastSeenMs = nowMs;
+        ++packetCount;
+
+        Serial.printf(
+            "[CC1101][TFA-TWIN] id=0x%02X temp=%.1f C humidity=%d %% "
+            "channel=%u battery=%s repeats=%u checksum=OK | packets=%lu",
+            static_cast<unsigned>(sensorId),
+            temperatureC,
+            humidity,
+            static_cast<unsigned>(channel),
+            batteryLow ? "LOW" : "OK",
+            static_cast<unsigned>(repeats),
+            static_cast<unsigned long>(packetCount));
+
+        if (intervalMs > 0) {
+            Serial.printf(
+                " interval=%.1f s",
+                static_cast<double>(intervalMs) / 1000.0);
+        }
+
+        Serial.printf(
+            " | raw=%09llX\n",
+            static_cast<unsigned long long>(frame));
+        return true;
+    }
+
+    return false;
+}
+
 bool tryPrintNexusTh(const int32_t* data, uint16_t count) {
     // Nexus temperature/humidity protocol family.
     //
@@ -1519,7 +1708,8 @@ void loop() {
     overflowed = false;
     interrupts();
 
-    if (!tryPrintNexusTh(snapshot, snapshotCount) &&
+    if (!tryPrintTfaTwinPlus(snapshot, snapshotCount) &&
+        !tryPrintNexusTh(snapshot, snapshotCount) &&
         !tryPrintHyundaiWs(snapshot, snapshotCount) &&
         !tryPrintAuriolHg02832(snapshot, snapshotCount) &&
         !tryPrintRepeatedManchester(snapshot, snapshotCount) &&
