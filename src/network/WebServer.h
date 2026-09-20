@@ -4,6 +4,7 @@
 #include <WiFi.h>
 #include <ArduinoJson.h>
 #include <functional>
+#include <freertos/semphr.h>
 #include "../config/ConfigSchema.h"
 #include "../data/DataModel.h"
 #include "../display/DisplayTaskStatus.h"
@@ -44,6 +45,7 @@ public:
     void onDisplayStatus(DisplayStatusCallback callback);
     void setDisplayPreview(DisplayPreview* preview) { _displayPreview = preview; }
     void setNavigationController(NavigationController* controller) { _navigationController = controller; }
+    void setNetworkClientGate(SemaphoreHandle_t gate) { _networkClientGate = gate; }
     void onSystemConfig(SystemConfigCallback callback);
     void onWifiConfig(WifiConfigCallback callback);
     void onWifiNetworkConfig(WifiNetworkConfigCallback callback) {
@@ -320,6 +322,7 @@ private:
     DisplayStatusCallback _displayStatusCallback;
     DisplayPreview* _displayPreview = nullptr;
     NavigationController* _navigationController = nullptr;
+    SemaphoreHandle_t _networkClientGate = nullptr;
     SystemConfigCallback _systemConfigCallback;
     WifiConfigCallback _wifiConfigCallback;
     WifiNetworkConfigCallback _wifiNetworkConfigCallback;
