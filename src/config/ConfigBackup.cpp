@@ -13,6 +13,7 @@ constexpr uint32_t RequiredMaskV3 = (1UL << 27) - 1;
 constexpr uint32_t RequiredMaskV4 = (1UL << 29) - 1;
 constexpr uint32_t RequiredMaskV5 = (1UL << 30) - 1;
 constexpr uint32_t RequiredMaskV6 = 0x7FFFFFFFUL;
+constexpr uint32_t RequiredMaskV7 = 0xFFFFFFFFUL;
 
 String quoteYaml(const String& value) {
     String output = "\"";
@@ -124,6 +125,74 @@ String inferTimezoneId(const String& timezone) {
     return "";
 }
 
+
+String serializeRfSensorsBackup(const RfSensorsConfig& rfSensors) {
+    JsonDocument doc;
+    JsonArray array = doc.to<JsonArray>();
+    const uint8_t count = min<uint8_t>(rfSensors.sensorCount, MaxRfSensors);
+    for (uint8_t i = 0; i < count; ++i) {
+        const RfSensorConfig& sensor = rfSensors.sensors[i];
+        JsonObject item = array.add<JsonObject>();
+        item["slotId"] = sensor.slotId;
+        item["protocol"] = sensor.protocol;
+        item["sensorId"] = sensor.sensorId;
+        item["channel"] = sensor.channel;
+        item["name"] = sensor.name;
+        item["temperature"] = sensor.hasTemperature;
+        item["humidity"] = sensor.hasHumidity;
+        item["battery"] = sensor.hasBattery;
+    }
+    String json;
+    serializeJson(doc, json);
+    return json;
+}
+
+bool parseRfSensorsBackup(const String& json, RfSensorsConfig& rfSensors) {
+    JsonDocument doc;
+    if (deserializeJson(doc, json)) return false;
+    JsonArray array = doc.as<JsonArray>();
+    if (array.isNull() || array.size() > MaxRfSensors) return false;
+
+    RfSensorsConfig parsed;
+    for (JsonObject item : array) {
+        RfSensorConfig sensor;
+        sensor.slotId = item["slotId"] | "";
+        sensor.protocol = item["protocol"] | "";
+        sensor.sensorId = item["sensorId"] | 0UL;
+        sensor.channel = item["channel"] | 0;
+        sensor.name = item["name"] | "";
+        sensor.hasTemperature = item["temperature"] | false;
+        sensor.hasHumidity = item["humidity"] | false;
+        sensor.hasBattery = item["battery"] | false;
+
+        if (sensor.slotId.isEmpty() ||
+            !sensor.slotId.startsWith("sensor") ||
+            sensor.slotId.length() > 16 ||
+            sensor.protocol.isEmpty() ||
+            sensor.protocol.length() > 24 ||
+            sensor.name.length() > 40 ||
+            sensor.channel > 15 ||
+            (!sensor.hasTemperature && !sensor.hasHumidity && !sensor.hasBattery) ||
+            invalidString(sensor.name)) {
+            return false;
+        }
+
+        for (uint8_t i = 0; i < parsed.sensorCount; ++i) {
+            const RfSensorConfig& existing = parsed.sensors[i];
+            if (existing.slotId == sensor.slotId ||
+                (existing.protocol == sensor.protocol &&
+                 existing.sensorId == sensor.sensorId &&
+                 existing.channel == sensor.channel)) {
+                return false;
+            }
+        }
+        parsed.sensors[parsed.sensorCount++] = sensor;
+    }
+
+    rfSensors = parsed;
+    return true;
+}
+
 String serializeWeatherLocations(const WeatherConfig& weather) {
     JsonDocument doc;
     JsonArray array = doc.to<JsonArray>();
@@ -177,7 +246,7 @@ bool parseWeatherLocations(const String& json, WeatherConfig& weather) {
 String exportConfigurationYaml(const AppConfig& c) {
     String y;
     y.reserve(8192);
-    y += "format: \"pvdashboard-config\"\nversion: 6\n";
+    y += "format: \"pvdashboard-config\"\nversion: 7\n";
     y += "system:\n  hostname: " + quoteYaml(c.system.hostname) + "\n";
     y += "  ntp_server: " + quoteYaml(c.system.ntpServer) + "\n";
     y += "  timezone: " + quoteYaml(c.system.timezone) + "\n";
@@ -197,6 +266,7 @@ String exportConfigurationYaml(const AppConfig& c) {
     y += "  host: " + quoteYaml(c.azrouter.host) + "\n  port: " + String(c.azrouter.port) + "\n";
     y += "  interval_seconds: " + String(c.azrouter.pollIntervalSeconds) + "\n";
     y += "pool:\n  enabled: " + String(c.pool.enabled ? "true" : "false") + "\n";
+    y += "rf_sensors:\n  sensors_json: " + quoteYaml(serializeRfSensorsBackup(c.rfSensors)) + "\n";
     y += "layout:\n  home_json: " + quoteYaml(HomeLayout::serializeJson(c.display.homeLayout)) + "\n";
     y += "weather:\n  enabled: " + String(c.weather.enabled ? "true" : "false") + "\n";
     y += "  provider: " + quoteYaml(c.weather.provider) + "\n";
@@ -237,7 +307,7 @@ bool importConfigurationYaml(const String& yaml, AppConfig& config, String& erro
         String text; bool flag = false; long number = 0; double decimal = 0;
         bool ok = true; uint8_t bit = 0;
         if (path == "format") { ok = parseString(scalar, text) && text == "pvdashboard-config"; bit = 0; }
-        else if (path == "version") { ok = parseLong(scalar, number) && (number >= 1 && number <= 6); configVersion = number; bit = 1; }
+        else if (path == "version") { ok = parseLong(scalar, number) && (number >= 1 && number <= 7); configVersion = number; bit = 1; }
         else if (path == "system.hostname") { ok = parseString(scalar, parsed.system.hostname); bit = 2; }
         else if (path == "system.ntp_server") { ok = parseString(scalar, parsed.system.ntpServer); bit = 3; }
         else if (path == "system.timezone") { ok = parseString(scalar, parsed.system.timezone); bit = 4; }
@@ -267,16 +337,18 @@ bool importConfigurationYaml(const String& yaml, AppConfig& config, String& erro
         else if (path == "weather.locations_json") { ok = parseString(scalar, text) && parseWeatherLocations(text, parsed.weather); bit = 28; }
         else if (path == "pool.enabled") { ok = parseBool(scalar, parsed.pool.enabled); bit = 29; }
         else if (path == "layout.home_json") { ok = parseString(scalar, text) && HomeLayout::parseJson(text, parsed.display.homeLayout); bit = 30; }
+        else if (path == "rf_sensors.sensors_json") { ok = parseString(scalar, text) && parseRfSensorsBackup(text, parsed.rfSensors); bit = 31; }
         else { error = "Unknown setting at line " + String(lineNumber); return false; }
         if (!ok || (seen & (1UL << bit))) { error = "Invalid or duplicate setting at line " + String(lineNumber); return false; }
         seen |= 1UL << bit;
     }
 
-    const uint32_t requiredMask = configVersion == 6 ? RequiredMaskV6 :
+    const uint32_t requiredMask = configVersion == 7 ? RequiredMaskV7 :
+                                  (configVersion == 6 ? RequiredMaskV6 :
                                   (configVersion == 5 ? RequiredMaskV5 :
                                   (configVersion == 4 ? RequiredMaskV4 :
                                   (configVersion == 3 ? RequiredMaskV3 :
-                                  (configVersion == 2 ? RequiredMaskV2 : RequiredMaskV1))));
+                                  (configVersion == 2 ? RequiredMaskV2 : RequiredMaskV1)))));
     if (configVersion == 1 && !(seen & (1UL << 20))) parsed.system.timezoneId = inferTimezoneId(parsed.system.timezone);
     if (configVersion < 3) {
         parsed.wifi.dhcp = true;
@@ -308,6 +380,11 @@ bool importConfigurationYaml(const String& yaml, AppConfig& config, String& erro
     if (configVersion < 6) {
         // Starší zálohy neměly uživatelsky uložený layout.
         parsed.display.homeLayout = HomeLayoutConfig{};
+    }
+
+    if (configVersion < 7) {
+        // Starší zálohy neměly správu 433MHz čidel.
+        parsed.rfSensors = RfSensorsConfig{};
     }
 
     bool activeLocationValid = false;
