@@ -274,6 +274,7 @@ bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
     }
 
     static char decoded[(MaximumPulseCount * 2) / 2 + 2];
+    static char bestDecoded[(MaximumPulseCount * 2) / 2 + 2];
     uint16_t bestBitCount = 0;
     uint16_t bestInvalid = 0xFFFF;
 
@@ -297,20 +298,16 @@ bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
         if (invalid < bestInvalid) {
             bestInvalid = invalid;
             bestBitCount = bitCount;
-
-            // Keep the best result in the second half of the temporary buffer
-            // so trying the other alignment cannot destroy it.
             for (uint16_t i = 0; i < bitCount; ++i) {
-                halfBits[i] = decoded[i];
+                bestDecoded[i] = decoded[i];
             }
         }
     }
 
     if (bestInvalid != 0 || bestBitCount < 32) return false;
 
-    // Restore the selected decoded bits from temporary storage.
     for (uint16_t i = 0; i < bestBitCount; ++i) {
-        decoded[i] = halfBits[i];
+        decoded[i] = bestDecoded[i];
     }
     decoded[bestBitCount] = '\0';
 
