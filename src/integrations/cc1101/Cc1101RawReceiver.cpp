@@ -50,6 +50,7 @@ constexpr uint16_t MaximumPulseCount = 256;
 volatile int32_t pulses[MaximumPulseCount];
 volatile uint16_t pulseCount = 0;
 volatile uint32_t lastEdgeUs = 0;
+volatile uint32_t lastActivityUs = 0;
 volatile bool overflowed = false;
 volatile bool receiverReady = false;
 
@@ -172,11 +173,14 @@ bool configureReceiver(const SPISettings& settings) {
 void IRAM_ATTR onRawEdge() {
     // Ignore raw slicer chatter until CC1101 declares a carrier.
     if (digitalRead(CC1101_GDO2_PIN) == LOW) {
+        // Break pulse timing across periods without carrier, but keep the
+        // timestamp of the last real burst activity so loop() can close it.
         lastEdgeUs = 0;
         return;
     }
 
     const uint32_t now = micros();
+    lastActivityUs = now;
     const uint32_t previous = lastEdgeUs;
     lastEdgeUs = now;
 
@@ -232,6 +236,7 @@ bool begin() {
     receiverReady = false;
     pulseCount = 0;
     lastEdgeUs = 0;
+    lastActivityUs = 0;
     overflowed = false;
 
     pinMode(CC1101_CS_PIN, OUTPUT);
@@ -284,7 +289,7 @@ void loop() {
 
     noInterrupts();
     const uint16_t count = pulseCount;
-    const uint32_t last = lastEdgeUs;
+    const uint32_t last = lastActivityUs;
     interrupts();
 
     if (count < MinimumBurstPulses ||
@@ -308,6 +313,7 @@ void loop() {
     snapshotOverflow = overflowed;
     pulseCount = 0;
     lastEdgeUs = 0;
+    lastActivityUs = 0;
     overflowed = false;
     interrupts();
 
