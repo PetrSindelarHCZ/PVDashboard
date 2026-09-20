@@ -270,7 +270,7 @@ void IRAM_ATTR onRawEdge() {
 bool tryPrintNexusTh(const int32_t* data, uint16_t count) {
     // Nexus temperature/humidity protocol family.
     //
-    // Observed on the physical Hyundai WS Senzor 77 TH:
+    // Observed from an unidentified Nexus-TH compatible sensor in RF range:
     //   HIGH pulse ~0.45-0.56 ms
     //   LOW gap  ~1.0 ms => 0
     //   LOW gap  ~2.0 ms => 1
