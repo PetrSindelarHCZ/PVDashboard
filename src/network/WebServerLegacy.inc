@@ -783,6 +783,8 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 });
                 if (!res.ok) throw new Error('Status HTTP ' + res.status);
                 const data = await res.json();
+                window.dashboardLastStatus = data;
+                window.dispatchEvent(new CustomEvent('dashboard-status', { detail: data }));
 
                 if (data.sources) {
                     setSolarScreenVisibility(
@@ -1399,6 +1401,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
             setGithubUpdateBusy(false);
         }
 
+        window.dashboardUpdateStatus = updateStatus;
         const statusTimer = setInterval(updateStatus, 5000);
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) updateStatus();
