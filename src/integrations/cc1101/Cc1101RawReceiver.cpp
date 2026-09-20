@@ -46,7 +46,7 @@ constexpr uint32_t MinimumPulseUs = 70;
 constexpr uint32_t BurstGapUs = 18000;
 constexpr uint32_t CarrierHoldUs = 16000;
 constexpr uint16_t MinimumBurstPulses = 8;
-constexpr uint16_t MaximumPulseCount = 768;
+constexpr uint16_t MaximumPulseCount = 1536;
 
 volatile int32_t pulses[MaximumPulseCount];
 volatile uint16_t pulseCount = 0;
@@ -1203,7 +1203,7 @@ void printBurst(const int32_t* data, uint16_t count, bool wasOverflowed) {
         }
 
         Serial.printf(
-            "[CC1101][RX][NOISE] pulses=%u%s min=%lu us max=%lu us avg=%lu us short<400=%u (%.0f%%)\n",
+            "[CC1101][RX][LONG] pulses=%u%s min=%lu us max=%lu us avg=%lu us short<400=%u (%.0f%%)",
             static_cast<unsigned>(count),
             wasOverflowed ? " OVERFLOW" : "",
             static_cast<unsigned long>(minUs == 0xFFFFFFFFUL ? 0 : minUs),
@@ -1214,6 +1214,29 @@ void printBurst(const int32_t* data, uint16_t count, bool wasOverflowed) {
                 ? 100.0 * static_cast<double>(shortCount) /
                       static_cast<double>(count)
                 : 0.0);
+
+        // For protocol discovery keep a bounded raw prefix even for long
+        // captures. Repeating weather-sensor packets normally expose their
+        // timing signature within the first few dozen edges, while limiting
+        // the dump avoids multi-kilobyte serial spam.
+        constexpr uint16_t FingerprintPulseCount = 96;
+        const uint16_t fingerprintCount =
+            min<uint16_t>(count, FingerprintPulseCount);
+        Serial.print(" | head=");
+        for (uint16_t i = 0; i < fingerprintCount; ++i) {
+            if (i > 0) Serial.print(' ');
+            const int32_t pulse = data[i];
+            Serial.print(pulse >= 0 ? 'H' : 'L');
+            Serial.print(static_cast<unsigned long>(
+                pulse >= 0 ? pulse : -pulse));
+        }
+
+        if (count > fingerprintCount) {
+            Serial.printf(
+                " | omitted=%u",
+                static_cast<unsigned>(count - fingerprintCount));
+        }
+        Serial.println();
         return;
     }
 
