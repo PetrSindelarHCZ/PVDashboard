@@ -267,6 +267,193 @@ void IRAM_ATTR onRawEdge() {
 }
 
 
+bool tryPrintAuriolHg02832(const int32_t* data, uint16_t count) {
+    // Lidl/Auriol HG02832 / HG05124A-DCF family.
+    //
+    // Observed on the user's physical sensor:
+    //   preamble: L/H sync pulses around 0.8-0.9 ms,
+    //   data: 40 bits, encoded by HIGH pulse width
+    //     short HIGH ~0.25-0.30 ms = 0
+    //     long  HIGH ~0.60-0.66 ms = 1
+    //   LOW time is complementary (~0.55-0.60 ms after short HIGH,
+    //   ~0.20-0.25 ms after long HIGH).
+    //
+    // Payload:
+    //   byte0: sensor ID
+    //   byte1: humidity
+    //   byte2: battery/TX/channel flags + upper temperature nibble
+    //   byte3: lower temperature byte
+    //   byte4: checksum
+    constexpr uint32_t SyncMinUs = 700;
+    constexpr uint32_t SyncMaxUs = 1050;
+    constexpr uint32_t ShortHighMinUs = 180;
+    constexpr uint32_t ShortHighMaxUs = 380;
+    constexpr uint32_t LongHighMinUs = 480;
+    constexpr uint32_t LongHighMaxUs = 760;
+    constexpr uint32_t LowAfterShortMinUs = 430;
+    constexpr uint32_t LowAfterShortMaxUs = 780;
+    constexpr uint32_t LowAfterLongMinUs = 150;
+    constexpr uint32_t LowAfterLongMaxUs = 380;
+    constexpr uint8_t FrameBits = 40;
+
+    auto duration = [](int32_t pulse) -> uint32_t {
+        return static_cast<uint32_t>(pulse >= 0 ? pulse : -pulse);
+    };
+
+    auto crc8OneByte = [](uint8_t value) -> uint8_t {
+        uint8_t crc = 0x53;
+        crc ^= value;
+        for (uint8_t bit = 0; bit < 8; ++bit) {
+            crc = (crc & 0x80)
+                ? static_cast<uint8_t>((crc << 1) ^ 0x31)
+                : static_cast<uint8_t>(crc << 1);
+        }
+        return crc;
+    };
+
+    // Seven alternating sync-level pulses precede the first data HIGH in
+    // captures from the physical sensor: L H L H L H L.
+    for (uint16_t start = 7; start < count; ++start) {
+        if (data[start] <= 0) continue;
+
+        bool preambleOk = true;
+        for (uint8_t j = 0; j < 7; ++j) {
+            const uint16_t pos = static_cast<uint16_t>(start - 7 + j);
+            const bool expectLow = (j % 2) == 0;
+            if ((expectLow && data[pos] >= 0) ||
+                (!expectLow && data[pos] <= 0)) {
+                preambleOk = false;
+                break;
+            }
+            const uint32_t us = duration(data[pos]);
+            if (us < SyncMinUs || us > SyncMaxUs) {
+                preambleOk = false;
+                break;
+            }
+        }
+        if (!preambleOk) continue;
+
+        uint8_t bytes[5] = {0, 0, 0, 0, 0};
+        uint16_t pos = start;
+        bool frameOk = true;
+
+        for (uint8_t bit = 0; bit < FrameBits; ++bit) {
+            if (pos >= count || data[pos] <= 0) {
+                frameOk = false;
+                break;
+            }
+
+            const uint32_t highUs = duration(data[pos]);
+            bool value = false;
+            bool shortHigh = false;
+
+            if (highUs >= ShortHighMinUs && highUs <= ShortHighMaxUs) {
+                value = false;
+                shortHigh = true;
+            } else if (highUs >= LongHighMinUs && highUs <= LongHighMaxUs) {
+                value = true;
+            } else {
+                frameOk = false;
+                break;
+            }
+
+            bytes[bit / 8] <<= 1;
+            if (value) bytes[bit / 8] |= 1;
+
+            // The final HIGH may be the last pulse in the captured burst.
+            if (bit == FrameBits - 1) {
+                ++pos;
+                break;
+            }
+
+            if (pos + 1 >= count || data[pos + 1] >= 0) {
+                frameOk = false;
+                break;
+            }
+
+            const uint32_t lowUs = duration(data[pos + 1]);
+            if (shortHigh) {
+                if (lowUs < LowAfterShortMinUs ||
+                    lowUs > LowAfterShortMaxUs) {
+                    frameOk = false;
+                    break;
+                }
+            } else {
+                if (lowUs < LowAfterLongMinUs ||
+                    lowUs > LowAfterLongMaxUs) {
+                    frameOk = false;
+                    break;
+                }
+            }
+
+            pos += 2;
+        }
+
+        if (!frameOk) continue;
+
+        const uint8_t folded =
+            static_cast<uint8_t>(bytes[0] ^ bytes[1] ^ bytes[2] ^ bytes[3]);
+        const uint8_t expectedChecksum = crc8OneByte(folded);
+        if (expectedChecksum != bytes[4]) continue;
+
+        const uint8_t id = bytes[0];
+        const uint8_t humidity = bytes[1];
+        const bool batteryLow = (bytes[2] & 0x80) != 0;
+        const bool txButton = (bytes[2] & 0x40) != 0;
+        const uint8_t channel =
+            static_cast<uint8_t>(((bytes[2] & 0x30) >> 4) + 1);
+
+        const int16_t packedTemperature = static_cast<int16_t>(
+            (static_cast<uint16_t>(bytes[2] & 0x0F) << 12) |
+            (static_cast<uint16_t>(bytes[3]) << 4));
+        const int16_t temperatureDeciC = packedTemperature >> 4;
+        const float temperatureC =
+            static_cast<float>(temperatureDeciC) * 0.1f;
+
+        if (humidity > 100 ||
+            temperatureC < -60.0f ||
+            temperatureC > 80.0f) {
+            continue;
+        }
+
+        static uint32_t packetCount = 0;
+        static uint32_t lastSeenMs = 0;
+        const uint32_t nowMs = millis();
+        const uint32_t intervalMs =
+            lastSeenMs == 0 ? 0 : nowMs - lastSeenMs;
+        lastSeenMs = nowMs;
+        ++packetCount;
+
+        Serial.printf(
+            "[CC1101][AURIOL] id=0x%02X temp=%.1f C humidity=%u %% "
+            "channel=%u battery=%s tx=%s | checksum=OK packets=%lu",
+            static_cast<unsigned>(id),
+            temperatureC,
+            static_cast<unsigned>(humidity),
+            static_cast<unsigned>(channel),
+            batteryLow ? "LOW" : "OK",
+            txButton ? "ON" : "OFF",
+            static_cast<unsigned long>(packetCount));
+
+        if (intervalMs > 0) {
+            Serial.printf(
+                " interval=%.1f s",
+                static_cast<double>(intervalMs) / 1000.0);
+        }
+
+        Serial.printf(
+            " | raw=%02X %02X %02X %02X %02X\n",
+            bytes[0],
+            bytes[1],
+            bytes[2],
+            bytes[3],
+            bytes[4]);
+        return true;
+    }
+
+    return false;
+}
+
 bool tryPrintPwm67Candidate(const int32_t* data, uint16_t count) {
     constexpr uint32_t SyncLeadLowMin = 1400;
     constexpr uint32_t SyncLeadLowMax = 2400;
@@ -949,7 +1136,8 @@ void loop() {
     overflowed = false;
     interrupts();
 
-    if (!tryPrintRepeatedManchester(snapshot, snapshotCount) &&
+    if (!tryPrintAuriolHg02832(snapshot, snapshotCount) &&
+        !tryPrintRepeatedManchester(snapshot, snapshotCount) &&
         !tryPrintPwm67(snapshot, snapshotCount) &&
         !tryPrintPwm67Candidate(snapshot, snapshotCount)) {
         printBurst(snapshot, snapshotCount, snapshotOverflow);
