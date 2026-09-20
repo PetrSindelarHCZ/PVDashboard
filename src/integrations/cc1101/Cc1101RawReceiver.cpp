@@ -385,8 +385,13 @@ bool tryPrintPwm67(const int32_t* data, uint16_t count) {
         lastSeenMs = nowMs;
         ++packetCount;
 
+        const uint16_t remainingPulses =
+            pos < count ? static_cast<uint16_t>(count - pos) : 0;
+
         Serial.printf(
-            "[CC1101][PWM67] preamble=%u bits=%u data=%s",
+            "[CC1101][PWM67] burst=%u syncAt=%u preamble=%u bits=%u data=%s",
+            static_cast<unsigned>(count),
+            static_cast<unsigned>(syncStart),
             static_cast<unsigned>(preambleLows),
             static_cast<unsigned>(bitCount),
             bits);
@@ -399,7 +404,9 @@ bool tryPrintPwm67(const int32_t* data, uint16_t count) {
         }
 
         Serial.printf(
-            " | sync=L%lu H%lu L%lu | packets=%lu",
+            " | stopAt=%u remain=%u | sync=L%lu H%lu L%lu | packets=%lu",
+            static_cast<unsigned>(pos),
+            static_cast<unsigned>(remainingPulses),
             static_cast<unsigned long>(duration(syncLead)),
             static_cast<unsigned long>(duration(syncHigh)),
             static_cast<unsigned long>(duration(syncLow)),
@@ -409,6 +416,20 @@ bool tryPrintPwm67(const int32_t* data, uint16_t count) {
             Serial.printf(
                 " interval=%.1f s",
                 static_cast<double>(intervalMs) / 1000.0);
+        }
+
+        if (remainingPulses > 0) {
+            Serial.print(" | next=");
+            const uint16_t end = min<uint16_t>(
+                count,
+                static_cast<uint16_t>(pos + 12));
+            for (uint16_t j = pos; j < end; ++j) {
+                if (j > pos) Serial.print(' ');
+                const int32_t pulse = data[j];
+                Serial.print(pulse >= 0 ? 'H' : 'L');
+                Serial.print(static_cast<unsigned long>(
+                    pulse >= 0 ? pulse : -pulse));
+            }
         }
 
         Serial.println();
