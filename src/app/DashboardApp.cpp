@@ -1,6 +1,7 @@
 #include "DashboardApp.h"
 #include <math.h>
 #include "../diagnostics/Performance.h"
+#include "../integrations/cc1101/Cc1101Diagnostics.h"
 #include "../screens/ScreenStyle.h"
 #include "../../include/AppConfig.h"
 #include "../../include/Version.h"
@@ -192,6 +193,10 @@ void DashboardApp::setup() {
     Serial.printf("  %s v%s\n", FIRMWARE_NAME, FIRMWARE_VERSION);
     Serial.printf("  Build: %s\n", FIRMWARE_BUILD_DATE);
     Serial.println("==========================================");
+
+    // Verify the physically connected 433 MHz transceiver before the display
+    // takes ownership of the global SPI object with its own MISO pin.
+    Cc1101Diagnostics::probe();
 
     _configManager.begin();
 
