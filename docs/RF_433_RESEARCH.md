@@ -334,10 +334,18 @@ Při příštím testu je ideální nejprve vyfotit zadní štítek obou čidel
 (model, IAN, FCC/CE údaje, přepínač kanálu, tlačítko TX/RESET). Samotný RF test
 ale může začít i bez přesného modelu.
 
-### Hyundai – velmi silný kandidát: Hyundai WS SENZOR
+### Hyundai – fyzické čidlo je teplota + vlhkost
 
-Projekt rtl_433 obsahuje přímo dekodér **Hyundai WS SENZOR Remote Temperature
-Sensor**. Pokud fyzické Hyundai čidlo odpovídá této rodině, očekáváme:
+Fyzické Hyundai čidlo u uživatele zobrazuje **teplotu i vlhkost**. To znamená,
+že nejde považovat starý rtl_433 protokol **Hyundai WS SENZOR Remote
+Temperature Sensor** za potvrzenou shodu; ten přenáší pouze teplotu,
+battery/startup, channel a ID.
+
+Velmi pravděpodobným modelem je rodina **Hyundai WS Senzor 77 TH** nebo
+kompatibilní varianta: 433,9 MHz, CH1-CH3, teplota + vlhkost. Přesný RF formát
+zatím není známý a musí být odvozen z reálného capture.
+
+Pro srovnání starý rtl_433 Hyundai WS protokol očekává:
 
 - frekvence: **433,92 MHz**,
 - perioda vysílání: přibližně **33 s**,
@@ -503,3 +511,23 @@ Další vhodný krok před cíleným domácím testem:
 Implementaci konkrétního Hyundai decoderu je vhodné dokončit až po prvním
 cíleném capture, aby se potvrdilo, že fyzické čidlo je skutečně rodina
 Hyundai WS SENZOR a ne jiný model prodávaný pod stejnou značkou.
+
+
+### Diagnostika pro Hyundai TH
+
+Po testu, kdy LED fyzického Hyundai čidla prokazatelně blikla a experimentální
+24bitový Hyundai-WS decoder nic nenašel, byla hypotéza starého temperature-only
+protokolu oslabena.
+
+Pro další capture byl raw buffer zvětšen z **768 na 1536 pulzů**. Dlouhé bursty
+se už neoznačují automaticky jako `[NOISE]`, ale jako `[CC1101][RX][LONG]`
+a kromě statistik vypíšou prvních **96 H/L pulzů**. Cíl je získat timingový
+fingerprint neznámého Hyundai TH přenosu bez změny globálního burst framingu
+a bez zásahu do Auriol/PWM67 decoderů.
+
+Při dalším cíleném testu:
+1. sledovat bliknutí LED Hyundai,
+2. poznamenat přibližný čas,
+3. zachytit nejbližší `[LONG]` burst,
+4. porovnat opakované timingové bloky,
+5. teprve poté vytvořit skutečný WS 77 TH decoder.
