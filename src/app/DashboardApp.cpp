@@ -564,6 +564,58 @@ void DashboardApp::setup() {
         Serial.println("[CONFIG] Pocasi ulozeno a aplikovano za behu.");
     });
 
+    _webServer.onRfSensorManagement(
+        [this]() {
+            return _rfSensorManager.statusJson();
+        },
+        [this](uint32_t durationMs) {
+            _rfSensorManager.startScan(durationMs);
+            Serial.printf(
+                "[RF-SENSORS] Scan spusten na %lu s.\n",
+                static_cast<unsigned long>(durationMs / 1000UL));
+        },
+        [this](const String& bindingKey, const String& name, String& error) {
+            RfSensorsConfig updated;
+            if (!_rfSensorManager.addDiscoveredSensor(
+                    bindingKey, name, updated, error)) {
+                return false;
+            }
+            if (!_configManager.setRfSensors(updated)) {
+                error = "Konfiguraci čidla se nepodařilo uložit.";
+                return false;
+            }
+            _rfSensorManager.applyConfig(_configManager.get().rfSensors);
+            requestAutomaticDisplayRefresh();
+            return true;
+        },
+        [this](const String& slotId, const String& name, String& error) {
+            RfSensorsConfig updated;
+            if (!_rfSensorManager.renameSensor(
+                    slotId, name, updated, error)) {
+                return false;
+            }
+            if (!_configManager.setRfSensors(updated)) {
+                error = "Nový název čidla se nepodařilo uložit.";
+                return false;
+            }
+            _rfSensorManager.applyConfig(_configManager.get().rfSensors);
+            requestAutomaticDisplayRefresh();
+            return true;
+        },
+        [this](const String& slotId, String& error) {
+            RfSensorsConfig updated;
+            if (!_rfSensorManager.removeSensor(slotId, updated, error)) {
+                return false;
+            }
+            if (!_configManager.setRfSensors(updated)) {
+                error = "Čidlo se nepodařilo odebrat z konfigurace.";
+                return false;
+            }
+            _rfSensorManager.applyConfig(_configManager.get().rfSensors);
+            requestAutomaticDisplayRefresh();
+            return true;
+        });
+
     _webServer.onFactoryReset([this]() { return _configManager.resetToFactoryDefaults(); });
     _webServer.onConfigImport([this](const AppConfig& config) { return _configManager.setUserConfiguration(config); });
 
