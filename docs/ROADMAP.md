@@ -66,15 +66,27 @@ Cílem je datový layout, nikoli obecný HTML/CSS framework v ESP32.
 
 ## E — vzdálená čidla
 
-Pro delší dosah a levná venkovní čidla je plánovaný samostatný gateway:
+Pro delší dosah a levná venkovní čidla je plánovaný samostatný gateway.
+Průzkum protokolů nyní probíhá přímo na hlavním dashboardu jako vývojový
+sniffer na větvi `feature/cc1101-diagnostics`; podrobný stav je v
+[RF_433_RESEARCH.md](RF_433_RESEARCH.md).
 
-- [ ] prototyp s CC1101 433 MHz,
+- [x] ověřit CC1101 hardware, SPI komunikaci a raw ASK/OOK capture na 433,92 MHz,
+- [x] rozpoznat první reálný protokol FT017TH a dekódovat teplotu/vlhkost,
+- [x] zachytit druhou periodickou rodinu signálu (pracovní název PWM67),
+- [ ] doplnit fingerprint/seskupování všech dalších neznámých raw burstů,
+- [ ] dlouhodobým capture zmapovat další opakující se 433MHz zdroje,
+- [ ] dokončit identifikaci PWM67 a ověřit význam jeho dat,
+- [ ] dokončit neznámá pole/checksum FT017TH,
 - [ ] definovat jednoduché lokální API gateway → dashboard,
 - [ ] rozhodnout Ethernet/PoE vs Wi-Fi podle umístění,
-- [ ] integrovat první venkovní teplotní čidlo.
+- [ ] přesunout finální RF dekódování do samostatné gateway, pokud se potvrdí
+      jako vhodnější architektura,
+- [ ] integrovat první venkovní teplotní čidlo do produkčního DataModelu.
 
-Hlavní dashboard nemá být zatěžovaný průběžným dekódováním různých rádiových
-protokolů; gateway má zůstat samostatná.
+Hlavní dashboard nemá být dlouhodobě zatěžovaný průběžným dekódováním různých
+rádiových protokolů. Současné přímé připojení CC1101 slouží hlavně k jejich
+objevení a ověření; e-paper refresh navíc vytváří několikasekundové RF blackouty.
 
 ## F — historie a KPI
 
