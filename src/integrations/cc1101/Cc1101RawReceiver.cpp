@@ -294,14 +294,50 @@ bool tryPrintPwm67Candidate(const int32_t* data, uint16_t count) {
             continue;
         }
 
+        uint8_t preambleLows = 1;
+        int32_t p = static_cast<int32_t>(i) - 2;
+        while (p >= 0) {
+            const int32_t lowPulse = data[p];
+            const int32_t highPulse = data[p + 1];
+            const uint32_t lowUs = duration(lowPulse);
+            const uint32_t highUs = duration(highPulse);
+
+            if (lowPulse >= 0 || highPulse <= 0 ||
+                lowUs < 1500 || lowUs > 2300 ||
+                highUs < 450 || highUs > 1050) {
+                break;
+            }
+
+            ++preambleLows;
+            p -= 2;
+        }
+
         Serial.printf(
-            "[CC1101][PWM67?] sync candidate burst=%u at=%u "
-            "L%lu H%lu L%lu | undecoded\n",
+            "[CC1101][PWM67?] sync candidate burst=%u at=%u preamble=%u "
+            "L%lu H%lu L%lu | undecoded",
             static_cast<unsigned>(count),
             static_cast<unsigned>(i),
+            static_cast<unsigned>(preambleLows),
             static_cast<unsigned long>(leadLow),
             static_cast<unsigned long>(high),
             static_cast<unsigned long>(low));
+
+        const uint16_t dataStart = static_cast<uint16_t>(i + 3);
+        if (dataStart < count) {
+            Serial.print(" | next=");
+            const uint16_t end = min<uint16_t>(
+                count,
+                static_cast<uint16_t>(dataStart + 16));
+            for (uint16_t j = dataStart; j < end; ++j) {
+                if (j > dataStart) Serial.print(' ');
+                const int32_t pulse = data[j];
+                Serial.print(pulse >= 0 ? 'H' : 'L');
+                Serial.print(static_cast<unsigned long>(
+                    pulse >= 0 ? pulse : -pulse));
+            }
+        }
+
+        Serial.println();
         return true;
     }
 
