@@ -23,4 +23,5 @@ private:
     static uint16_t readUInt16(const uint8_t* buffer, size_t offset);
     static int32_t readInt32(const uint8_t* buffer, size_t offset);
     static uint32_t readUInt32(const uint8_t* buffer, size_t offset);
+    bool readHoldingRegisters(uint16_t startRegister, uint16_t count, uint8_t* dataOut, size_t dataCapacity, size_t& dataLength);
 };
