@@ -929,12 +929,12 @@ void DashboardWebServer::onRfSensorManagement(
             return;
         }
 
-        long durationSeconds = 30;
+        long durationSeconds = 90;
         if (_server.hasArg("durationSeconds")) {
             durationSeconds = _server.arg("durationSeconds").toInt();
         }
-        if (durationSeconds < 10) durationSeconds = 10;
-        if (durationSeconds > 120) durationSeconds = 120;
+        if (durationSeconds < 30) durationSeconds = 30;
+        if (durationSeconds > 180) durationSeconds = 180;
 
         _rfSensorScanCallback(
             static_cast<uint32_t>(durationSeconds) * 1000UL);
