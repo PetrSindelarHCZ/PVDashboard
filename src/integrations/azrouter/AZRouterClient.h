@@ -21,6 +21,7 @@ private:
     String _password;
     String _bearerToken;
     String _sessionCookie;
+    bool _loginCompleted = false;
 
     bool credentialsConfigured() const;
     void clearSession();
