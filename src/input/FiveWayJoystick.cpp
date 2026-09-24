@@ -27,6 +27,16 @@ void FiveWayJoystick::begin() {
         button.nextRepeatMs = 0;
     }
 
+    for (ControlButtonState* button : {&_setButton, &_resetButton}) {
+        pinMode(button->pin, INPUT); // GPIO34/35: externi 10k pull-up
+        const bool pressed = digitalRead(button->pin) == LOW;
+        button->rawPressed = pressed;
+        button->stablePressed = pressed;
+        button->longReported = false;
+        button->lastRawChangeMs = millis();
+        button->pressedAtMs = pressed ? millis() : 0;
+    }
+
     _started = true;
 
     Serial.printf(
@@ -41,6 +51,10 @@ void FiveWayJoystick::begin() {
         "[JOY RAW] startup | UP=%u DOWN=%u LEFT=%u RIGHT=%u OK=%u (1=released, 0=pressed)\n",
         digitalRead(UpPin), digitalRead(DownPin), digitalRead(LeftPin),
         digitalRead(RightPin), digitalRead(OkPin));
+
+    Serial.printf(
+        "[KEY RAW] startup | SET=%u RESET=%u (1=released, 0=pressed; external 10k pull-up)\n",
+        digitalRead(SetPin), digitalRead(ResetPin));
 }
 
 bool FiveWayJoystick::poll(NavigationAction& action) {
@@ -113,4 +127,68 @@ bool FiveWayJoystick::poll(NavigationAction& action) {
     action = eventAction;
     Serial.printf("[JOY ACTION] %s\n", navigationActionName(action));
     return true;
+}
+
+
+bool FiveWayJoystick::pollControl(ControlAction& action) {
+    action = ControlAction::None;
+    if (!_started) return false;
+
+    const unsigned long now = millis();
+    ControlButtonState* buttons[2] = {&_setButton, &_resetButton};
+
+    for (ControlButtonState* button : buttons) {
+        const bool pressed = digitalRead(button->pin) == LOW;
+
+        if (pressed != button->rawPressed) {
+            button->rawPressed = pressed;
+            button->lastRawChangeMs = now;
+            Serial.printf("[KEY RAW] %s GPIO%u -> %s at %lu ms\n",
+                          button->name,
+                          static_cast<unsigned>(button->pin),
+                          levelName(pressed),
+                          now);
+        }
+
+        if (button->stablePressed != button->rawPressed &&
+            now - button->lastRawChangeMs >= DebounceMs) {
+            button->stablePressed = button->rawPressed;
+            Serial.printf("[KEY DEBOUNCED] %s -> %s\n",
+                          button->name,
+                          button->stablePressed ? "PRESSED" : "RELEASED");
+
+            if (button->stablePressed) {
+                button->pressedAtMs = now;
+                button->longReported = false;
+            } else {
+                const bool wasLong = button->longReported;
+                button->pressedAtMs = 0;
+                button->longReported = false;
+
+                if (!wasLong) {
+                    if (button == &_setButton) {
+                        action = ControlAction::SetShort;
+                        Serial.println("[KEY] SET short");
+                    } else {
+                        action = ControlAction::ResetShort;
+                        Serial.println("[KEY] RESET short");
+                    }
+                    return true;
+                }
+            }
+        }
+
+        if (button == &_setButton &&
+            button->stablePressed &&
+            !button->longReported &&
+            button->pressedAtMs != 0 &&
+            now - button->pressedAtMs >= LongPressMs) {
+            button->longReported = true;
+            action = ControlAction::SetLong;
+            Serial.println("[KEY] SET long");
+            return true;
+        }
+    }
+
+    return false;
 }
