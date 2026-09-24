@@ -1,5 +1,22 @@
 #include "FiveWayJoystick.h"
 
+namespace {
+const char* buttonName(NavigationAction action) {
+    switch (action) {
+        case NavigationAction::Up: return "UP";
+        case NavigationAction::Down: return "DOWN";
+        case NavigationAction::Left: return "LEFT";
+        case NavigationAction::Right: return "RIGHT";
+        case NavigationAction::Ok: return "OK";
+        default: return "?";
+    }
+}
+
+const char* levelName(bool pressed) {
+    return pressed ? "LOW/PRESSED" : "HIGH/RELEASED";
+}
+}
+
 void FiveWayJoystick::begin() {
     for (auto& button : _buttons) {
         pinMode(button.pin, INPUT_PULLUP);
@@ -13,12 +30,17 @@ void FiveWayJoystick::begin() {
     _started = true;
 
     Serial.printf(
-        "[JOY] Aktivni LOW, INPUT_PULLUP | UP=%u DOWN=%u LEFT=%u RIGHT=%u OK=%u\n",
+        "[JOY] Active LOW, INPUT_PULLUP | UP=%u DOWN=%u LEFT=%u RIGHT=%u OK=%u\n",
         static_cast<unsigned>(UpPin),
         static_cast<unsigned>(DownPin),
         static_cast<unsigned>(LeftPin),
         static_cast<unsigned>(RightPin),
         static_cast<unsigned>(OkPin));
+
+    Serial.printf(
+        "[JOY RAW] startup | UP=%u DOWN=%u LEFT=%u RIGHT=%u OK=%u (1=released, 0=pressed)\n",
+        digitalRead(UpPin), digitalRead(DownPin), digitalRead(LeftPin),
+        digitalRead(RightPin), digitalRead(OkPin));
 }
 
 bool FiveWayJoystick::poll(NavigationAction& action) {
@@ -34,12 +56,24 @@ bool FiveWayJoystick::poll(NavigationAction& action) {
         if (pressed != button.rawPressed) {
             button.rawPressed = pressed;
             button.lastRawChangeMs = now;
+            Serial.printf(
+                "[JOY RAW] %s GPIO%u -> %s at %lu ms\n",
+                buttonName(button.action),
+                static_cast<unsigned>(button.pin),
+                levelName(pressed),
+                now);
         }
 
         if (button.stablePressed == button.rawPressed) continue;
         if (now - button.lastRawChangeMs < DebounceMs) continue;
 
         button.stablePressed = button.rawPressed;
+
+        Serial.printf(
+            "[JOY DEBOUNCED] %s GPIO%u -> %s\n",
+            buttonName(button.action),
+            static_cast<unsigned>(button.pin),
+            button.stablePressed ? "PRESSED" : "RELEASED");
 
         if (button.stablePressed) {
             button.nextRepeatMs = now + RepeatDelayMs;
@@ -66,6 +100,10 @@ bool FiveWayJoystick::poll(NavigationAction& action) {
             button.nextRepeatMs = now + RepeatIntervalMs;
             eventReady = true;
             eventAction = button.action;
+            Serial.printf(
+                "[JOY REPEAT] %s GPIO%u\n",
+                buttonName(button.action),
+                static_cast<unsigned>(button.pin));
             break;
         }
     }
@@ -73,6 +111,6 @@ bool FiveWayJoystick::poll(NavigationAction& action) {
     if (!eventReady) return false;
 
     action = eventAction;
-    Serial.printf("[JOY] %s\n", navigationActionName(action));
+    Serial.printf("[JOY ACTION] %s\n", navigationActionName(action));
     return true;
 }
