@@ -1053,8 +1053,20 @@ void DashboardApp::loop() {
     _timeService.loop();
     _webServer.loop();
 
+    const DisplayTaskStatus displayStatus = _displayWorker.getStatus();
+    const bool displayElectricallyActive =
+        displayStatus.state == DisplayTaskState::Initializing ||
+        displayStatus.state == DisplayTaskState::RenderingPartial ||
+        displayStatus.state == DisplayTaskState::RenderingFull;
+
+    // The 7.5" e-paper refresh can couple noise into exposed GPIO lines
+    // (GPIO18/RIGHT was observed doing this in practice). Do not sample any
+    // physical buttons while the panel is electrically active; otherwise a
+    // short false LOW can enter the debounce/repeat state machine and queue
+    // another navigation/render while the current refresh is still running.
     NavigationAction joystickAction;
-    const bool joystickEvent = _joystick.poll(joystickAction);
+    const bool joystickEvent =
+        !displayElectricallyActive && _joystick.poll(joystickAction);
     if (joystickEvent && _displayEnabled) {
         const NavigationState previousNavigation =
             _navigationController.getState();
@@ -1103,7 +1115,7 @@ void DashboardApp::loop() {
     }
 
     ControlAction controlAction;
-    if (_joystick.pollControl(controlAction)) {
+    if (!displayElectricallyActive && _joystick.pollControl(controlAction)) {
         switch (controlAction) {
             case ControlAction::SetLong:
                 setDisplayEnabled(!_displayEnabled);
@@ -1126,12 +1138,6 @@ void DashboardApp::loop() {
         if (_displayWorkerStarted) _lastDisplayUpdate = millis();
     }
 
-    const DisplayTaskStatus displayStatus = _displayWorker.getStatus();
-
-    const bool displayElectricallyActive =
-        displayStatus.state == DisplayTaskState::Initializing ||
-        displayStatus.state == DisplayTaskState::RenderingPartial ||
-        displayStatus.state == DisplayTaskState::RenderingFull;
     Cc1101RawReceiver::setSuppressed(displayElectricallyActive);
     Cc1101RawReceiver::loop();
     _rfSensorManager.loop();
