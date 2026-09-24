@@ -71,6 +71,16 @@ bool FiveWayJoystick::poll(NavigationAction& action) {
         if (pressed != button.rawPressed) {
             button.rawPressed = pressed;
             button.lastRawChangeMs = now;
+
+            // Cancel key repeat as soon as the electrical release is seen.
+            // Do not wait for the debounced release: an e-paper refresh can
+            // start before DebounceMs elapses and otherwise leave
+            // stablePressed=true with an overdue repeat timer, causing one
+            // physical click to advance repeatedly after each refresh.
+            if (!pressed) {
+                button.nextRepeatMs = 0;
+            }
+
             Serial.printf(
                 "[JOY RAW] %s GPIO%u -> %s at %lu ms\n",
                 buttonName(button.action),
@@ -105,7 +115,8 @@ bool FiveWayJoystick::poll(NavigationAction& action) {
     // accidental repeated activation.
     if (!eventReady) {
         for (auto& button : _buttons) {
-            if (!button.stablePressed ||
+            if (!button.rawPressed ||
+                !button.stablePressed ||
                 button.action == NavigationAction::Ok ||
                 button.nextRepeatMs == 0 ||
                 static_cast<long>(now - button.nextRepeatMs) < 0) {
