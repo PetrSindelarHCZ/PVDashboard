@@ -24,6 +24,14 @@
 #include "../integrations/bme280/Bme280Sensor.h"
 #include "../integrations/cc1101/RfSensorManager.h"
 
+class BlankDisplayScreen : public IScreen {
+public:
+    String getId() const override { return "__blank__"; }
+    String getTitle() const override { return ""; }
+    bool isSidebarEntry() const override { return false; }
+    void render(IDisplay&, const DataModel&) override {}
+};
+
 class DashboardApp {
 public:
     DashboardApp();
@@ -43,6 +51,7 @@ private:
     ScreenManager _screenManager;
     NavigationController _navigationController;
     FiveWayJoystick _joystick;
+    BlankDisplayScreen _blankDisplayScreen;
 
     HomeScreen _homeScreen;
     SolarScreen _solarScreen;
@@ -70,6 +79,8 @@ private:
     // so both do not compete for scarce internal Wi-Fi/TLS buffers.
     SemaphoreHandle_t _networkClientGate = nullptr;
 
+    bool _displayEnabled = true;
+    bool _pendingBlankDisplay = false;
     bool _pendingRefresh = false;
     bool _pendingFullRefresh = false;
     bool _displayWorkerStarted = false;
@@ -106,6 +117,8 @@ private:
                                          const DisplayRegion* region = nullptr,
                                          bool capturePreview = true);
     void requestAutomaticDisplayRefresh();
+    void setDisplayEnabled(bool enabled);
+    void resetUiToHome();
     void onScreenSwitchRequested(const String& screenId);
     void onRefreshRequested(bool full);
     void onNavigationSubpageChanged(const String& screenId, uint8_t subpageIndex);
