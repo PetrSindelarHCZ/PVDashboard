@@ -35,6 +35,11 @@
 #define JOY_RIGHT_PIN  18
 #define JOY_OK_PIN     33
 
+// Doplňková tlačítka mají externí 10k pull-up na 3.3 V.
+// GPIO34/35 na ESP32 nemají interní pull-up.
+#define JOY_SET_PIN    34
+#define JOY_RESET_PIN  35
+
 // ==========================================
 // Rozměry displeje
 // ==========================================
