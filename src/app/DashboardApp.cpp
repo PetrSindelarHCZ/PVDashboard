@@ -1054,7 +1054,8 @@ void DashboardApp::loop() {
     _webServer.loop();
 
     NavigationAction joystickAction;
-    if (_joystick.poll(joystickAction)) {
+    const bool joystickEvent = _joystick.poll(joystickAction);
+    if (joystickEvent && _displayEnabled) {
         const NavigationState previousNavigation =
             _navigationController.getState();
         NavigationLayout previousLayout;
