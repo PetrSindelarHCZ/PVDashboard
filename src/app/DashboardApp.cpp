@@ -812,6 +812,8 @@ void DashboardApp::setWeatherScreensEnabled(bool enabled) {
 }
 
 void DashboardApp::requestDisplayRefresh(bool full, unsigned long delayMs) {
+    if (!_displayEnabled) return;
+
     _pendingRefresh = true;
     _pendingFullRefresh = _pendingFullRefresh || full;
 
@@ -832,6 +834,8 @@ void DashboardApp::requestNavigationDisplayRefresh(
     unsigned long delayMs,
     const DisplayRegion* region,
     bool capturePreview) {
+
+    if (!_displayEnabled) return;
 
     const bool hadPending = _pendingRefresh;
     _pendingRefresh = true;
@@ -869,6 +873,8 @@ void DashboardApp::requestNavigationDisplayRefresh(
 }
 
 void DashboardApp::requestAutomaticDisplayRefresh() {
+    if (!_displayEnabled) return;
+
     unsigned long delayMs = 0;
     if (_lastScreenRender != 0) {
         const unsigned long elapsed = millis() - _lastScreenRender;
@@ -876,6 +882,39 @@ void DashboardApp::requestAutomaticDisplayRefresh() {
         if (elapsed < CoalesceWindowMs) delayMs = CoalesceWindowMs - elapsed;
     }
     requestDisplayRefresh(false, delayMs);
+}
+
+void DashboardApp::setDisplayEnabled(bool enabled) {
+    if (_displayEnabled == enabled) return;
+
+    _displayEnabled = enabled;
+    _pendingRefresh = true;
+    _pendingFullRefresh = true;
+    _pendingDisplayRegionValid = false;
+    _pendingCapturePreview = false;
+    _displayRefreshNotBefore = millis();
+
+    if (!enabled) {
+        _pendingBlankDisplay = true;
+        Serial.println("[DISPLAY] soft OFF -> full white erase requested");
+    } else {
+        _pendingBlankDisplay = false;
+        _pendingCapturePreview = true;
+        Serial.println("[DISPLAY] soft ON -> full redraw requested");
+    }
+}
+
+void DashboardApp::resetUiToHome() {
+    if (!_screenManager.activateScreen("home")) {
+        Serial.println("[KEY] RESET: Home screen is not available.");
+        return;
+    }
+
+    _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
+    _navigationController.syncToActiveScreen(false);
+    syncWeatherDisplayForActiveScreen(false);
+    Serial.println("[KEY] RESET: UI -> Home/sidebar");
+    requestNavigationDisplayRefresh(false, 40UL, nullptr, false);
 }
 
 void DashboardApp::onScreenSwitchRequested(const String& screenId) {
@@ -1062,6 +1101,23 @@ void DashboardApp::loop() {
         }
     }
 
+    ControlAction controlAction;
+    if (_joystick.pollControl(controlAction)) {
+        switch (controlAction) {
+            case ControlAction::SetLong:
+                setDisplayEnabled(!_displayEnabled);
+                break;
+            case ControlAction::ResetShort:
+                resetUiToHome();
+                break;
+            case ControlAction::SetShort:
+                // Reserved for a future context/settings action.
+                break;
+            case ControlAction::None:
+                break;
+        }
+    }
+
     const bool displayInitDelayElapsed = static_cast<long>(millis() - _displayInitNotBefore) >= 0;
     const bool displayInitFallbackElapsed = static_cast<long>(millis() - _displayInitNotBefore) >= 5000;
     if (!_displayWorkerStarted && displayInitDelayElapsed && (_timeService.isSynced() || displayInitFallbackElapsed)) {
@@ -1158,14 +1214,20 @@ void DashboardApp::loop() {
         const DisplayRegion* region =
             _pendingDisplayRegionValid ? &_pendingDisplayRegion : nullptr;
 
+        IScreen* screenToRender =
+            _pendingBlankDisplay
+                ? static_cast<IScreen*>(&_blankDisplayScreen)
+                : _screenManager.getActiveScreen();
+
         if (_displayWorker.enqueue(
-                _screenManager.getActiveScreen(),
+                screenToRender,
                 _dataModel,
                 _pendingFullRefresh,
                 region,
                 _pendingCapturePreview)) {
             _pendingRefresh = false;
             _pendingFullRefresh = false;
+            _pendingBlankDisplay = false;
             _pendingDisplayRegionValid = false;
             _pendingCapturePreview = true;
             _displayRefreshNotBefore = 0;
