@@ -27,11 +27,12 @@
 // ==========================================
 // Pětisměrný navigační ovladač
 // Tlačítka spínají GPIO proti GND (active LOW)
+// Fyzické zapojení je vůči původnímu mapování otočené o 180°.
 // ==========================================
-#define JOY_UP_PIN     16
-#define JOY_DOWN_PIN   17
-#define JOY_LEFT_PIN   18
-#define JOY_RIGHT_PIN  32
+#define JOY_UP_PIN     17
+#define JOY_DOWN_PIN   16
+#define JOY_LEFT_PIN   32
+#define JOY_RIGHT_PIN  18
 #define JOY_OK_PIN     33
 
 // ==========================================
