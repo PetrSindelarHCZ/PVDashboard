@@ -4,6 +4,13 @@
 #include "../navigation/NavigationTypes.h"
 #include "../../include/AppConfig.h"
 
+enum class ControlAction : uint8_t {
+    None,
+    SetShort,
+    SetLong,
+    ResetShort
+};
+
 class FiveWayJoystick {
 public:
     static constexpr uint8_t UpPin = JOY_UP_PIN;
@@ -11,7 +18,10 @@ public:
     static constexpr uint8_t LeftPin = JOY_LEFT_PIN;
     static constexpr uint8_t RightPin = JOY_RIGHT_PIN;
     static constexpr uint8_t OkPin = JOY_OK_PIN;
+    static constexpr uint8_t SetPin = JOY_SET_PIN;
+    static constexpr uint8_t ResetPin = JOY_RESET_PIN;
     static constexpr uint32_t DebounceMs = 20;
+    static constexpr uint32_t LongPressMs = 2500;
     static constexpr uint32_t RepeatDelayMs = 450;
     static constexpr uint32_t RepeatIntervalMs = 140;
 
@@ -19,6 +29,7 @@ public:
 
     // Returns true once for each debounced button press.
     bool poll(NavigationAction& action);
+    bool pollControl(ControlAction& action);
 
 private:
     struct ButtonState {
@@ -41,5 +52,17 @@ private:
         {OkPin, NavigationAction::Ok}
     };
 
+    struct ControlButtonState {
+        uint8_t pin;
+        const char* name;
+        bool rawPressed = false;
+        bool stablePressed = false;
+        bool longReported = false;
+        unsigned long lastRawChangeMs = 0;
+        unsigned long pressedAtMs = 0;
+    };
+
+    ControlButtonState _setButton = {SetPin, "SET"};
+    ControlButtonState _resetButton = {ResetPin, "RESET"};
     bool _started = false;
 };
