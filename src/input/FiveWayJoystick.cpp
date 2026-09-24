@@ -27,7 +27,8 @@ void FiveWayJoystick::begin() {
         button.nextRepeatMs = 0;
     }
 
-    for (ControlButtonState* button : {&_setButton, &_resetButton}) {
+    ControlButtonState* controlButtons[2] = {&_setButton, &_resetButton};
+    for (ControlButtonState* button : controlButtons) {
         pinMode(button->pin, INPUT); // GPIO34/35: externi 10k pull-up
         const bool pressed = digitalRead(button->pin) == LOW;
         button->rawPressed = pressed;
