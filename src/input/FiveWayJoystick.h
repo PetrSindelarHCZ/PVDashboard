@@ -53,6 +53,9 @@ private:
     };
 
     struct ControlButtonState {
+        ControlButtonState(uint8_t pinValue, const char* nameValue)
+            : pin(pinValue), name(nameValue) {}
+
         uint8_t pin;
         const char* name;
         bool rawPressed = false;
@@ -62,7 +65,7 @@ private:
         unsigned long pressedAtMs = 0;
     };
 
-    ControlButtonState _setButton = {SetPin, "SET"};
-    ControlButtonState _resetButton = {ResetPin, "RESET"};
+    ControlButtonState _setButton{SetPin, "SET"};
+    ControlButtonState _resetButton{ResetPin, "RESET"};
     bool _started = false;
 };
