@@ -932,6 +932,9 @@ bool DashboardApp::handleNavigationAction(
 
     const NavigationState currentNavigation =
         _navigationController.getState();
+    const bool subpageChanged =
+        previousNavigation.subpageIndex != currentNavigation.subpageIndex;
+
     NavigationLayout currentLayout;
     if (currentNavigation.area == NavigationArea::Page) {
         _navigationController.buildCurrentLayout(currentLayout);
@@ -946,12 +949,12 @@ bool DashboardApp::handleNavigationAction(
             currentNavigation,
             currentLayout);
 
-    if (_navigationInputFullRefresh) {
-        // A different screen may have a completely different black/white
-        // pattern. On this 7.5" panel, full-window differential partial
-        // updates leave ghosts and can corrupt complex screens such as FVE.
-        // Keep partial refresh for navigation inside the same screen, but use
-        // the cleaning full transition whenever the active screen changes.
+    if (_navigationInputFullRefresh || subpageChanged) {
+        // A different screen or pager subpage can replace most of the panel
+        // with a different black/white pattern. On this 7.5" panel,
+        // full-window differential partial updates leave visible ghosts and
+        // can corrupt complex FVE pages. Keep regional partial refresh only
+        // for focus/navigation changes inside the same subpage.
         requestNavigationDisplayRefresh(
             true, 40UL, nullptr, capturePreview);
     } else {
