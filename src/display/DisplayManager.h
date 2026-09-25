@@ -20,5 +20,4 @@ private:
     IDisplay& _display;
     DisplayPreview* _preview = nullptr;
     bool _forceFullRefresh = true;
-    String _lastScreenId;
 };
