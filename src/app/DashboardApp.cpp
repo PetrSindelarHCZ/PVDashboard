@@ -1192,6 +1192,10 @@ void DashboardApp::loop() {
         displayStatus.state == DisplayTaskState::Initializing ||
         displayStatus.state == DisplayTaskState::RenderingPartial ||
         displayStatus.state == DisplayTaskState::RenderingFull;
+    const bool displayRfSuppressed =
+        displayElectricallyActive ||
+        displayStatus.state == DisplayTaskState::Queued ||
+        displayStatus.pending;
 
     // The 7.5" e-paper refresh can couple noise into exposed GPIO lines
     // (GPIO18/RIGHT was observed doing this in practice). Do not sample any
@@ -1217,7 +1221,7 @@ void DashboardApp::loop() {
         if (_displayWorkerStarted) _lastDisplayUpdate = millis();
     }
 
-    Cc1101RawReceiver::setSuppressed(displayElectricallyActive);
+    Cc1101RawReceiver::setSuppressed(displayRfSuppressed);
     Cc1101RawReceiver::loop();
     _rfSensorManager.loop();
     if (displayStatus.lastCompletedMs != 0 && displayStatus.lastCompletedMs != _lastScreenRender) {
@@ -1304,6 +1308,12 @@ void DashboardApp::loop() {
             _pendingBlankDisplay
                 ? static_cast<IScreen*>(&_blankDisplayScreen)
                 : _screenManager.getActiveScreen();
+
+        // Isolate the shared SPI/display timing before the worker can start
+        // rendering. Waiting for the next loop iteration would leave a short
+        // race where CC1101 GDO0 interrupts are still attached during the
+        // first bytes of the e-paper transfer.
+        Cc1101RawReceiver::setSuppressed(true);
 
         if (_displayWorker.enqueue(
                 screenToRender,
