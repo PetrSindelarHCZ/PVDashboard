@@ -200,10 +200,44 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
         });
     }
 
+    function captureEditorState() {
+        const active = document.activeElement;
+        if (!(active instanceof HTMLInputElement)) return null;
+
+        const slotId = active.dataset.rfName;
+        const discoveredIndex = active.dataset.rfDiscoveredName;
+        if (slotId === undefined && discoveredIndex === undefined) return null;
+
+        return {
+            kind: slotId !== undefined ? 'configured' : 'discovered',
+            key: slotId !== undefined ? slotId : discoveredIndex,
+            value: active.value,
+            selectionStart: active.selectionStart,
+            selectionEnd: active.selectionEnd
+        };
+    }
+
+    function restoreEditorState(editor) {
+        if (!editor) return;
+        const selector = editor.kind === 'configured'
+            ? '[data-rf-name="' + CSS.escape(editor.key) + '"]'
+            : '[data-rf-discovered-name="' + CSS.escape(editor.key) + '"]';
+        const input = document.querySelector(selector);
+        if (!(input instanceof HTMLInputElement) || input.disabled) return;
+
+        input.value = editor.value;
+        input.focus({preventScroll:true});
+        if (editor.selectionStart !== null && editor.selectionEnd !== null) {
+            input.setSelectionRange(editor.selectionStart, editor.selectionEnd);
+        }
+    }
+
     function renderState(state) {
+        const editor = captureEditorState();
         lastState = state || {};
         renderConfigured(lastState.configured || []);
         renderDiscovered(lastState.discovered || []);
+        restoreEditorState(editor);
 
         const status = document.getElementById('rfSensorScanState');
         const button = document.getElementById('rfSensorScanButton');
