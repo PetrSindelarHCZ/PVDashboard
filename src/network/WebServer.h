@@ -40,6 +40,8 @@ public:
         std::function<bool(const String& bindingKey, const String& name, String& error)>;
     using RfSensorRenameCallback =
         std::function<bool(const String& slotId, const String& name, String& error)>;
+    using RfSensorRebindCallback =
+        std::function<bool(const String& slotId, const String& bindingKey, String& error)>;
     using RfSensorRemoveCallback =
         std::function<bool(const String& slotId, String& error)>;
 
@@ -324,6 +326,7 @@ public:
         RfSensorScanCallback scanCallback,
         RfSensorAddCallback addCallback,
         RfSensorRenameCallback renameCallback,
+        RfSensorRebindCallback rebindCallback,
         RfSensorRemoveCallback removeCallback);
 
 private:
@@ -356,6 +359,7 @@ private:
     RfSensorScanCallback _rfSensorScanCallback;
     RfSensorAddCallback _rfSensorAddCallback;
     RfSensorRenameCallback _rfSensorRenameCallback;
+    RfSensorRebindCallback _rfSensorRebindCallback;
     RfSensorRemoveCallback _rfSensorRemoveCallback;
     OtaManager _otaManager;
     String _githubUpdateVersion;
