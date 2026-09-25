@@ -1609,12 +1609,12 @@ bool tryPrintHyundaiR50(const int32_t* data, uint16_t count) {
     // HIGH ~0.48 ms; LOW ~0.98 ms => 0, ~1.95 ms => 1, sync ~3-6 ms.
     // 36-bit payload: [ID:9][CH:2][TEMP:13][FLAGS:4][HUM:8].
     // CH 00/01/10 => 1/2/3; TEMP raw/20 C; HUM raw/2 %RH.
-    // FLAGS are deliberately uninterpreted (0xE observed so far).
+    // FLAGS are deliberately uninterpreted (0xE observed so far).\n    // Require a strong repeated burst: genuine R50 captures consistently contain\n    // 7 RF repeats (seen here as up to 8 matching 36/37-bit rows), while a\n    // partial NEXUS burst previously produced a 3-row false positive.
     constexpr uint32_t PulseMinUs=350, PulseMaxUs=700;
     constexpr uint32_t ZeroGapMinUs=700, ZeroGapMaxUs=1400;
     constexpr uint32_t OneGapMinUs=1600, OneGapMaxUs=2500;
     constexpr uint32_t SyncGapMinUs=2800, SyncGapMaxUs=6000;
-    constexpr uint8_t MaximumRows=16, MinimumRepeats=3;
+    constexpr uint8_t MaximumRows=16, MinimumRepeats=5;
     auto duration=[](int32_t p)->uint32_t { return static_cast<uint32_t>(p>=0?p:-p); };
     uint64_t rows[MaximumRows]={}; uint8_t rowBits[MaximumRows]={};
     uint8_t rowCount=0; uint64_t current=0; uint8_t currentBits=0;
