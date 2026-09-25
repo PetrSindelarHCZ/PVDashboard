@@ -11,6 +11,13 @@ enum class NavigationAction : uint8_t {
     Ok
 };
 
+enum class ControlAction : uint8_t {
+    None,
+    SetShort,
+    SetLong,
+    ResetShort
+};
+
 enum class NavigationArea : uint8_t {
     Sidebar,
     Pager,
@@ -36,6 +43,35 @@ inline bool parseNavigationAction(String value, NavigationAction& action) {
     if (value == "left") { action = NavigationAction::Left; return true; }
     if (value == "right") { action = NavigationAction::Right; return true; }
     if (value == "ok" || value == "enter") { action = NavigationAction::Ok; return true; }
+    return false;
+}
+
+inline const char* controlActionName(ControlAction action) {
+    switch (action) {
+        case ControlAction::SetShort: return "set-short";
+        case ControlAction::SetLong: return "set-long";
+        case ControlAction::ResetShort: return "reset-short";
+        case ControlAction::None: return "none";
+    }
+    return "none";
+}
+
+inline bool parseControlAction(String value, ControlAction& action) {
+    value.trim();
+    value.toLowerCase();
+    if (value == "set" || value == "set-short") {
+        action = ControlAction::SetShort;
+        return true;
+    }
+    if (value == "set-long") {
+        action = ControlAction::SetLong;
+        return true;
+    }
+    if (value == "reset" || value == "reset-short") {
+        action = ControlAction::ResetShort;
+        return true;
+    }
+    action = ControlAction::None;
     return false;
 }
 
