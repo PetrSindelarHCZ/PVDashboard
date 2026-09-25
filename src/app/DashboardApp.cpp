@@ -947,11 +947,13 @@ bool DashboardApp::handleNavigationAction(
             currentLayout);
 
     if (_navigationInputFullRefresh) {
-        // Screen changes stay interactive: use a full-window differential
-        // partial refresh. Startup/manual maintenance keeps the slow cleaning
-        // full refresh path.
+        // A different screen may have a completely different black/white
+        // pattern. On this 7.5" panel, full-window differential partial
+        // updates leave ghosts and can corrupt complex screens such as FVE.
+        // Keep partial refresh for navigation inside the same screen, but use
+        // the cleaning full transition whenever the active screen changes.
         requestNavigationDisplayRefresh(
-            false, 40UL, nullptr, capturePreview);
+            true, 40UL, nullptr, capturePreview);
     } else {
         requestNavigationDisplayRefresh(
             false,
@@ -1011,7 +1013,7 @@ bool DashboardApp::resetUiToHome(bool capturePreview) {
     _navigationController.syncToActiveScreen(false);
     syncWeatherDisplayForActiveScreen(false);
     Serial.println("[KEY] RESET: UI -> Home/sidebar");
-    requestNavigationDisplayRefresh(false, 40UL, nullptr, capturePreview);
+    requestNavigationDisplayRefresh(true, 40UL, nullptr, capturePreview);
     return true;
 }
 
