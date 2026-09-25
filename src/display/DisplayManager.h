@@ -15,6 +15,7 @@ public:
                       const DisplayRegion* partialRegion = nullptr,
                       bool capturePreview = true);
     void requestRefresh(bool full = false);
+    void powerOff();
 
 private:
     IDisplay& _display;
