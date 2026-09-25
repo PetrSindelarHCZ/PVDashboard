@@ -1657,11 +1657,15 @@ bool tryPrintHyundaiR50(const int32_t* data, uint16_t count) {
 
     const uint16_t sensorId=static_cast<uint16_t>((bestPayload>>27)&0x1FF);
     const uint8_t channelCode=static_cast<uint8_t>((bestPayload>>25)&0x03);
-    const uint16_t tempRaw=static_cast<uint16_t>((bestPayload>>12)&0x1FFF);
+    const uint16_t tempRaw13=static_cast<uint16_t>((bestPayload>>12)&0x1FFF);
     const uint8_t flags=static_cast<uint8_t>((bestPayload>>8)&0x0F);
     const uint8_t humidityRaw=static_cast<uint8_t>(bestPayload&0xFF);
     if (channelCode>2) return false;
-    const float temperatureC=static_cast<float>(tempRaw)/20.0f;
+    // Controlled freezer capture confirms TEMP is signed 13-bit two's
+    // complement with 0.05 C resolution: 0x1FFF=-0.05 C, 0x0003=+0.15 C.
+    int16_t signedTempRaw=static_cast<int16_t>(tempRaw13);
+    if ((signedTempRaw&0x1000)!=0) signedTempRaw-=0x2000;
+    const float temperatureC=static_cast<float>(signedTempRaw)/20.0f;
     const float humidityPercent=static_cast<float>(humidityRaw)/2.0f;
     if (temperatureC < -60.0f || temperatureC > 80.0f || humidityPercent > 100.0f) return false;
     const uint8_t channel=static_cast<uint8_t>(channelCode+1);
