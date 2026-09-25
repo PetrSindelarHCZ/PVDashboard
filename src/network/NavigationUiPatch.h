@@ -38,6 +38,29 @@ static const char NAVIGATION_UI_PATCH[] PROGMEM = R"rawliteral(
 .navigation-key[data-nav-action="ok"] { grid-column: 2; grid-row: 2; }
 .navigation-key[data-nav-action="right"] { grid-column: 3; grid-row: 2; }
 .navigation-key[data-nav-action="down"] { grid-column: 2; grid-row: 3; }
+
+.navigation-input-block {
+    display: grid;
+    gap: 12px;
+    justify-items: center;
+}
+.navigation-control-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(88px, 1fr));
+    gap: 10px;
+    width: min(100%, 210px);
+}
+.navigation-control-key {
+    min-height: 44px;
+    justify-content: center;
+    font-weight: 700;
+    user-select: none;
+    touch-action: none;
+}
+.navigation-control-key.is-held {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
 .navigation-state {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -62,6 +85,9 @@ static const char NAVIGATION_UI_PATCH[] PROGMEM = R"rawliteral(
 (() => {
     let navigationInstalled = false;
     let navigationRequestInFlight = false;
+    let setHoldTimer = null;
+    let setLongSent = false;
+    let suppressSetClick = false;
 
     const navigationLabels = {
         sidebar: 'Sidebar',
@@ -131,6 +157,38 @@ static const char NAVIGATION_UI_PATCH[] PROGMEM = R"rawliteral(
         }
     }
 
+    function beginSetHold(event) {
+        if (navigationRequestInFlight) return;
+        const button = event.currentTarget;
+        suppressSetClick = false;
+        setLongSent = false;
+        button.classList.add('is-held');
+        if (button.setPointerCapture && event.pointerId !== undefined) {
+            try { button.setPointerCapture(event.pointerId); } catch (_) {}
+        }
+        clearTimeout(setHoldTimer);
+        setHoldTimer = setTimeout(() => {
+            setHoldTimer = null;
+            setLongSent = true;
+            suppressSetClick = true;
+            button.classList.remove('is-held');
+            sendNavigationAction('set-long');
+        }, 2500);
+    }
+
+    function finishSetHold(event) {
+        const button = event.currentTarget;
+        button.classList.remove('is-held');
+        if (setHoldTimer !== null) {
+            clearTimeout(setHoldTimer);
+            setHoldTimer = null;
+            if (!setLongSent) {
+                suppressSetClick = true;
+                sendNavigationAction('set-short');
+            }
+        }
+    }
+
     function installNavigationControls() {
         if (navigationInstalled || document.getElementById('navigationControlCard')) return;
         const target = document.querySelector('.view-screens .section-grid');
@@ -147,16 +205,22 @@ static const char NAVIGATION_UI_PATCH[] PROGMEM = R"rawliteral(
             <div class="card-title-row">
                 <div>
                     <div class="card-title">Navigace displeje</div>
-                    <div class="field-help">Softwarový ekvivalent budoucího pětisměrného joysticku.</div>
+                    <div class="field-help">Stejná ovládací logika jako fyzický pětisměrný ovladač + SET/RESET.</div>
                 </div>
             </div>
             <div class="navigation-shell">
-                <div class="navigation-pad" aria-label="Navigace displeje">
-                    <button class="btn btn-secondary navigation-key" type="button" data-nav-action="up" aria-label="Nahoru">▲</button>
-                    <button class="btn btn-secondary navigation-key" type="button" data-nav-action="left" aria-label="Doleva">◀</button>
-                    <button class="btn btn-primary navigation-key nav-ok" type="button" data-nav-action="ok" aria-label="OK">OK</button>
-                    <button class="btn btn-secondary navigation-key" type="button" data-nav-action="right" aria-label="Doprava">▶</button>
-                    <button class="btn btn-secondary navigation-key" type="button" data-nav-action="down" aria-label="Dolů">▼</button>
+                <div class="navigation-input-block">
+                    <div class="navigation-pad" aria-label="Navigace displeje">
+                        <button class="btn btn-secondary navigation-key" type="button" data-nav-action="up" aria-label="Nahoru">▲</button>
+                        <button class="btn btn-secondary navigation-key" type="button" data-nav-action="left" aria-label="Doleva">◀</button>
+                        <button class="btn btn-primary navigation-key nav-ok" type="button" data-nav-action="ok" aria-label="OK">OK</button>
+                        <button class="btn btn-secondary navigation-key" type="button" data-nav-action="right" aria-label="Doprava">▶</button>
+                        <button class="btn btn-secondary navigation-key" type="button" data-nav-action="down" aria-label="Dolů">▼</button>
+                    </div>
+                    <div class="navigation-control-row" aria-label="Systémová tlačítka displeje">
+                        <button class="btn btn-secondary navigation-key navigation-control-key" id="navSetButton" type="button">SET</button>
+                        <button class="btn btn-secondary navigation-key navigation-control-key" id="navResetButton" type="button">RESET</button>
+                    </div>
                 </div>
                 <div>
                     <div class="navigation-state">
@@ -167,12 +231,12 @@ static const char NAVIGATION_UI_PATCH[] PROGMEM = R"rawliteral(
                         <div class="status-item"><div class="status-label">Focus prvku</div><div class="status-value" id="navStateFocus">—</div></div>
                     </div>
                     <div class="navigation-hint">
-                        Sidebar: ↑/↓ vybírá položku a OK ji načte a současně vstoupí do stránky.
-                        U stránky s více podstránkami se tím vstoupí do pageru; ←/→ přepíná
-                        podstránky a OK vstoupí do prvků aktuální podstránky. Z prvků vrátí ←
-                        bez dalšího prvku vlevo do pageru a z první podstránky další ← do sidebaru.
-                        U běžné stránky vrací ← z levého okraje přímo do sidebaru. OK nad prvkem je
-                        zatím rezervované. Klávesnice: šipky + Enter.
+                        WebUI i fyzický ovladač používají stejný stav navigace.
+                        Sidebar: ↑/↓ vybírá položku, OK ji načte a vstoupí do stránky; → vstupuje
+                        do již zobrazené stránky. U vícestránkových obrazovek ←/→ mění podstránku
+                        a OK vstoupí do jejích prvků. RESET vrací Home/sidebar. SET je zatím při
+                        krátkém stisku rezervované; podržení SET 2,5 s přepíná soft ON/OFF displeje.
+                        Klávesnice: šipky + Enter.
                     </div>
                 </div>
             </div>
@@ -182,6 +246,21 @@ static const char NAVIGATION_UI_PATCH[] PROGMEM = R"rawliteral(
         card.querySelectorAll('[data-nav-action]').forEach(button => {
             button.addEventListener('click', () => sendNavigationAction(button.dataset.navAction));
         });
+
+        const setButton = document.getElementById('navSetButton');
+        setButton.addEventListener('pointerdown', beginSetHold);
+        setButton.addEventListener('pointerup', finishSetHold);
+        setButton.addEventListener('pointercancel', finishSetHold);
+        setButton.addEventListener('click', () => {
+            if (suppressSetClick) {
+                suppressSetClick = false;
+                return;
+            }
+            sendNavigationAction('set-short');
+        });
+
+        document.getElementById('navResetButton')
+            .addEventListener('click', () => sendNavigationAction('reset-short'));
 
         loadNavigationState();
     }
