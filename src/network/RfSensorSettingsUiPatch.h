@@ -62,6 +62,7 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
     let pollTimer = null;
     let installed = false;
     let lastState = null;
+    const rebindTargets = new Map();
 
     const esc = value => String(value ?? '')
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -166,6 +167,17 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
 
         list.innerHTML = items.map((item, index) => {
             const saved = item.saved === true;
+            const compatible = (lastState?.configured || [])
+                .filter(sensor => sensor.protocol === item.protocol);
+            const selectedSlot = rebindTargets.get(item.bindingKey) || '';
+            const options = compatible.map(sensor =>
+                '<option value="' + esc(sensor.slotId) + '"' +
+                (sensor.slotId === selectedSlot ? ' selected' : '') + '>' +
+                esc(sensor.displayName || sensor.slotId) +
+                ' · ID 0x' + esc(String(sensor.sensorIdHex || '').toUpperCase()) +
+                (Number(sensor.channel || 0) > 0 ? ' · CH' + Number(sensor.channel) : '') +
+                '</option>'
+            ).join('');
             return `
                 <div class="rf-sensor-row rf-sensor-discovered ${saved ? 'saved' : ''}">
                     <div class="rf-sensor-main">
@@ -174,14 +186,24 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
                         <div class="rf-sensor-values">${formatValues(item)}</div>
                     </div>
                     <div class="rf-sensor-edit">
-                        <input class="wifi-input" maxlength="40" placeholder="Jméno, např. Zahrada"
-                               data-rf-discovered-name="${index}" ${saved ? 'disabled' : ''}>
+                        ${saved
+                            ? '<span class="rf-sensor-meta">Toto RF ID už je uložené.</span>'
+                            : `<input class="wifi-input" maxlength="40" placeholder="Jméno nového čidla"
+                                      data-rf-discovered-name="${index}">
+                               <select class="wifi-input" data-rf-rebind-target="${index}">
+                                   <option value="">Přiřadit k existujícímu…</option>
+                                   ${options}
+                               </select>`}
                     </div>
                     <div class="rf-sensor-actions">
                         <button class="btn btn-secondary" type="button"
                                 data-rf-add="${index}" ${saved ? 'disabled' : ''}>
-                            ${saved ? 'Uloženo' : 'Přidat'}
+                            ${saved ? 'Uloženo' : 'Přidat jako nové'}
                         </button>
+                        ${!saved ? `<button class="btn btn-secondary" type="button"
+                                data-rf-rebind="${index}" ${compatible.length ? '' : 'disabled'}>
+                            Znovu přiřadit
+                        </button>` : ''}
                     </div>
                 </div>`;
         }).join('');
@@ -196,6 +218,43 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
                     bindingKey: item.bindingKey,
                     name: input?.value || ''
                 }, 'Čidlo přidáno');
+            });
+        });
+
+        list.querySelectorAll('[data-rf-rebind-target]').forEach(select => {
+            select.addEventListener('change', () => {
+                const index = Number(select.dataset.rfRebindTarget);
+                const item = (lastState?.discovered || [])[index];
+                if (!item) return;
+                if (select.value) rebindTargets.set(item.bindingKey, select.value);
+                else rebindTargets.delete(item.bindingKey);
+            });
+        });
+
+        list.querySelectorAll('[data-rf-rebind]').forEach(button => {
+            button.addEventListener('click', async () => {
+                const index = Number(button.dataset.rfRebind);
+                const item = (lastState?.discovered || [])[index];
+                if (!item || item.saved) return;
+                const select = list.querySelector('[data-rf-rebind-target="' + index + '"]');
+                const slotId = select?.value || '';
+                if (!slotId) {
+                    toast('Nejdřív vyber uložené čidlo, které chceš znovu přiřadit.');
+                    return;
+                }
+                const target = (lastState?.configured || []).find(x => x.slotId === slotId);
+                const targetLabel = target?.displayName || slotId;
+                const message =
+                    'Znovu přiřadit „' + targetLabel + '“?\\n\\n' +
+                    'Původní: ' + (target ? radioIdentity(target) : slotId) + '\\n' +
+                    'Nové: ' + radioIdentity(item) + '\\n\\n' +
+                    'Název, slot ' + slotId + ' a KPI vazby zůstanou zachovány.';
+                if (!confirm(message)) return;
+                const ok = await postAction('/api/rf-sensors/rebind', {
+                    slotId,
+                    bindingKey: item.bindingKey
+                }, 'Čidlo bylo znovu přiřazeno');
+                if (ok) rebindTargets.delete(item.bindingKey);
             });
         });
     }
@@ -307,7 +366,8 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
             </div>
             <div class="rf-sensor-hint">
                 Scan zachytává jen čidla, jejichž protokol dashboard umí bezpečně dekódovat.
-                Scan trvá 90 s; čidlo se uloží až po stisku Přidat.
+                Scan trvá 90 s. Nové čidlo lze přidat, nebo nalezené RF ID znovu
+                přiřadit k existujícímu čidlu bez změny jeho jména, slotu a KPI vazeb.
             </div>
             <div class="rf-sensor-section-title">Uložená čidla</div>
             <div class="rf-sensor-list" id="rfSensorConfigured"></div>
