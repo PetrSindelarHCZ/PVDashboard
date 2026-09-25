@@ -136,6 +136,14 @@ void DisplayWorker::taskLoop() {
         xSemaphoreTake(_memoryHeavyGate, portMAX_DELAY);
     }
 
+    Serial.printf(
+        "[MEM][DISPLAY] sizeof(DataModel)=%u bytes taskStack=%u words free=%lu min=%lu largest=%lu\n",
+        static_cast<unsigned>(sizeof(DataModel)),
+        static_cast<unsigned>(TaskStackWords),
+        static_cast<unsigned long>(ESP.getFreeHeap()),
+        static_cast<unsigned long>(ESP.getMinFreeHeap()),
+        static_cast<unsigned long>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+
     _displayManager.init();
 
     if (_memoryHeavyGate != nullptr) {
