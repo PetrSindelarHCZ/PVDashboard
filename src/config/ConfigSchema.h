@@ -87,6 +87,7 @@ struct AZRouterConfig {
     String host = "";
     uint16_t port = 8081;
     uint32_t pollIntervalSeconds = 10;
+    bool authEnabled = false;
     String username = "";
     String password = "";
 };
