@@ -175,8 +175,10 @@ bool AZRouterClient::getJson(const char* path,
     Performance::Scope timing(metric);
 
     HTTPClient http;
+    Serial.printf("[AZROUTER][HTTP] GET %s\\n", url.c_str());
     if (!http.begin(url)) {
         errorMessage = "HTTP begin failed";
+        Serial.printf("[AZROUTER][HTTP][ERROR] %s -> %s\\n", path, errorMessage.c_str());
         return false;
     }
 
@@ -201,10 +203,17 @@ bool AZRouterClient::getJson(const char* path,
     }
 
     if (httpCode != HTTP_CODE_OK) {
-        errorMessage = "HTTP " + String(httpCode);
+        if (httpCode < 0) {
+            errorMessage = "HTTP " + String(httpCode) + " (" + http.errorToString(httpCode) + ")";
+        } else {
+            errorMessage = "HTTP " + String(httpCode);
+        }
+        Serial.printf("[AZROUTER][HTTP][ERROR] %s -> %s\\n", path, errorMessage.c_str());
         http.end();
         return false;
     }
+
+    Serial.printf("[AZROUTER][HTTP] %s -> HTTP %d\\n", path, httpCode);
 
     const DeserializationError jsonError =
         deserializeJson(doc, http.getStream());
@@ -212,9 +221,11 @@ bool AZRouterClient::getJson(const char* path,
 
     if (jsonError) {
         errorMessage = "JSON " + String(jsonError.c_str());
+        Serial.printf("[AZROUTER][HTTP][ERROR] %s -> %s\\n", path, errorMessage.c_str());
         return false;
     }
 
+    Serial.printf("[AZROUTER][HTTP] %s -> JSON OK\\n", path);
     return true;
 }
 
