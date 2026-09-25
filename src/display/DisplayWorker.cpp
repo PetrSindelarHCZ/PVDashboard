@@ -1,4 +1,5 @@
 #include "DisplayWorker.h"
+#include <esp_heap_caps.h>
 
 const char* displayTaskStateName(DisplayTaskState state) {
     switch (state) {
@@ -205,6 +206,22 @@ void DisplayWorker::taskLoop() {
                 Serial.println("[DISPLAY-WORKER] Memory gate ziskan, render muze zacit.");
             }
 
+            const uint32_t freeBefore = ESP.getFreeHeap();
+            const uint32_t minFreeBefore = ESP.getMinFreeHeap();
+            const uint32_t largestBefore =
+                heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+            const UBaseType_t stackBefore =
+                uxTaskGetStackHighWaterMark(nullptr);
+
+            Serial.printf(
+                "[MEM][DISPLAY] before screen=%s mode=%s free=%lu min=%lu largest=%lu stackHWM=%lu words\n",
+                screen->getId().c_str(),
+                full ? "FULL" : "PARTIAL",
+                static_cast<unsigned long>(freeBefore),
+                static_cast<unsigned long>(minFreeBefore),
+                static_cast<unsigned long>(largestBefore),
+                static_cast<unsigned long>(stackBefore));
+
             const uint32_t startedMs = millis();
             _displayManager.renderScreen(
                 screen,
@@ -213,6 +230,22 @@ void DisplayWorker::taskLoop() {
                 hasRegion ? &region : nullptr,
                 capturePreview);
             const uint32_t completedMs = millis();
+
+            const uint32_t freeAfter = ESP.getFreeHeap();
+            const uint32_t minFreeAfter = ESP.getMinFreeHeap();
+            const uint32_t largestAfter =
+                heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+            const UBaseType_t stackAfter =
+                uxTaskGetStackHighWaterMark(nullptr);
+
+            Serial.printf(
+                "[MEM][DISPLAY] after  screen=%s free=%lu min=%lu largest=%lu stackHWM=%lu words delta=%ld\n",
+                screen->getId().c_str(),
+                static_cast<unsigned long>(freeAfter),
+                static_cast<unsigned long>(minFreeAfter),
+                static_cast<unsigned long>(largestAfter),
+                static_cast<unsigned long>(stackAfter),
+                static_cast<long>(freeAfter) - static_cast<long>(freeBefore));
 
             if (_memoryHeavyGate != nullptr) {
                 xSemaphoreGive(_memoryHeavyGate);
