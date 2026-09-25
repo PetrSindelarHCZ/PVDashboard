@@ -383,25 +383,20 @@ bool NavigationController::handleAction(NavigationAction action) {
                 changed = enterPage(screenChanged, subpageChanged);
                 break;
             case NavigationAction::Ok:
-                if (!_state.sidebarScreenId.isEmpty()) {
-                    bool canEnter = true;
-
-                    if (!_screenManager.getActiveScreenId().equalsIgnoreCase(_state.sidebarScreenId)) {
-                        canEnter = _screenManager.activateScreen(_state.sidebarScreenId);
-                        if (canEnter) {
-                            _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
-                            _state.subpageIndex = activeInitialSubpage();
-                            screenChanged = true;
-                        }
-                    }
-
-                    if (canEnter) {
-                        bool ignoredScreenChanged = false;
-                        const bool entered =
-                            enterPage(ignoredScreenChanged, subpageChanged);
-                        changed = entered || screenChanged;
+                if (!_state.sidebarScreenId.isEmpty() &&
+                    !_screenManager.getActiveScreenId().equalsIgnoreCase(_state.sidebarScreenId)) {
+                    if (_screenManager.activateScreen(_state.sidebarScreenId)) {
+                        _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
+                        _state.subpageIndex = activeInitialSubpage();
+                        _state.focusId = "";
+                        _state.area = NavigationArea::Sidebar;
+                        screenChanged = true;
+                        changed = true;
                     }
                 }
+                // OK only loads the selected sidebar screen. Navigation stays
+                // in the sidebar; RIGHT explicitly enters the active page or
+                // its pager.
                 break;
             case NavigationAction::Left:
                 break;
