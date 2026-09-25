@@ -8,6 +8,7 @@
 #include "../config/ConfigSchema.h"
 #include "../data/DataModel.h"
 #include "../display/DisplayTaskStatus.h"
+#include "../navigation/NavigationTypes.h"
 #include "../screens/ScreenManager.h"
 #include "../update/OtaManager.h"
 #include "NetworkDiagnostics.h"
@@ -19,6 +20,8 @@ class DashboardWebServer {
 public:
     using ScreenChangeCallback = std::function<void(const String& screenId)>;
     using RefreshCallback = std::function<void(bool full)>;
+    using NavigationActionCallback = std::function<bool(NavigationAction action)>;
+    using ControlActionCallback = std::function<bool(ControlAction action)>;
     using DisplayStatusCallback = std::function<DisplayTaskStatus()>;
     using SystemConfigCallback = std::function<void(const SystemConfig& system)>;
     using WifiConfigCallback = std::function<void(const String& ssid, const String& password)>;
@@ -52,6 +55,8 @@ public:
     void loop();
     void onScreenChange(ScreenChangeCallback callback);
     void onRefresh(RefreshCallback callback);
+    void onNavigationAction(NavigationActionCallback callback) { _navigationActionCallback = callback; }
+    void onControlAction(ControlActionCallback callback) { _controlActionCallback = callback; }
     void onDisplayStatus(DisplayStatusCallback callback);
     void setDisplayPreview(DisplayPreview* preview) { _displayPreview = preview; }
     void setNavigationController(NavigationController* controller) { _navigationController = controller; }
@@ -336,6 +341,8 @@ private:
     const AppConfig& _config;
     ScreenChangeCallback _screenCallback;
     RefreshCallback _refreshCallback;
+    NavigationActionCallback _navigationActionCallback;
+    ControlActionCallback _controlActionCallback;
     DisplayStatusCallback _displayStatusCallback;
     DisplayPreview* _displayPreview = nullptr;
     NavigationController* _navigationController = nullptr;
