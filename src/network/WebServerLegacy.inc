@@ -601,7 +601,8 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                             <label for="azHost">Host / IP adresa</label>
                             <input class="wifi-input" id="azHost" placeholder="např. 192.168.1.51">
                         </div>
-                        <div class="source-field-row">
+                        <label class="source-enabled"><input id="azAuthEnabled" type="checkbox" onchange="toggleAzAuthFields()"> Použít přihlášení (auth)</label>
+                        <div class="source-field-row" id="azAuthFields">
                             <div class="source-field">
                                 <label for="azUser">Uživatel</label>
                                 <input class="wifi-input" id="azUser" autocomplete="username"
@@ -855,17 +856,24 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     document.getElementById('azPort').value = az.port;
                     document.getElementById('azInterval').value = az.interval;
                     document.getElementById('azEnabled').checked = az.enabled;
-                    document.getElementById('azUser').value = az.username || '';
+                    const azAuthEnabled = document.getElementById('azAuthEnabled');
+                    const azUser = document.getElementById('azUser');
+                    azAuthEnabled.checked = az.authEnabled === true;
+                    azUser.value = az.username || '';
+                    azUser.disabled = !azAuthEnabled.checked;
                     const azPassword = document.getElementById('azPassword');
+                    azPassword.disabled = !azAuthEnabled.checked;
                     azPassword.value = '';
                     azPassword.placeholder = az.passwordConfigured
                         ? 'uloženo — prázdné = zachovat'
                         : 'heslo do AZRouter WebUI';
                     const azAuthHelp = document.getElementById('azAuthHelp');
                     if (azAuthHelp) {
-                        azAuthHelp.textContent = az.passwordConfigured
-                            ? 'Přihlašovací údaje jsou uložené. Heslo se do prohlížeče neposílá.'
-                            : 'AZRouter · přihlášení používá stejné údaje jako WebUI.';
+                        azAuthHelp.textContent = az.authEnabled
+                            ? (az.passwordConfigured
+                                ? 'Auth je zapnutý. Přihlašovací údaje jsou uložené; heslo se do prohlížeče neposílá.'
+                                : 'Auth je zapnutý. Vyplň uživatele a heslo.')
+                            : 'Auth je vypnutý (doporučeno pro běžný AZRouter). Uložené údaje zůstávají zachované.';
                     }
                     sourceConfigLoaded = true;
                 }
@@ -1108,6 +1116,16 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
             showToast(response.ok ? 'Wi-Fi uložena, zařízení se restartuje' : 'Wi-Fi se nepodařilo uložit');
         }
 
+        function toggleAzAuthFields() {
+            const enabled = document.getElementById('azAuthEnabled').checked;
+            document.getElementById('azUser').disabled = !enabled;
+            document.getElementById('azPassword').disabled = !enabled;
+            const help = document.getElementById('azAuthHelp');
+            if (help && !enabled) {
+                help.textContent = 'Auth je vypnutý (doporučeno pro běžný AZRouter). Uložené údaje zůstávají zachované.';
+            }
+        }
+
         async function saveSources(event) {
             event.preventDefault();
             const body = new URLSearchParams({
@@ -1119,6 +1137,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 azPort: document.getElementById('azPort').value,
                 azInterval: document.getElementById('azInterval').value,
                 azEnabled: document.getElementById('azEnabled').checked ? '1' : '0',
+                azAuthEnabled: document.getElementById('azAuthEnabled').checked ? '1' : '0',
                 azUser: document.getElementById('azUser').value,
                 azPassword: document.getElementById('azPassword').value
             });
@@ -1855,6 +1874,7 @@ void DashboardWebServer::handleApiStatus() {
     sourceAz["host"] = _config.azrouter.host;
     sourceAz["port"] = _config.azrouter.port;
     sourceAz["interval"] = _config.azrouter.pollIntervalSeconds;
+    sourceAz["authEnabled"] = _config.azrouter.authEnabled;
     sourceAz["username"] = _config.azrouter.username;
     sourceAz["passwordConfigured"] = !_config.azrouter.password.isEmpty();
     JsonObject sourcePool = sourcesObj["pool"].to<JsonObject>();
@@ -2055,6 +2075,7 @@ void DashboardWebServer::handleApiSourceConfig() {
 
     const bool gwEnabled = _server.arg("gwEnabled") == "1";
     const bool azEnabled = _server.arg("azEnabled") == "1";
+    const bool azAuthEnabled = _server.arg("azAuthEnabled") == "1";
     const String gwHost = _server.arg("gwHost");
     const String azHost = _server.arg("azHost");
     String azUser = _server.hasArg("azUser") ? _server.arg("azUser") : _config.azrouter.username;
@@ -2092,6 +2113,7 @@ void DashboardWebServer::handleApiSourceConfig() {
         azrouter.host = azHost;
         azrouter.port = static_cast<uint16_t>(azPort);
         azrouter.pollIntervalSeconds = static_cast<uint32_t>(azInterval);
+        azrouter.authEnabled = azAuthEnabled;
         azrouter.username = azUser;
 
         // Never send the stored password back to the browser. An empty field
