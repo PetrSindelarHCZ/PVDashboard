@@ -371,10 +371,10 @@ void DashboardApp::setup() {
         });
 
     _navigationController.onChange([this](bool fullRefresh) {
-        if (_handlingPhysicalNavigation) {
-            _physicalNavigationChanged = true;
-            _physicalNavigationFullRefresh =
-                _physicalNavigationFullRefresh || fullRefresh;
+        if (_handlingNavigationInput) {
+            _navigationInputChanged = true;
+            _navigationInputFullRefresh =
+                _navigationInputFullRefresh || fullRefresh;
             return;
         }
 
@@ -387,6 +387,14 @@ void DashboardApp::setup() {
     _webServer.onDisplayStatus([this]() { return _displayWorker.getStatus(); });
     _webServer.setDisplayPreview(&_displayPreview);
     _webServer.setNavigationController(&_navigationController);
+    _webServer.onNavigationAction(
+        [this](NavigationAction action) {
+            return handleNavigationAction(action, true);
+        });
+    _webServer.onControlAction(
+        [this](ControlAction action) {
+            return handleControlAction(action, true);
+        });
 
     _webServer.onSystemConfig([this](const SystemConfig& system) {
         const String previousHostname = _configManager.get().system.hostname;
@@ -902,6 +910,77 @@ void DashboardApp::requestAutomaticDisplayRefresh() {
     requestDisplayRefresh(false, delayMs);
 }
 
+bool DashboardApp::handleNavigationAction(
+    NavigationAction action,
+    bool capturePreview) {
+    if (!_displayEnabled) return false;
+
+    const NavigationState previousNavigation =
+        _navigationController.getState();
+    NavigationLayout previousLayout;
+    if (previousNavigation.area == NavigationArea::Page) {
+        _navigationController.buildCurrentLayout(previousLayout);
+    }
+
+    _navigationInputChanged = false;
+    _navigationInputFullRefresh = false;
+    _handlingNavigationInput = true;
+    const bool handled = _navigationController.handleAction(action);
+    _handlingNavigationInput = false;
+
+    if (!_navigationInputChanged) return handled;
+
+    const NavigationState currentNavigation =
+        _navigationController.getState();
+    NavigationLayout currentLayout;
+    if (currentNavigation.area == NavigationArea::Page) {
+        _navigationController.buildCurrentLayout(currentLayout);
+    }
+
+    syncWeatherDisplayForActiveScreen(false);
+
+    const DisplayRegion dirtyRegion =
+        navigationDirtyRegion(
+            previousNavigation,
+            previousLayout,
+            currentNavigation,
+            currentLayout);
+
+    if (_navigationInputFullRefresh) {
+        // Screen changes stay interactive: use a full-window differential
+        // partial refresh. Startup/manual maintenance keeps the slow cleaning
+        // full refresh path.
+        requestNavigationDisplayRefresh(
+            false, 40UL, nullptr, capturePreview);
+    } else {
+        requestNavigationDisplayRefresh(
+            false,
+            40UL,
+            dirtyRegion.valid() ? &dirtyRegion : nullptr,
+            capturePreview);
+    }
+
+    return handled;
+}
+
+bool DashboardApp::handleControlAction(
+    ControlAction action,
+    bool capturePreview) {
+    switch (action) {
+        case ControlAction::SetLong:
+            setDisplayEnabled(!_displayEnabled);
+            return true;
+        case ControlAction::ResetShort:
+            return resetUiToHome(capturePreview);
+        case ControlAction::SetShort:
+            // Reserved for a future context/settings action.
+            return false;
+        case ControlAction::None:
+            return false;
+    }
+    return false;
+}
+
 void DashboardApp::setDisplayEnabled(bool enabled) {
     if (_displayEnabled == enabled) return;
 
@@ -922,17 +1001,18 @@ void DashboardApp::setDisplayEnabled(bool enabled) {
     }
 }
 
-void DashboardApp::resetUiToHome() {
+bool DashboardApp::resetUiToHome(bool capturePreview) {
     if (!_screenManager.activateScreen("home")) {
         Serial.println("[KEY] RESET: Home screen is not available.");
-        return;
+        return false;
     }
 
     _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
     _navigationController.syncToActiveScreen(false);
     syncWeatherDisplayForActiveScreen(false);
     Serial.println("[KEY] RESET: UI -> Home/sidebar");
-    requestNavigationDisplayRefresh(false, 40UL, nullptr, false);
+    requestNavigationDisplayRefresh(false, 40UL, nullptr, capturePreview);
+    return true;
 }
 
 void DashboardApp::onScreenSwitchRequested(const String& screenId) {
@@ -1085,68 +1165,13 @@ void DashboardApp::loop() {
     NavigationAction joystickAction;
     const bool joystickEvent =
         !displayElectricallyActive && _joystick.poll(joystickAction);
-    if (joystickEvent && _displayEnabled) {
-        const NavigationState previousNavigation =
-            _navigationController.getState();
-        NavigationLayout previousLayout;
-        if (previousNavigation.area == NavigationArea::Page) {
-            _navigationController.buildCurrentLayout(previousLayout);
-        }
-
-        _physicalNavigationChanged = false;
-        _physicalNavigationFullRefresh = false;
-        _handlingPhysicalNavigation = true;
-        _navigationController.handleAction(joystickAction);
-        _handlingPhysicalNavigation = false;
-
-        if (_physicalNavigationChanged) {
-            const NavigationState currentNavigation =
-                _navigationController.getState();
-            NavigationLayout currentLayout;
-            if (currentNavigation.area == NavigationArea::Page) {
-                _navigationController.buildCurrentLayout(currentLayout);
-            }
-
-            syncWeatherDisplayForActiveScreen(false);
-
-            const DisplayRegion dirtyRegion =
-                navigationDirtyRegion(
-                    previousNavigation,
-                    previousLayout,
-                    currentNavigation,
-                    currentLayout);
-
-            if (_physicalNavigationFullRefresh) {
-                // Screen changes triggered from the physical joystick stay
-                // interactive: use a full-window differential partial refresh.
-                // Startup/manual maintenance still use the slow cleaning full
-                // refresh path.
-                requestNavigationDisplayRefresh(false, 40UL, nullptr, false);
-            } else {
-                requestNavigationDisplayRefresh(
-                    false,
-                    40UL,
-                    dirtyRegion.valid() ? &dirtyRegion : nullptr,
-                    false);
-            }
-        }
+    if (joystickEvent) {
+        handleNavigationAction(joystickAction, false);
     }
 
     ControlAction controlAction;
     if (!displayElectricallyActive && _joystick.pollControl(controlAction)) {
-        switch (controlAction) {
-            case ControlAction::SetLong:
-                setDisplayEnabled(!_displayEnabled);
-                break;
-            case ControlAction::ResetShort:
-                resetUiToHome();
-                break;
-            case ControlAction::SetShort:
-                // Reserved for a future context/settings action.
-                break;
-            case ControlAction::None:
-                break;
-        }
+        handleControlAction(controlAction, false);
     }
 
     const bool displayInitDelayElapsed = static_cast<long>(millis() - _displayInitNotBefore) >= 0;
