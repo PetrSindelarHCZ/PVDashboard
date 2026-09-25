@@ -14,7 +14,12 @@ void EpaperDisplay::init() {
     Serial.printf("[DISPLAY] Piny CS=%d DC=%d RST=%d BUSY=%d SPI=%d/%d/%d\n",
                   _cs, _dc, _rst, _busy, _sck, _miso, _mosi);
     SPI.begin(_sck, _miso, _mosi, _cs);
-    _epd.init(115200);
+
+    // Diagnostic build: lower the e-paper SPI clock from the driver's
+    // default 10 MHz to 2 MHz. If vertical banding disappears or changes
+    // significantly, signal integrity on the prototype wiring is implicated.
+    const SPISettings epaperSpiSettings(2000000, MSBFIRST, SPI_MODE0);
+    _epd.init(115200, true, 10, false, SPI, epaperSpiSettings);
     _epd.setRotation(0);
 
     _u8g2.begin(_epd);
