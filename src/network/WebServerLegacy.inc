@@ -601,7 +601,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                             <label for="azHost">Host / IP adresa</label>
                             <input class="wifi-input" id="azHost" placeholder="např. 192.168.1.51">
                         </div>
-                        <label class="source-enabled"><input id="azAuthEnabled" type="checkbox"> Použít přihlášení (auth)</label>
+                        <label class="source-enabled"><input id="azAuthEnabled" type="checkbox" onchange="toggleAzAuthFields()"> Použít přihlášení (auth)</label>
                         <div class="source-field-row" id="azAuthFields">
                             <div class="source-field">
                                 <label for="azUser">Uživatel</label>
@@ -856,9 +856,13 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     document.getElementById('azPort').value = az.port;
                     document.getElementById('azInterval').value = az.interval;
                     document.getElementById('azEnabled').checked = az.enabled;
-                    document.getElementById('azAuthEnabled').checked = az.authEnabled === true;
-                    document.getElementById('azUser').value = az.username || '';
+                    const azAuthEnabled = document.getElementById('azAuthEnabled');
+                    const azUser = document.getElementById('azUser');
+                    azAuthEnabled.checked = az.authEnabled === true;
+                    azUser.value = az.username || '';
+                    azUser.disabled = !azAuthEnabled.checked;
                     const azPassword = document.getElementById('azPassword');
+                    azPassword.disabled = !azAuthEnabled.checked;
                     azPassword.value = '';
                     azPassword.placeholder = az.passwordConfigured
                         ? 'uloženo — prázdné = zachovat'
@@ -1110,6 +1114,16 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 body
             });
             showToast(response.ok ? 'Wi-Fi uložena, zařízení se restartuje' : 'Wi-Fi se nepodařilo uložit');
+        }
+
+        function toggleAzAuthFields() {
+            const enabled = document.getElementById('azAuthEnabled').checked;
+            document.getElementById('azUser').disabled = !enabled;
+            document.getElementById('azPassword').disabled = !enabled;
+            const help = document.getElementById('azAuthHelp');
+            if (help && !enabled) {
+                help.textContent = 'Auth je vypnutý (doporučeno pro běžný AZRouter). Uložené údaje zůstávají zachované.';
+            }
         }
 
         async function saveSources(event) {
