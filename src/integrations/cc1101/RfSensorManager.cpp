@@ -300,6 +300,55 @@ bool RfSensorManager::renameSensor(
     return false;
 }
 
+bool RfSensorManager::rebindSensor(
+    const String& slotId,
+    const String& bindingKey,
+    RfSensorsConfig& updated,
+    String& error) const {
+
+    if (_config == nullptr) {
+        error = "Správa RF čidel ještě není inicializovaná.";
+        return false;
+    }
+
+    const int discoveredIndex = discoveredIndexFor(bindingKey);
+    if (discoveredIndex < 0) {
+        error = "Čidlo už není v aktuálním výsledku scanu.";
+        return false;
+    }
+
+    const RfSensorObservation& observation =
+        _discovered[discoveredIndex].observation;
+
+    updated = *_config;
+    int targetIndex = -1;
+    for (uint8_t i = 0; i < updated.sensorCount && i < MaxRfSensors; ++i) {
+        if (updated.sensors[i].slotId == slotId) {
+            targetIndex = i;
+            continue;
+        }
+        if (sameBinding(updated.sensors[i], observation)) {
+            error = "Toto RF čidlo už je přiřazené k jinému uloženému čidlu.";
+            return false;
+        }
+    }
+    if (targetIndex < 0) {
+        error = "Uložené čidlo nebylo nalezeno.";
+        return false;
+    }
+
+    RfSensorConfig& target = updated.sensors[targetIndex];
+    target.protocol = observation.protocol;
+    target.sensorId = observation.sensorId;
+    target.channel = observation.channel;
+    target.hasTemperature = observation.hasTemperature;
+    target.hasHumidity = observation.hasHumidity;
+    target.hasBattery = observation.hasBattery;
+    // slotId and user-visible name intentionally stay unchanged so all
+    // rf.<slotId> KPI/layout references remain stable.
+    return true;
+}
+
 bool RfSensorManager::removeSensor(
     const String& slotId,
     RfSensorsConfig& updated,
