@@ -161,6 +161,33 @@ DisplayRegion unionDisplayRegions(const DisplayRegion& a, const DisplayRegion& b
     return region;
 }
 
+DisplayRegion sidebarRegion() {
+    DisplayRegion region;
+    region.x = 0;
+    region.y = ScreenStyle::HeaderHeight;
+    region.width = ScreenStyle::SidebarWidth + 1;
+    region.height = ScreenStyle::Height - ScreenStyle::HeaderHeight;
+    return region;
+}
+
+DisplayRegion pageRegion() {
+    DisplayRegion region;
+    region.x = ScreenStyle::SidebarWidth + 1;
+    region.y = ScreenStyle::HeaderHeight;
+    region.width = ScreenStyle::Width - region.x;
+    region.height = ScreenStyle::Height - ScreenStyle::HeaderHeight;
+    return region;
+}
+
+DisplayRegion dashboardBodyRegion() {
+    DisplayRegion region;
+    region.x = 0;
+    region.y = ScreenStyle::HeaderHeight;
+    region.width = ScreenStyle::Width;
+    region.height = ScreenStyle::Height - ScreenStyle::HeaderHeight;
+    return region;
+}
+
 DisplayRegion navigationDirtyRegion(
     const NavigationState& previousState,
     const NavigationLayout& previousLayout,
@@ -169,12 +196,7 @@ DisplayRegion navigationDirtyRegion(
 
     if (previousState.area == NavigationArea::Sidebar &&
         currentState.area == NavigationArea::Sidebar) {
-        DisplayRegion sidebar;
-        sidebar.x = 0;
-        sidebar.y = ScreenStyle::HeaderHeight;
-        sidebar.width = ScreenStyle::SidebarWidth + 2;
-        sidebar.height = ScreenStyle::Height - ScreenStyle::HeaderHeight;
-        return sidebar;
+        return sidebarRegion();
     }
 
     if (previousState.area == NavigationArea::Page &&
@@ -932,6 +954,8 @@ bool DashboardApp::handleNavigationAction(
 
     const NavigationState currentNavigation =
         _navigationController.getState();
+    const bool subpageChanged =
+        previousNavigation.subpageIndex != currentNavigation.subpageIndex;
 
     NavigationLayout currentLayout;
     if (currentNavigation.area == NavigationArea::Page) {
@@ -948,18 +972,26 @@ bool DashboardApp::handleNavigationAction(
             currentLayout);
 
     if (_navigationInputFullRefresh) {
-        // Screen changes use the same fast full-window differential partial
-        // path as pager changes. EpaperDisplay deliberately expands any
-        // requested dirty region to the full T7 panel so the controller's
-        // previous/current images stay coherent.
+        // Main-screen switch: refresh sidebar + page, but leave the header
+        // untouched. This is the full dashboard body below HeaderHeight.
+        const DisplayRegion region = dashboardBodyRegion();
         requestNavigationDisplayRefresh(
-            false, 40UL, nullptr, capturePreview);
+            false, 40UL, &region, capturePreview);
+    } else if (subpageChanged) {
+        // Pager/subpage switch (FVE, weather locations, ...): only the page
+        // changes. Sidebar and header stay physically untouched.
+        const DisplayRegion region = pageRegion();
+        requestNavigationDisplayRefresh(
+            false, 40UL, &region, capturePreview);
+    } else if (dirtyRegion.valid()) {
+        requestNavigationDisplayRefresh(
+            false, 40UL, &dirtyRegion, capturePreview);
     } else {
+        // Area transitions can affect both navigation chrome and page focus.
+        // Keep them below the header as well.
+        const DisplayRegion region = dashboardBodyRegion();
         requestNavigationDisplayRefresh(
-            false,
-            40UL,
-            dirtyRegion.valid() ? &dirtyRegion : nullptr,
-            capturePreview);
+            false, 40UL, &region, capturePreview);
     }
 
     return handled;
@@ -1013,7 +1045,8 @@ bool DashboardApp::resetUiToHome(bool capturePreview) {
     _navigationController.syncToActiveScreen(false);
     syncWeatherDisplayForActiveScreen(false);
     Serial.println("[KEY] RESET: UI -> Home/sidebar");
-    requestNavigationDisplayRefresh(false, 40UL, nullptr, capturePreview);
+    const DisplayRegion region = dashboardBodyRegion();
+    requestNavigationDisplayRefresh(false, 40UL, &region, capturePreview);
     return true;
 }
 
@@ -1021,7 +1054,8 @@ void DashboardApp::onScreenSwitchRequested(const String& screenId) {
     _navigationController.syncToActiveScreen(false);
     syncWeatherDisplayForActiveScreen(false);
     Serial.printf("[APP][%lu ms] Pozadavek na prepnuti obrazovky: %s\n", millis(), screenId.c_str());
-    requestDisplayRefresh(false, 100);
+    const DisplayRegion region = dashboardBodyRegion();
+    requestNavigationDisplayRefresh(false, 100, &region, true);
 }
 
 void DashboardApp::onNavigationSubpageChanged(
