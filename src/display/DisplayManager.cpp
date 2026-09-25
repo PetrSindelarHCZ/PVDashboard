@@ -19,11 +19,6 @@ void DisplayManager::requestRefresh(bool full) {
     }
 }
 
-void DisplayManager::powerOff() {
-    _display.powerOff();
-}
-
-
 void DisplayManager::renderScreen(IScreen* screen, const DataModel& dataModel,
                                   bool forceFullRefresh,
                                   const DisplayRegion* partialRegion,
@@ -77,17 +72,7 @@ void DisplayManager::renderScreen(IScreen* screen, const DataModel& dataModel,
 
     _forceFullRefresh = false;
 
-    // Keep the T7 powered between consecutive partial updates. GxEPD2's
-    // fast-partial examples perform a sequence of differential updates and
-    // power the panel off only after the sequence. Powering off after every
-    // frame resets the driver's partial-mode state and can produce ghosting
-    // and banding on the next update. Full refreshes may power off
-    // immediately; partial refreshes are powered down later by DisplayWorker
-    // after an idle timeout.
-    if (full) {
-        _display.powerOff();
-    }
-
+    _display.powerOff();
     if (capturePreview && _preview != nullptr) {
         _preview->capture(*screen, dataModel, full);
     }
