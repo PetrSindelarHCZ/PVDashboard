@@ -84,9 +84,9 @@ private:
     bool _pendingRefresh = false;
     bool _pendingFullRefresh = false;
     bool _displayWorkerStarted = false;
-    bool _handlingPhysicalNavigation = false;
-    bool _physicalNavigationChanged = false;
-    bool _physicalNavigationFullRefresh = false;
+    bool _handlingNavigationInput = false;
+    bool _navigationInputChanged = false;
+    bool _navigationInputFullRefresh = false;
     bool _pendingDisplayRegionValid = false;
     DisplayRegion _pendingDisplayRegion;
     bool _pendingCapturePreview = true;
@@ -117,8 +117,10 @@ private:
                                          const DisplayRegion* region = nullptr,
                                          bool capturePreview = true);
     void requestAutomaticDisplayRefresh();
+    bool handleNavigationAction(NavigationAction action, bool capturePreview);
+    bool handleControlAction(ControlAction action, bool capturePreview);
     void setDisplayEnabled(bool enabled);
-    void resetUiToHome();
+    bool resetUiToHome(bool capturePreview = false);
     void onScreenSwitchRequested(const String& screenId);
     void onRefreshRequested(bool full);
     void onNavigationSubpageChanged(const String& screenId, uint8_t subpageIndex);
