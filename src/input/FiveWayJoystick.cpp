@@ -71,6 +71,16 @@ bool FiveWayJoystick::poll(NavigationAction& action) {
         if (pressed != button.rawPressed) {
             button.rawPressed = pressed;
             button.lastRawChangeMs = now;
+
+            // Cancel key repeat as soon as the electrical release is seen.
+            // Do not wait for the debounced release: an e-paper refresh can
+            // start before DebounceMs elapses and otherwise leave
+            // stablePressed=true with an overdue repeat timer, causing one
+            // physical click to advance repeatedly after each refresh.
+            if (!pressed) {
+                button.nextRepeatMs = 0;
+            }
+
             Serial.printf(
                 "[JOY RAW] %s GPIO%u -> %s at %lu ms\n",
                 buttonName(button.action),
@@ -101,12 +111,19 @@ bool FiveWayJoystick::poll(NavigationAction& action) {
         }
     }
 
-    // Direction buttons repeat while held. OK stays one-shot to avoid
-    // accidental repeated activation.
+    // Only vertical navigation repeats while held. Horizontal actions are
+    // intentionally one-shot: LEFT/RIGHT switch pager pages on screens such
+    // as FVE, and an e-paper refresh is long enough that a held/released key
+    // can otherwise advance across multiple pages before the UI settles.
     if (!eventReady) {
         for (auto& button : _buttons) {
-            if (!button.stablePressed ||
-                button.action == NavigationAction::Ok ||
+            const bool repeatable =
+                button.action == NavigationAction::Up ||
+                button.action == NavigationAction::Down;
+
+            if (!repeatable ||
+                !button.rawPressed ||
+                !button.stablePressed ||
                 button.nextRepeatMs == 0 ||
                 static_cast<long>(now - button.nextRepeatMs) < 0) {
                 continue;
