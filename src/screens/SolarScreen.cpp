@@ -424,7 +424,10 @@ void renderAZRouter(IDisplay& display, const DataModel& dm) {
 } // namespace
 
 uint8_t SolarScreen::getNavigationSubpageCount(const DataModel& dataModel) const {
-    return pageCount(dataModel);
+    (void)dataModel;
+    // Diagnostic only: render stays unchanged (tabs, dots, first FVE page),
+    // but NavigationController sees this screen as non-paged.
+    return 1;
 }
 
 void SolarScreen::render(IDisplay& display, const DataModel& dm) {
