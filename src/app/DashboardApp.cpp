@@ -972,11 +972,11 @@ bool DashboardApp::handleNavigationAction(
             currentLayout);
 
     if (_navigationInputFullRefresh) {
-        // Main-screen switch: refresh sidebar + page, but leave the header
-        // untouched. This is the full dashboard body below HeaderHeight.
-        const DisplayRegion region = dashboardBodyRegion();
+        // Diagnostic: reproduce the historical known-good screen-switch path.
+        // A main-screen change is a full-window differential partial refresh,
+        // with no regional window involved.
         requestNavigationDisplayRefresh(
-            false, 40UL, &region, capturePreview);
+            false, 40UL, nullptr, capturePreview);
     } else if (subpageChanged) {
         // Pager/subpage switch (FVE, weather locations, ...): only the page
         // changes. Sidebar and header stay physically untouched.
@@ -1054,8 +1054,7 @@ void DashboardApp::onScreenSwitchRequested(const String& screenId) {
     _navigationController.syncToActiveScreen(false);
     syncWeatherDisplayForActiveScreen(false);
     Serial.printf("[APP][%lu ms] Pozadavek na prepnuti obrazovky: %s\n", millis(), screenId.c_str());
-    const DisplayRegion region = dashboardBodyRegion();
-    requestNavigationDisplayRefresh(false, 100, &region, true);
+    requestNavigationDisplayRefresh(false, 100, nullptr, true);
 }
 
 void DashboardApp::onNavigationSubpageChanged(
