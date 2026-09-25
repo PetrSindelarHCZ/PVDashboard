@@ -22,6 +22,8 @@ public:
                              RfSensorsConfig& updated, String& error) const;
     bool renameSensor(const String& slotId, const String& requestedName,
                       RfSensorsConfig& updated, String& error) const;
+    bool rebindSensor(const String& slotId, const String& bindingKey,
+                      RfSensorsConfig& updated, String& error) const;
     bool removeSensor(const String& slotId,
                       RfSensorsConfig& updated, String& error) const;
 
