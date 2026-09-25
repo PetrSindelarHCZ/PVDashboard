@@ -1604,6 +1604,84 @@ bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
 }
 
 
+bool tryPrintHyundaiR50(const int32_t* data, uint16_t count) {
+    // Hyundai R50, observed at 433.907 MHz. OOK/PPM:
+    // HIGH ~0.48 ms; LOW ~0.98 ms => 0, ~1.95 ms => 1, sync ~3-6 ms.
+    // 36-bit payload: [ID:9][CH:2][TEMP:13][FLAGS:4][HUM:8].
+    // CH 00/01/10 => 1/2/3; TEMP raw/20 C; HUM raw/2 %RH.
+    // FLAGS are deliberately uninterpreted (0xE observed so far).
+    constexpr uint32_t PulseMinUs=350, PulseMaxUs=700;
+    constexpr uint32_t ZeroGapMinUs=700, ZeroGapMaxUs=1400;
+    constexpr uint32_t OneGapMinUs=1600, OneGapMaxUs=2500;
+    constexpr uint32_t SyncGapMinUs=2800, SyncGapMaxUs=6000;
+    constexpr uint8_t MaximumRows=16, MinimumRepeats=3;
+    auto duration=[](int32_t p)->uint32_t { return static_cast<uint32_t>(p>=0?p:-p); };
+    uint64_t rows[MaximumRows]={}; uint8_t rowBits[MaximumRows]={};
+    uint8_t rowCount=0; uint64_t current=0; uint8_t currentBits=0;
+    auto storeRow=[&]() {
+        if ((currentBits==36 || currentBits==37) && rowCount<MaximumRows) {
+            rows[rowCount]=current; rowBits[rowCount]=currentBits; ++rowCount;
+        }
+        current=0; currentBits=0;
+    };
+    for (uint16_t i=0; i+1<count; ++i) {
+        if (data[i]<=0 || data[i+1]>=0) continue;
+        const uint32_t pulseUs=duration(data[i]), gapUs=duration(data[i+1]);
+        if (pulseUs<PulseMinUs || pulseUs>PulseMaxUs) {
+            if (currentBits>0) storeRow(); continue;
+        }
+        if (gapUs>=ZeroGapMinUs && gapUs<=ZeroGapMaxUs) {
+            if (currentBits<63) { current<<=1; ++currentBits; } ++i;
+        } else if (gapUs>=OneGapMinUs && gapUs<=OneGapMaxUs) {
+            if (currentBits<63) { current=(current<<1)|1ULL; ++currentBits; } ++i;
+        } else if (gapUs>=SyncGapMinUs && gapUs<=SyncGapMaxUs) {
+            storeRow(); ++i;
+        } else if (currentBits>0) storeRow();
+    }
+    if (currentBits>0) storeRow();
+
+    uint64_t bestPayload=0; uint8_t bestRepeats=0;
+    for (uint8_t r=0; r<rowCount; ++r) {
+        const uint64_t payload=rows[r]&0xFFFFFFFFFULL; uint8_t repeats=0;
+        for (uint8_t s=0; s<rowCount; ++s)
+            if ((rowBits[s]==36 || rowBits[s]==37) &&
+                (rows[s]&0xFFFFFFFFFULL)==payload) ++repeats;
+        if (repeats>bestRepeats) { bestRepeats=repeats; bestPayload=payload; }
+    }
+    if (bestRepeats<MinimumRepeats) return false;
+
+    const uint16_t sensorId=static_cast<uint16_t>((bestPayload>>27)&0x1FF);
+    const uint8_t channelCode=static_cast<uint8_t>((bestPayload>>25)&0x03);
+    const uint16_t tempRaw=static_cast<uint16_t>((bestPayload>>12)&0x1FFF);
+    const uint8_t flags=static_cast<uint8_t>((bestPayload>>8)&0x0F);
+    const uint8_t humidityRaw=static_cast<uint8_t>(bestPayload&0xFF);
+    if (channelCode>2) return false;
+    const float temperatureC=static_cast<float>(tempRaw)/20.0f;
+    const float humidityPercent=static_cast<float>(humidityRaw)/2.0f;
+    if (temperatureC < -60.0f || temperatureC > 80.0f || humidityPercent > 100.0f) return false;
+    const uint8_t channel=static_cast<uint8_t>(channelCode+1);
+
+    static uint32_t packetCount=0, lastSeenMs=0;
+    const uint32_t nowMs=millis();
+    const uint32_t intervalMs=lastSeenMs==0 ? 0 : nowMs-lastSeenMs;
+    lastSeenMs=nowMs; ++packetCount;
+    Serial.printf("[CC1101][HYUNDAI-R50] id=%u temp=%.2f C humidity=%.1f %% channel=%u flags=0x%X repeats=%u | packets=%lu",
+        static_cast<unsigned>(sensorId), temperatureC, humidityPercent,
+        static_cast<unsigned>(channel), static_cast<unsigned>(flags),
+        static_cast<unsigned>(bestRepeats), static_cast<unsigned long>(packetCount));
+    if (intervalMs>0) Serial.printf(" interval=%.1f s", static_cast<double>(intervalMs)/1000.0);
+    Serial.printf(" | raw=%09llX\n", static_cast<unsigned long long>(bestPayload));
+
+    RfSensorObservation observation;
+    observation.protocol="hyundai-r50"; observation.sensorId=sensorId; observation.channel=channel;
+    observation.hasTemperature=true; observation.temperatureC=temperatureC;
+    observation.hasHumidity=true; observation.humidityPercent=humidityPercent;
+    observation.hasBattery=false;
+    publishSensorObservation(observation);
+    return true;
+}
+
+
 bool tryPrintOneTwoMsCandidate(const int32_t* data, uint16_t count) {
     // Discovery-only decoder for clean ~0.5 ms HIGH + 1/2 ms LOW PPM traffic.
     // Known protocol decoders run before this function, so output here is
@@ -2064,6 +2142,7 @@ void loop() {
         !tryPrintRepeatedManchester(snapshot, snapshotCount) &&
         !tryPrintPwm67(snapshot, snapshotCount) &&
         !tryPrintPwm67Candidate(snapshot, snapshotCount) &&
+        !tryPrintHyundaiR50(snapshot, snapshotCount) &&
         !tryPrintOneTwoMsCandidate(snapshot, snapshotCount)) {
         printBurst(
             snapshot,
