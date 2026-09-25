@@ -921,7 +921,11 @@ void DashboardApp::onScreenSwitchRequested(const String& screenId) {
     _navigationController.syncToActiveScreen(false);
     syncWeatherDisplayForActiveScreen(false);
     Serial.printf("[APP][%lu ms] Pozadavek na prepnuti obrazovky: %s\n", millis(), screenId.c_str());
-    requestDisplayRefresh(true, 100);
+
+    // Diagnostic only: reproduce the historical physical-joystick
+    // full-window differential partial refresh from WebUI, so the external
+    // joystick/prototype wiring can be disconnected during the test.
+    requestNavigationDisplayRefresh(false, 100UL, nullptr, false);
 }
 
 void DashboardApp::onNavigationSubpageChanged(
