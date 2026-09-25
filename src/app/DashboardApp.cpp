@@ -694,6 +694,24 @@ void DashboardApp::setup() {
             requestAutomaticDisplayRefresh();
             return true;
         },
+        [this](const String& slotId, const String& bindingKey, String& error) {
+            RfSensorsConfig updated;
+            if (!_rfSensorManager.rebindSensor(
+                    slotId, bindingKey, updated, error)) {
+                return false;
+            }
+            if (!_configManager.setRfSensors(updated)) {
+                error = "Nové přiřazení čidla se nepodařilo uložit.";
+                return false;
+            }
+            _rfSensorManager.applyConfig(_configManager.get().rfSensors);
+            requestAutomaticDisplayRefresh();
+            Serial.printf(
+                "[RF-SENSORS] %s znovu prirazeno na %s.\n",
+                slotId.c_str(),
+                bindingKey.c_str());
+            return true;
+        },
         [this](const String& slotId, String& error) {
             RfSensorsConfig updated;
             if (!_rfSensorManager.removeSensor(slotId, updated, error)) {
