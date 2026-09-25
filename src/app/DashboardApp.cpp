@@ -500,8 +500,8 @@ void DashboardApp::setup() {
             _azrouterClient.begin(
                 azrouter.host,
                 azrouter.port,
-                azrouter.username,
-                azrouter.password);
+                azrouter.authEnabled ? azrouter.username : String(),
+                azrouter.authEnabled ? azrouter.password : String());
         } else {
             _dataModel.azrouter.authenticated = false;
             _dataModel.azrouter.authMode = "disabled";
@@ -745,8 +745,8 @@ void DashboardApp::setup() {
         _azrouterClient.begin(
             cfg.azrouter.host,
             cfg.azrouter.port,
-            cfg.azrouter.username,
-            cfg.azrouter.password);
+            cfg.azrouter.authEnabled ? cfg.azrouter.username : String(),
+            cfg.azrouter.authEnabled ? cfg.azrouter.password : String());
     }
     _weatherWorker.begin(cfg.weather);
 

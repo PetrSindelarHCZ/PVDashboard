@@ -296,6 +296,7 @@ bool ConfigManager::begin() {
     if (preferences.isKey("az_host")) _config.azrouter.host = preferences.getString("az_host", _config.azrouter.host);
     _config.azrouter.port = preferences.getUShort("az_port", _config.azrouter.port);
     _config.azrouter.pollIntervalSeconds = preferences.getUInt("az_interval", _config.azrouter.pollIntervalSeconds);
+    _config.azrouter.authEnabled = preferences.getBool("az_auth", _config.azrouter.authEnabled);
     if (preferences.isKey("az_user")) _config.azrouter.username = preferences.getString("az_user", "");
     if (preferences.isKey("az_password")) _config.azrouter.password = preferences.getString("az_password", "");
     _config.pool.enabled = preferences.getBool("pool_enabled", _config.pool.enabled);
@@ -478,6 +479,7 @@ void ConfigManager::setSources(const GoodWeConfig& goodwe, const AZRouterConfig&
     Preferences preferences; preferences.begin("dashboard", false);
     preferences.putBool("gw_enabled", goodwe.enabled); preferences.putString("gw_host", goodwe.host); preferences.putUShort("gw_port", goodwe.port); preferences.putUInt("gw_interval", goodwe.pollIntervalSeconds);
     preferences.putBool("az_enabled", azrouter.enabled); preferences.putString("az_host", azrouter.host); preferences.putUShort("az_port", azrouter.port); preferences.putUInt("az_interval", azrouter.pollIntervalSeconds);
+    preferences.putBool("az_auth", azrouter.authEnabled);
     preferences.putString("az_user", azrouter.username); preferences.putString("az_password", azrouter.password); preferences.end();
 }
 
@@ -569,6 +571,7 @@ bool ConfigManager::setUserConfiguration(const AppConfig& config) {
         importedAzrouter.password = _config.azrouter.password;
     }
     preferences.putBool("az_enabled", importedAzrouter.enabled); preferences.putString("az_host", importedAzrouter.host); preferences.putUShort("az_port", importedAzrouter.port); preferences.putUInt("az_interval", importedAzrouter.pollIntervalSeconds);
+    preferences.putBool("az_auth", importedAzrouter.authEnabled);
     preferences.putString("az_user", importedAzrouter.username); preferences.putString("az_password", importedAzrouter.password);
     preferences.putBool("pool_enabled", config.pool.enabled);
     if (!saveRfSensors(preferences, config.rfSensors)) { preferences.end(); return false; }
