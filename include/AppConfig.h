@@ -56,3 +56,4 @@
 // Intervaly v milisekundách
 #define FULL_REFRESH_INTERVAL_MS    (24 * 60 * 60 * 1000UL) // 1x denně full refresh proti duchům
 #define STATUS_POLL_INTERVAL_MS     (10 * 1000UL)           // 10 sekund perioda dat
+
