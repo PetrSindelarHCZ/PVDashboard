@@ -29,13 +29,6 @@ void DisplayManager::renderScreen(IScreen* screen, const DataModel& dataModel,
     }
 
     const bool full = forceFullRefresh || _forceFullRefresh;
-    const String screenId = screen->getId();
-    const bool screenChanged =
-        !_lastScreenId.isEmpty() && !_lastScreenId.equalsIgnoreCase(screenId);
-    const bool cleanPartialTransition =
-        !full &&
-        screenChanged &&
-        (partialRegion == nullptr || !partialRegion->valid());
 
     Performance::Scope timing(full ? Performance::DisplayFull : Performance::DisplayPartial);
     const unsigned long renderStarted = millis();
@@ -49,25 +42,6 @@ void DisplayManager::renderScreen(IScreen* screen, const DataModel& dataModel,
         Serial.printf("[DISPLAY][%lu ms] Vykresluji obrazovku '%s' (Rezim: %s)...\n", millis(),
                       screen->getId().c_str(),
                       full ? "FULL REFRESH" : "PARTIAL REFRESH");
-    }
-
-    if (cleanPartialTransition) {
-        // A full-window differential update is fast, but drawing a complex
-        // screen directly over a different previous screen can corrupt some
-        // 7.5" V2 panels. First drive the whole panel to white using the same
-        // partial waveform, then draw the new screen. This stays much faster
-        // than a cleaning full refresh while giving the new screen a known
-        // background.
-        Serial.printf(
-            "[DISPLAY][%lu ms] Screen transition %s -> %s: partial white pre-clear.\n",
-            millis(),
-            _lastScreenId.c_str(),
-            screenId.c_str());
-
-        _display.beginFrame(true);
-        do {
-            _display.clear(1);
-        } while (_display.nextFrame());
     }
 
     if (full) {
@@ -97,7 +71,6 @@ void DisplayManager::renderScreen(IScreen* screen, const DataModel& dataModel,
     } while (_display.nextFrame());
 
     _forceFullRefresh = false;
-    _lastScreenId = screenId;
 
     _display.powerOff();
     if (capturePreview && _preview != nullptr) {
