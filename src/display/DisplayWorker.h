@@ -22,7 +22,6 @@ public:
 private:
     static constexpr uint32_t TaskStackWords = 8192;
     static constexpr UBaseType_t TaskPriority = 1;
-    static constexpr uint32_t PartialIdlePowerOffMs = 5000;
 
     DisplayManager& _displayManager;
     SemaphoreHandle_t _mutex = nullptr;
