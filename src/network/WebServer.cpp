@@ -900,12 +900,14 @@ void DashboardWebServer::onRfSensorManagement(
     RfSensorScanCallback scanCallback,
     RfSensorAddCallback addCallback,
     RfSensorRenameCallback renameCallback,
+    RfSensorRebindCallback rebindCallback,
     RfSensorRemoveCallback removeCallback) {
 
     _rfSensorStatusCallback = statusCallback;
     _rfSensorScanCallback = scanCallback;
     _rfSensorAddCallback = addCallback;
     _rfSensorRenameCallback = renameCallback;
+    _rfSensorRebindCallback = rebindCallback;
     _rfSensorRemoveCallback = removeCallback;
 
     _server.on("/api/rf-sensors", HTTP_GET, [this]() {
@@ -992,6 +994,35 @@ void DashboardWebServer::onRfSensorManagement(
             String response;
             serializeJson(doc, response);
             _server.send(404, "application/json", response);
+            return;
+        }
+
+        _server.send(200, "application/json", "{\"status\":\"saved\"}");
+    });
+
+    _server.on("/api/rf-sensors/rebind", HTTP_POST, [this]() {
+        if (!_rfSensorRebindCallback ||
+            !_server.hasArg("slotId") ||
+            !_server.hasArg("bindingKey")) {
+            _server.send(
+                400,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"Chybí uložené nebo nalezené čidlo\"}");
+            return;
+        }
+
+        String error;
+        if (!_rfSensorRebindCallback(
+                _server.arg("slotId"),
+                _server.arg("bindingKey"),
+                error)) {
+            JsonDocument doc;
+            doc["status"] = "error";
+            doc["message"] =
+                error.isEmpty() ? "Čidlo nelze znovu přiřadit" : error;
+            String response;
+            serializeJson(doc, response);
+            _server.send(409, "application/json", response);
             return;
         }
 
