@@ -1708,6 +1708,60 @@ bool tryPrintOneTwoMsCandidate(const int32_t* data, uint16_t count) {
         return false;
     }
 
+    // A clean 37-bit row repeated several times is the fingerprint currently
+    // observed from the Hyundai R50 candidate. Keep this as a diagnostic
+    // label only until payload fields/checksum are proven.
+    uint8_t best37Row = 0xFF;
+    uint8_t best37Repeats = 0;
+    for (uint8_t r = 0; r < rowCount; ++r) {
+        if (rowBits[r] != 37) continue;
+        uint8_t repeats = 1;
+        for (uint8_t s = static_cast<uint8_t>(r + 1); s < rowCount; ++s) {
+            if (rowBits[s] == 37 && rows[s] == rows[r]) ++repeats;
+        }
+        if (repeats > best37Repeats) {
+            best37Repeats = repeats;
+            best37Row = r;
+        }
+    }
+
+    static uint64_t lastR50Candidate = 0;
+    static uint32_t lastR50CandidateMs = 0;
+    static uint32_t r50CandidateCount = 0;
+    if (best37Row != 0xFF && best37Repeats >= 3) {
+        const uint64_t candidate = rows[best37Row];
+        const uint32_t nowMs = millis();
+        const uint32_t intervalMs =
+            lastR50CandidateMs == 0 ? 0 : nowMs - lastR50CandidateMs;
+        ++r50CandidateCount;
+
+        Serial.printf(
+            "[CC1101][R50-CANDIDATE] bits=37 repeats=%u count=%lu",
+            static_cast<unsigned>(best37Repeats),
+            static_cast<unsigned long>(r50CandidateCount));
+        if (intervalMs > 0) {
+            Serial.printf(
+                " interval=%.1f s",
+                static_cast<double>(intervalMs) / 1000.0);
+        }
+        Serial.printf(
+            " changed=%s | data=",
+            lastR50CandidateMs != 0 && candidate != lastR50Candidate
+                ? "YES"
+                : "NO");
+        for (int bit = 36; bit >= 0; --bit) {
+            Serial.print((candidate >> bit) & 1ULL ? '1' : '0');
+        }
+        Serial.print(" | hex=");
+        Serial.printf(
+            "%01llX %08llX\n",
+            static_cast<unsigned long long>((candidate >> 32) & 0x1F),
+            static_cast<unsigned long long>(candidate & 0xFFFFFFFFULL));
+
+        lastR50Candidate = candidate;
+        lastR50CandidateMs = nowMs;
+    }
+
     Serial.printf(
         "[CC1101][UNKNOWN-1/2MS] rows=%u pulse~%lu us 0gap~%lu us 1gap~%lu us\n",
         static_cast<unsigned>(rowCount),
