@@ -948,11 +948,12 @@ bool DashboardApp::handleNavigationAction(
             currentLayout);
 
     if (_navigationInputFullRefresh) {
-        // Switching to a different screen needs a cleaning full refresh.
-        // Pager/subpage changes intentionally stay on the historical
-        // full-window differential partial path.
+        // Screen changes use the same fast full-window differential partial
+        // path as pager changes. EpaperDisplay deliberately expands any
+        // requested dirty region to the full T7 panel so the controller's
+        // previous/current images stay coherent.
         requestNavigationDisplayRefresh(
-            true, 40UL, nullptr, capturePreview);
+            false, 40UL, nullptr, capturePreview);
     } else {
         requestNavigationDisplayRefresh(
             false,
@@ -1012,7 +1013,7 @@ bool DashboardApp::resetUiToHome(bool capturePreview) {
     _navigationController.syncToActiveScreen(false);
     syncWeatherDisplayForActiveScreen(false);
     Serial.println("[KEY] RESET: UI -> Home/sidebar");
-    requestNavigationDisplayRefresh(true, 40UL, nullptr, capturePreview);
+    requestNavigationDisplayRefresh(false, 40UL, nullptr, capturePreview);
     return true;
 }
 
@@ -1020,7 +1021,7 @@ void DashboardApp::onScreenSwitchRequested(const String& screenId) {
     _navigationController.syncToActiveScreen(false);
     syncWeatherDisplayForActiveScreen(false);
     Serial.printf("[APP][%lu ms] Pozadavek na prepnuti obrazovky: %s\n", millis(), screenId.c_str());
-    requestDisplayRefresh(true, 100);
+    requestDisplayRefresh(false, 100);
 }
 
 void DashboardApp::onNavigationSubpageChanged(
