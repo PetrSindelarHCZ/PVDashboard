@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include "DataSourceStatus.h"
 #include "DataPoint.h"
+#include "../integrations/cc1101/RfSensorTypes.h"
 
 constexpr size_t WeatherForecastDayCount = 4;
 constexpr size_t WeatherHourlySlotsPerDay = 9;
@@ -156,6 +157,29 @@ struct PoolData {
     bool heatingActive = true;
 };
 
+
+struct RfSensorData {
+    bool configured = false;
+    bool available = false;
+    String slotId = "";
+
+    bool hasTemperature = false;
+    float temperatureC = 0.0f;
+
+    bool hasHumidity = false;
+    int humidityPercent = 0;
+
+    bool hasBattery = false;
+    bool batteryOk = true;
+
+    uint32_t lastUpdateMs = 0;
+};
+
+struct RfSensorsData {
+    uint8_t sensorCount = 0;
+    RfSensorData sensors[MaxRfSensors];
+};
+
 struct SystemData {
     String currentScreenId = "home";
 
@@ -190,6 +214,7 @@ public:
     WeatherData weather;
     InsideData inside;
     PoolData pool;
+    RfSensorsData rfSensors;
     SystemData system;
 
     void updateSystemMetrics();

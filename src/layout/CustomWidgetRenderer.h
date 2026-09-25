@@ -83,6 +83,33 @@ inline bool resolveValue(const DataModel& dm, const String& source, float& value
         return true;
     }
 
+    if (source.startsWith("rf.")) {
+        const int metricSeparator = source.indexOf('.', 3);
+        if (metricSeparator < 0) return false;
+
+        const String slotId = source.substring(3, metricSeparator);
+        const String metric = source.substring(metricSeparator + 1);
+
+        for (uint8_t i = 0;
+             i < dm.rfSensors.sensorCount && i < MaxRfSensors;
+             ++i) {
+            const RfSensorData& sensor = dm.rfSensors.sensors[i];
+            if (!sensor.configured || sensor.slotId != slotId) continue;
+            if (!sensor.available) return false;
+
+            if (metric == "temperatureC" && sensor.hasTemperature) {
+                value = sensor.temperatureC;
+                return true;
+            }
+            if (metric == "humidityPercent" && sensor.hasHumidity) {
+                value = sensor.humidityPercent;
+                return true;
+            }
+            return false;
+        }
+        return false;
+    }
+
     if (source.startsWith("weather.")) {
         if (!dm.weather.enabled || !dm.weather.status.available) return false;
         if (source == "weather.outdoorTempC") value = dm.weather.outdoorTempC;

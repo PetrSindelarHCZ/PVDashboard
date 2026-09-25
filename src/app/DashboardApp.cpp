@@ -80,6 +80,34 @@ const char* weatherProviderLabel(const String& provider) {
     return provider.c_str();
 }
 
+String rfSensorBaseLabel(const RfSensorConfig& sensor) {
+    if (!sensor.name.isEmpty()) return sensor.name;
+
+    String label = sensor.protocol;
+    label += " 0x";
+    label += String(sensor.sensorId, HEX);
+    if (sensor.channel > 0) {
+        label += " CH";
+        label += String(sensor.channel);
+    }
+    return label;
+}
+
+String rfSensorMetricLabel(const RfSensorConfig& sensor, bool humidity) {
+    String label = rfSensorBaseLabel(sensor);
+    label += humidity ? " – vlhkost" : " – teplota";
+    return label;
+}
+
+const RfSensorConfig* rfSensorBySlot(
+    const RfSensorsConfig& config,
+    const String& slotId) {
+    for (uint8_t i = 0; i < config.sensorCount && i < MaxRfSensors; ++i) {
+        if (config.sensors[i].slotId == slotId) return &config.sensors[i];
+    }
+    return nullptr;
+}
+
 bool weatherDisplayDataChanged(const WeatherData& a, const WeatherData& b) {
     return a.status.available != b.status.available ||
            a.status.lastError != b.status.lastError ||
@@ -177,7 +205,8 @@ DisplayRegion navigationDirtyRegion(
 }
 
 DashboardApp::DashboardApp()
-    : _epaperDisplay(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY, EPD_SCK, EPD_MISO, EPD_MOSI),
+    : _rfSensorManager(_dataModel),
+      _epaperDisplay(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY, EPD_SCK, EPD_MISO, EPD_MOSI),
       _displayPreview(),
       _displayManager(_epaperDisplay, &_displayPreview),
       _displayWorker(_displayManager),
@@ -201,6 +230,18 @@ void DashboardApp::setup() {
     Cc1101RawReceiver::begin();
 
     _configManager.begin();
+    _rfSensorManager.applyConfig(_configManager.get().rfSensors);
+    Cc1101RawReceiver::onSensorObservation(
+        [this](const RfSensorObservation& observation) {
+            if (!_rfSensorManager.observe(observation)) return;
+
+            const unsigned long now = millis();
+            if (_lastRfSensorDisplayRefresh == 0 ||
+                now - _lastRfSensorDisplayRefresh >= 60000UL) {
+                _lastRfSensorDisplayRefresh = now;
+                requestAutomaticDisplayRefresh();
+            }
+        });
 
     _memoryHeavyGate = xSemaphoreCreateMutex();
     if (_memoryHeavyGate == nullptr) {
@@ -551,6 +592,140 @@ void DashboardApp::setup() {
         Serial.println("[CONFIG] Pocasi ulozeno a aplikovano za behu.");
     });
 
+    _webServer.onRfSensorManagement(
+        [this]() {
+            return _rfSensorManager.statusJson();
+        },
+        [this](uint32_t durationMs) {
+            _rfSensorManager.startScan(durationMs);
+            Serial.printf(
+                "[RF-SENSORS] Scan spusten na %lu s.\n",
+                static_cast<unsigned long>(durationMs / 1000UL));
+        },
+        [this](const String& bindingKey, const String& name, String& error) {
+            RfSensorsConfig updated;
+            if (!_rfSensorManager.addDiscoveredSensor(
+                    bindingKey, name, updated, error)) {
+                return false;
+            }
+            if (!_configManager.setRfSensors(updated)) {
+                error = "Konfiguraci čidla se nepodařilo uložit.";
+                return false;
+            }
+            _rfSensorManager.applyConfig(_configManager.get().rfSensors);
+            requestAutomaticDisplayRefresh();
+            return true;
+        },
+        [this](const String& slotId, const String& name, String& error) {
+            const RfSensorsConfig previousRf = _configManager.get().rfSensors;
+            const RfSensorConfig* previousSensor =
+                rfSensorBySlot(previousRf, slotId);
+            if (previousSensor == nullptr) {
+                error = "Uložené čidlo nebylo nalezeno.";
+                return false;
+            }
+
+            const String oldTemperatureLabel =
+                rfSensorMetricLabel(*previousSensor, false);
+            const String oldHumidityLabel =
+                rfSensorMetricLabel(*previousSensor, true);
+
+            RfSensorsConfig updated;
+            if (!_rfSensorManager.renameSensor(
+                    slotId, name, updated, error)) {
+                return false;
+            }
+
+            const RfSensorConfig* updatedSensor =
+                rfSensorBySlot(updated, slotId);
+            if (updatedSensor == nullptr) {
+                error = "Aktualizované čidlo nebylo nalezeno.";
+                return false;
+            }
+
+            if (!_configManager.setRfSensors(updated)) {
+                error = "Nový název čidla se nepodařilo uložit.";
+                return false;
+            }
+            _rfSensorManager.applyConfig(_configManager.get().rfSensors);
+
+            // KPI label follows the sensor name only while it still carries
+            // the automatically generated label. User-edited labels remain
+            // untouched.
+            HomeLayoutConfig layout =
+                _configManager.get().display.homeLayout;
+            bool layoutChanged = false;
+            const String temperatureSource =
+                "rf." + slotId + ".temperatureC";
+            const String humiditySource =
+                "rf." + slotId + ".humidityPercent";
+            const String newTemperatureLabel =
+                rfSensorMetricLabel(*updatedSensor, false);
+            const String newHumidityLabel =
+                rfSensorMetricLabel(*updatedSensor, true);
+
+            for (uint8_t w = 0;
+                 w < layout.widgetCount && w < MaxHomeLayoutWidgets;
+                 ++w) {
+                HomeLayoutWidgetConfig& widget = layout.widgets[w];
+                if (widget.type != "custom") continue;
+
+                for (auto& element : widget.elements) {
+                    if (element.type != "kpi") continue;
+
+                    if (element.source == temperatureSource &&
+                        element.label == oldTemperatureLabel) {
+                        element.label = newTemperatureLabel;
+                        layoutChanged = true;
+                    } else if (element.source == humiditySource &&
+                               element.label == oldHumidityLabel) {
+                        element.label = newHumidityLabel;
+                        layoutChanged = true;
+                    }
+                }
+            }
+
+            if (layoutChanged && !_configManager.setHomeLayout(layout)) {
+                Serial.println(
+                    "[RF-SENSORS] Varovani: jmeno cidla ulozeno, "
+                    "ale automaticky KPI popisek se nepodarilo aktualizovat.");
+            }
+
+            requestAutomaticDisplayRefresh();
+            return true;
+        },
+        [this](const String& slotId, const String& bindingKey, String& error) {
+            RfSensorsConfig updated;
+            if (!_rfSensorManager.rebindSensor(
+                    slotId, bindingKey, updated, error)) {
+                return false;
+            }
+            if (!_configManager.setRfSensors(updated)) {
+                error = "Nové přiřazení čidla se nepodařilo uložit.";
+                return false;
+            }
+            _rfSensorManager.applyConfig(_configManager.get().rfSensors);
+            requestAutomaticDisplayRefresh();
+            Serial.printf(
+                "[RF-SENSORS] %s znovu prirazeno na %s.\n",
+                slotId.c_str(),
+                bindingKey.c_str());
+            return true;
+        },
+        [this](const String& slotId, String& error) {
+            RfSensorsConfig updated;
+            if (!_rfSensorManager.removeSensor(slotId, updated, error)) {
+                return false;
+            }
+            if (!_configManager.setRfSensors(updated)) {
+                error = "Čidlo se nepodařilo odebrat z konfigurace.";
+                return false;
+            }
+            _rfSensorManager.applyConfig(_configManager.get().rfSensors);
+            requestAutomaticDisplayRefresh();
+            return true;
+        });
+
     _webServer.onFactoryReset([this]() { return _configManager.resetToFactoryDefaults(); });
     _webServer.onConfigImport([this](const AppConfig& config) { return _configManager.setUserConfiguration(config); });
 
@@ -655,6 +830,8 @@ void DashboardApp::setWeatherScreensEnabled(bool enabled) {
 }
 
 void DashboardApp::requestDisplayRefresh(bool full, unsigned long delayMs) {
+    if (!_displayEnabled) return;
+
     _pendingRefresh = true;
     _pendingFullRefresh = _pendingFullRefresh || full;
 
@@ -675,6 +852,8 @@ void DashboardApp::requestNavigationDisplayRefresh(
     unsigned long delayMs,
     const DisplayRegion* region,
     bool capturePreview) {
+
+    if (!_displayEnabled) return;
 
     const bool hadPending = _pendingRefresh;
     _pendingRefresh = true;
@@ -712,6 +891,8 @@ void DashboardApp::requestNavigationDisplayRefresh(
 }
 
 void DashboardApp::requestAutomaticDisplayRefresh() {
+    if (!_displayEnabled) return;
+
     unsigned long delayMs = 0;
     if (_lastScreenRender != 0) {
         const unsigned long elapsed = millis() - _lastScreenRender;
@@ -719,6 +900,39 @@ void DashboardApp::requestAutomaticDisplayRefresh() {
         if (elapsed < CoalesceWindowMs) delayMs = CoalesceWindowMs - elapsed;
     }
     requestDisplayRefresh(false, delayMs);
+}
+
+void DashboardApp::setDisplayEnabled(bool enabled) {
+    if (_displayEnabled == enabled) return;
+
+    _displayEnabled = enabled;
+    _pendingRefresh = true;
+    _pendingFullRefresh = true;
+    _pendingDisplayRegionValid = false;
+    _pendingCapturePreview = false;
+    _displayRefreshNotBefore = millis();
+
+    if (!enabled) {
+        _pendingBlankDisplay = true;
+        Serial.println("[DISPLAY] soft OFF -> full white erase requested");
+    } else {
+        _pendingBlankDisplay = false;
+        _pendingCapturePreview = true;
+        Serial.println("[DISPLAY] soft ON -> full redraw requested");
+    }
+}
+
+void DashboardApp::resetUiToHome() {
+    if (!_screenManager.activateScreen("home")) {
+        Serial.println("[KEY] RESET: Home screen is not available.");
+        return;
+    }
+
+    _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
+    _navigationController.syncToActiveScreen(false);
+    syncWeatherDisplayForActiveScreen(false);
+    Serial.println("[KEY] RESET: UI -> Home/sidebar");
+    requestNavigationDisplayRefresh(false, 40UL, nullptr, false);
 }
 
 void DashboardApp::onScreenSwitchRequested(const String& screenId) {
@@ -857,8 +1071,21 @@ void DashboardApp::loop() {
     _timeService.loop();
     _webServer.loop();
 
+    const DisplayTaskStatus displayStatus = _displayWorker.getStatus();
+    const bool displayElectricallyActive =
+        displayStatus.state == DisplayTaskState::Initializing ||
+        displayStatus.state == DisplayTaskState::RenderingPartial ||
+        displayStatus.state == DisplayTaskState::RenderingFull;
+
+    // The 7.5" e-paper refresh can couple noise into exposed GPIO lines
+    // (GPIO18/RIGHT was observed doing this in practice). Do not sample any
+    // physical buttons while the panel is electrically active; otherwise a
+    // short false LOW can enter the debounce/repeat state machine and queue
+    // another navigation/render while the current refresh is still running.
     NavigationAction joystickAction;
-    if (_joystick.poll(joystickAction)) {
+    const bool joystickEvent =
+        !displayElectricallyActive && _joystick.poll(joystickAction);
+    if (joystickEvent && _displayEnabled) {
         const NavigationState previousNavigation =
             _navigationController.getState();
         NavigationLayout previousLayout;
@@ -905,6 +1132,23 @@ void DashboardApp::loop() {
         }
     }
 
+    ControlAction controlAction;
+    if (!displayElectricallyActive && _joystick.pollControl(controlAction)) {
+        switch (controlAction) {
+            case ControlAction::SetLong:
+                setDisplayEnabled(!_displayEnabled);
+                break;
+            case ControlAction::ResetShort:
+                resetUiToHome();
+                break;
+            case ControlAction::SetShort:
+                // Reserved for a future context/settings action.
+                break;
+            case ControlAction::None:
+                break;
+        }
+    }
+
     const bool displayInitDelayElapsed = static_cast<long>(millis() - _displayInitNotBefore) >= 0;
     const bool displayInitFallbackElapsed = static_cast<long>(millis() - _displayInitNotBefore) >= 5000;
     if (!_displayWorkerStarted && displayInitDelayElapsed && (_timeService.isSynced() || displayInitFallbackElapsed)) {
@@ -912,14 +1156,9 @@ void DashboardApp::loop() {
         if (_displayWorkerStarted) _lastDisplayUpdate = millis();
     }
 
-    const DisplayTaskStatus displayStatus = _displayWorker.getStatus();
-
-    const bool displayElectricallyActive =
-        displayStatus.state == DisplayTaskState::Initializing ||
-        displayStatus.state == DisplayTaskState::RenderingPartial ||
-        displayStatus.state == DisplayTaskState::RenderingFull;
     Cc1101RawReceiver::setSuppressed(displayElectricallyActive);
     Cc1101RawReceiver::loop();
+    _rfSensorManager.loop();
     if (displayStatus.lastCompletedMs != 0 && displayStatus.lastCompletedMs != _lastScreenRender) {
         _lastScreenRender = displayStatus.lastCompletedMs;
         _lastDisplayUpdate = displayStatus.lastCompletedMs;
@@ -1000,14 +1239,20 @@ void DashboardApp::loop() {
         const DisplayRegion* region =
             _pendingDisplayRegionValid ? &_pendingDisplayRegion : nullptr;
 
+        IScreen* screenToRender =
+            _pendingBlankDisplay
+                ? static_cast<IScreen*>(&_blankDisplayScreen)
+                : _screenManager.getActiveScreen();
+
         if (_displayWorker.enqueue(
-                _screenManager.getActiveScreen(),
+                screenToRender,
                 _dataModel,
                 _pendingFullRefresh,
                 region,
                 _pendingCapturePreview)) {
             _pendingRefresh = false;
             _pendingFullRefresh = false;
+            _pendingBlankDisplay = false;
             _pendingDisplayRegionValid = false;
             _pendingCapturePreview = true;
             _displayRefreshNotBefore = 0;

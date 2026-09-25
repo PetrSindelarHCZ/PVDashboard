@@ -93,6 +93,124 @@ void loadWeatherLocations(Preferences& preferences, WeatherConfig& weather) {
     weather.syncActiveCoordinates();
 }
 
+
+String serializeRfSensors(const RfSensorsConfig& rfSensors) {
+    JsonDocument doc;
+    JsonArray array = doc.to<JsonArray>();
+    const uint8_t count = min<uint8_t>(rfSensors.sensorCount, MaxRfSensors);
+    for (uint8_t i = 0; i < count; ++i) {
+        const RfSensorConfig& sensor = rfSensors.sensors[i];
+        JsonObject item = array.add<JsonObject>();
+        item["slotId"] = sensor.slotId;
+        item["protocol"] = sensor.protocol;
+        item["sensorId"] = sensor.sensorId;
+        item["channel"] = sensor.channel;
+        item["name"] = sensor.name;
+        item["temperature"] = sensor.hasTemperature;
+        item["humidity"] = sensor.hasHumidity;
+        item["battery"] = sensor.hasBattery;
+    }
+
+    String json;
+    serializeJson(doc, json);
+    return json;
+}
+
+bool parseRfSensors(const String& json, RfSensorsConfig& rfSensors, String& error) {
+    JsonDocument doc;
+    if (deserializeJson(doc, json)) {
+        error = "Invalid RF sensor configuration JSON";
+        return false;
+    }
+
+    JsonArray array = doc.as<JsonArray>();
+    if (array.isNull() || array.size() > MaxRfSensors) {
+        error = "Invalid RF sensor list";
+        return false;
+    }
+
+    RfSensorsConfig parsed;
+    for (JsonObject item : array) {
+        RfSensorConfig sensor;
+        sensor.slotId = item["slotId"] | "";
+        sensor.protocol = item["protocol"] | "";
+        sensor.sensorId = item["sensorId"] | 0UL;
+        sensor.channel = item["channel"] | 0;
+        sensor.name = item["name"] | "";
+        sensor.hasTemperature = item["temperature"] | false;
+        sensor.hasHumidity = item["humidity"] | false;
+        sensor.hasBattery = item["battery"] | false;
+
+        if (sensor.slotId.isEmpty() ||
+            !sensor.slotId.startsWith("sensor") ||
+            sensor.slotId.length() > 16 ||
+            sensor.protocol.isEmpty() ||
+            sensor.protocol.length() > 24 ||
+            sensor.name.length() > 40 ||
+            sensor.channel > 15 ||
+            (!sensor.hasTemperature && !sensor.hasHumidity && !sensor.hasBattery)) {
+            error = "Invalid RF sensor entry";
+            return false;
+        }
+
+        for (size_t c = 0; c < sensor.name.length(); ++c) {
+            if (static_cast<uint8_t>(sensor.name[c]) < 0x20) {
+                error = "Invalid RF sensor name";
+                return false;
+            }
+        }
+
+        for (uint8_t i = 0; i < parsed.sensorCount; ++i) {
+            const RfSensorConfig& existing = parsed.sensors[i];
+            if (existing.slotId == sensor.slotId ||
+                (existing.protocol == sensor.protocol &&
+                 existing.sensorId == sensor.sensorId &&
+                 existing.channel == sensor.channel)) {
+                error = "Duplicate RF sensor entry";
+                return false;
+            }
+        }
+
+        parsed.sensors[parsed.sensorCount++] = sensor;
+    }
+
+    rfSensors = parsed;
+    return true;
+}
+
+bool saveRfSensors(Preferences& preferences, const RfSensorsConfig& rfSensors) {
+    const String json = serializeRfSensors(rfSensors);
+    const size_t written =
+        preferences.putBytes("rf_cfg", json.c_str(), json.length());
+    return written == json.length();
+}
+
+bool loadRfSensors(
+    Preferences& preferences,
+    RfSensorsConfig& rfSensors,
+    String& error) {
+
+    const size_t length = preferences.getBytesLength("rf_cfg");
+    if (length == 0) {
+        rfSensors = RfSensorsConfig{};
+        return true;
+    }
+
+    std::unique_ptr<char[]> buffer(new (std::nothrow) char[length + 1]);
+    if (!buffer) {
+        error = "Not enough memory for RF sensor configuration";
+        return false;
+    }
+
+    if (preferences.getBytes("rf_cfg", buffer.get(), length) != length) {
+        error = "Cannot read RF sensor configuration";
+        return false;
+    }
+
+    buffer[length] = '\0';
+    return parseRfSensors(String(buffer.get()), rfSensors, error);
+}
+
 bool saveHomeLayout(Preferences& preferences, const HomeLayoutConfig& layout) {
     const String json = HomeLayout::serializeJson(layout);
     const size_t written = preferences.putBytes("layout_blob", json.c_str(), json.length());
@@ -181,6 +299,14 @@ bool ConfigManager::begin() {
     if (preferences.isKey("az_user")) _config.azrouter.username = preferences.getString("az_user", "");
     if (preferences.isKey("az_password")) _config.azrouter.password = preferences.getString("az_password", "");
     _config.pool.enabled = preferences.getBool("pool_enabled", _config.pool.enabled);
+    {
+        String rfError;
+        if (!loadRfSensors(preferences, _config.rfSensors, rfError)) {
+            Serial.printf("[CONFIG] Ignoruji neplatnou konfiguraci RF cidel: %s\n", rfError.c_str());
+            _config.rfSensors = RfSensorsConfig{};
+            if (preferences.isKey("rf_cfg")) preferences.remove("rf_cfg");
+        }
+    }
     _config.weather.enabled = preferences.getBool("wx_enabled", _config.weather.enabled);
     if (preferences.isKey("wx_provider")) _config.weather.provider = preferences.getString("wx_provider", _config.weather.provider);
     _config.weather.latitude = preferences.getDouble("wx_lat", _config.weather.latitude);
@@ -214,6 +340,8 @@ bool ConfigManager::begin() {
     Serial.printf("  GoodWe: %s (host: %s:%u)\n", _config.goodwe.enabled ? "Povoleno" : "Zakazano", _config.goodwe.host.c_str(), _config.goodwe.port);
     Serial.printf("  AZRouter: %s (host: %s:%u)\n", _config.azrouter.enabled ? "Povoleno" : "Zakazano", _config.azrouter.host.c_str(), _config.azrouter.port);
     Serial.printf("  Bazen: %s\n", _config.pool.enabled ? "Povoleno" : "Zakazano");
+    Serial.printf("  RF cidla: %u ulozenych\n",
+                  static_cast<unsigned>(_config.rfSensors.sensorCount));
     const WeatherLocation* activeWeatherLocation = _config.weather.activeLocation();
     Serial.printf("  Pocasi: %s | mist: %u | aktivni: %s (%.5f, %.5f)\n",
                   _config.weather.enabled ? "Povoleno" : "Zakazano",
@@ -361,6 +489,29 @@ void ConfigManager::setPool(const PoolConfig& pool) {
     preferences.end();
 }
 
+bool ConfigManager::setRfSensors(const RfSensorsConfig& rfSensors) {
+    if (rfSensors.sensorCount > MaxRfSensors) return false;
+
+    // Reuse the same parser validation used during boot before committing data.
+    String validationError;
+    RfSensorsConfig validated;
+    if (!parseRfSensors(serializeRfSensors(rfSensors), validated, validationError)) {
+        Serial.printf("[CONFIG] RF cidla odmitnuta: %s\n", validationError.c_str());
+        return false;
+    }
+
+    Preferences preferences;
+    if (!preferences.begin("dashboard", false)) return false;
+    const bool saved = saveRfSensors(preferences, validated);
+    preferences.end();
+    if (!saved) return false;
+
+    _config.rfSensors = validated;
+    Serial.printf("[CONFIG] RF cidla ulozena: %u\n",
+                  static_cast<unsigned>(validated.sensorCount));
+    return true;
+}
+
 void ConfigManager::setWeather(const WeatherConfig& weather) {
     WeatherConfig normalized = weather;
     normalized.syncActiveCoordinates();
@@ -420,6 +571,7 @@ bool ConfigManager::setUserConfiguration(const AppConfig& config) {
     preferences.putBool("az_enabled", importedAzrouter.enabled); preferences.putString("az_host", importedAzrouter.host); preferences.putUShort("az_port", importedAzrouter.port); preferences.putUInt("az_interval", importedAzrouter.pollIntervalSeconds);
     preferences.putString("az_user", importedAzrouter.username); preferences.putString("az_password", importedAzrouter.password);
     preferences.putBool("pool_enabled", config.pool.enabled);
+    if (!saveRfSensors(preferences, config.rfSensors)) { preferences.end(); return false; }
     WeatherConfig normalizedWeather = config.weather;
     normalizedWeather.syncActiveCoordinates();
     preferences.putBool("wx_enabled", normalizedWeather.enabled);
@@ -431,7 +583,7 @@ bool ConfigManager::setUserConfiguration(const AppConfig& config) {
     const bool layoutSaved = saveHomeLayout(preferences, config.display.homeLayout);
     preferences.end();
     if (!layoutSaved) return false;
-    _config.system = config.system; _config.wifi = config.wifi; _config.display = config.display; _config.goodwe = config.goodwe; _config.azrouter = importedAzrouter; _config.pool = config.pool; _config.weather = normalizedWeather;
+    _config.system = config.system; _config.wifi = config.wifi; _config.display = config.display; _config.goodwe = config.goodwe; _config.azrouter = importedAzrouter; _config.pool = config.pool; _config.rfSensors = config.rfSensors; _config.weather = normalizedWeather;
     rememberWifi(config.wifi.ssid, config.wifi.password, true);
     Serial.println("[CONFIG] YAML konfigurace importovana do NVS.");
     return true;

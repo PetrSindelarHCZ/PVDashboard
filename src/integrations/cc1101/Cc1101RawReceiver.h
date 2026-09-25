@@ -1,6 +1,14 @@
 #pragma once
 
+#include <functional>
+#include "RfSensorTypes.h"
+
 namespace Cc1101RawReceiver {
+
+using SensorObservationCallback =
+    std::function<void(const RfSensorObservation& observation)>;
+
+void onSensorObservation(SensorObservationCallback callback);
 
 // Configures CC1101 for 433.92 MHz ASK/OOK asynchronous receive.
 // GDO0 carries raw demodulated data, GDO2 is carrier sense.

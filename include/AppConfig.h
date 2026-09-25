@@ -35,6 +35,11 @@
 #define JOY_RIGHT_PIN  18
 #define JOY_OK_PIN     33
 
+// Doplňková tlačítka mají externí 10k pull-up na 3.3 V.
+// GPIO34/35 na ESP32 nemají interní pull-up.
+#define JOY_SET_PIN    34
+#define JOY_RESET_PIN  35
+
 // ==========================================
 // Rozměry displeje
 // ==========================================
@@ -51,3 +56,4 @@
 // Intervaly v milisekundách
 #define FULL_REFRESH_INTERVAL_MS    (24 * 60 * 60 * 1000UL) // 1x denně full refresh proti duchům
 #define STATUS_POLL_INTERVAL_MS     (10 * 1000UL)           // 10 sekund perioda dat
+

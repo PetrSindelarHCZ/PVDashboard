@@ -5,6 +5,7 @@
 #include "WifiUiPatch.h"
 #include "WifiKnownDialogPatch.h"
 #include "WeatherSettingsUiPatch.h"
+#include "RfSensorSettingsUiPatch.h"
 #include "DisplayPreviewUiPatch.h"
 #include "NavigationUiPatch.h"
 #include "LayoutEditorUiPatch.h"
@@ -106,7 +107,10 @@ String customNtpServersJson(const std::vector<String>& servers) {
     return response;
 }
 
-String homeLayoutResponseJson(const HomeLayoutConfig& config, const DataModel& dataModel) {
+String homeLayoutResponseJson(
+    const HomeLayoutConfig& config,
+    const RfSensorsConfig& rfSensors,
+    const DataModel& dataModel) {
     JsonDocument doc;
     doc["screen"] = "home";
     doc["customized"] = config.customized;
@@ -222,7 +226,7 @@ String homeLayoutResponseJson(const HomeLayoutConfig& config, const DataModel& d
     graphStyles.add("bars");
 
     JsonArray sources = custom["dataSources"].to<JsonArray>();
-    auto addSource = [&sources](const char* id, const char* label, const char* unit,
+    auto addSource = [&sources](const String& id, const String& label, const String& unit,
                                 uint8_t decimals, bool history) {
         JsonObject item = sources.add<JsonObject>();
         item["id"] = id;
@@ -276,6 +280,43 @@ String homeLayoutResponseJson(const HomeLayoutConfig& config, const DataModel& d
     addSource("system.wifiRssi", "Wi-Fi RSSI", "dBm", 0, false);
     addSource("system.uptimeSeconds", "Uptime", "s", 0, false);
 
+    const uint8_t rfSensorCount =
+        rfSensors.sensorCount > MaxRfSensors
+            ? MaxRfSensors
+            : rfSensors.sensorCount;
+    for (uint8_t i = 0; i < rfSensorCount; ++i) {
+        const RfSensorConfig& sensor = rfSensors.sensors[i];
+        if (sensor.slotId.isEmpty()) continue;
+
+        String baseLabel = sensor.name;
+        if (baseLabel.isEmpty()) {
+            baseLabel = sensor.protocol;
+            baseLabel += " 0x";
+            baseLabel += String(sensor.sensorId, HEX);
+            if (sensor.channel > 0) {
+                baseLabel += " CH";
+                baseLabel += String(sensor.channel);
+            }
+        }
+
+        if (sensor.hasTemperature) {
+            addSource(
+                "rf." + sensor.slotId + ".temperatureC",
+                baseLabel + " – teplota",
+                "°C",
+                1,
+                false);
+        }
+        if (sensor.hasHumidity) {
+            addSource(
+                "rf." + sensor.slotId + ".humidityPercent",
+                baseLabel + " – vlhkost",
+                "%",
+                0,
+                false);
+        }
+    }
+
     String response;
     serializeJson(doc, response);
     return response;
@@ -290,7 +331,7 @@ void DashboardWebServer::onHomeLayoutConfig(HomeLayoutConfigCallback callback) {
         _server.send(
             200,
             "application/json",
-            homeLayoutResponseJson(_config.display.homeLayout, _dataModel));
+            homeLayoutResponseJson(_config.display.homeLayout, _config.rfSensors, _dataModel));
     });
 
     _server.on("/api/layout/home", HTTP_POST, [this]() {
@@ -326,7 +367,7 @@ void DashboardWebServer::onHomeLayoutConfig(HomeLayoutConfigCallback callback) {
         _server.send(
             200,
             "application/json",
-            homeLayoutResponseJson(_config.display.homeLayout, _dataModel));
+            homeLayoutResponseJson(_config.display.homeLayout, _config.rfSensors, _dataModel));
     });
 
     _server.on("/api/layout/home/reset", HTTP_POST, [this]() {
@@ -351,7 +392,7 @@ void DashboardWebServer::onHomeLayoutConfig(HomeLayoutConfigCallback callback) {
         _server.send(
             200,
             "application/json",
-            homeLayoutResponseJson(_config.display.homeLayout, _dataModel));
+            homeLayoutResponseJson(_config.display.homeLayout, _config.rfSensors, _dataModel));
     });
 }
 
@@ -854,6 +895,164 @@ void DashboardWebServer::onWifiDisconnect(WifiDisconnectCallback callback) {
     _wifiDisconnectCallback = callback;
 }
 
+void DashboardWebServer::onRfSensorManagement(
+    RfSensorStatusCallback statusCallback,
+    RfSensorScanCallback scanCallback,
+    RfSensorAddCallback addCallback,
+    RfSensorRenameCallback renameCallback,
+    RfSensorRebindCallback rebindCallback,
+    RfSensorRemoveCallback removeCallback) {
+
+    _rfSensorStatusCallback = statusCallback;
+    _rfSensorScanCallback = scanCallback;
+    _rfSensorAddCallback = addCallback;
+    _rfSensorRenameCallback = renameCallback;
+    _rfSensorRebindCallback = rebindCallback;
+    _rfSensorRemoveCallback = removeCallback;
+
+    _server.on("/api/rf-sensors", HTTP_GET, [this]() {
+        if (!_rfSensorStatusCallback) {
+            _server.send(
+                503,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"RF sensor management unavailable\"}");
+            return;
+        }
+        _server.sendHeader("Cache-Control", "no-store");
+        _server.send(200, "application/json", _rfSensorStatusCallback());
+    });
+
+    _server.on("/api/rf-sensors/scan", HTTP_POST, [this]() {
+        if (!_rfSensorScanCallback) {
+            _server.send(
+                503,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"RF sensor scan unavailable\"}");
+            return;
+        }
+
+        long durationSeconds = 90;
+        if (_server.hasArg("durationSeconds")) {
+            durationSeconds = _server.arg("durationSeconds").toInt();
+        }
+        if (durationSeconds < 30) durationSeconds = 30;
+        if (durationSeconds > 180) durationSeconds = 180;
+
+        _rfSensorScanCallback(
+            static_cast<uint32_t>(durationSeconds) * 1000UL);
+
+        JsonDocument doc;
+        doc["status"] = "started";
+        doc["durationSeconds"] = durationSeconds;
+        String response;
+        serializeJson(doc, response);
+        _server.sendHeader("Cache-Control", "no-store");
+        _server.send(200, "application/json", response);
+    });
+
+    _server.on("/api/rf-sensors/add", HTTP_POST, [this]() {
+        if (!_rfSensorAddCallback || !_server.hasArg("bindingKey")) {
+            _server.send(
+                400,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"Chybí identifikace čidla\"}");
+            return;
+        }
+
+        String error;
+        const String bindingKey = _server.arg("bindingKey");
+        const String name = _server.hasArg("name") ? _server.arg("name") : "";
+        if (!_rfSensorAddCallback(bindingKey, name, error)) {
+            JsonDocument doc;
+            doc["status"] = "error";
+            doc["message"] = error.isEmpty() ? "Čidlo nelze přidat" : error;
+            String response;
+            serializeJson(doc, response);
+            _server.send(409, "application/json", response);
+            return;
+        }
+
+        _server.send(200, "application/json", "{\"status\":\"saved\"}");
+    });
+
+    _server.on("/api/rf-sensors/rename", HTTP_POST, [this]() {
+        if (!_rfSensorRenameCallback || !_server.hasArg("slotId")) {
+            _server.send(
+                400,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"Chybí interní ID čidla\"}");
+            return;
+        }
+
+        String error;
+        const String slotId = _server.arg("slotId");
+        const String name = _server.hasArg("name") ? _server.arg("name") : "";
+        if (!_rfSensorRenameCallback(slotId, name, error)) {
+            JsonDocument doc;
+            doc["status"] = "error";
+            doc["message"] = error.isEmpty() ? "Čidlo nelze přejmenovat" : error;
+            String response;
+            serializeJson(doc, response);
+            _server.send(404, "application/json", response);
+            return;
+        }
+
+        _server.send(200, "application/json", "{\"status\":\"saved\"}");
+    });
+
+    _server.on("/api/rf-sensors/rebind", HTTP_POST, [this]() {
+        if (!_rfSensorRebindCallback ||
+            !_server.hasArg("slotId") ||
+            !_server.hasArg("bindingKey")) {
+            _server.send(
+                400,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"Chybí uložené nebo nalezené čidlo\"}");
+            return;
+        }
+
+        String error;
+        if (!_rfSensorRebindCallback(
+                _server.arg("slotId"),
+                _server.arg("bindingKey"),
+                error)) {
+            JsonDocument doc;
+            doc["status"] = "error";
+            doc["message"] =
+                error.isEmpty() ? "Čidlo nelze znovu přiřadit" : error;
+            String response;
+            serializeJson(doc, response);
+            _server.send(409, "application/json", response);
+            return;
+        }
+
+        _server.send(200, "application/json", "{\"status\":\"saved\"}");
+    });
+
+    _server.on("/api/rf-sensors/remove", HTTP_POST, [this]() {
+        if (!_rfSensorRemoveCallback || !_server.hasArg("slotId")) {
+            _server.send(
+                400,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"Chybí interní ID čidla\"}");
+            return;
+        }
+
+        String error;
+        if (!_rfSensorRemoveCallback(_server.arg("slotId"), error)) {
+            JsonDocument doc;
+            doc["status"] = "error";
+            doc["message"] = error.isEmpty() ? "Čidlo nelze odebrat" : error;
+            String response;
+            serializeJson(doc, response);
+            _server.send(404, "application/json", response);
+            return;
+        }
+
+        _server.send(200, "application/json", "{\"status\":\"removed\"}");
+    });
+}
+
 void DashboardWebServer::handleExtendedRoot() {
     const char* bodyEnd = strstr(INDEX_HTML, "</body>");
     _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
@@ -868,6 +1067,7 @@ void DashboardWebServer::handleExtendedRoot() {
         _server.sendContent_P(WIFI_UI_PATCH);
         _server.sendContent_P(WIFI_KNOWN_DIALOG_PATCH);
         _server.sendContent_P(WEATHER_SETTINGS_UI_PATCH);
+        _server.sendContent_P(RF_SENSOR_SETTINGS_UI_PATCH);
         _server.sendContent_P(DISPLAY_PREVIEW_UI_PATCH);
         _server.sendContent_P(NAVIGATION_UI_PATCH);
         _server.sendContent_P(LAYOUT_EDITOR_UI_PATCH);
@@ -880,6 +1080,7 @@ void DashboardWebServer::handleExtendedRoot() {
         _server.sendContent_P(WIFI_UI_PATCH);
         _server.sendContent_P(WIFI_KNOWN_DIALOG_PATCH);
         _server.sendContent_P(WEATHER_SETTINGS_UI_PATCH);
+        _server.sendContent_P(RF_SENSOR_SETTINGS_UI_PATCH);
         _server.sendContent_P(DISPLAY_PREVIEW_UI_PATCH);
         _server.sendContent_P(NAVIGATION_UI_PATCH);
         _server.sendContent_P(LAYOUT_EDITOR_UI_PATCH);

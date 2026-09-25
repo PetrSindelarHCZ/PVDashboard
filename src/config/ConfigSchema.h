@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include <vector>
+#include "../integrations/cc1101/RfSensorTypes.h"
 
 struct SystemConfig {
     String hostname = "dashboard";
@@ -138,6 +139,24 @@ struct WeatherConfig {
     }
 };
 
+
+struct RfSensorConfig {
+    String slotId = "";      // stable dashboard identity, e.g. sensor1
+    String protocol = "";    // tfa-twin | auriol | nexus-th | ft017th
+    uint32_t sensorId = 0;   // radio-side identifier
+    uint8_t channel = 0;     // 0 = protocol has no channel
+    String name = "";        // optional user-facing name
+
+    bool hasTemperature = false;
+    bool hasHumidity = false;
+    bool hasBattery = false;
+};
+
+struct RfSensorsConfig {
+    uint8_t sensorCount = 0;
+    RfSensorConfig sensors[MaxRfSensors];
+};
+
 struct PoolConfig {
     // Řídí viditelnost bazénových informací v UI/displeji.
     // Další bazénová nastavení (čidla, limity, technologie) lze později
@@ -146,12 +165,13 @@ struct PoolConfig {
 };
 
 struct AppConfig {
-    uint8_t schemaVersion = 11;
+    uint8_t schemaVersion = 12;
     SystemConfig system;
     WifiConfig wifi;
     DisplayConfig display;
     GoodWeConfig goodwe;
     AZRouterConfig azrouter;
     PoolConfig pool;
+    RfSensorsConfig rfSensors;
     WeatherConfig weather;
 };
