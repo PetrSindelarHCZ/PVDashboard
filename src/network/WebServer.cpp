@@ -1141,18 +1141,39 @@ void DashboardWebServer::handleApiNavigationAction() {
     }
     if (!_server.hasArg("action")) {
         _server.send(400, "application/json",
-                     "{\"status\":\"error\",\"message\":\"Navigation action is required\"}");
+                     "{\"status\":\"error\",\"message\":\"Dashboard action is required\"}");
         return;
     }
 
-    NavigationAction action;
-    if (!parseNavigationAction(_server.arg("action"), action)) {
-        _server.send(400, "application/json",
-                     "{\"status\":\"error\",\"message\":\"Unknown navigation action\"}");
-        return;
+    const String requestedAction = _server.arg("action");
+    bool handled = false;
+    const char* actionName = nullptr;
+    const char* actionType = nullptr;
+
+    NavigationAction navigationAction;
+    if (parseNavigationAction(requestedAction, navigationAction)) {
+        handled = _navigationActionCallback
+            ? _navigationActionCallback(navigationAction)
+            : _navigationController->handleAction(navigationAction);
+        actionName = navigationActionName(navigationAction);
+        actionType = "navigation";
+    } else {
+        ControlAction controlAction;
+        if (!parseControlAction(requestedAction, controlAction)) {
+            _server.send(400, "application/json",
+                         "{\"status\":\"error\",\"message\":\"Unknown dashboard action\"}");
+            return;
+        }
+        if (!_controlActionCallback) {
+            _server.send(503, "application/json",
+                         "{\"status\":\"error\",\"message\":\"Control action unavailable\"}");
+            return;
+        }
+        handled = _controlActionCallback(controlAction);
+        actionName = controlActionName(controlAction);
+        actionType = "control";
     }
 
-    const bool handled = _navigationController->handleAction(action);
     const NavigationState& state = _navigationController->getState();
     NavigationLayout layout;
     _navigationController->buildCurrentLayout(layout);
@@ -1167,7 +1188,8 @@ void DashboardWebServer::handleApiNavigationAction() {
     JsonDocument doc;
     doc["status"] = "ok";
     doc["handled"] = handled;
-    doc["action"] = navigationActionName(action);
+    doc["action"] = actionName;
+    doc["actionType"] = actionType;
     doc["area"] = navigationAreaName(state.area);
     doc["activeScreen"] = _screenManager.getActiveScreenId();
     doc["activeTitle"] = screenTitle(_screenManager.getActiveScreenId());
