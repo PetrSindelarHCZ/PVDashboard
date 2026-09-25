@@ -18,8 +18,8 @@ bool begin();
 // as H/L pulse lengths in microseconds.
 void loop();
 
-// Temporarily discard RF captures while the e-paper is electrically active.
-// This helps distinguish real 433 MHz traffic from local display interference.
+// Temporarily suspend RF capture while the e-paper is electrically active.
+// The GDO0 interrupt is detached so RF/display chatter cannot pre-empt SPI.
 void setSuppressed(bool suppressed);
 
 bool isReady();
