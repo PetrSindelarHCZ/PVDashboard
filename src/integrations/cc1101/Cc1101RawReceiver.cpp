@@ -58,6 +58,7 @@ volatile uint16_t carrierHoldEdges = 0;
 volatile bool overflowed = false;
 volatile bool receiverReady = false;
 volatile bool captureSuppressed = false;
+bool interruptAttached = false;
 
 SensorObservationCallback sensorObservationCallback;
 
@@ -1995,6 +1996,7 @@ void onSensorObservation(SensorObservationCallback callback) {
 bool begin() {
     receiverReady = false;
     captureSuppressed = false;
+    interruptAttached = false;
     for (auto& sensor : ft017ThSensors) {
         sensor = Ft017ThSensorEntry{};
     }
@@ -2037,6 +2039,7 @@ bool begin() {
         digitalPinToInterrupt(CC1101_GDO0_PIN),
         onRawEdge,
         CHANGE);
+    interruptAttached = true;
 
     receiverReady = true;
     Serial.println(
@@ -2123,6 +2126,23 @@ void setSuppressed(bool suppressed) {
         changed = true;
     }
     interrupts();
+
+    // During e-paper activity do not merely ignore GDO0 edges in the ISR.
+    // Fully detach the interrupt so RF chatter / display-coupled noise cannot
+    // pre-empt the SPI transfer thousands of times. Re-attach once the panel
+    // is electrically idle again.
+    if (suppressed) {
+        if (interruptAttached) {
+            detachInterrupt(digitalPinToInterrupt(CC1101_GDO0_PIN));
+            interruptAttached = false;
+        }
+    } else if (receiverReady && !interruptAttached) {
+        attachInterrupt(
+            digitalPinToInterrupt(CC1101_GDO0_PIN),
+            onRawEdge,
+            CHANGE);
+        interruptAttached = true;
+    }
 
     if (changed) {
         Serial.printf(
