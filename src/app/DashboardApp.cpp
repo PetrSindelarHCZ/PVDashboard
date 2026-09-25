@@ -8,6 +8,10 @@
 #include "../../include/Version.h"
 
 namespace {
+// Diagnostic-only branch: completely keep CC1101 out of the runtime so we can
+// prove whether RF/SPI/interrupt activity contributes to the e-paper stripes.
+constexpr bool EnableCc1101 = false;
+
 constexpr uint32_t MinimumPollIntervalMs = 1000;
 constexpr uint32_t MaximumBackoffMs = 300000;
 constexpr uint8_t MaximumBackoffShift = 5;
@@ -246,24 +250,30 @@ void DashboardApp::setup() {
     Serial.printf("  Build: %s\n", FIRMWARE_BUILD_DATE);
     Serial.println("==========================================");
 
-    // Verify the physically connected 433 MHz transceiver before the display
-    // takes ownership of the global SPI object with its own MISO pin.
-    Cc1101Diagnostics::probe();
-    Cc1101RawReceiver::begin();
+    // Diagnostic build: leave CC1101 completely untouched when disabled.
+    // This means no SPI remap, no CC1101 reset/configuration and no GDO0 ISR.
+    if (EnableCc1101) {
+        Cc1101Diagnostics::probe();
+        Cc1101RawReceiver::begin();
+    } else {
+        Serial.println("[DIAG] CC1101 disabled for display isolation test.");
+    }
 
     _configManager.begin();
     _rfSensorManager.applyConfig(_configManager.get().rfSensors);
-    Cc1101RawReceiver::onSensorObservation(
-        [this](const RfSensorObservation& observation) {
-            if (!_rfSensorManager.observe(observation)) return;
+    if (EnableCc1101) {
+        Cc1101RawReceiver::onSensorObservation(
+            [this](const RfSensorObservation& observation) {
+                if (!_rfSensorManager.observe(observation)) return;
 
-            const unsigned long now = millis();
-            if (_lastRfSensorDisplayRefresh == 0 ||
-                now - _lastRfSensorDisplayRefresh >= 60000UL) {
-                _lastRfSensorDisplayRefresh = now;
-                requestAutomaticDisplayRefresh();
-            }
-        });
+                const unsigned long now = millis();
+                if (_lastRfSensorDisplayRefresh == 0 ||
+                    now - _lastRfSensorDisplayRefresh >= 60000UL) {
+                    _lastRfSensorDisplayRefresh = now;
+                    requestAutomaticDisplayRefresh();
+                }
+            });
+    }
 
     _memoryHeavyGate = xSemaphoreCreateMutex();
     if (_memoryHeavyGate == nullptr) {
@@ -1221,8 +1231,10 @@ void DashboardApp::loop() {
         if (_displayWorkerStarted) _lastDisplayUpdate = millis();
     }
 
-    Cc1101RawReceiver::setSuppressed(displayRfSuppressed);
-    Cc1101RawReceiver::loop();
+    if (EnableCc1101) {
+        Cc1101RawReceiver::setSuppressed(displayRfSuppressed);
+        Cc1101RawReceiver::loop();
+    }
     _rfSensorManager.loop();
     if (displayStatus.lastCompletedMs != 0 && displayStatus.lastCompletedMs != _lastScreenRender) {
         _lastScreenRender = displayStatus.lastCompletedMs;
@@ -1313,7 +1325,9 @@ void DashboardApp::loop() {
         // rendering. Waiting for the next loop iteration would leave a short
         // race where CC1101 GDO0 interrupts are still attached during the
         // first bytes of the e-paper transfer.
-        Cc1101RawReceiver::setSuppressed(true);
+        if (EnableCc1101) {
+            Cc1101RawReceiver::setSuppressed(true);
+        }
 
         if (_displayWorker.enqueue(
                 screenToRender,
