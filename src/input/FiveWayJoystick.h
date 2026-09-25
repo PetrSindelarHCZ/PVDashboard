@@ -4,13 +4,6 @@
 #include "../navigation/NavigationTypes.h"
 #include "../../include/AppConfig.h"
 
-enum class ControlAction : uint8_t {
-    None,
-    SetShort,
-    SetLong,
-    ResetShort
-};
-
 class FiveWayJoystick {
 public:
     static constexpr uint8_t UpPin = JOY_UP_PIN;
