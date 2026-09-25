@@ -1603,6 +1603,163 @@ bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
     return true;
 }
 
+
+bool tryPrintOneTwoMsCandidate(const int32_t* data, uint16_t count) {
+    // Discovery-only decoder for clean ~0.5 ms HIGH + 1/2 ms LOW PPM traffic.
+    // Known protocol decoders run before this function, so output here is
+    // intentionally labelled UNKNOWN. The goal is to expose complete rows
+    // as bits/HEX so an unidentified sensor (currently Hyundai R50 candidate)
+    // can be correlated with values shown on its display.
+    constexpr uint32_t PulseMinUs = 350;
+    constexpr uint32_t PulseMaxUs = 700;
+    constexpr uint32_t ZeroGapMinUs = 700;
+    constexpr uint32_t ZeroGapMaxUs = 1400;
+    constexpr uint32_t OneGapMinUs = 1600;
+    constexpr uint32_t OneGapMaxUs = 2500;
+    constexpr uint32_t SyncGapMinUs = 2800;
+    constexpr uint32_t SyncGapMaxUs = 6000;
+    constexpr uint8_t MinimumRowBits = 16;
+    constexpr uint8_t MaximumRowBits = 63;
+    constexpr uint8_t MaximumRows = 16;
+
+    auto duration = [](int32_t pulse) -> uint32_t {
+        return static_cast<uint32_t>(pulse >= 0 ? pulse : -pulse);
+    };
+
+    uint64_t rows[MaximumRows] = {};
+    uint8_t rowBits[MaximumRows] = {};
+    uint8_t rowCount = 0;
+    uint64_t current = 0;
+    uint8_t currentBits = 0;
+    uint32_t zeroGapTotal = 0;
+    uint32_t oneGapTotal = 0;
+    uint32_t pulseTotal = 0;
+    uint16_t zeroGapCount = 0;
+    uint16_t oneGapCount = 0;
+    uint16_t pulseSampleCount = 0;
+
+    auto storeRow = [&]() {
+        if (currentBits >= MinimumRowBits &&
+            rowCount < MaximumRows) {
+            rows[rowCount] = current;
+            rowBits[rowCount] = currentBits;
+            ++rowCount;
+        }
+        current = 0;
+        currentBits = 0;
+    };
+
+    for (uint16_t i = 0; i + 1 < count; ++i) {
+        if (data[i] <= 0 || data[i + 1] >= 0) continue;
+
+        const uint32_t pulseUs = duration(data[i]);
+        const uint32_t gapUs = duration(data[i + 1]);
+
+        if (pulseUs < PulseMinUs || pulseUs > PulseMaxUs) {
+            if (currentBits > 0) storeRow();
+            continue;
+        }
+
+        pulseTotal += pulseUs;
+        ++pulseSampleCount;
+
+        bool validBit = false;
+        bool value = false;
+        if (gapUs >= ZeroGapMinUs && gapUs <= ZeroGapMaxUs) {
+            validBit = true;
+            value = false;
+            zeroGapTotal += gapUs;
+            ++zeroGapCount;
+        } else if (gapUs >= OneGapMinUs && gapUs <= OneGapMaxUs) {
+            validBit = true;
+            value = true;
+            oneGapTotal += gapUs;
+            ++oneGapCount;
+        } else if (gapUs >= SyncGapMinUs && gapUs <= SyncGapMaxUs) {
+            storeRow();
+            ++i;
+            continue;
+        }
+
+        if (!validBit) {
+            if (currentBits > 0) storeRow();
+            continue;
+        }
+
+        if (currentBits >= MaximumRowBits) {
+            storeRow();
+        }
+        current = (current << 1) | (value ? 1ULL : 0ULL);
+        ++currentBits;
+        ++i;
+    }
+    if (currentBits > 0) storeRow();
+
+    if (rowCount == 0 || (zeroGapCount + oneGapCount) < 24) {
+        return false;
+    }
+
+    // Require at least one useful row and a strongly bimodal 1/2 ms timing.
+    const uint32_t zeroAvg = zeroGapCount ? zeroGapTotal / zeroGapCount : 0;
+    const uint32_t oneAvg = oneGapCount ? oneGapTotal / oneGapCount : 0;
+    if (zeroGapCount == 0 || oneGapCount == 0 ||
+        zeroAvg < ZeroGapMinUs || zeroAvg > ZeroGapMaxUs ||
+        oneAvg < OneGapMinUs || oneAvg > OneGapMaxUs) {
+        return false;
+    }
+
+    Serial.printf(
+        "[CC1101][UNKNOWN-1/2MS] rows=%u pulse~%lu us 0gap~%lu us 1gap~%lu us\n",
+        static_cast<unsigned>(rowCount),
+        static_cast<unsigned long>(
+            pulseSampleCount ? pulseTotal / pulseSampleCount : 0),
+        static_cast<unsigned long>(zeroAvg),
+        static_cast<unsigned long>(oneAvg));
+
+    for (uint8_t r = 0; r < rowCount; ++r) {
+        const uint8_t bits = rowBits[r];
+        const uint64_t frame = rows[r];
+
+        Serial.printf(
+            "[CC1101][UNKNOWN-1/2MS] row=%u bits=%u data=",
+            static_cast<unsigned>(r + 1),
+            static_cast<unsigned>(bits));
+
+        for (int bit = static_cast<int>(bits) - 1; bit >= 0; --bit) {
+            Serial.print((frame >> bit) & 1ULL ? '1' : '0');
+        }
+
+        Serial.print(" hex=");
+        const uint8_t fullNibbles = bits / 4;
+        const uint8_t remainder = bits % 4;
+        if (remainder != 0) {
+            const uint8_t value = static_cast<uint8_t>(
+                (frame >> (bits - remainder)) & ((1U << remainder) - 1U));
+            Serial.print(value, HEX);
+            if (fullNibbles > 0) Serial.print(' ');
+        }
+        for (int nibble = static_cast<int>(fullNibbles) - 1;
+             nibble >= 0;
+             --nibble) {
+            const uint8_t value = static_cast<uint8_t>(
+                (frame >> (nibble * 4)) & 0x0F);
+            Serial.print(value, HEX);
+            if (nibble > 0) Serial.print(' ');
+        }
+
+        uint8_t repeats = 1;
+        for (uint8_t s = static_cast<uint8_t>(r + 1); s < rowCount; ++s) {
+            if (rowBits[s] == bits && rows[s] == frame) ++repeats;
+        }
+        if (repeats > 1) {
+            Serial.printf(" repeats=%u", static_cast<unsigned>(repeats));
+        }
+        Serial.println();
+    }
+
+    return true;
+}
+
 void printBurst(
     const int32_t* data,
     uint16_t count,
@@ -1852,7 +2009,8 @@ void loop() {
         !tryPrintAuriolHg02832(snapshot, snapshotCount) &&
         !tryPrintRepeatedManchester(snapshot, snapshotCount) &&
         !tryPrintPwm67(snapshot, snapshotCount) &&
-        !tryPrintPwm67Candidate(snapshot, snapshotCount)) {
+        !tryPrintPwm67Candidate(snapshot, snapshotCount) &&
+        !tryPrintOneTwoMsCandidate(snapshot, snapshotCount)) {
         printBurst(
             snapshot,
             snapshotCount,
