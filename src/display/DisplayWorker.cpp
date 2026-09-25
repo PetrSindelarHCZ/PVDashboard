@@ -151,19 +151,7 @@ void DisplayWorker::taskLoop() {
 
     DataModel dataSnapshot;
     for (;;) {
-        const uint32_t notifications =
-            ulTaskNotifyTake(
-                pdTRUE,
-                pdMS_TO_TICKS(PartialIdlePowerOffMs));
-
-        if (notifications == 0) {
-            // No render request arrived for a while. End the current partial
-            // update burst and remove panel drive voltages. The controller RAM
-            // remains intact, so the next partial update can continue from the
-            // last displayed image.
-            _displayManager.powerOff();
-            continue;
-        }
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
         for (;;) {
             xSemaphoreTake(_mutex, portMAX_DELAY);
