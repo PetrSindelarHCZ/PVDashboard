@@ -30,6 +30,7 @@ String RfSensorManager::protocolLabel(const String& protocol) {
     if (protocol == "auriol") return "Auriol";
     if (protocol == "nexus-th") return "Nexus-TH";
     if (protocol == "ft017th") return "FT017TH";
+    if (protocol == "hyundai-r50") return "Hyundai R50";
     return protocol;
 }
 
