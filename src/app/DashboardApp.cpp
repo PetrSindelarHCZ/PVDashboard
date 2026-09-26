@@ -14,6 +14,11 @@ constexpr uint8_t MaximumBackoffShift = 5;
 constexpr uint32_t Bme280PollIntervalMs = 10000;
 constexpr uint32_t Bme280DisplayRefreshIntervalMs = 60000;
 
+// Diagnostic hardware-isolation build: the ESP32 is physically connected only
+// to the e-paper panel and the five-way joystick. Keep all other external
+// peripherals completely inactive in software as well.
+constexpr bool DiagnosticExternalPeripheralsEnabled = false;
+
 uint32_t pollDelayMs(uint32_t intervalSeconds, uint8_t failureStreak) {
     uint64_t baseMs = static_cast<uint64_t>(intervalSeconds) * 1000ULL;
     if (baseMs < MinimumPollIntervalMs) baseMs = MinimumPollIntervalMs;
@@ -224,24 +229,27 @@ void DashboardApp::setup() {
     Serial.printf("  Build: %s\n", FIRMWARE_BUILD_DATE);
     Serial.println("==========================================");
 
-    // Verify the physically connected 433 MHz transceiver before the display
-    // takes ownership of the global SPI object with its own MISO pin.
-    Cc1101Diagnostics::probe();
-    Cc1101RawReceiver::begin();
-
     _configManager.begin();
-    _rfSensorManager.applyConfig(_configManager.get().rfSensors);
-    Cc1101RawReceiver::onSensorObservation(
-        [this](const RfSensorObservation& observation) {
-            if (!_rfSensorManager.observe(observation)) return;
 
-            const unsigned long now = millis();
-            if (_lastRfSensorDisplayRefresh == 0 ||
-                now - _lastRfSensorDisplayRefresh >= 60000UL) {
-                _lastRfSensorDisplayRefresh = now;
-                requestAutomaticDisplayRefresh();
-            }
-        });
+    if (DiagnosticExternalPeripheralsEnabled) {
+        // Normal hardware path (disabled in this diagnostic build).
+        Cc1101Diagnostics::probe();
+        Cc1101RawReceiver::begin();
+        _rfSensorManager.applyConfig(_configManager.get().rfSensors);
+        Cc1101RawReceiver::onSensorObservation(
+            [this](const RfSensorObservation& observation) {
+                if (!_rfSensorManager.observe(observation)) return;
+
+                const unsigned long now = millis();
+                if (_lastRfSensorDisplayRefresh == 0 ||
+                    now - _lastRfSensorDisplayRefresh >= 60000UL) {
+                    _lastRfSensorDisplayRefresh = now;
+                    requestAutomaticDisplayRefresh();
+                }
+            });
+    } else {
+        Serial.println("[DIAG] CC1101/RF disabled; no SPI probe, no GDO interrupt.");
+    }
 
     _memoryHeavyGate = xSemaphoreCreateMutex();
     if (_memoryHeavyGate == nullptr) {
@@ -265,10 +273,12 @@ void DashboardApp::setup() {
     const auto& cfg = _configManager.get();
     _homeScreen.setLayoutConfig(&cfg.display.homeLayout);
 
-    // Local environmental sensor is independent of Wi-Fi. The 4-pin BME280
-    // shares the preferred I2C bus on SDA GPIO21 / SCL GPIO22.
-    _bme280Sensor.update(_dataModel.inside);
-    _lastBme280Sync = millis();
+    if (DiagnosticExternalPeripheralsEnabled) {
+        _bme280Sensor.update(_dataModel.inside);
+        _lastBme280Sync = millis();
+    } else {
+        Serial.println("[DIAG] BME280 disabled; I2C sensor bus left untouched.");
+    }
 
     applyWifiAddressing(cfg.wifi);
 
@@ -1118,22 +1128,8 @@ void DashboardApp::loop() {
         }
     }
 
-    ControlAction controlAction;
-    if (!displayElectricallyActive && _joystick.pollControl(controlAction)) {
-        switch (controlAction) {
-            case ControlAction::SetLong:
-                setDisplayEnabled(!_displayEnabled);
-                break;
-            case ControlAction::ResetShort:
-                resetUiToHome();
-                break;
-            case ControlAction::SetShort:
-                // Reserved for a future context/settings action.
-                break;
-            case ControlAction::None:
-                break;
-        }
-    }
+    // Diagnostic build: SET/RESET are intentionally not polled. Only the
+    // five-way joystick cross and OK button remain active.
 
     const bool displayInitDelayElapsed = static_cast<long>(millis() - _displayInitNotBefore) >= 0;
     const bool displayInitFallbackElapsed = static_cast<long>(millis() - _displayInitNotBefore) >= 5000;
@@ -1142,9 +1138,11 @@ void DashboardApp::loop() {
         if (_displayWorkerStarted) _lastDisplayUpdate = millis();
     }
 
-    Cc1101RawReceiver::setSuppressed(displayElectricallyActive);
-    Cc1101RawReceiver::loop();
-    _rfSensorManager.loop();
+    if (DiagnosticExternalPeripheralsEnabled) {
+        Cc1101RawReceiver::setSuppressed(displayElectricallyActive);
+        Cc1101RawReceiver::loop();
+        _rfSensorManager.loop();
+    }
     if (displayStatus.lastCompletedMs != 0 && displayStatus.lastCompletedMs != _lastScreenRender) {
         _lastScreenRender = displayStatus.lastCompletedMs;
         _lastDisplayUpdate = displayStatus.lastCompletedMs;
@@ -1247,7 +1245,8 @@ void DashboardApp::loop() {
 
     unsigned long now = millis();
 
-    if (now - _lastBme280Sync >= Bme280PollIntervalMs) {
+    if (DiagnosticExternalPeripheralsEnabled &&
+        now - _lastBme280Sync >= Bme280PollIntervalMs) {
         const bool wasAvailable = _dataModel.inside.status.available;
         const float previousTemperature = _dataModel.inside.temperatureC;
         const int previousHumidity = _dataModel.inside.humidityPercent;
