@@ -428,39 +428,18 @@ uint8_t SolarScreen::getNavigationSubpageCount(const DataModel& dataModel) const
 }
 
 void SolarScreen::render(IDisplay& display, const DataModel& dm) {
+    // Diagnostic-only minimal FVE renderer. Keep the shared dashboard chrome
+    // and active Solar sidebar state, but remove pager tabs, graphs and all
+    // normal FVE cards to isolate whether the corruption is caused by FVE
+    // content or by the screen transition itself.
     ScreenStyle::drawChrome(display, dm);
 
-    if (!dm.solar.enabled && !dm.azrouter.enabled) {
-        drawUnavailableCard(display, "FOTOVOLTAIKA", "GoodWe i AZRouter jsou v nastavení vypnuté.");
-        return;
-    }
-
-    const uint8_t count = pageCount(dm);
-    const uint8_t pageIndex =
-        dm.system.navigationSubpageIndex < count
-            ? dm.system.navigationSubpageIndex
-            : 0;
-
-    drawPagerTabs(display, dm, pageIndex);
-
-    switch (pageForIndex(dm, pageIndex)) {
-        case SolarPage::Overview:
-            renderOverview(display, dm);
-            break;
-        case SolarPage::GoodWe:
-            renderGoodWe(display, dm);
-            break;
-        case SolarPage::AZRouter:
-            renderAZRouter(display, dm);
-            break;
-    }
-
-    ScreenStyle::drawSubpageDots(display, pageIndex, count);
-
-    NavigationLayout navigationLayout;
-    buildNavigationLayout(dm, navigationLayout);
-    ScreenStyle::drawPageNavigationFocus(display, dm, navigationLayout);
+    ScreenStyle::drawCard(display, 180, 160, 500, 180, "FVE TEST");
+    ScreenStyle::useMetric(display);
+    display.setCursor(260, 245);
+    display.print("MINIMAL RENDER");
 }
+
 
 void SolarScreen::buildNavigationLayout(const DataModel& dm, NavigationLayout& layout) const {
     layout.clear();
