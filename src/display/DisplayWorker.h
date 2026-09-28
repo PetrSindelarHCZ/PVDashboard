@@ -15,7 +15,8 @@ public:
     bool begin();
     bool enqueue(IScreen* screen, const DataModel& dataModel, bool full,
                  const DisplayRegion* partialRegion = nullptr,
-                 bool capturePreview = true);
+                 bool capturePreview = true,
+                 const DisplayRegion* secondaryPartialRegion = nullptr);
     DisplayTaskStatus getStatus();
     void setMemoryHeavyGate(SemaphoreHandle_t gate);
 
@@ -34,6 +35,8 @@ private:
     bool _pendingFull = false;
     bool _pendingHasRegion = false;
     DisplayRegion _pendingRegion;
+    bool _pendingHasSecondaryRegion = false;
+    DisplayRegion _pendingSecondaryRegion;
     bool _pendingCapturePreview = true;
     DisplayTaskStatus _status;
 
