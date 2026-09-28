@@ -27,8 +27,7 @@ void DisplayManager::powerOff() {
 void DisplayManager::renderScreen(IScreen* screen, const DataModel& dataModel,
                                   bool forceFullRefresh,
                                   const DisplayRegion* partialRegion,
-                                  bool capturePreview,
-                                  const DisplayRegion* secondaryPartialRegion) {
+                                  bool capturePreview) {
     if (!screen) {
         Serial.println("[DISPLAY] ERROR: Zadna obrazovka k vykresleni!");
         return;
@@ -61,35 +60,20 @@ void DisplayManager::renderScreen(IScreen* screen, const DataModel& dataModel,
         } while (_display.nextFrame());
 
         _display.beginFrame(true);
-        do {
-            _display.clear(1); // bila barva
-            screen->render(_display, dataModel);
-        } while (_display.nextFrame());
     } else if (partialRegion != nullptr && partialRegion->valid()) {
-        auto renderRegion = [&](const DisplayRegion& region) {
-            _display.beginPartialFrame(
-                region.x,
-                region.y,
-                region.width,
-                region.height);
-            do {
-                _display.clear(1); // bila barva
-                screen->render(_display, dataModel);
-            } while (_display.nextFrame());
-        };
-
-        renderRegion(*partialRegion);
-        if (secondaryPartialRegion != nullptr &&
-            secondaryPartialRegion->valid()) {
-            renderRegion(*secondaryPartialRegion);
-        }
+        _display.beginPartialFrame(
+            partialRegion->x,
+            partialRegion->y,
+            partialRegion->width,
+            partialRegion->height);
     } else {
         _display.beginFrame(true);
-        do {
-            _display.clear(1); // bila barva
-            screen->render(_display, dataModel);
-        } while (_display.nextFrame());
     }
+
+    do {
+        _display.clear(1); // bila barva
+        screen->render(_display, dataModel);
+    } while (_display.nextFrame());
 
     _forceFullRefresh = false;
 
