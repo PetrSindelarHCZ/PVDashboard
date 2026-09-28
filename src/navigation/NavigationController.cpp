@@ -146,13 +146,12 @@ bool NavigationController::enterPage(bool& screenChanged, bool& subpageChanged) 
     }
 
     const uint8_t subpageCount = activeSubpageCount();
-    const uint8_t initialSubpage = activeInitialSubpage();
-    subpageChanged = _state.subpageIndex != initialSubpage;
-    _state.subpageIndex = initialSubpage;
+    _state.subpageIndex = activeInitialSubpage();
     _state.focusId = "";
 
     if (subpageCount > 1) {
         _state.area = NavigationArea::Pager;
+        subpageChanged = true;
         return true;
     }
 
