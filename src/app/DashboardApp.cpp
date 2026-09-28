@@ -278,6 +278,20 @@ DisplayRegion homeDataRegion(
     return dirty;
 }
 
+DisplayRegion navigationFocusRegion(
+    const NavigationState& state,
+    const NavigationLayout& layout) {
+
+    if (state.area != NavigationArea::Page || state.focusId.isEmpty()) {
+        return DisplayRegion();
+    }
+
+    const int index = layout.find(state.focusId);
+    if (index < 0) return DisplayRegion();
+
+    return expandedNavigationRegion(layout.elements[index].bounds);
+}
+
 DisplayRegion navigationDirtyRegion(
     const NavigationState& previousState,
     const NavigationLayout& previousLayout,
@@ -1082,6 +1096,8 @@ bool DashboardApp::handleNavigationAction(
         !subpageChanged;
 
     if (_navigationInputFullRefresh) {
+        _deferredNavigationRegionValid = false;
+
         // Main-screen switch: refresh sidebar + page, but leave the header
         // untouched. This is the full dashboard body below HeaderHeight.
         const DisplayRegion region = dashboardBodyRegion();
@@ -1089,12 +1105,20 @@ bool DashboardApp::handleNavigationAction(
             false, 40UL, &region, capturePreview);
     } else if (enteredPageFromSidebar) {
         // RIGHT after OK only changes navigation mode; the page content was
-        // already drawn by OK. Refresh just the sidebar to remove its cursor.
-        // The initial page focus becomes visible with the first movement
-        // inside the page, avoiding a second large refresh back-to-back.
+        // already drawn by OK. First refresh the sidebar to remove its cursor.
         const DisplayRegion region = sidebarRegion();
         requestNavigationDisplayRefresh(
             false, 40UL, &region, capturePreview);
+
+        // Then draw the initial page focus as a separate partial region. This
+        // keeps both updates small and avoids a second whole-page refresh.
+        const DisplayRegion focusRegion =
+            navigationFocusRegion(currentNavigation, currentLayout);
+        if (focusRegion.valid()) {
+            _deferredNavigationRegion = focusRegion;
+            _deferredNavigationRegionValid = true;
+            _deferredNavigationCapturePreview = capturePreview;
+        }
     } else if (subpageChanged) {
         // Pager/subpage switch (FVE, weather locations, ...): only the page
         // changes. Sidebar and header stay physically untouched.
@@ -1346,6 +1370,22 @@ void DashboardApp::loop() {
     _rfSensorManager.loop();
     if (displayStatus.lastCompletedMs != 0 && displayStatus.lastCompletedMs != _lastScreenRender) {
         _lastScreenRender = displayStatus.lastCompletedMs;
+
+        // Finish Sidebar -> Page navigation with a second small update.
+        // Keeping it deferred avoids joining sidebar and page focus into one
+        // large bounding rectangle that would trigger a slow OTP refresh.
+        if (_deferredNavigationRegionValid &&
+            !displayStatus.pending &&
+            displayStatus.state == DisplayTaskState::Idle &&
+            !_pendingRefresh) {
+
+            const DisplayRegion deferred = _deferredNavigationRegion;
+            const bool capturePreview = _deferredNavigationCapturePreview;
+            _deferredNavigationRegionValid = false;
+
+            requestNavigationDisplayRefresh(
+                false, 0UL, &deferred, capturePreview);
+        }
     }
 
     const String previousTimeStr = _dataModel.system.timeStr;
