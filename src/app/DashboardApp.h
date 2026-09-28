@@ -89,6 +89,8 @@ private:
     bool _navigationInputFullRefresh = false;
     bool _pendingDisplayRegionValid = false;
     DisplayRegion _pendingDisplayRegion;
+    bool _pendingSecondaryDisplayRegionValid = false;
+    DisplayRegion _pendingSecondaryDisplayRegion;
     bool _pendingCapturePreview = true;
     bool _pendingWifiSave = false;
     String _pendingWifiSsid;
@@ -115,7 +117,8 @@ private:
     void requestDisplayRefresh(bool full, unsigned long delayMs = 0);
     void requestNavigationDisplayRefresh(bool full, unsigned long delayMs,
                                          const DisplayRegion* region = nullptr,
-                                         bool capturePreview = true);
+                                         bool capturePreview = true,
+                                         const DisplayRegion* secondaryRegion = nullptr);
     void requestAutomaticDisplayRefresh();
     bool handleNavigationAction(NavigationAction action, bool capturePreview);
     bool handleControlAction(ControlAction action, bool capturePreview);
