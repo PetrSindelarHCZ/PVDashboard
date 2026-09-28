@@ -1076,10 +1076,23 @@ bool DashboardApp::handleNavigationAction(
             currentNavigation,
             currentLayout);
 
+    const bool enteredPageFromSidebar =
+        previousNavigation.area == NavigationArea::Sidebar &&
+        currentNavigation.area == NavigationArea::Page &&
+        !subpageChanged;
+
     if (_navigationInputFullRefresh) {
         // Main-screen switch: refresh sidebar + page, but leave the header
         // untouched. This is the full dashboard body below HeaderHeight.
         const DisplayRegion region = dashboardBodyRegion();
+        requestNavigationDisplayRefresh(
+            false, 40UL, &region, capturePreview);
+    } else if (enteredPageFromSidebar) {
+        // RIGHT after OK only changes navigation mode; the page content was
+        // already drawn by OK. Refresh just the sidebar to remove its cursor.
+        // The initial page focus becomes visible with the first movement
+        // inside the page, avoiding a second large refresh back-to-back.
+        const DisplayRegion region = sidebarRegion();
         requestNavigationDisplayRefresh(
             false, 40UL, &region, capturePreview);
     } else if (subpageChanged) {
