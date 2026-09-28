@@ -13,8 +13,7 @@ public:
     void renderScreen(IScreen* screen, const DataModel& dataModel,
                       bool forceFullRefresh = false,
                       const DisplayRegion* partialRegion = nullptr,
-                      bool capturePreview = true,
-                      const DisplayRegion* secondaryPartialRegion = nullptr);
+                      bool capturePreview = true);
     void requestRefresh(bool full = false);
     void powerOff();
 
