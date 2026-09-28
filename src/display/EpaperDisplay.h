@@ -1,6 +1,7 @@
 #pragma once
 #include "IDisplay.h"
 #include <GxEPD2_BW.h>
+#include "GxEPD2_750_GDEY075T7_Hybrid.h"
 #include <SPI.h>
 #include <U8g2_for_Adafruit_GFX.h>
 
@@ -45,7 +46,7 @@ private:
     uint16_t mapColor(uint16_t color) const;
 
     int8_t _cs, _dc, _rst, _busy, _sck, _miso, _mosi;
-    GxEPD2_BW<GxEPD2_750_T7, GxEPD2_750_T7::HEIGHT> _epd;
+    GxEPD2_BW<GxEPD2_750_GDEY075T7_Hybrid, GxEPD2_750_GDEY075T7_Hybrid::HEIGHT> _epd;
     U8G2_FOR_ADAFRUIT_GFX _u8g2;
     bool _useUnicodeFont = false;
     bool _isPartial = false;
