@@ -161,6 +161,15 @@ DisplayRegion unionDisplayRegions(const DisplayRegion& a, const DisplayRegion& b
     return region;
 }
 
+DisplayRegion headerRegion() {
+    DisplayRegion region;
+    region.x = 0;
+    region.y = 0;
+    region.width = ScreenStyle::Width;
+    region.height = ScreenStyle::HeaderHeight;
+    return region;
+}
+
 DisplayRegion sidebarRegion() {
     DisplayRegion region;
     region.x = 0;
@@ -1218,7 +1227,9 @@ void DashboardApp::loop() {
     const bool displayInitFallbackElapsed = static_cast<long>(millis() - _displayInitNotBefore) >= 5000;
     if (!_displayWorkerStarted && displayInitDelayElapsed && (_timeService.isSynced() || displayInitFallbackElapsed)) {
         _displayWorkerStarted = _displayWorker.begin();
-        if (_displayWorkerStarted) _lastDisplayUpdate = millis();
+        if (_displayWorkerStarted && _lastTelemetryDisplayRefresh == 0) {
+            _lastTelemetryDisplayRefresh = millis();
+        }
     }
 
     Cc1101RawReceiver::setSuppressed(displayRfSuppressed);
@@ -1226,7 +1237,6 @@ void DashboardApp::loop() {
     _rfSensorManager.loop();
     if (displayStatus.lastCompletedMs != 0 && displayStatus.lastCompletedMs != _lastScreenRender) {
         _lastScreenRender = displayStatus.lastCompletedMs;
-        _lastDisplayUpdate = displayStatus.lastCompletedMs;
     }
 
     const String previousTimeStr = _dataModel.system.timeStr;
@@ -1255,8 +1265,14 @@ void DashboardApp::loop() {
         requestAutomaticDisplayRefresh();
     }
 
-    const bool timeChanged = previousTimeStr != _dataModel.system.timeStr || previousDateStr != _dataModel.system.dateStr || previousDayOfWeekStr != _dataModel.system.dayOfWeekStr;
-    if (timeChanged) requestAutomaticDisplayRefresh();
+    const bool timeChanged =
+        previousTimeStr != _dataModel.system.timeStr ||
+        previousDateStr != _dataModel.system.dateStr ||
+        previousDayOfWeekStr != _dataModel.system.dayOfWeekStr;
+    if (timeChanged) {
+        const DisplayRegion region = headerRegion();
+        requestNavigationDisplayRefresh(false, 0UL, &region, true);
+    }
 
     WeatherData weatherUpdate;
     if (_weatherWorker.takeLatest(weatherUpdate)) {
@@ -1364,12 +1380,14 @@ void DashboardApp::loop() {
     if (_wifiManager.isConnected()) {
         const auto& cfg = _configManager.get();
         bool availabilityChanged = false;
+        bool liveTelemetryUpdated = false;
         const uint32_t goodweDelayMs = pollDelayMs(cfg.goodwe.pollIntervalSeconds, _goodweFailureStreak);
         if (cfg.goodwe.enabled && now - _lastGoodweSync >= goodweDelayMs) {
             const bool wasAvailable = _dataModel.solar.status.available;
             const bool success = _goodweClient.update(_dataModel.solar);
             _lastGoodweSync = millis();
             _goodweFailureStreak = success ? 0 : nextFailureStreak(_goodweFailureStreak);
+            liveTelemetryUpdated = liveTelemetryUpdated || success;
             availabilityChanged |= wasAvailable != _dataModel.solar.status.available;
             if (!success) Serial.printf("[GOODWE] Dalsi pokus za %lu ms (chyby v rade: %u)\n", pollDelayMs(cfg.goodwe.pollIntervalSeconds, _goodweFailureStreak), _goodweFailureStreak);
         }
@@ -1381,13 +1399,31 @@ void DashboardApp::loop() {
             const bool success = _azrouterClient.update(_dataModel.azrouter);
             _lastAzrouterSync = millis();
             _azrouterFailureStreak = success ? 0 : nextFailureStreak(_azrouterFailureStreak);
+            liveTelemetryUpdated = liveTelemetryUpdated || success;
             availabilityChanged |= wasAvailable != _dataModel.azrouter.status.available;
             if (!success) Serial.printf("[AZROUTER] Dalsi pokus za %lu ms (chyby v rade: %u)\n", pollDelayMs(cfg.azrouter.pollIntervalSeconds, _azrouterFailureStreak), _azrouterFailureStreak);
         }
 
         _dataModel.updateSystemMetrics();
         if (availabilityChanged) requestAutomaticDisplayRefresh();
-        if (now - _lastDisplayUpdate >= 60000UL) { _lastDisplayUpdate = now; requestAutomaticDisplayRefresh(); }
+
+        // Do not redraw the whole panel merely because one minute elapsed.
+        // Live GoodWe/AZ values are refreshed only on screens that actually
+        // show them, and only in the page/content area. The header clock has
+        // its own small partial refresh above.
+        const unsigned long telemetryNow = millis();
+        const String activeScreenId = _screenManager.getActiveScreenId();
+        const bool showsLiveTelemetry =
+            activeScreenId == "home" || activeScreenId == "solar";
+
+        if (liveTelemetryUpdated &&
+            showsLiveTelemetry &&
+            telemetryNow - _lastTelemetryDisplayRefresh >= 60000UL) {
+
+            _lastTelemetryDisplayRefresh = telemetryNow;
+            const DisplayRegion region = pageRegion();
+            requestNavigationDisplayRefresh(false, 0UL, &region, true);
+        }
     }
 
     delay(20);
