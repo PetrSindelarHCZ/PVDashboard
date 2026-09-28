@@ -4,6 +4,7 @@
 #include "../integrations/cc1101/Cc1101Diagnostics.h"
 #include "../integrations/cc1101/Cc1101RawReceiver.h"
 #include "../screens/ScreenStyle.h"
+#include "../layout/HomeLayout.h"
 #include "../../include/AppConfig.h"
 #include "../../include/Version.h"
 
@@ -197,6 +198,86 @@ DisplayRegion dashboardBodyRegion() {
     return region;
 }
 
+enum class HomeDataGroup : uint8_t {
+    Weather,
+    Energy,
+    Indoor,
+    Rf
+};
+
+bool customWidgetUsesGroup(
+    const HomeLayoutWidgetConfig& widget,
+    HomeDataGroup group) {
+
+    if (widget.type != "custom") return false;
+
+    for (const auto& element : widget.elements) {
+        const String& source = element.source;
+        switch (group) {
+            case HomeDataGroup::Weather:
+                if (source.startsWith("weather.")) return true;
+                break;
+            case HomeDataGroup::Energy:
+                if (source.startsWith("solar.") ||
+                    source.startsWith("azrouter.")) return true;
+                break;
+            case HomeDataGroup::Indoor:
+                if (source.startsWith("inside.")) return true;
+                break;
+            case HomeDataGroup::Rf:
+                if (source.startsWith("rf.")) return true;
+                break;
+        }
+    }
+    return false;
+}
+
+DisplayRegion homeDataRegion(
+    const HomeLayoutConfig& config,
+    const DataModel& dataModel,
+    HomeDataGroup group) {
+
+    ScreenLayout layout;
+    HomeLayout::buildResolved(config, dataModel, layout);
+
+    DisplayRegion dirty;
+    for (uint8_t i = 0; i < layout.count(); ++i) {
+        const LayoutWidget& widget = layout[i];
+        bool matches = false;
+
+        switch (widget.type) {
+            case LayoutWidgetType::HomeWeatherCard:
+                matches = group == HomeDataGroup::Weather;
+                break;
+            case LayoutWidgetType::HomeEnergyCard:
+                matches = group == HomeDataGroup::Energy;
+                break;
+            case LayoutWidgetType::HomeIndoorCard:
+                matches = group == HomeDataGroup::Indoor;
+                break;
+            case LayoutWidgetType::HomeCustomCard: {
+                const HomeLayoutWidgetConfig* configured =
+                    HomeLayout::findWidget(config, widget.id);
+                matches =
+                    configured != nullptr &&
+                    customWidgetUsesGroup(*configured, group);
+                break;
+            }
+        }
+
+        if (!matches) continue;
+
+        DisplayRegion widgetRegion;
+        widgetRegion.x = widget.x;
+        widgetRegion.y = widget.y;
+        widgetRegion.width = widget.width;
+        widgetRegion.height = widget.height;
+        dirty = unionDisplayRegions(dirty, widgetRegion);
+    }
+
+    return dirty;
+}
+
 DisplayRegion navigationDirtyRegion(
     const NavigationState& previousState,
     const NavigationLayout& previousLayout,
@@ -270,7 +351,18 @@ void DashboardApp::setup() {
             if (_lastRfSensorDisplayRefresh == 0 ||
                 now - _lastRfSensorDisplayRefresh >= 60000UL) {
                 _lastRfSensorDisplayRefresh = now;
-                requestAutomaticDisplayRefresh();
+
+                if (_screenManager.getActiveScreenId() == "home") {
+                    const DisplayRegion region =
+                        homeDataRegion(
+                            _configManager.get().display.homeLayout,
+                            _dataModel,
+                            HomeDataGroup::Rf);
+                    if (region.valid()) {
+                        requestNavigationDisplayRefresh(
+                            false, 0UL, &region, true);
+                    }
+                }
             }
         });
 
@@ -389,7 +481,11 @@ void DashboardApp::setup() {
     _dataModel.system.wifiRssi = _wifiManager.getRssi();
     const uint8_t previousSignalLevel = _dataModel.system.wifiSignalLevel;
     _dataModel.system.wifiSignalLevel = _wifiSignalLevel.update(_dataModel.system.wifiConnected, _dataModel.system.wifiRssi, millis());
-    if (previousSignalLevel != _dataModel.system.wifiSignalLevel || previousAccessPoint != _dataModel.system.wifiAccessPoint) requestAutomaticDisplayRefresh();
+    if (previousSignalLevel != _dataModel.system.wifiSignalLevel ||
+        previousAccessPoint != _dataModel.system.wifiAccessPoint) {
+        const DisplayRegion region = headerRegion();
+        requestNavigationDisplayRefresh(false, 0UL, &region, true);
+    }
     _dataModel.system.ipAddress = _wifiManager.getIpAddress();
     _dataModel.system.ntpSynced = _timeService.isSynced();
     _dataModel.system.timeStr = _timeService.getTimeStr();
@@ -1250,7 +1346,11 @@ void DashboardApp::loop() {
     _dataModel.system.wifiRssi = _wifiManager.getRssi();
     const uint8_t previousSignalLevel = _dataModel.system.wifiSignalLevel;
     _dataModel.system.wifiSignalLevel = _wifiSignalLevel.update(_dataModel.system.wifiConnected, _dataModel.system.wifiRssi, millis());
-    if (previousSignalLevel != _dataModel.system.wifiSignalLevel || previousAccessPoint != _dataModel.system.wifiAccessPoint) requestAutomaticDisplayRefresh();
+    if (previousSignalLevel != _dataModel.system.wifiSignalLevel ||
+        previousAccessPoint != _dataModel.system.wifiAccessPoint) {
+        const DisplayRegion region = headerRegion();
+        requestNavigationDisplayRefresh(false, 0UL, &region, true);
+    }
     _dataModel.system.ipAddress = _wifiManager.getIpAddress();
     _dataModel.system.ntpSynced = _timeService.isSynced();
     _dataModel.system.timeStr = _timeService.getTimeStr();
@@ -1302,7 +1402,23 @@ void DashboardApp::loop() {
                     weatherUpdate,
                     _dataModel.weather);
             _dataModel.weather = weatherUpdate;
-            if (changed) requestAutomaticDisplayRefresh();
+            if (changed) {
+                if (isWeatherScreenId(activeScreenId)) {
+                    const DisplayRegion region = pageRegion();
+                    requestNavigationDisplayRefresh(
+                        false, 0UL, &region, true);
+                } else if (activeScreenId == "home") {
+                    const DisplayRegion region =
+                        homeDataRegion(
+                            _configManager.get().display.homeLayout,
+                            _dataModel,
+                            HomeDataGroup::Weather);
+                    if (region.valid()) {
+                        requestNavigationDisplayRefresh(
+                            false, 0UL, &region, true);
+                    }
+                }
+            }
         }
     }
 
@@ -1372,7 +1488,18 @@ void DashboardApp::loop() {
 
         if (availabilityChanged || (valuesChanged && refreshIntervalElapsed)) {
             _lastBme280DisplayRefresh = refreshNow;
-            requestAutomaticDisplayRefresh();
+
+            if (_screenManager.getActiveScreenId() == "home") {
+                const DisplayRegion region =
+                    homeDataRegion(
+                        _configManager.get().display.homeLayout,
+                        _dataModel,
+                        HomeDataGroup::Indoor);
+                if (region.valid()) {
+                    requestNavigationDisplayRefresh(
+                        false, 0UL, &region, true);
+                }
+            }
         }
     }
 
@@ -1421,8 +1548,22 @@ void DashboardApp::loop() {
             telemetryNow - _lastTelemetryDisplayRefresh >= 60000UL) {
 
             _lastTelemetryDisplayRefresh = telemetryNow;
-            const DisplayRegion region = pageRegion();
-            requestNavigationDisplayRefresh(false, 0UL, &region, true);
+
+            if (activeScreenId == "solar") {
+                const DisplayRegion region = pageRegion();
+                requestNavigationDisplayRefresh(
+                    false, 0UL, &region, true);
+            } else {
+                const DisplayRegion region =
+                    homeDataRegion(
+                        _configManager.get().display.homeLayout,
+                        _dataModel,
+                        HomeDataGroup::Energy);
+                if (region.valid()) {
+                    requestNavigationDisplayRefresh(
+                        false, 0UL, &region, true);
+                }
+            }
         }
     }
 
