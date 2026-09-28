@@ -3,7 +3,7 @@
 
 EpaperDisplay::EpaperDisplay(int8_t cs, int8_t dc, int8_t rst, int8_t busy, int8_t sck, int8_t miso, int8_t mosi)
     : _cs(cs), _dc(dc), _rst(rst), _busy(busy), _sck(sck), _miso(miso), _mosi(mosi),
-      _epd(GxEPD2_750_T7(cs, dc, rst, busy)) {
+      _epd(GxEPD2_750_GDEY075T7_Hybrid(cs, dc, rst, busy)) {
 }
 
 uint16_t EpaperDisplay::mapColor(uint16_t color) const {
@@ -157,19 +157,22 @@ void EpaperDisplay::beginFrame(bool partial) {
 }
 
 void EpaperDisplay::beginPartialFrame(int16_t x, int16_t y, int16_t w, int16_t h) {
-    (void)x;
-    (void)y;
-    (void)w;
-    (void)h;
-
     _isPartial = true;
 
-    // GxEPD2_750_T7 explicitly uses usePartialUpdateWindow=false. Real-device
-    // testing confirms that restricting the controller RAM window produces
-    // vertical banding, ghosting and even disturbs pixels outside the requested
-    // region. Keep region handling at the application level, but always send a
-    // coherent full-frame differential image to this panel.
-    _epd.setPartialWindow(0, 0, _epd.width(), _epd.height());
+    const int16_t clippedX = x < 0 ? 0 : x;
+    const int16_t clippedY = y < 0 ? 0 : y;
+    const int16_t requestedRight = x + w;
+    const int16_t requestedBottom = y + h;
+    const int16_t right = requestedRight > _epd.width() ? _epd.width() : requestedRight;
+    const int16_t bottom = requestedBottom > _epd.height() ? _epd.height() : requestedBottom;
+    const int16_t clippedW = right - clippedX;
+    const int16_t clippedH = bottom - clippedY;
+
+    if (clippedW <= 0 || clippedH <= 0) {
+        _epd.setPartialWindow(0, 0, _epd.width(), _epd.height());
+    } else {
+        _epd.setPartialWindow(clippedX, clippedY, clippedW, clippedH);
+    }
     _epd.firstPage();
 }
 
