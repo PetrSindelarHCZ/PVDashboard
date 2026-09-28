@@ -103,7 +103,7 @@ private:
     uint8_t _goodweFailureStreak = 0;
     uint8_t _azrouterFailureStreak = 0;
     unsigned long _lastScreenRender = 0;
-    unsigned long _lastDisplayUpdate = 0;
+    unsigned long _lastTelemetryDisplayRefresh = 0;
     unsigned long _lastWeatherDisplayCacheCheck = 0;
     String _weatherDisplayLocationId;
     uint8_t _weatherDisplayLocationIndex = 0;
