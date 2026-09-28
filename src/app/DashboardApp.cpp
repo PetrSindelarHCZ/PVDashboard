@@ -278,6 +278,20 @@ DisplayRegion homeDataRegion(
     return dirty;
 }
 
+DisplayRegion navigationFocusRegion(
+    const NavigationState& state,
+    const NavigationLayout& layout) {
+
+    if (state.area != NavigationArea::Page || state.focusId.isEmpty()) {
+        return DisplayRegion();
+    }
+
+    const int index = layout.find(state.focusId);
+    if (index < 0) return DisplayRegion();
+
+    return expandedNavigationRegion(layout.elements[index].bounds);
+}
+
 DisplayRegion navigationDirtyRegion(
     const NavigationState& previousState,
     const NavigationLayout& previousLayout,
@@ -973,6 +987,7 @@ void DashboardApp::requestDisplayRefresh(bool full, unsigned long delayMs) {
     // Ordinary data refreshes may modify any part of the screen, so they
     // intentionally discard a pending cursor-only dirty region.
     _pendingDisplayRegionValid = false;
+    _pendingSecondaryDisplayRegionValid = false;
     _pendingCapturePreview = true;
 
     const unsigned long requestedAt = millis() + delayMs;
@@ -986,7 +1001,8 @@ void DashboardApp::requestNavigationDisplayRefresh(
     bool full,
     unsigned long delayMs,
     const DisplayRegion* region,
-    bool capturePreview) {
+    bool capturePreview,
+    const DisplayRegion* secondaryRegion) {
 
     if (!_displayEnabled) return;
 
@@ -996,26 +1012,51 @@ void DashboardApp::requestNavigationDisplayRefresh(
 
     if (_pendingFullRefresh) {
         _pendingDisplayRegionValid = false;
+        _pendingSecondaryDisplayRegionValid = false;
         _pendingCapturePreview = true;
     } else if (!hadPending) {
         if (region != nullptr && region->valid()) {
             _pendingDisplayRegion = *region;
             _pendingDisplayRegionValid = true;
+
+            if (secondaryRegion != nullptr && secondaryRegion->valid()) {
+                _pendingSecondaryDisplayRegion = *secondaryRegion;
+                _pendingSecondaryDisplayRegionValid = true;
+            } else {
+                _pendingSecondaryDisplayRegionValid = false;
+            }
         } else {
             _pendingDisplayRegionValid = false;
+            _pendingSecondaryDisplayRegionValid = false;
         }
         _pendingCapturePreview = capturePreview;
     } else if (_pendingDisplayRegionValid &&
                region != nullptr &&
                region->valid()) {
-        _pendingDisplayRegion =
-            unionDisplayRegions(_pendingDisplayRegion, *region);
+
+        // Multiple independent requests that arrive before the worker starts
+        // are collapsed. A single navigation transition can still retain two
+        // disjoint regions and avoid refreshing the large rectangle between
+        // sidebar and page focus.
+        DisplayRegion merged = _pendingDisplayRegion;
+        if (_pendingSecondaryDisplayRegionValid) {
+            merged = unionDisplayRegions(
+                merged, _pendingSecondaryDisplayRegion);
+        }
+        merged = unionDisplayRegions(merged, *region);
+        if (secondaryRegion != nullptr && secondaryRegion->valid()) {
+            merged = unionDisplayRegions(merged, *secondaryRegion);
+        }
+
+        _pendingDisplayRegion = merged;
+        _pendingSecondaryDisplayRegionValid = false;
         _pendingCapturePreview =
             _pendingCapturePreview || capturePreview;
     } else {
         // An older pending request already needs the whole screen, or this
         // navigation action itself needs the whole screen.
         _pendingDisplayRegionValid = false;
+        _pendingSecondaryDisplayRegionValid = false;
         _pendingCapturePreview =
             _pendingCapturePreview || capturePreview;
     }
@@ -1076,24 +1117,74 @@ bool DashboardApp::handleNavigationAction(
             currentNavigation,
             currentLayout);
 
+    const bool enteredFromSidebar =
+        previousNavigation.area == NavigationArea::Sidebar &&
+        currentNavigation.area != NavigationArea::Sidebar;
+    const bool returnedToSidebar =
+        previousNavigation.area != NavigationArea::Sidebar &&
+        currentNavigation.area == NavigationArea::Sidebar;
+    const bool pagerToPage =
+        previousNavigation.area == NavigationArea::Pager &&
+        currentNavigation.area == NavigationArea::Page;
+    const bool pageToPager =
+        previousNavigation.area == NavigationArea::Page &&
+        currentNavigation.area == NavigationArea::Pager;
+
     if (_navigationInputFullRefresh) {
-        // Main-screen switch: refresh sidebar + page, but leave the header
-        // untouched. This is the full dashboard body below HeaderHeight.
+        // OK selected a different main screen. Its content really changed, so
+        // refresh the whole dashboard body once.
         const DisplayRegion region = dashboardBodyRegion();
         requestNavigationDisplayRefresh(
             false, 40UL, &region, capturePreview);
     } else if (subpageChanged) {
-        // Pager/subpage switch (FVE, weather locations, ...): only the page
-        // changes. Sidebar and header stay physically untouched.
+        // Actual pager movement changes the page content.
         const DisplayRegion region = pageRegion();
         requestNavigationDisplayRefresh(
             false, 40UL, &region, capturePreview);
+    } else if (enteredFromSidebar) {
+        // RIGHT after OK does not change page content. Remove the sidebar
+        // cursor and, for a direct Page entry, draw only the initial focus.
+        // Keeping these as two disjoint regions avoids a large OTP refresh.
+        const DisplayRegion sidebar = sidebarRegion();
+        const DisplayRegion focus =
+            navigationFocusRegion(currentNavigation, currentLayout);
+        requestNavigationDisplayRefresh(
+            false,
+            40UL,
+            &sidebar,
+            capturePreview,
+            focus.valid() ? &focus : nullptr);
+    } else if (returnedToSidebar) {
+        // Restore the sidebar cursor and erase the old page focus without
+        // touching the page content between those two locations.
+        const DisplayRegion sidebar = sidebarRegion();
+        const DisplayRegion oldFocus =
+            navigationFocusRegion(previousNavigation, previousLayout);
+        requestNavigationDisplayRefresh(
+            false,
+            40UL,
+            &sidebar,
+            capturePreview,
+            oldFocus.valid() ? &oldFocus : nullptr);
+    } else if (pagerToPage) {
+        const DisplayRegion focus =
+            navigationFocusRegion(currentNavigation, currentLayout);
+        if (focus.valid()) {
+            requestNavigationDisplayRefresh(
+                false, 40UL, &focus, capturePreview);
+        }
+    } else if (pageToPager) {
+        const DisplayRegion oldFocus =
+            navigationFocusRegion(previousNavigation, previousLayout);
+        if (oldFocus.valid()) {
+            requestNavigationDisplayRefresh(
+                false, 40UL, &oldFocus, capturePreview);
+        }
     } else if (dirtyRegion.valid()) {
         requestNavigationDisplayRefresh(
             false, 40UL, &dirtyRegion, capturePreview);
     } else {
-        // Area transitions can affect both navigation chrome and page focus.
-        // Keep them below the header as well.
+        // Unknown transition: retain the conservative behavior.
         const DisplayRegion region = dashboardBodyRegion();
         requestNavigationDisplayRefresh(
             false, 40UL, &region, capturePreview);
@@ -1127,6 +1218,7 @@ void DashboardApp::setDisplayEnabled(bool enabled) {
     _pendingRefresh = true;
     _pendingFullRefresh = true;
     _pendingDisplayRegionValid = false;
+    _pendingSecondaryDisplayRegionValid = false;
     _pendingCapturePreview = false;
     _displayRefreshNotBefore = millis();
 
@@ -1435,6 +1527,10 @@ void DashboardApp::loop() {
 
         const DisplayRegion* region =
             _pendingDisplayRegionValid ? &_pendingDisplayRegion : nullptr;
+        const DisplayRegion* secondaryRegion =
+            _pendingSecondaryDisplayRegionValid
+                ? &_pendingSecondaryDisplayRegion
+                : nullptr;
 
         IScreen* screenToRender =
             _pendingBlankDisplay
@@ -1452,11 +1548,13 @@ void DashboardApp::loop() {
                 _dataModel,
                 _pendingFullRefresh,
                 region,
-                _pendingCapturePreview)) {
+                _pendingCapturePreview,
+                secondaryRegion)) {
             _pendingRefresh = false;
             _pendingFullRefresh = false;
             _pendingBlankDisplay = false;
             _pendingDisplayRegionValid = false;
+            _pendingSecondaryDisplayRegionValid = false;
             _pendingCapturePreview = true;
             _displayRefreshNotBefore = 0;
         }
