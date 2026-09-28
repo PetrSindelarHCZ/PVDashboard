@@ -56,8 +56,7 @@ bool DisplayWorker::begin() {
 
 bool DisplayWorker::enqueue(IScreen* screen, const DataModel& dataModel, bool full,
                             const DisplayRegion* partialRegion,
-                            bool capturePreview,
-                            const DisplayRegion* secondaryPartialRegion) {
+                            bool capturePreview) {
     if (_mutex == nullptr || _task == nullptr || screen == nullptr) {
         return false;
     }
@@ -75,46 +74,22 @@ bool DisplayWorker::enqueue(IScreen* screen, const DataModel& dataModel, bool fu
 
     if (_pendingFull || partialRegion == nullptr || !partialRegion->valid()) {
         _pendingHasRegion = false;
-        _pendingHasSecondaryRegion = false;
     } else if (!hadPending) {
         _pendingRegion = *partialRegion;
         _pendingHasRegion = true;
-        if (secondaryPartialRegion != nullptr &&
-            secondaryPartialRegion->valid()) {
-            _pendingSecondaryRegion = *secondaryPartialRegion;
-            _pendingHasSecondaryRegion = true;
-        } else {
-            _pendingHasSecondaryRegion = false;
-        }
     } else if (_pendingHasRegion) {
-        // A normal navigation transition can carry two disjoint small
-        // rectangles. If more work arrives before the worker consumes them,
-        // collapse the accumulated work to one bounding rectangle.
-        DisplayRegion merged = _pendingRegion;
-        auto mergeInto = [&](const DisplayRegion& region) {
-            const int16_t x1 = min(merged.x, region.x);
-            const int16_t y1 = min(merged.y, region.y);
-            const int16_t x2 = max(
-                static_cast<int16_t>(merged.x + merged.width),
-                static_cast<int16_t>(region.x + region.width));
-            const int16_t y2 = max(
-                static_cast<int16_t>(merged.y + merged.height),
-                static_cast<int16_t>(region.y + region.height));
-            merged.x = x1;
-            merged.y = y1;
-            merged.width = x2 - x1;
-            merged.height = y2 - y1;
-        };
-
-        if (_pendingHasSecondaryRegion) mergeInto(_pendingSecondaryRegion);
-        mergeInto(*partialRegion);
-        if (secondaryPartialRegion != nullptr &&
-            secondaryPartialRegion->valid()) {
-            mergeInto(*secondaryPartialRegion);
-        }
-
-        _pendingRegion = merged;
-        _pendingHasSecondaryRegion = false;
+        const int16_t x1 = min(_pendingRegion.x, partialRegion->x);
+        const int16_t y1 = min(_pendingRegion.y, partialRegion->y);
+        const int16_t x2 = max(
+            static_cast<int16_t>(_pendingRegion.x + _pendingRegion.width),
+            static_cast<int16_t>(partialRegion->x + partialRegion->width));
+        const int16_t y2 = max(
+            static_cast<int16_t>(_pendingRegion.y + _pendingRegion.height),
+            static_cast<int16_t>(partialRegion->y + partialRegion->height));
+        _pendingRegion.x = x1;
+        _pendingRegion.y = y1;
+        _pendingRegion.width = x2 - x1;
+        _pendingRegion.height = y2 - y1;
     }
     // If an older pending request already covers the whole screen,
     // keep it whole-screen; a later cursor region must not narrow it.
@@ -205,15 +180,11 @@ void DisplayWorker::taskLoop() {
             const bool full = _pendingFull;
             const bool hasRegion = _pendingHasRegion && !full;
             const DisplayRegion region = _pendingRegion;
-            const bool hasSecondaryRegion =
-                _pendingHasSecondaryRegion && hasRegion;
-            const DisplayRegion secondaryRegion = _pendingSecondaryRegion;
             const bool capturePreview = _pendingCapturePreview;
 
             _hasPending = false;
             _pendingFull = false;
             _pendingHasRegion = false;
-            _pendingHasSecondaryRegion = false;
             _pendingCapturePreview = true;
             _status.pending = false;
             _status.pendingFull = false;
@@ -240,8 +211,7 @@ void DisplayWorker::taskLoop() {
                 dataSnapshot,
                 full,
                 hasRegion ? &region : nullptr,
-                capturePreview,
-                hasSecondaryRegion ? &secondaryRegion : nullptr);
+                capturePreview);
             const uint32_t completedMs = millis();
 
             if (_memoryHeavyGate != nullptr) {
