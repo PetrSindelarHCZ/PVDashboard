@@ -90,6 +90,12 @@ private:
     bool _pendingDisplayRegionValid = false;
     DisplayRegion _pendingDisplayRegion;
     bool _pendingCapturePreview = true;
+
+    // A Sidebar -> Page transition needs two small, disjoint updates:
+    // remove the sidebar cursor first, then draw the initial page focus.
+    bool _deferredNavigationRegionValid = false;
+    DisplayRegion _deferredNavigationRegion;
+    bool _deferredNavigationCapturePreview = true;
     bool _pendingWifiSave = false;
     String _pendingWifiSsid;
     String _pendingWifiPassword;
