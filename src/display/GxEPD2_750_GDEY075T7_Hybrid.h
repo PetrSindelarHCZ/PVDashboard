@@ -25,15 +25,28 @@ public:
 
         if (useRegisterPartialForRegion(w, h)) {
             ensureRegisterPartialMode();
+        } else {
+            ensureOtpPartialMode();
         }
 
-        // For larger regions leave _using_partial_mode false. The upstream
-        // GDEY075T7 driver will then initialize its OTP partial waveform.
         GxEPD2_750_GDEY075T7::writeImage(
             bitmap, x, y, w, h, invert, mirror_y, pgm);
     }
 
+    void powerOff() {
+        GxEPD2_750_GDEY075T7::powerOff();
+        _hybridMode = HybridMode::Unknown;
+    }
+
 private:
+    enum class HybridMode : uint8_t {
+        Unknown,
+        Otp,
+        Register
+    };
+
+    HybridMode _hybridMode = HybridMode::Unknown;
+
     static constexpr uint8_t T1 = 30;
     static constexpr uint8_t T2 = 5;
     static constexpr uint8_t T3 = 30;
@@ -60,8 +73,28 @@ private:
         for (uint8_t i = 6; i < 42; ++i) _writeData(0x00);
     }
 
+    void ensureOtpPartialMode() {
+        if (_hybridMode == HybridMode::Otp && _using_partial_mode) return;
+
+        // A register LUT can remain active while _using_partial_mode is true.
+        // Explicitly end that mode before asking the upstream driver to load
+        // the OTP partial waveform.
+        if (_power_is_on || _using_partial_mode) {
+            GxEPD2_750_GDEY075T7::powerOff();
+        }
+
+        _Init_Part();
+        _hybridMode = HybridMode::Otp;
+    }
+
     void ensureRegisterPartialMode() {
-        if (_using_partial_mode) return;
+        if (_hybridMode == HybridMode::Register && _using_partial_mode) return;
+
+        // Likewise, do not assume that _using_partial_mode means the desired
+        // waveform is already loaded: it may currently be the OTP waveform.
+        if (_power_is_on || _using_partial_mode) {
+            GxEPD2_750_GDEY075T7::powerOff();
+        }
 
         if (_hibernating) _reset();
 
@@ -126,5 +159,6 @@ private:
         }
 
         _using_partial_mode = true;
+        _hybridMode = HybridMode::Register;
     }
 };
