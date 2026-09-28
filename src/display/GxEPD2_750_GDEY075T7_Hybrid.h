@@ -77,13 +77,14 @@ private:
         if (_hybridMode == HybridMode::Otp && _using_partial_mode) return;
 
         // A register LUT can remain active while _using_partial_mode is true.
-        // Explicitly end that mode before asking the upstream driver to load
-        // the OTP partial waveform.
+        // End that mode first. We intentionally do NOT call _Init_Part()
+        // here: it is private in GxEPD2_750_GDEY075T7. The following inherited
+        // writeImage() sees _using_partial_mode == false and invokes the
+        // driver's private OTP _Init_Part() internally.
         if (_power_is_on || _using_partial_mode) {
             GxEPD2_750_GDEY075T7::powerOff();
         }
 
-        _Init_Part();
         _hybridMode = HybridMode::Otp;
     }
 
