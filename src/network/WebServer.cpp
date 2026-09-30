@@ -271,6 +271,9 @@ String homeLayoutResponseJson(
     addSource("inside.livingRoomTempC", "Obývák (BME280)", "°C", 1, false);
     addSource("inside.bedroomTempC", "Ložnice", "°C", 1, false);
     addSource("inside.poolTempC", "Bazén uvnitř modelu", "°C", 1, false);
+    addSource("battery.voltageV", "Baterie zařízení – napětí", "V", 2, false);
+    addSource("battery.socPercent", "Baterie zařízení – stav", "%", 1, false);
+    addSource("battery.changeRatePercentPerHour", "Baterie zařízení – změna", "%/h", 1, false);
     addSource("pool.waterTempC", "Bazén voda", "°C", 1, false);
     addSource("pool.targetTempC", "Bazén cíl", "°C", 1, false);
     addSource("pool.ph", "Bazén pH", "", 1, false);
