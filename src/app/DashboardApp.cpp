@@ -14,6 +14,8 @@ constexpr uint32_t MaximumBackoffMs = 300000;
 constexpr uint8_t MaximumBackoffShift = 5;
 constexpr uint32_t Bme280PollIntervalMs = 10000;
 constexpr uint32_t Bme280DisplayRefreshIntervalMs = 60000;
+constexpr uint32_t BatteryPollIntervalMs = 10000;
+constexpr uint32_t BatteryDisplayRefreshIntervalMs = 60000;
 
 uint32_t pollDelayMs(uint32_t intervalSeconds, uint8_t failureStreak) {
     uint64_t baseMs = static_cast<uint64_t>(intervalSeconds) * 1000ULL;
@@ -202,6 +204,7 @@ enum class HomeDataGroup : uint8_t {
     Weather,
     Energy,
     Indoor,
+    Battery,
     Rf
 };
 
@@ -223,6 +226,9 @@ bool customWidgetUsesGroup(
                 break;
             case HomeDataGroup::Indoor:
                 if (source.startsWith("inside.")) return true;
+                break;
+            case HomeDataGroup::Battery:
+                if (source.startsWith("battery.")) return true;
                 break;
             case HomeDataGroup::Rf:
                 if (source.startsWith("rf.")) return true;
@@ -405,6 +411,10 @@ void DashboardApp::setup() {
     // shares the preferred I2C bus on SDA GPIO21 / SCL GPIO22.
     _bme280Sensor.update(_dataModel.inside);
     _lastBme280Sync = millis();
+
+    // MAX17048 shares the same I2C bus (SDA GPIO21 / SCL GPIO22).
+    _max17048Sensor.update(_dataModel.battery);
+    _lastBatterySync = millis();
 
     applyWifiAddressing(cfg.wifi);
 
@@ -1707,6 +1717,56 @@ void DashboardApp::loop() {
                         _configManager.get().display.homeLayout,
                         _dataModel,
                         HomeDataGroup::Indoor);
+                if (region.valid()) {
+                    requestAutomaticRegionRefresh(region, true);
+                }
+            }
+        }
+    }
+
+    now = millis();
+    if (now - _lastBatterySync >= BatteryPollIntervalMs) {
+        const bool wasAvailable = _dataModel.battery.status.available;
+        const float previousVoltage = _dataModel.battery.voltageV;
+        const float previousSoc = _dataModel.battery.socPercent;
+        const float previousRate =
+            _dataModel.battery.changeRatePercentPerHour;
+        const uint8_t previousAlertFlags =
+            _dataModel.battery.alertFlags;
+
+        const bool success =
+            _max17048Sensor.update(_dataModel.battery);
+        _lastBatterySync = millis();
+
+        const bool availabilityChanged =
+            wasAvailable != _dataModel.battery.status.available;
+        const bool alertChanged =
+            previousAlertFlags != _dataModel.battery.alertFlags;
+        const bool valuesChanged =
+            success &&
+            (fabsf(previousVoltage - _dataModel.battery.voltageV) >= 0.02f ||
+             fabsf(previousSoc - _dataModel.battery.socPercent) >= 1.0f ||
+             fabsf(previousRate -
+                   _dataModel.battery.changeRatePercentPerHour) >= 1.0f);
+
+        const unsigned long refreshNow = millis();
+        const bool refreshIntervalElapsed =
+            _lastBatteryDisplayRefresh == 0 ||
+            refreshNow - _lastBatteryDisplayRefresh >=
+                BatteryDisplayRefreshIntervalMs;
+
+        if (availabilityChanged ||
+            alertChanged ||
+            (valuesChanged && refreshIntervalElapsed)) {
+
+            _lastBatteryDisplayRefresh = refreshNow;
+
+            if (_screenManager.getActiveScreenId() == "home") {
+                const DisplayRegion region =
+                    homeDataRegion(
+                        _configManager.get().display.homeLayout,
+                        _dataModel,
+                        HomeDataGroup::Battery);
                 if (region.valid()) {
                     requestAutomaticRegionRefresh(region, true);
                 }
