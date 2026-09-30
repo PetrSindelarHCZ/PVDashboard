@@ -1070,7 +1070,7 @@ void DashboardApp::requestAutomaticRegionRefresh(
 
     if (!_displayEnabled || !region.valid()) return;
 
-    auto sameRegion = [](const DisplayRegion& a, const DisplayRegion& b) {
+    const auto sameRegion = [](const DisplayRegion& a, const DisplayRegion& b) {
         return a.x == b.x &&
                a.y == b.y &&
                a.width == b.width &&
@@ -1085,6 +1085,7 @@ void DashboardApp::requestAutomaticRegionRefresh(
         return;
     }
 
+    // The same pending region already contains the newest data.
     if (_pendingRefresh &&
         _pendingDisplayRegionValid &&
         sameRegion(_pendingDisplayRegion, region)) {
@@ -1093,59 +1094,83 @@ void DashboardApp::requestAutomaticRegionRefresh(
         return;
     }
 
-    if (!_pendingRefresh && _deferredAutomaticRegionCount == 0) {
+    // Fast path: nothing is waiting, so use the already proven-safe regional
+    // display request directly.
+    if (!_pendingRefresh &&
+        !_deferredAutomaticRegionValid &&
+        !_deferredAutomaticRegion2Valid) {
         requestNavigationDisplayRefresh(
             false, 0UL, &region, capturePreview);
         return;
     }
 
-    for (uint8_t i = 0; i < _deferredAutomaticRegionCount; ++i) {
-        const uint8_t index =
-            (_deferredAutomaticRegionHead + i) %
-            MaxDeferredAutomaticRegions;
-        if (sameRegion(_deferredAutomaticRegions[index], region)) {
-            _deferredAutomaticCapturePreview[index] =
-                _deferredAutomaticCapturePreview[index] || capturePreview;
-            return;
-        }
-    }
-
-    if (_deferredAutomaticRegionCount >= MaxDeferredAutomaticRegions) {
-        Serial.println(
-            "[DISPLAY] Varovani: fronta automatickych regionu je plna; "
-            "novy region preskakuji.");
+    if (_deferredAutomaticRegionValid &&
+        sameRegion(_deferredAutomaticRegion, region)) {
+        _deferredAutomaticCapturePreview =
+            _deferredAutomaticCapturePreview || capturePreview;
         return;
     }
 
-    const uint8_t tail =
-        (_deferredAutomaticRegionHead + _deferredAutomaticRegionCount) %
-        MaxDeferredAutomaticRegions;
-    _deferredAutomaticRegions[tail] = region;
-    _deferredAutomaticCapturePreview[tail] = capturePreview;
-    ++_deferredAutomaticRegionCount;
+    if (_deferredAutomaticRegion2Valid &&
+        sameRegion(_deferredAutomaticRegion2, region)) {
+        _deferredAutomaticCapturePreview2 =
+            _deferredAutomaticCapturePreview2 || capturePreview;
+        return;
+    }
+
+    if (!_deferredAutomaticRegionValid) {
+        _deferredAutomaticRegion = region;
+        _deferredAutomaticCapturePreview = capturePreview;
+        _deferredAutomaticRegionValid = true;
+        return;
+    }
+
+    if (!_deferredAutomaticRegion2Valid) {
+        _deferredAutomaticRegion2 = region;
+        _deferredAutomaticCapturePreview2 = capturePreview;
+        _deferredAutomaticRegion2Valid = true;
+        return;
+    }
+
+    // Two separate automatic regions are already waiting. Do not union them:
+    // that could create a large rectangle and trigger a slow OTP partial.
+    // The newest model value remains in DataModel and the skipped region will
+    // be picked up by its next normal source refresh.
+    Serial.println(
+        "[DISPLAY] Varovani: dva automaticke regiony uz cekaji; "
+        "dalsi region preskakuji.");
 }
 
 void DashboardApp::clearDeferredAutomaticRegions() {
-    _deferredAutomaticRegionHead = 0;
-    _deferredAutomaticRegionCount = 0;
+    _deferredAutomaticRegionValid = false;
+    _deferredAutomaticCapturePreview = true;
+    _deferredAutomaticRegion2Valid = false;
+    _deferredAutomaticCapturePreview2 = true;
 }
 
 bool DashboardApp::popDeferredAutomaticRegion(
     DisplayRegion& region,
     bool& capturePreview) {
 
-    if (_deferredAutomaticRegionCount == 0) return false;
+    if (!_deferredAutomaticRegionValid) return false;
 
-    region = _deferredAutomaticRegions[_deferredAutomaticRegionHead];
-    capturePreview =
-        _deferredAutomaticCapturePreview[_deferredAutomaticRegionHead];
+    region = _deferredAutomaticRegion;
+    capturePreview = _deferredAutomaticCapturePreview;
 
-    _deferredAutomaticRegionHead =
-        (_deferredAutomaticRegionHead + 1) %
-        MaxDeferredAutomaticRegions;
-    --_deferredAutomaticRegionCount;
+    if (_deferredAutomaticRegion2Valid) {
+        _deferredAutomaticRegion = _deferredAutomaticRegion2;
+        _deferredAutomaticCapturePreview =
+            _deferredAutomaticCapturePreview2;
+        _deferredAutomaticRegion2Valid = false;
+        _deferredAutomaticCapturePreview2 = true;
+    } else {
+        _deferredAutomaticRegionValid = false;
+        _deferredAutomaticCapturePreview = true;
+    }
+
     return true;
 }
+
 
 bool DashboardApp::handleNavigationAction(
     NavigationAction action,
