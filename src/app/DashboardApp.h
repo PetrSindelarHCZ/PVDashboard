@@ -22,6 +22,7 @@
 #include "../integrations/azrouter/AZRouterClient.h"
 #include "../integrations/weather/WeatherWorker.h"
 #include "../integrations/bme280/Bme280Sensor.h"
+#include "../integrations/max17048/Max17048Sensor.h"
 #include "../integrations/cc1101/RfSensorManager.h"
 
 class BlankDisplayScreen : public IScreen {
@@ -71,6 +72,7 @@ private:
     AZRouterClient _azrouterClient;
     WeatherWorker _weatherWorker;
     Bme280Sensor _bme280Sensor;
+    Max17048Sensor _max17048Sensor;
 
     // Serializuje pametove narocne operace: e-paper render/preview a weather TLS.
     // ESP32-WROOM bez PSRAM nema dost velky souvisly DRAM blok pro obe soucasne.
@@ -115,6 +117,8 @@ private:
     unsigned long _lastAzrouterSync = 0;
     unsigned long _lastBme280Sync = 0;
     unsigned long _lastBme280DisplayRefresh = 0;
+    unsigned long _lastBatterySync = 0;
+    unsigned long _lastBatteryDisplayRefresh = 0;
     unsigned long _lastRfSensorDisplayRefresh = 0;
     uint8_t _goodweFailureStreak = 0;
     uint8_t _azrouterFailureStreak = 0;
