@@ -120,6 +120,16 @@ inline bool resolveValue(const DataModel& dm, const String& source, float& value
         return true;
     }
 
+    if (source.startsWith("battery.")) {
+        if (!dm.battery.status.available) return false;
+        if (source == "battery.voltageV") value = dm.battery.voltageV;
+        else if (source == "battery.socPercent") value = dm.battery.socPercent;
+        else if (source == "battery.changeRatePercentPerHour")
+            value = dm.battery.changeRatePercentPerHour;
+        else return false;
+        return true;
+    }
+
     if (source.startsWith("inside.")) {
         if (source == "inside.temperatureC" ||
             source == "inside.humidityPercent" ||
