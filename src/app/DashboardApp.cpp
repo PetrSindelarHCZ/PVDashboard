@@ -981,6 +981,10 @@ void DashboardApp::setWeatherScreensEnabled(bool enabled) {
 void DashboardApp::requestDisplayRefresh(bool full, unsigned long delayMs) {
     if (!_displayEnabled) return;
 
+    // A whole-screen request supersedes queued automatic dirty regions,
+    // because it will render the newest DataModel everywhere.
+    clearDeferredAutomaticRegions();
+
     _pendingRefresh = true;
     _pendingFullRefresh = _pendingFullRefresh || full;
 
@@ -1049,6 +1053,89 @@ void DashboardApp::requestAutomaticDisplayRefresh() {
         if (elapsed < CoalesceWindowMs) delayMs = CoalesceWindowMs - elapsed;
     }
     requestDisplayRefresh(false, delayMs);
+}
+
+void DashboardApp::requestAutomaticRegionRefresh(
+    const DisplayRegion& region,
+    bool capturePreview) {
+
+    if (!_displayEnabled || !region.valid()) return;
+
+    auto sameRegion = [](const DisplayRegion& a, const DisplayRegion& b) {
+        return a.x == b.x &&
+               a.y == b.y &&
+               a.width == b.width &&
+               a.height == b.height;
+    };
+
+    // A pending full/whole-screen render already contains the newest model.
+    if (_pendingRefresh &&
+        (_pendingFullRefresh || !_pendingDisplayRegionValid)) {
+        _pendingCapturePreview =
+            _pendingCapturePreview || capturePreview;
+        return;
+    }
+
+    if (_pendingRefresh &&
+        _pendingDisplayRegionValid &&
+        sameRegion(_pendingDisplayRegion, region)) {
+        _pendingCapturePreview =
+            _pendingCapturePreview || capturePreview;
+        return;
+    }
+
+    if (!_pendingRefresh && _deferredAutomaticRegionCount == 0) {
+        requestNavigationDisplayRefresh(
+            false, 0UL, &region, capturePreview);
+        return;
+    }
+
+    for (uint8_t i = 0; i < _deferredAutomaticRegionCount; ++i) {
+        const uint8_t index =
+            (_deferredAutomaticRegionHead + i) %
+            MaxDeferredAutomaticRegions;
+        if (sameRegion(_deferredAutomaticRegions[index], region)) {
+            _deferredAutomaticCapturePreview[index] =
+                _deferredAutomaticCapturePreview[index] || capturePreview;
+            return;
+        }
+    }
+
+    if (_deferredAutomaticRegionCount >= MaxDeferredAutomaticRegions) {
+        Serial.println(
+            "[DISPLAY] Varovani: fronta automatickych regionu je plna; "
+            "novy region preskakuji.");
+        return;
+    }
+
+    const uint8_t tail =
+        (_deferredAutomaticRegionHead + _deferredAutomaticRegionCount) %
+        MaxDeferredAutomaticRegions;
+    _deferredAutomaticRegions[tail] = region;
+    _deferredAutomaticCapturePreview[tail] = capturePreview;
+    ++_deferredAutomaticRegionCount;
+}
+
+void DashboardApp::clearDeferredAutomaticRegions() {
+    _deferredAutomaticRegionHead = 0;
+    _deferredAutomaticRegionCount = 0;
+}
+
+bool DashboardApp::popDeferredAutomaticRegion(
+    DisplayRegion& region,
+    bool& capturePreview) {
+
+    if (_deferredAutomaticRegionCount == 0) return false;
+
+    region = _deferredAutomaticRegions[_deferredAutomaticRegionHead];
+    capturePreview =
+        _deferredAutomaticCapturePreview[_deferredAutomaticRegionHead];
+
+    _deferredAutomaticRegionHead =
+        (_deferredAutomaticRegionHead + 1) %
+        MaxDeferredAutomaticRegions;
+    --_deferredAutomaticRegionCount;
+    return true;
 }
 
 bool DashboardApp::handleNavigationAction(
