@@ -144,6 +144,17 @@ struct InsideData {
     float poolTempC = 25.1f;
 };
 
+struct FuelGaugeData {
+    DataSourceStatus status;
+    float voltageV = 0.0f;
+    float socPercent = 0.0f;
+    float changeRatePercentPerHour = 0.0f;
+    uint8_t alertFlags = 0;
+    bool alertPending = false;
+    uint16_t version = 0;
+    uint32_t lastUpdateMs = 0;
+};
+
 struct PoolData {
     bool enabled = true;
     DataSourceStatus status;
@@ -213,6 +224,7 @@ public:
     AZRouterData azrouter;
     WeatherData weather;
     InsideData inside;
+    FuelGaugeData battery;
     PoolData pool;
     RfSensorsData rfSensors;
     SystemData system;
