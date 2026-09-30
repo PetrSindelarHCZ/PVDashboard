@@ -27,14 +27,14 @@
 // ==========================================
 // Pětisměrný navigační ovladač
 // Tlačítka spínají GPIO proti GND (active LOW)
-// Aktuální fyzické zapojení:
-//   UP <-> původní LEFT, RIGHT <-> původní MID/OK.
+// Aktuální fyzické zapojení ověřené podle skutečných stisků:
+//   UP=GPIO17, DOWN=GPIO18, LEFT=GPIO33, RIGHT=GPIO16, MID/OK=GPIO32.
 // ==========================================
-#define JOY_UP_PIN     32
-#define JOY_DOWN_PIN   16
-#define JOY_LEFT_PIN   17
-#define JOY_RIGHT_PIN  33
-#define JOY_OK_PIN     18
+#define JOY_UP_PIN     17
+#define JOY_DOWN_PIN   18
+#define JOY_LEFT_PIN   33
+#define JOY_RIGHT_PIN  16
+#define JOY_OK_PIN     32
 
 // Doplňková tlačítka mají externí 10k pull-up na 3.3 V.
 // GPIO34/35 na ESP32 nemají interní pull-up.
