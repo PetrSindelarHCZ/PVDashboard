@@ -1846,6 +1846,23 @@ void DashboardWebServer::handleApiStatus() {
             (millis() - _dataModel.inside.status.lastSuccessMs) / 1000;
     }
 
+    JsonObject batteryObj = doc["battery"].to<JsonObject>();
+    batteryObj["available"] = _dataModel.battery.status.available;
+    batteryObj["voltageV"] = _dataModel.battery.voltageV;
+    batteryObj["socPercent"] = _dataModel.battery.socPercent;
+    batteryObj["changeRatePercentPerHour"] =
+        _dataModel.battery.changeRatePercentPerHour;
+    batteryObj["alertPending"] = _dataModel.battery.alertPending;
+    batteryObj["alertFlags"] = _dataModel.battery.alertFlags;
+    batteryObj["version"] = _dataModel.battery.version;
+    batteryObj["lastError"] = _dataModel.battery.status.lastError;
+    if (_dataModel.battery.status.lastSuccessMs == 0) {
+        batteryObj["lastUpdateAgeSeconds"] = nullptr;
+    } else {
+        batteryObj["lastUpdateAgeSeconds"] =
+            (millis() - _dataModel.battery.status.lastSuccessMs) / 1000;
+    }
+
     JsonObject weatherObj = doc["weather"].to<JsonObject>();
     weatherObj["enabled"] = _config.weather.enabled;
     weatherObj["available"] = _dataModel.weather.status.available;
