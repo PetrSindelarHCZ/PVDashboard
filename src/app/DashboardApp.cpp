@@ -1489,7 +1489,7 @@ void DashboardApp::loop() {
     if (previousSignalLevel != _dataModel.system.wifiSignalLevel ||
         previousAccessPoint != _dataModel.system.wifiAccessPoint) {
         const DisplayRegion region = headerRegion();
-        requestNavigationDisplayRefresh(false, 0UL, &region, true);
+        requestAutomaticRegionRefresh(region, true);
     }
     _dataModel.system.ipAddress = _wifiManager.getIpAddress();
     _dataModel.system.ntpSynced = _timeService.isSynced();
@@ -1502,7 +1502,31 @@ void DashboardApp::loop() {
         _dataModel.azrouter.status.recordError("WiFi unavailable");
         _dataModel.weather.status.recordError("WiFi unavailable");
         _dataModel.updateSystemMetrics();
-        requestAutomaticDisplayRefresh();
+
+        const String activeScreenId =
+            _screenManager.getActiveScreenId();
+        if (activeScreenId == "home") {
+            const DisplayRegion energyRegion =
+                homeDataRegion(
+                    _configManager.get().display.homeLayout,
+                    _dataModel,
+                    HomeDataGroup::Energy);
+            if (energyRegion.valid()) {
+                requestAutomaticRegionRefresh(energyRegion, true);
+            }
+
+            const DisplayRegion weatherRegion =
+                homeDataRegion(
+                    _configManager.get().display.homeLayout,
+                    _dataModel,
+                    HomeDataGroup::Weather);
+            if (weatherRegion.valid()) {
+                requestAutomaticRegionRefresh(weatherRegion, true);
+            }
+        } else if (activeScreenId == "solar" ||
+                   isWeatherScreenId(activeScreenId)) {
+            requestAutomaticRegionRefresh(pageRegion(), true);
+        }
     }
 
     const bool timeChanged =
@@ -1511,7 +1535,7 @@ void DashboardApp::loop() {
         previousDayOfWeekStr != _dataModel.system.dayOfWeekStr;
     if (timeChanged) {
         const DisplayRegion region = headerRegion();
-        requestNavigationDisplayRefresh(false, 0UL, &region, true);
+        requestAutomaticRegionRefresh(region, true);
     }
 
     WeatherData weatherUpdate;
