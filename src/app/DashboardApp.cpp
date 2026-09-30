@@ -451,7 +451,7 @@ void DashboardApp::setup() {
         _dataModel.system.wifiConnected = connected;
         _dataModel.system.wifiSignalLevel = _wifiSignalLevel.update(connected, _wifiManager.getRssi(), millis());
         _dataModel.system.ipAddress = ip;
-        requestAutomaticDisplayRefresh();
+        requestAutomaticRegionRefresh(headerRegion(), true);
     });
 
     _wifiManager.onKnownNetworkLookup([this](const String& ssid, String& password) {
@@ -463,7 +463,7 @@ void DashboardApp::setup() {
         _pendingWifiPassword = "";
         _configManager.setWifi(ssid, password);
         Serial.printf("[WIFI] Automaticky obnovena znama sit '%s' a nastavena jako aktivni.\n", ssid.c_str());
-        requestAutomaticDisplayRefresh();
+        // The status callback refreshes the header when connectivity changes.
     });
 
     bool wifiOk = false;
