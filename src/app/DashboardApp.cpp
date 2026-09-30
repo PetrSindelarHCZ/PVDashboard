@@ -1569,8 +1569,7 @@ void DashboardApp::loop() {
             if (changed) {
                 if (isWeatherScreenId(activeScreenId)) {
                     const DisplayRegion region = pageRegion();
-                    requestNavigationDisplayRefresh(
-                        false, 0UL, &region, true);
+                    requestAutomaticRegionRefresh(region, true);
                 } else if (activeScreenId == "home") {
                     const DisplayRegion region =
                         homeDataRegion(
@@ -1578,8 +1577,7 @@ void DashboardApp::loop() {
                             _dataModel,
                             HomeDataGroup::Weather);
                     if (region.valid()) {
-                        requestNavigationDisplayRefresh(
-                            false, 0UL, &region, true);
+                        requestAutomaticRegionRefresh(region, true);
                     }
                 }
             }
