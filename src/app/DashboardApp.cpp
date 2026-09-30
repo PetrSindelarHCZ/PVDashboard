@@ -1658,8 +1658,7 @@ void DashboardApp::loop() {
                         _dataModel,
                         HomeDataGroup::Indoor);
                 if (region.valid()) {
-                    requestNavigationDisplayRefresh(
-                        false, 0UL, &region, true);
+                    requestAutomaticRegionRefresh(region, true);
                 }
             }
         }
@@ -1702,8 +1701,7 @@ void DashboardApp::loop() {
         if (availabilityChanged) {
             if (activeScreenId == "solar") {
                 const DisplayRegion region = pageRegion();
-                requestNavigationDisplayRefresh(
-                    false, 0UL, &region, true);
+                requestAutomaticRegionRefresh(region, true);
             } else if (activeScreenId == "home") {
                 const DisplayRegion region =
                     homeDataRegion(
@@ -1711,8 +1709,7 @@ void DashboardApp::loop() {
                         _dataModel,
                         HomeDataGroup::Energy);
                 if (region.valid()) {
-                    requestNavigationDisplayRefresh(
-                        false, 0UL, &region, true);
+                    requestAutomaticRegionRefresh(region, true);
                 }
             }
         }
@@ -1733,8 +1730,7 @@ void DashboardApp::loop() {
 
             if (activeScreenId == "solar") {
                 const DisplayRegion region = pageRegion();
-                requestNavigationDisplayRefresh(
-                    false, 0UL, &region, true);
+                requestAutomaticRegionRefresh(region, true);
             } else {
                 const DisplayRegion region =
                     homeDataRegion(
@@ -1742,8 +1738,7 @@ void DashboardApp::loop() {
                         _dataModel,
                         HomeDataGroup::Energy);
                 if (region.valid()) {
-                    requestNavigationDisplayRefresh(
-                        false, 0UL, &region, true);
+                    requestAutomaticRegionRefresh(region, true);
                 }
             }
         }
