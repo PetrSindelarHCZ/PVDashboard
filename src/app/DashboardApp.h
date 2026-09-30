@@ -100,13 +100,15 @@ private:
     bool _deferredNavigationCapturePreview = true;
 
     // Automatic data sources can change at the same moment (clock, BME280,
-    // telemetry, weather...). Keep disjoint dirty regions sequential instead
-    // of joining them into one large rectangle.
-    static constexpr uint8_t MaxDeferredAutomaticRegions = 6;
-    DisplayRegion _deferredAutomaticRegions[MaxDeferredAutomaticRegions];
-    bool _deferredAutomaticCapturePreview[MaxDeferredAutomaticRegions] = {};
-    uint8_t _deferredAutomaticRegionHead = 0;
-    uint8_t _deferredAutomaticRegionCount = 0;
+    // telemetry, weather...). Keep at most two disjoint deferred regions
+    // sequentially. Fixed slots deliberately avoid the previous circular
+    // queue, which caused a boot loop when first used from the Wi-Fi callback.
+    bool _deferredAutomaticRegionValid = false;
+    DisplayRegion _deferredAutomaticRegion;
+    bool _deferredAutomaticCapturePreview = true;
+    bool _deferredAutomaticRegion2Valid = false;
+    DisplayRegion _deferredAutomaticRegion2;
+    bool _deferredAutomaticCapturePreview2 = true;
 
     bool _pendingWifiSave = false;
     String _pendingWifiSsid;
