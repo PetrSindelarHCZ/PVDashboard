@@ -1585,14 +1585,34 @@ void DashboardApp::loop() {
         }
 
         _dataModel.updateSystemMetrics();
-        if (availabilityChanged) requestAutomaticDisplayRefresh();
+
+        const String activeScreenId = _screenManager.getActiveScreenId();
+
+        // Source availability is visible only on Home/FVE. Do not turn a
+        // GoodWe/AZ online/offline transition into a whole-screen partial.
+        if (availabilityChanged) {
+            if (activeScreenId == "solar") {
+                const DisplayRegion region = pageRegion();
+                requestNavigationDisplayRefresh(
+                    false, 0UL, &region, true);
+            } else if (activeScreenId == "home") {
+                const DisplayRegion region =
+                    homeDataRegion(
+                        _configManager.get().display.homeLayout,
+                        _dataModel,
+                        HomeDataGroup::Energy);
+                if (region.valid()) {
+                    requestNavigationDisplayRefresh(
+                        false, 0UL, &region, true);
+                }
+            }
+        }
 
         // Do not redraw the whole panel merely because one minute elapsed.
         // Live GoodWe/AZ values are refreshed only on screens that actually
         // show them, and only in the page/content area. The header clock has
         // its own small partial refresh above.
         const unsigned long telemetryNow = millis();
-        const String activeScreenId = _screenManager.getActiveScreenId();
         const bool showsLiveTelemetry =
             activeScreenId == "home" || activeScreenId == "solar";
 
