@@ -373,8 +373,7 @@ void DashboardApp::setup() {
                             _dataModel,
                             HomeDataGroup::Rf);
                     if (region.valid()) {
-                        requestNavigationDisplayRefresh(
-                            false, 0UL, &region, true);
+                        requestAutomaticRegionRefresh(region, true);
                     }
                 }
             }
@@ -1184,6 +1183,7 @@ bool DashboardApp::handleNavigationAction(
 
     if (_navigationInputFullRefresh) {
         _deferredNavigationRegionValid = false;
+        clearDeferredAutomaticRegions();
 
         // Main-screen switch: refresh sidebar + page, but leave the header
         // untouched. This is the full dashboard body below HeaderHeight.
@@ -1248,6 +1248,7 @@ void DashboardApp::setDisplayEnabled(bool enabled) {
     if (_displayEnabled == enabled) return;
 
     _displayEnabled = enabled;
+    clearDeferredAutomaticRegions();
     _pendingRefresh = true;
     _pendingFullRefresh = true;
     _pendingDisplayRegionValid = false;
@@ -1271,6 +1272,7 @@ bool DashboardApp::resetUiToHome(bool capturePreview) {
     }
 
     _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
+    clearDeferredAutomaticRegions();
     _navigationController.syncToActiveScreen(false);
     syncWeatherDisplayForActiveScreen(false);
     Serial.println("[KEY] RESET: UI -> Home/sidebar");
@@ -1280,6 +1282,7 @@ bool DashboardApp::resetUiToHome(bool capturePreview) {
 }
 
 void DashboardApp::onScreenSwitchRequested(const String& screenId) {
+    clearDeferredAutomaticRegions();
     _navigationController.syncToActiveScreen(false);
     syncWeatherDisplayForActiveScreen(false);
     Serial.printf("[APP][%lu ms] Pozadavek na prepnuti obrazovky: %s\n", millis(), screenId.c_str());
@@ -1340,7 +1343,22 @@ void DashboardApp::selectWeatherDisplayLocation(
         _weatherWorker.requestLocation(location.id);
     }
 
-    if (requestRefresh) requestAutomaticDisplayRefresh();
+    if (requestRefresh) {
+        const String activeScreenId =
+            _screenManager.getActiveScreenId();
+        if (isWeatherScreenId(activeScreenId)) {
+            requestAutomaticRegionRefresh(pageRegion(), true);
+        } else if (activeScreenId == "home") {
+            const DisplayRegion region =
+                homeDataRegion(
+                    _configManager.get().display.homeLayout,
+                    _dataModel,
+                    HomeDataGroup::Weather);
+            if (region.valid()) {
+                requestAutomaticRegionRefresh(region, true);
+            }
+        }
+    }
 }
 
 void DashboardApp::syncWeatherDisplayForActiveScreen(
@@ -1402,7 +1420,22 @@ void DashboardApp::refreshWeatherDisplayFromCache(
     if (!changed) return;
 
     _dataModel.weather = cached;
-    if (requestRefresh) requestAutomaticDisplayRefresh();
+    if (requestRefresh) {
+        const String activeScreenId =
+            _screenManager.getActiveScreenId();
+        if (isWeatherScreenId(activeScreenId)) {
+            requestAutomaticRegionRefresh(pageRegion(), true);
+        } else if (activeScreenId == "home") {
+            const DisplayRegion region =
+                homeDataRegion(
+                    _configManager.get().display.homeLayout,
+                    _dataModel,
+                    HomeDataGroup::Weather);
+            if (region.valid()) {
+                requestAutomaticRegionRefresh(region, true);
+            }
+        }
+    }
 }
 
 void DashboardApp::onRefreshRequested(bool full) {
@@ -1472,6 +1505,23 @@ void DashboardApp::loop() {
 
             requestNavigationDisplayRefresh(
                 false, 0UL, &deferred, capturePreview);
+        }
+
+        if (!_deferredNavigationRegionValid &&
+            !_pendingRefresh &&
+            !displayStatus.pending &&
+            displayStatus.state == DisplayTaskState::Idle) {
+
+            DisplayRegion deferredAutomatic;
+            bool capturePreview = true;
+            if (popDeferredAutomaticRegion(
+                    deferredAutomatic,
+                    capturePreview)) {
+                requestNavigationDisplayRefresh(
+                    false, 0UL,
+                    &deferredAutomatic,
+                    capturePreview);
+            }
         }
     }
 
