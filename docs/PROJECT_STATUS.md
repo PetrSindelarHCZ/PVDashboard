@@ -42,7 +42,10 @@
 - [x] LEFT/RIGHT/OK jsou jednorázové, aby během pomalého e-paper refreshu
   nepřeskakovaly více položek,
 - [x] SET GPIO35 a RESET GPIO34 s externím 10k pull-up,
-- [x] krátké stisky SET/RESET a long-press SET po 2,5 s jsou zpracované firmwarem,
+- [x] long-press SET po 2,5 s přepíná soft OFF/ON displeje; při vypnutí se
+  vyžádá plné vymazání do bíla a při zapnutí plné překreslení,
+- [x] krátký RESET vrací UI na Home/sidebar,
+- [x] krátký SET je zatím rezervovaný pro budoucí kontextovou/settings akci,
 - [x] pinout byl ověřen podle skutečného fyzického zapojení.
 
 ### Dynamická viditelnost modulů
@@ -64,11 +67,11 @@
 
 ### Wi-Fi, čas a konfigurace
 
-- [x] více známých Wi-Fi sítí,
+- [x] až 8 známých Wi-Fi sítí,
 - [x] recovery AP `Dashboard-Setup`,
 - [x] DHCP i statická konfigurace,
 - [x] mDNS `dashboard.local`,
-- [x] NTP a časová zóna,
+- [x] NTP a časová zóna včetně stavového API a správy vlastních NTP serverů,
 - [x] export/import YAML `pvdashboard-config v7`,
 - [x] export/import Home layoutu,
 - [x] export/import uložených RF čidel,
