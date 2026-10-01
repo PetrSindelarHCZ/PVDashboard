@@ -274,10 +274,22 @@ DisplayRegion homeDataRegion(
         if (!matches) continue;
 
         DisplayRegion widgetRegion;
-        widgetRegion.x = widget.x;
-        widgetRegion.y = widget.y;
-        widgetRegion.width = widget.width;
-        widgetRegion.height = widget.height;
+        if (widget.type == LayoutWidgetType::HomeCustomCard) {
+            // Custom elements may occupy the whole card, so keep the complete
+            // widget as the dirty region.
+            widgetRegion.x = widget.x;
+            widgetRegion.y = widget.y;
+            widgetRegion.width = widget.width;
+            widgetRegion.height = widget.height;
+        } else {
+            // Predefined cards have static frame/title chrome. Automatic data
+            // updates only need the inner content area, which makes e-paper
+            // activity substantially less visible.
+            widgetRegion.x = widget.x + 8;
+            widgetRegion.y = widget.y + 38;
+            widgetRegion.width = widget.width > 16 ? widget.width - 16 : widget.width;
+            widgetRegion.height = widget.height > 46 ? widget.height - 46 : widget.height;
+        }
         dirty = unionDisplayRegions(dirty, widgetRegion);
     }
 
@@ -411,10 +423,12 @@ void DashboardApp::setup() {
     // shares the preferred I2C bus on SDA GPIO21 / SCL GPIO22.
     _bme280Sensor.update(_dataModel.inside);
     _lastBme280Sync = millis();
+    _lastBme280DisplayRefresh = _lastBme280Sync;
 
     // MAX17048 shares the same I2C bus (SDA GPIO21 / SCL GPIO22).
     _max17048Sensor.update(_dataModel.battery);
     _lastBatterySync = millis();
+    _lastBatteryDisplayRefresh = _lastBatterySync;
 
     applyWifiAddressing(cfg.wifi);
 
@@ -1767,10 +1781,13 @@ void DashboardApp::loop() {
             wasAvailable != _dataModel.battery.status.available;
         const bool alertChanged =
             previousAlertFlags != _dataModel.battery.alertFlags;
+        const bool socChanged =
+            success &&
+            fabsf(previousSoc - _dataModel.battery.socPercent) >= 1.0f;
         const bool valuesChanged =
             success &&
             (fabsf(previousVoltage - _dataModel.battery.voltageV) >= 0.02f ||
-             fabsf(previousSoc - _dataModel.battery.socPercent) >= 1.0f ||
+             socChanged ||
              fabsf(previousRate -
                    _dataModel.battery.changeRatePercentPerHour) >= 1.0f);
 
@@ -1785,6 +1802,14 @@ void DashboardApp::loop() {
             (valuesChanged && refreshIntervalElapsed)) {
 
             _lastBatteryDisplayRefresh = refreshNow;
+
+            // Device battery is always visible in the header when MAX17048 is
+            // present. Voltage/rate-only changes do not need to redraw it.
+            if (availabilityChanged ||
+                alertChanged ||
+                (socChanged && refreshIntervalElapsed)) {
+                requestAutomaticRegionRefresh(headerRegion(), true);
+            }
 
             if (_screenManager.getActiveScreenId() == "home") {
                 const DisplayRegion region =
