@@ -1730,12 +1730,19 @@ bool tryPrintGeevonTx19(const int32_t* data, uint16_t count) {
 
     // Bit-pack the assembler: 256 bits require only 32 B instead of 256 B
     // (and the previous 512-byte byte-per-bit buffer overflowed ESP32 DRAM).
-    static uint8_t bits[MaximumBits / 8] = {};
+    static uint8_t* bits = nullptr;
     static uint16_t bitCount = 0;
     static uint32_t lastFragmentMs = 0;
 
+    if (bits == nullptr) {
+        bits = static_cast<uint8_t*>(calloc(MaximumBits / 8, 1));
+        if (bits == nullptr) {
+            return false;
+        }
+    }
+
     auto clearAssembler = [&]() {
-        memset(bits, 0, sizeof(bits));
+        memset(bits, 0, MaximumBits / 8);
         bitCount = 0;
         lastFragmentMs = 0;
     };
