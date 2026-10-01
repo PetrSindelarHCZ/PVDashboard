@@ -6,7 +6,7 @@ lokální BME280, stav akumulátoru přes MAX17048 a vybraná 433MHz čidla pře
 Součástí je mobilní WebUI, konfigurace přes NVS, recovery Wi-Fi AP, fyzické
 ovládání a OTA aktualizace.
 
-Aktuální firmware: **1.26.261.1**.
+Aktuální firmware: **1.26.274.1**.
 
 ## Aktuální funkce
 
@@ -66,7 +66,7 @@ PlatformIO Core je připnuté v release workflow; platforma, framework, nástroj
 knihovny jsou připnuté v **platformio.ini**.
 
 ~~~powershell
-python scripts/prepare-release.py --firmware .pio/build/esp32dev/firmware.bin --output dist --expected-version 1.26.261.1
+python scripts/prepare-release.py --firmware .pio/build/esp32dev/firmware.bin --output dist --expected-version 1.26.274.1
 ~~~
 
 Výstup obsahuje **firmware.bin**, **firmware.bin.sha256** a
