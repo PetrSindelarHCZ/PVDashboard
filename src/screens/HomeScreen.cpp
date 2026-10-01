@@ -758,7 +758,11 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
                 drawEnergyCard(display, dm, widget, widgetConfig);
                 break;
             case LayoutWidgetType::HomeIndoorCard:
-                drawIndoorCard(display, dm, widget, widgetConfig);
+                if (widgetConfig != nullptr && !widgetConfig->elements.empty()) {
+                    CustomWidgetRenderer::draw(display, dm, *widgetConfig, "UVNITŘ");
+                } else {
+                    drawIndoorCard(display, dm, widget, widgetConfig);
+                }
                 break;
             case LayoutWidgetType::HomeFveCard:
                 drawFveSummaryCard(display, dm, widget, widgetConfig);
