@@ -261,6 +261,18 @@ DisplayRegion homeDataRegion(
             case LayoutWidgetType::HomeIndoorCard:
                 matches = group == HomeDataGroup::Indoor;
                 break;
+            case LayoutWidgetType::HomeFveCard:
+            case LayoutWidgetType::HomeAZRouterCard:
+                matches = group == HomeDataGroup::Energy;
+                break;
+            case LayoutWidgetType::HomePoolCard:
+                matches = group == HomeDataGroup::Indoor;
+                break;
+            case LayoutWidgetType::HomeSystemCard:
+                matches = group == HomeDataGroup::Weather ||
+                          group == HomeDataGroup::Energy ||
+                          group == HomeDataGroup::Rf;
+                break;
             case LayoutWidgetType::HomeCustomCard: {
                 const HomeLayoutWidgetConfig* configured =
                     HomeLayout::findWidget(config, widget.id);
