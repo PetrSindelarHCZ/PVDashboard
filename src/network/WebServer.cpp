@@ -378,10 +378,16 @@ void DashboardWebServer::onHomeLayoutConfig(HomeLayoutConfigCallback callback) {
         }
 
         _server.sendHeader("Cache-Control", "no-store");
-        _server.send(
-            200,
-            "application/json",
-            homeLayoutResponseJson(_config.display.homeLayout, _config.rfSensors, _dataModel));
+        const String response =
+            homeLayoutResponseJson(_config.display.homeLayout, _config.rfSensors, _dataModel);
+        Serial.printf(
+            "[WEB][HOME-LAYOUT] POST odpoved pripravena, json=%u B, freeHeap=%u B.\n",
+            static_cast<unsigned>(response.length()),
+            static_cast<unsigned>(ESP.getFreeHeap()));
+        _server.send(200, "application/json", response);
+        Serial.printf(
+            "[WEB][HOME-LAYOUT] POST odpoved odeslana, freeHeap=%u B.\n",
+            static_cast<unsigned>(ESP.getFreeHeap()));
     });
 
     _server.on("/api/layout/home/reset", HTTP_POST, [this]() {
