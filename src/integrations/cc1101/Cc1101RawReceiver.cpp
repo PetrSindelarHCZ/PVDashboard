@@ -1693,6 +1693,180 @@ bool tryPrintHyundaiR50(const int32_t* data, uint16_t count) {
 
 
 
+
+uint8_t geevonTx19LfsrDigest(
+    const uint8_t* message,
+    uint8_t bytes,
+    uint8_t generator,
+    uint8_t key) {
+    uint8_t sum = 0;
+    for (int byte = static_cast<int>(bytes) - 1; byte >= 0; --byte) {
+        const uint8_t value = message[byte];
+        for (int bit = 7; bit >= 0; --bit) {
+            if ((value >> bit) & 1U) {
+                sum ^= key;
+            }
+            key = (key & 1U)
+                ? static_cast<uint8_t>((key >> 1) ^ generator)
+                : static_cast<uint8_t>(key >> 1);
+        }
+    }
+    return sum;
+}
+
+bool tryPrintGeevonTx19(const int32_t* data, uint16_t count) {
+    // Geevon TX19-1 temperature/humidity sensor.
+    //
+    // Upstream rtl_433 protocol 291 describes OOK/PWM:
+    //   short HIGH ~250 us
+    //   long  HIGH ~500 us
+    //   sync  HIGH ~750 us (+ ~750 us LOW gap)
+    // After rtl_433's bit inversion, short=0 and long=1.
+    //
+    // Payload is 73 bits; the first 72 bits are 9 bytes:
+    //   [ID][B?CCxxxx][TEMP_H][TEMP_L/pad][HUM][AA][55][AA][CRC]
+    // Temperature raw = C * 10 + 500.
+    //
+    // Discovery build: be deliberately strict. A packet is accepted only
+    // when the fixed AA 55 AA marker and the TX19 LFSR checksum both match.
+    constexpr uint32_t DataPulseMinUs = 170;
+    constexpr uint32_t DataPulseMaxUs = 620;
+    constexpr uint32_t BitSplitUs = 375;
+    constexpr uint32_t SyncPulseMinUs = 650;
+    constexpr uint32_t SyncPulseMaxUs = 900;
+    constexpr uint16_t MaximumBits = 160;
+
+    uint8_t bits[MaximumBits] = {};
+    uint16_t bitCount = 0;
+
+    auto resetBits = [&]() {
+        bitCount = 0;
+    };
+
+    auto tryWindow = [&](uint16_t start, uint8_t out[9]) -> bool {
+        if (start + 72 > bitCount) return false;
+
+        for (uint8_t byte = 0; byte < 9; ++byte) {
+            uint8_t value = 0;
+            for (uint8_t bit = 0; bit < 8; ++bit) {
+                value = static_cast<uint8_t>(
+                    (value << 1) | bits[start + byte * 8 + bit]);
+            }
+            out[byte] = value;
+        }
+
+        if (out[5] != 0xAA ||
+            out[6] != 0x55 ||
+            out[7] != 0xAA) {
+            return false;
+        }
+
+        return geevonTx19LfsrDigest(out, 8, 0x98, 0x25) == out[8];
+    };
+
+    auto processAccumulated = [&]() -> bool {
+        if (bitCount < 72) return false;
+
+        for (uint16_t start = 0; start + 72 <= bitCount; ++start) {
+            uint8_t packet[9] = {};
+            if (!tryWindow(start, packet)) continue;
+
+            const uint8_t id = packet[0];
+            const bool batteryLow = (packet[1] & 0x80) != 0;
+            const uint8_t channel =
+                static_cast<uint8_t>(((packet[1] & 0x30) >> 4) + 1);
+            const uint16_t tempRaw = static_cast<uint16_t>(
+                (static_cast<uint16_t>(packet[2]) << 4) |
+                (packet[3] >> 4));
+            const float temperatureC =
+                (static_cast<int>(tempRaw) - 500) * 0.1f;
+            const uint8_t humidity = packet[4];
+
+            if (channel < 1 || channel > 3 ||
+                temperatureC < -60.0f || temperatureC > 80.0f ||
+                humidity > 100) {
+                continue;
+            }
+
+            static uint32_t packetCount = 0;
+            static uint32_t lastSeenMs = 0;
+            const uint32_t nowMs = millis();
+            const uint32_t intervalMs =
+                lastSeenMs == 0 ? 0 : nowMs - lastSeenMs;
+            lastSeenMs = nowMs;
+            ++packetCount;
+
+            Serial.printf(
+                "[CC1101][GEEVON-TX19] id=0x%02X temp=%.1f C "
+                "humidity=%u %% channel=%u battery=%s | packets=%lu",
+                static_cast<unsigned>(id),
+                temperatureC,
+                static_cast<unsigned>(humidity),
+                static_cast<unsigned>(channel),
+                batteryLow ? "LOW" : "OK",
+                static_cast<unsigned long>(packetCount));
+            if (intervalMs > 0) {
+                Serial.printf(
+                    " interval=%.1f s",
+                    static_cast<double>(intervalMs) / 1000.0);
+            }
+            Serial.printf(
+                " | raw=%02X %02X %02X %02X %02X %02X %02X %02X %02X\n",
+                packet[0], packet[1], packet[2], packet[3], packet[4],
+                packet[5], packet[6], packet[7], packet[8]);
+
+            RfSensorObservation observation;
+            observation.protocol = "geevon-tx19";
+            observation.sensorId = id;
+            observation.channel = channel;
+            observation.hasTemperature = true;
+            observation.temperatureC = temperatureC;
+            observation.hasHumidity = true;
+            observation.humidityPercent = humidity;
+            observation.hasBattery = true;
+            observation.batteryOk = !batteryLow;
+            publishSensorObservation(observation);
+            return true;
+        }
+        return false;
+    };
+
+    // Decode only HIGH pulse widths. LOW gaps are useful for framing but not
+    // for the TX19 data value itself. A sync pulse closes one repeated row.
+    for (uint16_t i = 0; i < count; ++i) {
+        if (data[i] <= 0) continue;
+
+        const uint32_t pulseUs = static_cast<uint32_t>(data[i]);
+
+        if (pulseUs >= DataPulseMinUs && pulseUs <= DataPulseMaxUs) {
+            if (bitCount < MaximumBits) {
+                // rtl_433 OOK_PWM calls short pulse "1" and long pulse "0",
+                // then the TX19 decoder inverts the row. Net: short=0,long=1.
+                bits[bitCount++] = pulseUs >= BitSplitUs ? 1 : 0;
+            } else {
+                if (processAccumulated()) return true;
+                resetBits();
+            }
+            continue;
+        }
+
+        if (pulseUs >= SyncPulseMinUs && pulseUs <= SyncPulseMaxUs) {
+            if (processAccumulated()) return true;
+            resetBits();
+            continue;
+        }
+
+        // Ignore very short glitches; any other pulse closes the candidate
+        // row so unrelated protocols cannot be stitched into a TX19 packet.
+        if (pulseUs >= DataPulseMinUs) {
+            if (processAccumulated()) return true;
+            resetBits();
+        }
+    }
+
+    return processAccumulated();
+}
+
 struct UnknownShortPwmFingerprint {
     bool used = false;
     uint16_t shortAvgUs = 0;
@@ -2277,6 +2451,7 @@ void loop() {
         !tryPrintPwm67(snapshot, snapshotCount) &&
         !tryPrintPwm67Candidate(snapshot, snapshotCount) &&
         !tryPrintHyundaiR50(snapshot, snapshotCount) &&
+        !tryPrintGeevonTx19(snapshot, snapshotCount) &&
         !tryPrintUnknownShortPwm(snapshot, snapshotCount) &&
         !tryPrintOneTwoMsCandidate(snapshot, snapshotCount)) {
         printBurst(
