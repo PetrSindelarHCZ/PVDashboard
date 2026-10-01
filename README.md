@@ -2,11 +2,11 @@
 
 Lokální domácí dashboard pro **Waveshare ESP32 e-Paper Driver Board** a černobílý
 7,5" panel 800 × 480 px. Firmware zobrazuje data z měniče GoodWe a AZRouteru,
-poskytuje mobilní WebUI, konfiguraci přes NVS, recovery Wi-Fi AP a OTA aktualizaci.
+lokální BME280, stav akumulátoru přes MAX17048 a vybraná 433MHz čidla přes CC1101.
+Součástí je mobilní WebUI, konfigurace přes NVS, recovery Wi-Fi AP, fyzické
+ovládání a OTA aktualizace.
 
-Aktuální firmware: **1.26.261.1**. Obsahuje stabilizované načítání počasí přes HTTPS,
-paměťově úsporný náhled e-paperu ve WebUI, diagnostiku výkonu, společnou navigaci
-pro budoucí joystick a dynamické zobrazování modulů podle konfigurace.
+Aktuální firmware: **1.26.261.1**.
 
 ## Aktuální funkce
 
@@ -14,22 +14,28 @@ pro budoucí joystick a dynamické zobrazování modulů podle konfigurace.
   a počasí se za běhu registrují jen tehdy, když jsou příslušné moduly aktivní,
 - GoodWe GW10K-ET přes Modbus RTU zapouzdřený v UDP na portu 8899,
 - AZRouter přes HTTP endpointy **/api/v1/power**, **/api/v1/status** a **/api/v1/devices**,
-- mobilní WebUI pro přepínání obrazovek, refresh, konfiguraci, náhled e-inku a OTA,
-- společný **NavigationController** s režimy Sidebar / Pager / Page, virtuálním
-  pětisměrným joystickem ve WebUI a geometricky odvozenou navigací prvků,
+- BME280 na společné I²C sběrnici GPIO21/GPIO22,
+- MAX17048 na adrese 0x36: napětí, SoC, změna SoC a alert flags,
+- CC1101 na 433 MHz, dekódování podporovaných čidel a správa uložených RF čidel,
+- mobilní WebUI pro přepínání obrazovek, refresh, konfiguraci, náhled e-inku,
+  správu RF čidel a OTA,
+- společný **NavigationController** s režimy Sidebar / Pager / Page,
+- fyzický pětisměrný joystick i virtuální joystick ve WebUI používají stejný
+  navigační model,
+- fyzický joystick: UP GPIO17, DOWN GPIO18, LEFT GPIO33, RIGHT GPIO16, OK GPIO32,
+- doplňková tlačítka SET GPIO35 a RESET GPIO34 používají externí 10k pull-up,
 - NTP s časovou zónou pro Českou republiku,
 - více známých Wi-Fi sítí, AP+STA recovery **Dashboard-Setup** a automatický
   návrat k dostupné povolené známé síti,
-- měření dob hlavní smyčky, HTTP, integrací a e-paper refreshů,
 - živé počasí z Open-Meteo nebo MET Norway pro více uložených lokalit,
-  čtyřdenní předpověď, hodinový přehled pro vybraný den, pager lokalit na e-inku,
-  změnu pořadí lokalit a vyhledání místa ve WebUI,
-- ověřené HTTPS pro oba poskytovatele a respektování serverové cache MET Norway,
-- dynamickou viditelnost GoodWe/AZRouteru, bazénu a počasí bez ztráty uložené konfigurace.
+- konfigurovatelný Home layout včetně vlastních KPI/text/progress/sparkline prvků,
+- dynamická viditelnost GoodWe/AZRouteru, bazénu a počasí bez ztráty konfigurace,
+- asynchronní e-paper render přes DisplayWorker a regionální partial refresh
+  pro vybrané změny dat a navigace.
 
-Počasí načítá samostatná FreeRTOS úloha a při nedostupnosti API se na displeji
-nezobrazují náhradní čísla. Hodnoty vnitřních čidel a bazénu jsou zatím
-demonstrační a firmware i WebUI je tak označují. Podrobnosti datových zdrojů jsou v [INTEGRATIONS.md](docs/INTEGRATIONS.md).
+Počasí načítá samostatná FreeRTOS úloha. BME280, MAX17048 a RF senzory jsou
+lokální zdroje. Hodnoty bazénu zůstávají demonstrační, dokud nebude připojen
+samostatný reálný uzel.
 
 ## Sestavení a nahrání
 
@@ -37,7 +43,7 @@ Požadavky:
 
 - VS Code s PlatformIO nebo PlatformIO CLI,
 - Waveshare ESP32 e-Paper Driver Board,
-- USB port zařízení, v současném testovacím zapojení **COM5**.
+- USB port zařízení; v současném testovacím zapojení **COM5**.
 
 ~~~powershell
 & "$env:USERPROFILE\.platformio\penv\Scripts\platformio.exe" run
@@ -46,76 +52,60 @@ Požadavky:
 ~~~
 
 WebUI je po připojení dostupné přes **http://dashboard.local/** nebo IP adresu
-zařízení. V současném testovacím zapojení zařízení používá **192.168.88.181**;
-nejde o pevnou adresu firmware.
+zařízení. Testovací IP není součástí pevné konfigurace firmware.
 
 Pokud se ESP32 nepřipojí k aktivní Wi-Fi, přejde do AP+STA recovery režimu,
 vytvoří síť **Dashboard-Setup** s heslem **dashboard** a dál průběžně hledá
-povolené známé sítě. Nastavení je dostupné na **http://192.168.4.1/**. Ruční
-**Odpojit** zakáže auto-connect daného SSID i přes restart; ruční **Připojit**
-jej znovu povolí.
+povolené známé sítě. Nastavení je dostupné na **http://192.168.4.1/**.
 
 ## Release a návrat verze
 
-PlatformIO Core je připnuté v release workflow; platforma, framework, nástroje a knihovny jsou
-připnuté v **platformio.ini**. Po sestavení připraví validované artefakty tento
-příkaz:
+PlatformIO Core je připnuté v release workflow; platforma, framework, nástroje a
+knihovny jsou připnuté v **platformio.ini**.
 
 ~~~powershell
 python scripts/prepare-release.py --firmware .pio/build/esp32dev/firmware.bin --output dist --expected-version 1.26.261.1
 ~~~
 
 Výstup obsahuje **firmware.bin**, **firmware.bin.sha256** a
-**dashboard-manifest.json**. Aktuální `min_spiffs.csv` poskytuje dva OTA sloty
-po **1 966 080 B (1,875 MiB)**; release skript i firmware větší obraz odmítnou.
-GitHub workflow provádí stejné kontroly a tag ve formátu **v1.YY.denRoku.pořadí** musí odpovídat
-**FIRMWARE_VERSION**. Ruční upload ve WebUI vyžaduje vložit 64znakový SHA-256 ze souboru **firmware.bin.sha256** a ověří jej ještě před aktivací oddílu.
-
-Před OTA je vhodné ponechat si poslední známý funkční **firmware.bin**. Chyba
-uploadu nebo SHA-256 vrátí HTTP 400 a běžící partition zůstane aktivní. Pokud
-zařízení po platné aktualizaci nenaběhne, připojte USB, zvolte odpovídající
-známý funkční commit a obnovte jej sériově:
-
-~~~powershell
-& "$env:USERPROFILE\.platformio\penv\Scripts\platformio.exe" run --target upload --upload-port COM5
-~~~
-
-Tento postup nemaže NVS. Úplné mazání flash není součástí běžného návratu verze.
-
-WebUI umožňuje ručně zkontrolovat poslední GitHub release. Nabídku instalace zobrazí
-jen pro novější verzi a před stažením vyžádá potvrzení uživatele. Zařízení používá
-URL a SHA-256 získané přímo z GitHub release, ověří celý obraz a potom se restartuje.
+**dashboard-manifest.json**. Aktuální OTA partition poskytuje dva sloty po
+**1 966 080 B (1,875 MiB)**.
 
 ## REST API
 
 | Metoda | Endpoint | Účel |
 | --- | --- | --- |
 | GET | /api/status | Odlehčený stav systému a zdrojů |
-| GET | /api/status?details=1 | Stav systému včetně výkonnostních a podrobných AZRouter metrik |
+| GET | /api/status?details=1 | Detailní stav a diagnostika |
 | GET | /api/screens | Seznam obrazovek |
 | POST | /api/screens/{id}/activate | Aktivace obrazovky |
-| GET | /api/navigation | Stav navigace, focus a geometrie focusovatelných prvků |
-| POST | /api/navigation | Navigační akce `up/down/left/right/ok` |
-| POST | /api/display/refresh | Rychlá částečná obnova |
+| GET | /api/navigation | Stav navigace a focusu |
+| POST | /api/navigation | Navigační akce up/down/left/right/ok |
+| POST | /api/display/refresh | Částečná obnova |
 | POST | /api/display/full-refresh | Čisticí plná obnova |
 | POST | /api/system/restart | Restart ESP32 |
-| POST | /api/config/factory-reset | Vymazání konfigurace po potvrzení `confirmation=RESET` |
-| GET | /api/config/export | Stažení konfigurace ve formátu YAML |
-| POST | /api/config/import | Validace a import těla `application/yaml` |
-| POST | /api/config/system | Uložení hostname, NTP serveru a časového pásma |
-| POST | /api/wifi/config | Uložení Wi-Fi konfigurace |
-| GET | /api/wifi/scan | Vyhledání Wi-Fi sítí |
-| POST | /api/config/sources | Uložení konfigurace GoodWe/AZRouteru a živá aktualizace FVE obrazovky |
-| POST | /api/config/pool | Uložení viditelnosti bazénového modulu |
-| POST | /api/config/weather | Uložení provideru, aktivace a intervalu počasí |
-| POST | /api/weather/locations | Přidání, výběr, odstranění nebo změna pořadí lokalit |
-| GET | /api/wifi/known | Seznam známých Wi-Fi sítí |
-| POST | /api/wifi/disconnect | Ruční odpojení a zakázání auto-connectu aktivního SSID |
-| GET | /api/display.bmp | BMP náhled posledního vyrenderovaného e-inku |
-| POST | /api/screens/weather-hourly-0/activate | Hodinový přehled prvního dne (indexy 0–3) |
+| POST | /api/config/factory-reset | Tovární reset |
+| GET | /api/config/export | Export konfigurace YAML |
+| POST | /api/config/import | Import konfigurace YAML |
+| POST | /api/config/system | Systémové nastavení |
+| POST | /api/wifi/config | Wi-Fi konfigurace |
+| GET | /api/wifi/scan | Scan Wi-Fi sítí |
+| POST | /api/config/sources | GoodWe/AZRouter konfigurace |
+| POST | /api/config/pool | Nastavení bazénového modulu |
+| POST | /api/config/weather | Nastavení počasí |
+| POST | /api/weather/locations | Správa lokalit počasí |
+| GET | /api/wifi/known | Známé Wi-Fi sítě |
+| POST | /api/wifi/disconnect | Odpojení a zákaz auto-connectu |
+| GET | /api/display.bmp | Náhled e-inku |
 | GET | /api/update/check | Kontrola GitHub release |
-| POST | /api/update/github | Instalace release firmware |
-| POST | /api/update | Ruční upload firmware s polem `sha256` |
+| POST | /api/update/github | Instalace GitHub release |
+| POST | /api/update | Ruční upload firmware |
+
+## Konfigurace
+
+Interní **AppConfig schemaVersion je 12**. YAML export/import používá
+**pvdashboard-config v7**. Export zahrnuje také Home layout a uložená RF čidla.
+Celý seznam známých Wi-Fi sítí včetně jejich autoConnect příznaků zatím exportován není.
 
 ## Dokumentace
 
@@ -123,25 +113,19 @@ URL a SHA-256 získané přímo z GitHub release, ověří celý obraz a potom s
 - [Architektura a provozní principy](docs/ARCHITECTURE.md)
 - [Displej a refresh strategie](docs/DISPLAY.md)
 - [GoodWe, AZRouter a počasí](docs/INTEGRATIONS.md)
+- [Layouty](docs/LAYOUTS.md)
+- [433 MHz / CC1101](docs/RF_433_RESEARCH.md)
 - [Testování a diagnostika](docs/TESTING.md)
 - [Roadmapa](docs/ROADMAP.md)
 
-Starší specifikace, výsledky jednorázových měření a pracovní audity zůstávají
-dostupné v Git historii místo samostatného archivu v aktuálním stromu.
-
 ## Známá omezení
 
-- Čtení datových zdrojů stále běží synchronně v hlavní smyčce. WebUI proto může
-  během jednotlivého síťového timeoutu čekat přibližně 1,8 sekundy.
-- E-paper obsluhuje samostatná FreeRTOS úloha; WebUI během partial ani full
-  refreshu zůstává dostupné a zobrazuje stav vykreslení.
-- Platná ruční i GitHub OTA a chybové scénáře jsou ověřené na zařízení.
-- Aktuální OTA partition má **1 966 080 B**. Release skript i zařízení odmítnou
-  větší obraz; skutečné procento využití se mění s každým buildem a má se
-  kontrolovat v CI/release výstupu.
-- Fyzický joystick zatím není připojen; WebUI už používá stejný navigační model.
-- Reálná bazénová a vnitřní čidla zatím nejsou připojená; jejich hodnoty jsou
-  stále označené jako demonstrační.
-- YAML export používá `pvdashboard-config` v5 a zálohuje aktuální Wi-Fi/IP
-  konfiguraci, ale zatím ne celý seznam známých Wi-Fi sítí ani jejich
-  `autoConnect` příznaky.
+- GoodWe a AZRouter polling stále běží synchronně v hlavní smyčce a timeout může
+  krátce zdržet WebUI.
+- E-paper obsluhuje samostatná FreeRTOS úloha.
+- Dlouhodobý test ghostingu regionálních a diferenciálních partial refreshů
+  ještě není uzavřený.
+- Bazénové hodnoty zatím nejsou napojené na reálný senzorický uzel.
+- MAX17048 spolehlivě měří napětí a SoC, ale sám neurčuje jistě stav nabíjení.
+  Detekce z HW-357/TP4056 CHG je vedena v roadmapě.
+- RF dekódování a správa čidel jsou funkční, ale výzkum dalších protokolů pokračuje.
