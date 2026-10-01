@@ -328,9 +328,11 @@ void drawFveSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidg
 
     display.setCursor(x + 15, y + 151);
     if (dm.solar.status.available)
-        display.printf("Síť %+.1f kW", dm.solar.gridPowerW / 1000.0f);
+        display.printf("Dům %.1f | Síť %+.1f kW",
+                       dm.solar.houseConsumptionW / 1000.0f,
+                       dm.solar.gridPowerW / 1000.0f);
     else
-        display.print("Síť --.- kW");
+        display.print("Dům --.- | Síť --.- kW");
 
     display.setCursor(x + 15, y + 181);
     if (dm.solar.status.available && dm.solar.batteryPresent)
@@ -387,20 +389,22 @@ void drawPoolSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWid
     if (dm.pool.status.available)
         display.printf("%.1f °C", dm.pool.waterTempC);
     else
-        display.print("--.- °C");
+        display.printf("%.1f °C", dm.inside.poolTempC);
 
     ScreenStyle::useBody(display);
     display.setCursor(x + 15, y + 119);
     if (dm.pool.status.available)
         display.printf("Cíl %.1f °C", dm.pool.targetTempC);
     else
-        display.print("Data nedostupná");
+        display.print("Teplota z dostupného čidla");
 
     display.setCursor(x + 15, y + 148);
     if (dm.pool.status.available)
         display.printf("Filtrace %s  Topení %s",
                        dm.pool.filtrationRunning ? "ON" : "OFF",
                        dm.pool.heatingActive ? "ON" : "OFF");
+    else
+        display.print("Řízení bazénu: bez dat");
 }
 
 void drawSystemSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidget& widget) {
@@ -427,7 +431,7 @@ void drawSystemSummaryCard(IDisplay& display, const DataModel& dm, const LayoutW
     display.setCursor(x + 15, y + 142);
     display.printf("Předpověď  %s", dm.weather.status.available ? "Online" : "Offline");
 
-    display.setCursor(x + 15, y + 169);
+    display.setCursor(x + 15, y + 163);
     display.printf("433 MHz    %u čidel", dm.rfSensors.sensorCount);
 }
 
