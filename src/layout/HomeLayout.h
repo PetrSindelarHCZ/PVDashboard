@@ -107,6 +107,7 @@ inline int16_t elementMinHeight(const String& type) {
 
 inline bool knownWidget(const String& id, const String& type) {
     if (type == "custom") return validIdentifier(id) && id.startsWith("custom-");
+    if (type == "rf-sensor") return validIdentifier(id) && id.startsWith("rf-card-");
     return (id == "weather-card" && type == "weather") ||
            (id == "energy-card" && type == "energy") ||
            (id == "indoor-card" && type == "indoor");
@@ -116,6 +117,7 @@ inline int16_t minWidth(const String& type) {
     if (type == "weather") return 190;
     if (type == "energy") return 190;
     if (type == "indoor") return 180;
+    if (type == "rf-sensor") return 150;
     if (type == "custom") return 160;
     return 0;
 }
@@ -124,6 +126,7 @@ inline int16_t minHeight(const String& type) {
     if (type == "weather") return 360;
     if (type == "energy") return 330;
     if (type == "indoor") return 260;
+    if (type == "rf-sensor") return 140;
     if (type == "custom") return 120;
     return 0;
 }
@@ -131,6 +134,7 @@ inline int16_t minHeight(const String& type) {
 inline LayoutWidgetType runtimeType(const String& type) {
     if (type == "weather") return LayoutWidgetType::HomeWeatherCard;
     if (type == "energy") return LayoutWidgetType::HomeEnergyCard;
+    if (type == "rf-sensor") return LayoutWidgetType::HomeRfSensorCard;
     if (type == "custom") return LayoutWidgetType::HomeCustomCard;
     return LayoutWidgetType::HomeIndoorCard;
 }
@@ -144,6 +148,7 @@ inline const char* typeName(LayoutWidgetType type) {
         case LayoutWidgetType::HomeAZRouterCard: return "azrouter-summary";
         case LayoutWidgetType::HomePoolCard: return "pool-summary";
         case LayoutWidgetType::HomeConsumptionCard: return "consumption-summary";
+        case LayoutWidgetType::HomeRfSensorCard: return "rf-sensor";
         case LayoutWidgetType::HomeCustomCard: return "custom";
     }
     return "unknown";
@@ -287,7 +292,7 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
     }
 
     if (config.widgetCount == 0 || config.widgetCount > MaxHomeLayoutWidgets) {
-        return fail("Custom Home layout must contain 1 to 6 widgets");
+        return fail("Custom Home layout must contain 1 to 8 widgets");
     }
 
     bool anyVisible = false;
@@ -312,6 +317,13 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
         if (widget.type == "custom") {
             String customError;
             if (!validateCustomWidget(widget, &customError)) return fail(customError);
+        } else if (widget.type == "rf-sensor") {
+            if (widget.rfSensorSlotId.isEmpty() || widget.rfSensorSlotId.length() > 32)
+                return fail("RF sensor widget requires a valid sensor slot");
+            if (widget.title.length() > 40)
+                return fail("RF sensor widget title is too long");
+            if (!widget.elements.empty())
+                return fail("RF sensor widget cannot contain custom elements");
         } else if (!widget.elements.empty() || !widget.title.isEmpty()) {
             return fail("Predefined widget cannot contain custom elements");
         }
@@ -321,7 +333,8 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
         for (uint8_t j = 0; j < i; ++j) {
             const HomeLayoutWidgetConfig& previous = config.widgets[j];
             if (widget.id == previous.id) return fail("Duplicate Home widget id");
-            if (widget.type != "custom" && widget.type == previous.type) {
+            if (widget.type != "custom" && widget.type != "rf-sensor" &&
+                widget.type == previous.type) {
                 return fail("Duplicate predefined Home widget");
             }
             if (widget.visible && previous.visible && intersects(widget, previous)) {
@@ -372,7 +385,12 @@ inline String serializeJson(const HomeLayoutConfig& config) {
         item["background"] = widget.background;
         item["inverseText"] = widget.inverseText;
 
-        if (widget.type == "custom") {
+        if (widget.type == "rf-sensor") {
+            item["title"] = widget.title;
+            item["rfSensorSlotId"] = widget.rfSensorSlotId;
+            item["rfShowHumidity"] = widget.rfShowHumidity;
+            item["rfShowLastSeen"] = widget.rfShowLastSeen;
+        } else if (widget.type == "custom") {
             item["title"] = widget.title;
             JsonArray elements = item["elements"].to<JsonArray>();
             for (uint8_t e = 0; e < widget.elements.size() && e < MaxCustomWidgetElements; ++e) {
@@ -446,7 +464,12 @@ inline bool parseJson(const String& json, HomeLayoutConfig& config, String* erro
         widget.background = String(item["background"] | "white");
         widget.inverseText = item["inverseText"] | false;
 
-        if (widget.type == "custom") {
+        if (widget.type == "rf-sensor") {
+            widget.title = String(item["title"] | "VENKU");
+            widget.rfSensorSlotId = String(item["rfSensorSlotId"] | "");
+            widget.rfShowHumidity = item["rfShowHumidity"] | true;
+            widget.rfShowLastSeen = item["rfShowLastSeen"] | true;
+        } else if (widget.type == "custom") {
             widget.title = String(item["title"] | "");
             JsonArray elements = item["elements"].as<JsonArray>();
             if (!elements.isNull()) {
@@ -482,13 +505,28 @@ inline void buildDefault(const DataModel& dm, ScreenLayout& layout) {
     if (dm.azrouter.enabled)
         layout.add("azrouter-summary", LayoutWidgetType::HomeAZRouterCard, 555, 63, 230, 215);
 
-    layout.add("indoor-card", LayoutWidgetType::HomeIndoorCard, 75, 293, 210, 172);
+    bool hasRfTemperature = false;
+    for (uint8_t i = 0; i < dm.rfSensors.sensorCount && i < MaxRfSensors; ++i) {
+        if (dm.rfSensors.sensors[i].configured && dm.rfSensors.sensors[i].hasTemperature) {
+            hasRfTemperature = true;
+            break;
+        }
+    }
 
-    if (dm.pool.enabled)
-        layout.add("pool-summary", LayoutWidgetType::HomePoolCard, 295, 293, 210, 172);
-
-    if (dm.solar.enabled)
-        layout.add("consumption-summary", LayoutWidgetType::HomeConsumptionCard, 515, 293, 270, 172);
+    if (hasRfTemperature) {
+        layout.add("indoor-card", LayoutWidgetType::HomeIndoorCard, 75, 293, 155, 172);
+        layout.add("rf-card-1", LayoutWidgetType::HomeRfSensorCard, 240, 293, 155, 172);
+        if (dm.pool.enabled)
+            layout.add("pool-summary", LayoutWidgetType::HomePoolCard, 405, 293, 155, 172);
+        if (dm.solar.enabled)
+            layout.add("consumption-summary", LayoutWidgetType::HomeConsumptionCard, 570, 293, 215, 172);
+    } else {
+        layout.add("indoor-card", LayoutWidgetType::HomeIndoorCard, 75, 293, 210, 172);
+        if (dm.pool.enabled)
+            layout.add("pool-summary", LayoutWidgetType::HomePoolCard, 295, 293, 210, 172);
+        if (dm.solar.enabled)
+            layout.add("consumption-summary", LayoutWidgetType::HomeConsumptionCard, 515, 293, 270, 172);
+    }
 }
 
 inline bool buildDefaultWidget(const DataModel&, const String& id,
