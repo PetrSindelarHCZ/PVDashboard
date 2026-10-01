@@ -19,6 +19,18 @@ void drawHomeCardBackground(IDisplay& display, const LayoutWidget& widget,
                                 title, showFrame, blackBackground, inverseText);
 }
 
+void drawCardIcon(IDisplay& d, int16_t centerX, int16_t centerY,
+                  SidebarIcons::Icon iconId, uint16_t color = 0) {
+    const SidebarIcons::Bitmap icon = SidebarIcons::get(iconId);
+    if (icon.data == nullptr) return;
+    d.drawBitmap(centerX - icon.width / 2,
+                 centerY - icon.height / 2,
+                 icon.data,
+                 icon.width,
+                 icon.height,
+                 color);
+}
+
 void drawHouseSymbol(IDisplay& d, int16_t x, int16_t y, uint16_t color = 0) {
     d.drawLine(x + 2, y + 12, x + 15, y + 2, color);
     d.drawLine(x + 15, y + 2, x + 28, y + 12, color);
@@ -311,9 +323,9 @@ void drawIndoorCard(IDisplay& display, const DataModel& dm, const LayoutWidget& 
     };
 
     if (h < 220) {
-        drawHouseSymbol(display, x + 12, y + 46, color);
+        drawCardIcon(display, x + 34, y + 77, SidebarIcons::Icon::Home, color);
         ScreenStyle::useMetric(display, color);
-        display.setCursor(x + 52, y + 83);
+        display.setCursor(x + 62, y + 90);
         if (dm.inside.status.available)
             display.printf("%.1f °C", dm.inside.temperatureC);
         else
@@ -395,41 +407,37 @@ void drawFveSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidg
     const int16_t y = widget.y;
     drawHomeCardBackground(display, widget, nullptr, "FVE / GOODWE");
 
-    ScreenStyle::drawSolarStatus(display, x + 14, y + 49,
-                                 dm.solar.status.available);
+    drawCardIcon(display, x + 38, y + 78, SidebarIcons::Icon::Solar);
 
     ScreenStyle::useMetric(display);
-    display.setCursor(x + 62, y + 86);
+    display.setCursor(x + 72, y + 91);
     if (dm.solar.status.available)
         display.printf("%.1f kW", dm.solar.productionPowerW / 1000.0f);
     else
         display.print("--.- kW");
 
-    drawMiniBars(display, x + 145, y + 50, 60, 38, dm.solar);
+    drawMiniBars(display, x + 150, y + 58, 54, 38, dm.solar);
 
     ScreenStyle::useBody(display);
-    display.setCursor(x + 15, y + 122);
+    display.setCursor(x + 18, y + 132);
     if (dm.solar.status.available)
         display.printf("Dnes %.1f kWh", dm.solar.energyTodayKWh);
     else
         display.print("Dnes --.- kWh");
 
-    display.setCursor(x + 15, y + 151);
+    display.setCursor(x + 18, y + 162);
     if (dm.solar.status.available)
-        display.printf("Dům %.1f | Síť %+.1f kW",
-                       dm.solar.houseConsumptionW / 1000.0f,
-                       dm.solar.gridPowerW / 1000.0f);
+        display.printf("Síť %+.1f kW", dm.solar.gridPowerW / 1000.0f);
     else
-        display.print("Dům --.- | Síť --.- kW");
+        display.print("Síť --.- kW");
 
-    display.setCursor(x + 15, y + 181);
+    display.setCursor(x + 18, y + 192);
     if (dm.solar.status.available && dm.solar.batteryPresent)
-        display.printf("Baterie %.0f %%  %+.0f W",
-                       dm.solar.batterySocPercent, dm.solar.batteryPowerW);
+        display.printf("Baterie %.0f %%", dm.solar.batterySocPercent);
     else if (dm.solar.status.available)
-        display.print("Baterie neosazena");
+        display.print("Bez baterie");
     else
-        display.print("GoodWe nedostupný");
+        display.print("GoodWe offline");
 }
 
 void drawAZRouterSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidget& widget) {
@@ -437,36 +445,35 @@ void drawAZRouterSummaryCard(IDisplay& display, const DataModel& dm, const Layou
     const int16_t y = widget.y;
     drawHomeCardBackground(display, widget, nullptr, "AZROUTER");
 
-    ScreenStyle::drawRouterStatus(display, x + 14, y + 49,
-                                  dm.azrouter.status.available);
+    drawCardIcon(display, x + 38, y + 78, SidebarIcons::Icon::AZRouter);
 
     ScreenStyle::useMetric(display);
-    display.setCursor(x + 62, y + 86);
+    display.setCursor(x + 72, y + 91);
     if (dm.azrouter.status.available && dm.azrouter.hasRoutedPower)
         display.printf("%.0f W", dm.azrouter.routedPowerW);
     else
         display.print("-- W");
 
-    drawPhaseBars(display, x + 165, y + 51, 36, dm.azrouter);
+    drawPhaseBars(display, x + 176, y + 56, 38, dm.azrouter);
 
     ScreenStyle::useBody(display);
-    display.setCursor(x + 15, y + 122);
+    display.setCursor(x + 18, y + 132);
     if (dm.azrouter.hasRoutedEnergyToday)
         display.printf("Dnes %.1f kWh", dm.azrouter.routedEnergyTodayKWh);
     else
         display.print("Dnes --.- kWh");
 
-    display.setCursor(x + 15, y + 151);
+    display.setCursor(x + 18, y + 162);
     if (dm.azrouter.hasGridPower)
-        display.printf("Síť AZ %+.0f W", dm.azrouter.gridPowerW);
+        display.printf("Síť %+.0f W", dm.azrouter.gridPowerW);
     else
-        display.print("Síť AZ -- W");
+        display.print("Síť -- W");
 
-    display.setCursor(x + 15, y + 181);
+    display.setCursor(x + 18, y + 192);
     if (dm.azrouter.hasSystemTemp)
-        display.printf("Teplota %.1f °C", dm.azrouter.systemTempC);
+        display.printf("%.1f °C", dm.azrouter.systemTempC);
     else
-        display.print(dm.azrouter.status.available ? "Online" : "Nedostupný");
+        display.print(dm.azrouter.status.available ? "Online" : "Offline");
 }
 
 void drawPoolSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidget& widget) {
@@ -474,22 +481,23 @@ void drawPoolSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWid
     const int16_t y = widget.y;
     drawHomeCardBackground(display, widget, nullptr, "BAZÉN");
 
-    drawPoolSymbol(display, x + 12, y + 45);
+    drawCardIcon(display, x + 34, y + 78, SidebarIcons::Icon::Pool);
+
     ScreenStyle::useMetric(display);
-    display.setCursor(x + 52, y + 82);
+    display.setCursor(x + 62, y + 91);
     if (dm.pool.status.available)
         display.printf("%.1f °C", dm.pool.waterTempC);
     else
         display.printf("%.1f °C", dm.inside.poolTempC);
 
     ScreenStyle::useBody(display);
-    display.setCursor(x + 15, y + 119);
+    display.setCursor(x + 15, y + 132);
     if (dm.pool.status.available)
         display.printf("Cíl %.1f °C", dm.pool.targetTempC);
     else
         display.print("Teplota čidla");
 
-    display.setCursor(x + 15, y + 148);
+    display.setCursor(x + 15, y + 160);
     if (dm.pool.status.available)
         display.printf("Filtrace %s", dm.pool.filtrationRunning ? "ON" : "OFF");
     else
@@ -502,46 +510,41 @@ void drawConsumptionSummaryCard(IDisplay& display, const DataModel& dm, const La
     const int16_t w = widget.width;
     drawHomeCardBackground(display, widget, nullptr, "SPOTŘEBA DOMU");
 
-    drawHouseSymbol(display, x + 12, y + 44);
+    drawCardIcon(display, x + 34, y + 77, SidebarIcons::Icon::Home);
+
     ScreenStyle::useMetric(display);
-    display.setCursor(x + 52, y + 80);
+    display.setCursor(x + 62, y + 90);
     if (dm.solar.status.available)
         display.printf("%.1f kW", dm.solar.houseConsumptionW / 1000.0f);
     else
         display.print("--.- kW");
 
-    // Compact 24h consumption history. Bars are intentionally simple and
-    // high-contrast so they survive partial e-paper refreshes.
     if (dm.solar.historyCount > 1) {
         float maxPower = 500.0f;
-        for (uint8_t i = 0; i < dm.solar.historyCount; ++i) {
+        for (uint8_t i = 0; i < dm.solar.historyCount; ++i)
             if (dm.solar.history[i].houseConsumptionW > maxPower)
                 maxPower = dm.solar.history[i].houseConsumptionW;
-        }
 
         const int16_t graphX = x + 15;
-        const int16_t graphY = y + 105;
+        const int16_t graphY = y + 112;
         const int16_t graphW = w - 30;
-        const int16_t graphH = 48;
+        const int16_t graphH = 42;
         display.drawLine(graphX, graphY + graphH, graphX + graphW, graphY + graphH, 0);
 
-        const uint8_t count = dm.solar.historyCount;
-        const uint8_t step = count > static_cast<uint8_t>(graphW / 3)
-            ? static_cast<uint8_t>((count + graphW / 3 - 1) / (graphW / 3))
-            : 1;
-        int16_t bar = 0;
-        for (uint8_t i = 0; i < count && bar < graphW; i = static_cast<uint8_t>(i + step), ++bar) {
+        const uint8_t bars = 24;
+        for (uint8_t b = 0; b < bars; ++b) {
+            const uint8_t i = static_cast<uint8_t>((static_cast<uint16_t>(b) * dm.solar.historyCount) / bars);
             const float watts = dm.solar.history[i].houseConsumptionW;
             int16_t bh = static_cast<int16_t>((watts / maxPower) * graphH);
             if (bh < 1 && watts > 0.0f) bh = 1;
             if (bh > graphH) bh = graphH;
-            const int16_t bx = graphX + (bar * graphW) / ((count + step - 1) / step);
+            const int16_t bx = graphX + (b * graphW) / bars;
             display.drawLine(bx, graphY + graphH, bx, graphY + graphH - bh, 0);
         }
     } else {
         ScreenStyle::useBody(display);
-        display.setCursor(x + 15, y + 132);
-        display.print("Čekám na historii");
+        display.setCursor(x + 15, y + 140);
+        display.print("Historie se sbírá");
     }
 }
 
@@ -549,26 +552,22 @@ void drawSystemSummaryCard(IDisplay& display, const DataModel& dm, const LayoutW
     const int16_t x = widget.x;
     const int16_t y = widget.y;
     drawHomeCardBackground(display, widget, nullptr, "STAV SYSTÉMU");
-    drawOkSymbol(display, x + widget.width - 42, y + 42);
 
     ScreenStyle::useBody(display);
-    display.setCursor(x + 12, y + 58);
-    display.printf("Wi-Fi      %s", dm.system.wifiConnected ? "OK" : "OFF");
+    display.setCursor(x + 14, y + 64);
+    display.printf("Wi-Fi        %s", dm.system.wifiConnected ? "OK" : "OFF");
 
-    display.setCursor(x + 12, y + 82);
-    display.printf("GoodWe     %s",
+    display.setCursor(x + 14, y + 91);
+    display.printf("GoodWe       %s",
                    dm.solar.enabled ? (dm.solar.status.available ? "OK" : "OFF") : "--");
 
-    display.setCursor(x + 12, y + 106);
-    display.printf("AZRouter   %s",
+    display.setCursor(x + 14, y + 118);
+    display.printf("AZRouter     %s",
                    dm.azrouter.enabled ? (dm.azrouter.status.available ? "OK" : "OFF") : "--");
 
-    display.setCursor(x + 12, y + 130);
-    display.printf("Předpověď  %s",
+    display.setCursor(x + 14, y + 145);
+    display.printf("Předpověď    %s",
                    dm.weather.enabled ? (dm.weather.status.available ? "OK" : "OFF") : "--");
-
-    display.setCursor(x + 12, y + 154);
-    display.printf("433 MHz    %u", dm.rfSensors.sensorCount);
 }
 
 } // namespace
