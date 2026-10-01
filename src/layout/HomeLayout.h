@@ -32,7 +32,7 @@ inline bool knownDataSource(const String& source) {
 
         const String slotId = source.substring(3, metricSeparator);
         const String metric = source.substring(metricSeparator + 1);
-        if (!validIdentifier(slotId)) return false;
+        if (slotId.isEmpty()) return false;
 
         return metric == "temperatureC" ||
                metric == "humidityPercent";
@@ -267,7 +267,9 @@ inline bool validateCustomWidget(const HomeLayoutWidgetConfig& widget, String* e
         if (element.type == "text") {
             if (element.text.isEmpty()) return fail("Text element requires text");
         } else {
-            if (!knownDataSource(element.source)) return fail("Unknown custom data source");
+            if (!knownDataSource(element.source)) {
+                return fail("Unknown custom data source: " + element.source);
+            }
             if (element.type == "sparkline" && !knownSparklineSource(element.source)) {
                 return fail("Sparkline source has no history");
             }
