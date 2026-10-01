@@ -23,6 +23,19 @@ inline bool validIdentifier(const String& id) {
     return true;
 }
 
+inline uint8_t rfSlotNumber(const String& slotId) {
+    if (!slotId.startsWith("sensor")) return 0;
+    const int value = slotId.substring(6).toInt();
+    if (value < 1 || value > MaxRfSensors) return 0;
+    if (slotId != "sensor" + String(value)) return 0;
+    return static_cast<uint8_t>(value);
+}
+
+inline String rfSlotId(uint8_t slot) {
+    if (slot < 1 || slot > MaxRfSensors) return "";
+    return "sensor" + String(slot);
+}
+
 inline bool knownDataSource(const String& source) {
     static const char* sources[] = {
         "solar.productionPowerW",
@@ -308,7 +321,7 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
     }
 
     if (config.widgetCount == 0 || config.widgetCount > MaxHomeLayoutWidgets) {
-        return fail("Custom Home layout must contain 1 to 8 widgets");
+        return fail("Custom Home layout must contain 1 to 7 widgets");
     }
 
     bool anyVisible = false;
@@ -334,7 +347,7 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
             String customError;
             if (!validateCustomWidget(widget, &customError)) return fail(customError);
         } else if (widget.type == "rf-sensor") {
-            if (widget.rfSensorSlotId.isEmpty() || widget.rfSensorSlotId.length() > 32)
+            if (widget.rfSensorSlot == 0 || widget.rfSensorSlot > MaxRfSensors)
                 return fail("RF sensor widget requires a valid sensor slot");
             if (widget.title.length() > 40)
                 return fail("RF sensor widget title is too long");
@@ -403,7 +416,7 @@ inline String serializeJson(const HomeLayoutConfig& config) {
 
         if (widget.type == "rf-sensor") {
             item["title"] = widget.title;
-            item["rfSensorSlotId"] = widget.rfSensorSlotId;
+            item["rfSensorSlotId"] = rfSlotId(widget.rfSensorSlot);
             item["rfShowHumidity"] = widget.rfShowHumidity;
             item["rfShowLastSeen"] = widget.rfShowLastSeen;
         } else if (widget.type == "custom") {
@@ -482,7 +495,7 @@ inline bool parseJson(const String& json, HomeLayoutConfig& config, String* erro
 
         if (widget.type == "rf-sensor") {
             widget.title = String(item["title"] | "VENKU");
-            widget.rfSensorSlotId = String(item["rfSensorSlotId"] | "");
+            widget.rfSensorSlot = rfSlotNumber(String(item["rfSensorSlotId"] | ""));
             widget.rfShowHumidity = item["rfShowHumidity"] | true;
             widget.rfShowLastSeen = item["rfShowLastSeen"] | true;
         } else if (widget.type == "custom") {
@@ -577,7 +590,7 @@ inline bool buildDefaultWidget(const DataModel& dm, const String& id,
         for (uint8_t i = 0; i < dm.rfSensors.sensorCount && i < MaxRfSensors; ++i) {
             const RfSensorData& sensor = dm.rfSensors.sensors[i];
             if (sensor.configured && sensor.hasTemperature && !sensor.slotId.isEmpty()) {
-                result.rfSensorSlotId = sensor.slotId;
+                result.rfSensorSlot = rfSlotNumber(sensor.slotId);
                 return true;
             }
         }
