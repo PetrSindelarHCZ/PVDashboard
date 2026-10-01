@@ -1858,7 +1858,11 @@ bool tryPrintUnknownShortPwm(const int32_t* data, uint16_t count) {
             static_cast<double>(intervalMs) / 1000.0);
     }
     Serial.println();
-    return true;
+
+    // Discovery mode must preserve the raw burst. Returning false allows the
+    // normal fallback printer to emit the complete H/L timing after this
+    // fingerprint summary, which is needed to reverse-engineer the payload.
+    return false;
 }
 
 bool tryPrintOneTwoMsCandidate(const int32_t* data, uint16_t count) {
