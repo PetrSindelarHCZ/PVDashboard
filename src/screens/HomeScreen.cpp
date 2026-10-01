@@ -476,6 +476,78 @@ void drawAZRouterSummaryCard(IDisplay& display, const DataModel& dm, const Layou
         display.print(dm.azrouter.status.available ? "Online" : "Offline");
 }
 
+const RfSensorData* rfSensorForWidget(const DataModel& dm, const HomeLayoutWidgetConfig* style) {
+    if (style != nullptr && !style->rfSensorSlotId.isEmpty()) {
+        for (uint8_t i = 0; i < dm.rfSensors.sensorCount && i < MaxRfSensors; ++i) {
+            const RfSensorData& sensor = dm.rfSensors.sensors[i];
+            if (sensor.slotId == style->rfSensorSlotId) return &sensor;
+        }
+        return nullptr;
+    }
+
+    for (uint8_t i = 0; i < dm.rfSensors.sensorCount && i < MaxRfSensors; ++i) {
+        const RfSensorData& sensor = dm.rfSensors.sensors[i];
+        if (sensor.configured && sensor.hasTemperature) return &sensor;
+    }
+    return nullptr;
+}
+
+void drawRfSensorCard(IDisplay& display, const DataModel& dm, const LayoutWidget& widget,
+                      const HomeLayoutWidgetConfig* style) {
+    const int16_t x = widget.x;
+    const int16_t y = widget.y;
+    const uint16_t color = cardTextColor(style);
+    const String title =
+        style != nullptr && !style->title.isEmpty() ? style->title : String("VENKU");
+    drawHomeCardBackground(display, widget, style, title.c_str());
+
+    const RfSensorData* sensor = rfSensorForWidget(dm, style);
+    const bool showHumidity = style == nullptr || style->rfShowHumidity;
+    const bool showLastSeen = style == nullptr || style->rfShowLastSeen;
+
+    // Radio/sensor motif: antenna mast with two signal arcs.
+    display.drawLine(x + 27, y + 54, x + 27, y + 82, color);
+    display.fillCircle(x + 27, y + 84, 2, color);
+    display.drawLine(x + 21, y + 60, x + 17, y + 56, color);
+    display.drawLine(x + 33, y + 60, x + 37, y + 56, color);
+    display.drawLine(x + 18, y + 65, x + 12, y + 59, color);
+    display.drawLine(x + 36, y + 65, x + 42, y + 59, color);
+
+    ScreenStyle::useMetric(display, color);
+    display.setCursor(x + 55, y + 91);
+    if (sensor != nullptr && sensor->available && sensor->hasTemperature)
+        display.printf("%.1f °C", sensor->temperatureC);
+    else
+        display.print("--.- °C");
+
+    ScreenStyle::useBody(display, color);
+    int16_t lineY = y + 124;
+    if (showHumidity) {
+        display.setCursor(x + 15, lineY);
+        if (sensor != nullptr && sensor->available && sensor->hasHumidity)
+            display.printf("Vlhkost %d %%", sensor->humidityPercent);
+        else
+            display.print("Vlhkost -- %");
+        lineY += 28;
+    }
+
+    if (showLastSeen) {
+        display.setCursor(x + 15, lineY);
+        if (sensor != nullptr && sensor->lastUpdateMs > 0) {
+            const uint32_t nowMs = dm.system.uptimeSeconds * 1000UL;
+            const uint32_t ageSeconds = nowMs >= sensor->lastUpdateMs
+                ? (nowMs - sensor->lastUpdateMs) / 1000UL
+                : 0;
+            if (ageSeconds < 60)
+                display.printf("Před %lu s", static_cast<unsigned long>(ageSeconds));
+            else
+                display.printf("Před %lu min", static_cast<unsigned long>(ageSeconds / 60));
+        } else {
+            display.print("Bez příjmu");
+        }
+    }
+}
+
 void drawPoolSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidget& widget) {
     const int16_t x = widget.x;
     const int16_t y = widget.y;
@@ -590,6 +662,9 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
                 break;
             case LayoutWidgetType::HomeConsumptionCard:
                 drawConsumptionSummaryCard(display, dm, widget);
+                break;
+            case LayoutWidgetType::HomeRfSensorCard:
+                drawRfSensorCard(display, dm, widget, widgetConfig);
                 break;
             case LayoutWidgetType::HomeCustomCard:
                 if (widgetConfig != nullptr) CustomWidgetRenderer::draw(display, dm, *widgetConfig);
