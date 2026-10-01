@@ -19,6 +19,7 @@ Aktuální firmware: **1.26.274.1**.
 - CC1101 na 433 MHz, dekódování podporovaných čidel a správa uložených RF čidel,
 - mobilní WebUI pro přepínání obrazovek, refresh, konfiguraci, náhled e-inku,
   správu RF čidel a OTA,
+- moderní výchozí Home přehled: **Předpověď / FVE-GoodWe / AZRouter / Uvnitř / Bazén / Stav systému**; vlastní uložený Home layout zůstává podporovaný,
 - společný **NavigationController** s režimy Sidebar / Pager / Page,
 - fyzický pětisměrný joystick i virtuální joystick ve WebUI používají stejný
   navigační model,
