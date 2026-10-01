@@ -48,8 +48,16 @@ Firmware validuje alespoň:
 
 Home layout je uložen v `AppConfig.display.homeLayout` a v NVS jako blob
 `layout_blob`. Starší string `layout_home` se při načtení automaticky migruje.
-Pokud `customized=false`, renderer používá původní automatickou šablonu podle
-dostupnosti Počasí a FVE.
+Pokud `customized=false`, renderer používá moderní výchozí přehled se
+samostatnými kartami **PŘEDPOVĚĎ**, **FVE / GOODWE**, **AZROUTER**, **UVNITŘ**,
+**BAZÉN** a **STAV SYSTÉMU**. Karty zdrojů se zobrazují podle aktivace
+příslušných modulů. Karta předpovědi je záměrně označena jako online
+předpověď a uvádí poskytovatele dat, aby nebyla zaměnitelná s fyzickým
+venkovním čidlem.
+
+Vlastní editor nadále nabízí původní předdefinované typy Weather / Energy /
+Indoor i vlastní widgety. Uložené layouty s `customized=true` nejsou změnou
+výchozí Home obrazovky přepsány.
 
 REST rozhraní (D2):
 
