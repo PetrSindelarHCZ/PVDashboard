@@ -51,8 +51,8 @@
 ### Dynamická viditelnost modulů
 
 - [x] počasí, bazén, GoodWe a AZRouter lze zapínat/vypínat bez ztráty konfigurace,
-- [x] FVE existuje, pokud je aktivní GoodWe nebo AZRouter,
-- [x] FVE pager Přehled / GoodWe / AZRouter se přizpůsobuje aktivním zdrojům,
+- [x] FVE obrazovka se registruje samostatně podle aktivního GoodWe,
+- [x] AZRouter má vlastní obrazovku a sidebar položku, registrovanou podle aktivního AZRouteru,
 - [x] navigace se po dynamické registraci/odregistraci synchronizuje.
 
 ### Počasí
