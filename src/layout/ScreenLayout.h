@@ -5,6 +5,10 @@ enum class LayoutWidgetType : uint8_t {
     HomeWeatherCard,
     HomeEnergyCard,
     HomeIndoorCard,
+    HomeFveCard,
+    HomeAZRouterCard,
+    HomePoolCard,
+    HomeSystemCard,
     HomeCustomCard
 };
 
