@@ -212,7 +212,8 @@ bool customWidgetUsesGroup(
     const HomeLayoutWidgetConfig& widget,
     HomeDataGroup group) {
 
-    if (widget.type != "custom" && widget.type != "indoor") return false;
+    if (widget.type != "custom" && widget.type != "weather" &&
+        widget.type != "energy" && widget.type != "indoor") return false;
     if (widget.elements.empty()) return false;
 
     for (const auto& element : widget.elements) {
@@ -254,11 +255,18 @@ DisplayRegion homeDataRegion(
 
         switch (widget.type) {
             case LayoutWidgetType::HomeWeatherCard:
-                matches = group == HomeDataGroup::Weather;
+            case LayoutWidgetType::HomeEnergyCard: {
+                const HomeLayoutWidgetConfig* configured =
+                    HomeLayout::findWidget(config, widget.id);
+                if (configured != nullptr && !configured->elements.empty()) {
+                    matches = customWidgetUsesGroup(*configured, group);
+                } else if (widget.type == LayoutWidgetType::HomeWeatherCard) {
+                    matches = group == HomeDataGroup::Weather;
+                } else {
+                    matches = group == HomeDataGroup::Energy;
+                }
                 break;
-            case LayoutWidgetType::HomeEnergyCard:
-                matches = group == HomeDataGroup::Energy;
-                break;
+            }
             case LayoutWidgetType::HomeIndoorCard: {
                 const HomeLayoutWidgetConfig* configured =
                     HomeLayout::findWidget(config, widget.id);
