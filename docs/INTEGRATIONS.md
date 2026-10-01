@@ -1,7 +1,7 @@
 # Integrace
 
-Tento dokument popisuje externí datové zdroje PVDashboardu: GoodWe, AZRouter
-a poskytovatele počasí. Stav hotových funkcí je v [PROJECT_STATUS.md](PROJECT_STATUS.md);
+Tento dokument popisuje hlavní datové zdroje PVDashboardu: GoodWe, AZRouter,
+počasí, lokální BME280, MAX17048 a 433MHz RF čidla. Stav hotových funkcí je v [PROJECT_STATUS.md](PROJECT_STATUS.md);
 budoucí práce v [ROADMAP.md](ROADMAP.md).
 
 ## GoodWe GW10K-ET
@@ -37,13 +37,17 @@ Používaná znaménka:
 ## AZRouter
 
 - transport: lokální HTTP API,
-- volitelná autentizace používá stejné jméno a heslo jako AZRouter WebUI,
+- autentizace je explicitně řízená příznakem `authEnabled`,
+- při `authEnabled=false` se klient pokouší o anonymní čtení a username/password
+  se nepoužívají,
+- při `authEnabled=true` používá stejné jméno a heslo jako AZRouter WebUI,
 - klient nejprve volá `POST /api/v1/login` s payloadem
   `{"data":{"username":"...","password":"..."}}`,
 - pokud login vrátí token, další požadavky posílají `Authorization: Bearer ...`,
 - pokud login vrátí session cookie, klient ji posílá přes `Cookie`,
 - při HTTP 401/403 se session zahodí, provede jeden re-login a požadavek se jednou zopakuje,
-- bez uložených credentials zůstává zachováno anonymní čtení pro firmware, který jej dovoluje,
+- anonymní režim je tedy nezávislý na tom, zda ve staré konfiguraci zůstaly
+  nějaké credentials,
 - standardní port: 8081,
 - /api/v1/power:
   - `output.power` id 0–2 = vytěžený výkon L1/L2/L3,
@@ -75,7 +79,10 @@ Před prvním úspěšným pollingem proto FVE UI zobrazuje nedostupné hodnoty.
 
 AZRouter username/password se ukládají pouze do lokální NVS. WebUI nikdy
 nevrací uložené heslo zpět do prohlížeče; prázdné heslo při uložení znamená
-zachovat stávající. YAML export záměrně AZRouter credentials neobsahuje.
+zachovat stávající. YAML export záměrně neobsahuje credentials. Aktuální
+`pvdashboard-config v7` zároveň neexportuje ani `authEnabled`; po importu
+zálohy se proto AZRouter autentizace vrátí na výchozí vypnutý stav a musí se
+případně znovu zapnout ve WebUI.
 
 ## Společné chování GoodWe a AZRouteru
 
@@ -169,3 +176,55 @@ ESP32.
 Stručný stavový panel WebUI zatím u explicitně vypnutého GoodWe/AZRouteru může
 zobrazit Offline místo Vypnuto. Polling, e-ink diagnostika, sidebar i dynamická
 registrace obrazovek už stav aktivace respektují.
+
+
+## BME280
+
+Lokální BME280 sdílí I²C sběrnici GPIO21/GPIO22.
+
+- podporované adresy: 0x76 a 0x77,
+- měří teplotu, relativní vlhkost a tlak,
+- hodnoty se zapisují do `InsideData`,
+- jsou dostupné standardní Home kartě i vlastním KPI prvkům,
+- při chybě se další polling pokusí senzor znovu inicializovat,
+- fyzický modul je v aktuálním zapojení ověřený.
+
+## MAX17048
+
+Fuel gauge MAX17048 je na stejné I²C sběrnici, adresa 0x36.
+
+Firmware čte:
+
+- VCELL → napětí akumulátoru,
+- SOC → odhad stavu nabití,
+- CRATE → změnu SoC v %/h,
+- STATUS → alert flags,
+- VERSION → identifikaci čipu.
+
+Polling běží přibližně po 10 s; aktualizace bateriových hodnot na Home se
+omezuje přibližně na minutový interval. Hodnoty lze použít ve vlastních Home
+widgetech jako `battery.voltageV`, `battery.socPercent` a
+`battery.changeRatePercentPerHour`.
+
+MAX17048 sám neurčuje spolehlivě, zda právě probíhá nabíjení. Skutečný stav
+nabíjení má být případně doplněn z CHG/STDBY signálu nabíjecího modulu.
+
+## 433 MHz / CC1101 a RF čidla
+
+CC1101 přijímá 433MHz ASK/OOK provoz a rozpoznané rámce předává jako
+`RfSensorObservation` do `RfSensorManager`.
+
+Správa RF čidel podporuje:
+
+- časově omezený scan okolních podporovaných čidel,
+- přidání nalezeného čidla,
+- volitelné uživatelské jméno,
+- stabilní `slotId`,
+- přejmenování, odstranění a rebind při změně rádiového ID,
+- publikaci teploty, vlhkosti a stavu baterie do DataModelu,
+- označení čidla jako nedostupného po 5 minutách bez paketu.
+
+WebUI používá endpointy `/api/rf-sensors`, `/api/rf-sensors/scan`,
+`/api/rf-sensors/add` a další management akce. Uložená RF čidla jsou součástí
+YAML backupu v7. Podrobnosti jednotlivých protokolů jsou v
+[RF_433_RESEARCH.md](RF_433_RESEARCH.md).
