@@ -271,6 +271,9 @@ DisplayRegion homeDataRegion(
             case LayoutWidgetType::HomeConsumptionCard:
                 matches = group == HomeDataGroup::Energy;
                 break;
+            case LayoutWidgetType::HomeRfSensorCard:
+                matches = group == HomeDataGroup::Rf;
+                break;
             case LayoutWidgetType::HomeCustomCard: {
                 const HomeLayoutWidgetConfig* configured =
                     HomeLayout::findWidget(config, widget.id);
