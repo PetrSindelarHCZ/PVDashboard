@@ -268,6 +268,9 @@ DisplayRegion homeDataRegion(
             case LayoutWidgetType::HomePoolCard:
                 matches = group == HomeDataGroup::Indoor;
                 break;
+            case LayoutWidgetType::HomeConsumptionCard:
+                matches = group == HomeDataGroup::Energy;
+                break;
             case LayoutWidgetType::HomeSystemCard:
                 matches = group == HomeDataGroup::Weather ||
                           group == HomeDataGroup::Energy ||
