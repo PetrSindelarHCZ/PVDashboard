@@ -704,7 +704,7 @@ void DashboardApp::setup() {
         _navigationController.syncToActiveScreen(false);
         // Give the HTTP handler enough time to serialize and send the updated
         // layout response before the memory-heavy e-paper full refresh starts.
-        requestDisplayRefresh(true, 1200);
+        requestDisplayRefresh(true, 2500);
         Serial.println("[CONFIG] Home layout ulozen a aplikovan za behu.");
         return true;
     });
