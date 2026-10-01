@@ -137,7 +137,7 @@ String homeLayoutResponseJson(
         item["inverseText"] = widget.inverseText;
         if (widget.type == "rf-sensor") {
             item["title"] = widget.title;
-            item["rfSensorSlotId"] = widget.rfSensorSlotId;
+            item["rfSensorSlotId"] = HomeLayout::rfSlotId(widget.rfSensorSlot);
             item["rfShowHumidity"] = widget.rfShowHumidity;
             item["rfShowLastSeen"] = widget.rfShowLastSeen;
         } else if (widget.type == "custom") {
@@ -205,7 +205,7 @@ String homeLayoutResponseJson(
         item["inverseText"] = widget.inverseText;
         if (widget.type == "rf-sensor") {
             item["title"] = widget.title;
-            item["rfSensorSlotId"] = widget.rfSensorSlotId;
+            item["rfSensorSlotId"] = HomeLayout::rfSlotId(widget.rfSensorSlot);
             item["rfShowHumidity"] = widget.rfShowHumidity;
             item["rfShowLastSeen"] = widget.rfShowLastSeen;
         }
