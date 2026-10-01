@@ -21,7 +21,7 @@ struct WifiConfig {
     String dns2 = "";
 };
 
-constexpr uint8_t MaxHomeLayoutWidgets = 8;
+constexpr uint8_t MaxHomeLayoutWidgets = 7;
 constexpr uint8_t MaxCustomWidgetElements = 8;
 
 struct CustomWidgetElementConfig {
@@ -61,9 +61,10 @@ struct HomeLayoutWidgetConfig {
     // Custom title is also used by RF sensor cards.
     String title = "";
 
-    // Used by type == "rf-sensor". slotId is the stable dashboard identity
-    // of a paired 433 MHz sensor, so radio-side ID changes do not break Home.
-    String rfSensorSlotId = "";
+    // Used by type == "rf-sensor". RF slots are generated as sensor1..sensor16.
+    // Store only the stable numeric suffix to avoid one Arduino String object
+    // per Home widget in static DRAM.
+    uint8_t rfSensorSlot = 0;
     bool rfShowHumidity = true;
     bool rfShowLastSeen = true;
 
