@@ -23,9 +23,11 @@ Aktuální firmware: **1.26.261.1**.
 - fyzický pětisměrný joystick i virtuální joystick ve WebUI používají stejný
   navigační model,
 - fyzický joystick: UP GPIO17, DOWN GPIO18, LEFT GPIO33, RIGHT GPIO16, OK GPIO32,
-- doplňková tlačítka SET GPIO35 a RESET GPIO34 používají externí 10k pull-up,
+- doplňková tlačítka SET GPIO35 a RESET GPIO34 používají externí 10k pull-up;
+  dlouhý SET přepíná soft ON/OFF displeje, krátký RESET vrací UI na Home/sidebar
+  a krátký SET je zatím rezervovaný,
 - NTP s časovou zónou pro Českou republiku,
-- více známých Wi-Fi sítí, AP+STA recovery **Dashboard-Setup** a automatický
+- až **8 známých Wi-Fi sítí**, AP+STA recovery **Dashboard-Setup** a automatický
   návrat k dostupné povolené známé síti,
 - živé počasí z Open-Meteo nebo MET Norway pro více uložených lokalit,
 - konfigurovatelný Home layout včetně vlastních KPI/text/progress/sparkline prvků,
@@ -73,33 +75,59 @@ Výstup obsahuje **firmware.bin**, **firmware.bin.sha256** a
 
 ## REST API
 
+Hlavní veřejné endpointy používané WebUI a diagnostikou:
+
 | Metoda | Endpoint | Účel |
 | --- | --- | --- |
 | GET | /api/status | Odlehčený stav systému a zdrojů |
-| GET | /api/status?details=1 | Detailní stav a diagnostika |
+| GET | /api/status?details=1 | Detailní stav a performance diagnostika |
 | GET | /api/screens | Seznam obrazovek |
 | POST | /api/screens/{id}/activate | Aktivace obrazovky |
-| GET | /api/navigation | Stav navigace a focusu |
-| POST | /api/navigation | Navigační akce up/down/left/right/ok |
-| POST | /api/display/refresh | Částečná obnova |
-| POST | /api/display/full-refresh | Čisticí plná obnova |
-| POST | /api/system/restart | Restart ESP32 |
-| POST | /api/config/factory-reset | Tovární reset |
+| GET | /api/navigation | Stav navigace, pageru a focusu |
+| POST | /api/navigation | Akce up/down/left/right/ok |
+| GET | /api/display | Metadata posledního preview |
+| GET | /api/display.bmp | BMP náhled posledního vyrenderovaného e-inku |
+| POST | /api/display/refresh | Differential partial refresh |
+| POST | /api/display/full-refresh | Čisticí full refresh |
+| GET | /api/layout/home | Home layout, limity a katalog datových zdrojů |
+| POST | /api/layout/home | Validace a uložení Home layoutu |
+| POST | /api/layout/home/reset | Reset Home layoutu |
 | GET | /api/config/export | Export konfigurace YAML |
 | POST | /api/config/import | Import konfigurace YAML |
-| POST | /api/config/system | Systémové nastavení |
-| POST | /api/wifi/config | Wi-Fi konfigurace |
+| POST | /api/config/factory-reset | Tovární reset |
+| GET | /api/config/timezone | Dostupné časové zóny |
+| POST | /api/config/system-v2 | Systém/časová konfigurace |
+| POST | /api/config/system-network | Kombinovaná systémová a síťová konfigurace |
+| GET | /api/config/wifi | Bezpečný Wi-Fi stav bez vracení hesla |
+| GET | /api/network/config | DHCP/statická IP konfigurace a aktuální lease |
+| POST | /api/network/config | Uložení DHCP/statické IP konfigurace |
 | GET | /api/wifi/scan | Scan Wi-Fi sítí |
+| GET | /api/wifi/known | Známé Wi-Fi sítě |
+| POST | /api/wifi/config-v2 | Připojení/uložení Wi-Fi s možností zachovat heslo |
+| POST | /api/wifi/connect-known | Připojení ke známé síti |
+| POST | /api/wifi/disconnect | Odpojení a zákaz auto-connectu aktivního SSID |
+| POST | /api/wifi/forget | Zapomenutí známé sítě |
 | POST | /api/config/sources | GoodWe/AZRouter konfigurace |
+| POST | /api/sources/test | Diagnostický test hostu/portu před uložením |
+| GET | /api/diagnostics/device?source=... | Diagnostika nakonfigurovaného GoodWe/AZRouter cíle |
 | POST | /api/config/pool | Nastavení bazénového modulu |
 | POST | /api/config/weather | Nastavení počasí |
 | POST | /api/weather/locations | Správa lokalit počasí |
-| GET | /api/wifi/known | Známé Wi-Fi sítě |
-| POST | /api/wifi/disconnect | Odpojení a zákaz auto-connectu |
-| GET | /api/display.bmp | Náhled e-inku |
+| GET | /api/ntp/status | Stav NTP synchronizace |
+| GET/POST | /api/ntp/custom | Správa vlastních NTP serverů |
+| GET | /api/rf-sensors | Stav uložených a nalezených RF čidel |
+| POST | /api/rf-sensors/scan | Scan RF čidel |
+| POST | /api/rf-sensors/add | Přidání nalezeného čidla |
+| POST | /api/rf-sensors/rename | Přejmenování uloženého čidla |
+| POST | /api/rf-sensors/rebind | Převázání slotu na nové rádiové ID |
+| POST | /api/rf-sensors/remove | Odebrání čidla |
+| POST | /api/system/restart | Restart ESP32 |
 | GET | /api/update/check | Kontrola GitHub release |
 | POST | /api/update/github | Instalace GitHub release |
 | POST | /api/update | Ruční upload firmware |
+
+Starší kompatibilní endpointy `/api/config/system` a `/api/wifi/config`
+zůstávají v kódu, ale aktuální WebUI používá rozšířené varianty.
 
 ## Konfigurace
 
