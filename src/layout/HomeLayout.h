@@ -491,27 +491,47 @@ inline void buildDefault(const DataModel& dm, ScreenLayout& layout) {
     layout.add("system-summary", LayoutWidgetType::HomeSystemCard, 555, 293, 230, 172);
 }
 
-inline bool buildDefaultWidget(const DataModel& dm, const String& id,
+inline bool buildDefaultWidget(const DataModel&, const String& id,
                               HomeLayoutWidgetConfig& result) {
-    ScreenLayout layout;
-    buildDefault(dm, layout);
-    for (uint8_t i = 0; i < layout.count(); ++i) {
-        const LayoutWidget& widget = layout[i];
-        if (id != widget.id) continue;
+    // Editor templates stay independent from the runtime default Home layout.
+    // This preserves the existing predefined Weather / Energy / Indoor widgets
+    // even though the modern dashboard uses dedicated summary cards at runtime.
+    result = HomeLayoutWidgetConfig();
+    result.visible = true;
+    result.showFrame = true;
+    result.background = "white";
+    result.inverseText = false;
 
-        result = HomeLayoutWidgetConfig();
-        result.id = widget.id;
-        result.type = typeName(widget.type);
-        result.visible = true;
-        result.x = widget.x;
-        result.y = widget.y;
-        result.width = widget.width;
-        result.height = widget.height;
-        result.showFrame = true;
-        result.background = "white";
-        result.inverseText = false;
+    if (id == "weather-card") {
+        result.id = "weather-card";
+        result.type = "weather";
+        result.x = 75;
+        result.y = 63;
+        result.width = 225;
+        result.height = 402;
         return true;
     }
+
+    if (id == "energy-card") {
+        result.id = "energy-card";
+        result.type = "energy";
+        result.x = 315;
+        result.y = 63;
+        result.width = 225;
+        result.height = 402;
+        return true;
+    }
+
+    if (id == "indoor-card") {
+        result.id = "indoor-card";
+        result.type = "indoor";
+        result.x = 555;
+        result.y = 63;
+        result.width = 230;
+        result.height = 402;
+        return true;
+    }
+
     return false;
 }
 
