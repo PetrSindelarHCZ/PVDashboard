@@ -117,7 +117,9 @@ Doplňková tlačítka:
 - RESET GPIO34,
 - externí 10k pull-up na 3,3 V,
 - GPIO34/35 nemají interní pull-up,
-- firmware rozeznává krátké stisky a long-press SET 2,5 s.
+- long-press SET 2,5 s přepíná soft ON/OFF displeje,
+- short RESET vrací navigaci na Home/sidebar,
+- short SET je rezervovaný a aktuálně bez akce.
 
 ## Počasí a paměť
 
@@ -135,8 +137,8 @@ Aktuální:
 - YAML backup/import: **pvdashboard-config v7**.
 
 YAML obsahuje systém, aktuální Wi-Fi/IP, GoodWe, AZRouter, bazén, počasí,
-Home layout a uložená RF čidla. Zatím neobsahuje celý seznam známých Wi-Fi sítí
-ani jejich `autoConnect` příznaky.
+Home layout a uložená RF čidla. ConfigManager udržuje až 8 známých Wi-Fi sítí,
+ale YAML zatím neobsahuje celý jejich seznam ani `autoConnect` příznaky.
 
 ## Provozní zásady
 
