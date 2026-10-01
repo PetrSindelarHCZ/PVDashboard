@@ -9,6 +9,7 @@
 #include "../screens/ScreenManager.h"
 #include "../screens/HomeScreen.h"
 #include "../screens/SolarScreen.h"
+#include "../screens/AZRouterScreen.h"
 #include "../screens/PoolScreen.h"
 #include "../screens/WeatherScreen.h"
 #include "../screens/DiagnosticsScreen.h"
@@ -56,6 +57,7 @@ private:
 
     HomeScreen _homeScreen;
     SolarScreen _solarScreen;
+    AZRouterScreen _azrouterScreen;
     PoolScreen _poolScreen;
     WeatherScreen _weatherScreen;
     WeatherScreen _weatherHourlyScreens[WeatherForecastDayCount] = {
@@ -132,6 +134,7 @@ private:
 
     void registerScreens();
     void setSolarScreenEnabled(bool enabled);
+    void setAZRouterScreenEnabled(bool enabled);
     void setPoolScreenEnabled(bool enabled);
     void setWeatherScreensEnabled(bool enabled);
     void requestDisplayRefresh(bool full, unsigned long delayMs = 0);
