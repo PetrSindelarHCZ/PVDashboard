@@ -752,10 +752,18 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
             _layoutConfig != nullptr ? HomeLayout::findWidget(*_layoutConfig, widget.id) : nullptr;
         switch (widget.type) {
             case LayoutWidgetType::HomeWeatherCard:
-                drawWeatherCard(display, dm, widget, widgetConfig);
+                if (widgetConfig != nullptr && !widgetConfig->elements.empty()) {
+                    CustomWidgetRenderer::draw(display, dm, *widgetConfig, "VENKU");
+                } else {
+                    drawWeatherCard(display, dm, widget, widgetConfig);
+                }
                 break;
             case LayoutWidgetType::HomeEnergyCard:
-                drawEnergyCard(display, dm, widget, widgetConfig);
+                if (widgetConfig != nullptr && !widgetConfig->elements.empty()) {
+                    CustomWidgetRenderer::draw(display, dm, *widgetConfig, "ENERGIE");
+                } else {
+                    drawEnergyCard(display, dm, widget, widgetConfig);
+                }
                 break;
             case LayoutWidgetType::HomeIndoorCard:
                 if (widgetConfig != nullptr && !widgetConfig->elements.empty()) {
