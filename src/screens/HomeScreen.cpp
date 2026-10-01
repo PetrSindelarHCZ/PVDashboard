@@ -19,6 +19,86 @@ void drawHomeCardBackground(IDisplay& display, const LayoutWidget& widget,
                                 title, showFrame, blackBackground, inverseText);
 }
 
+void drawHouseSymbol(IDisplay& d, int16_t x, int16_t y, uint16_t color = 0) {
+    d.drawLine(x + 2, y + 12, x + 15, y + 2, color);
+    d.drawLine(x + 15, y + 2, x + 28, y + 12, color);
+    d.drawLine(x + 5, y + 11, x + 5, y + 28, color);
+    d.drawLine(x + 25, y + 11, x + 25, y + 28, color);
+    d.drawLine(x + 5, y + 28, x + 25, y + 28, color);
+    d.fillRect(x + 13, y + 19, 5, 9, color);
+}
+
+void drawPoolSymbol(IDisplay& d, int16_t x, int16_t y, uint16_t color = 0) {
+    d.drawLine(x + 8, y + 3, x + 8, y + 18, color);
+    d.drawLine(x + 19, y + 3, x + 19, y + 18, color);
+    d.drawLine(x + 8, y + 4, x + 19, y + 4, color);
+    d.drawLine(x + 8, y + 10, x + 19, y + 10, color);
+    for (int16_t offset = 0; offset < 2; ++offset) {
+        d.drawLine(x + 2, y + 22 + offset, x + 7, y + 20 + offset, color);
+        d.drawLine(x + 7, y + 20 + offset, x + 12, y + 22 + offset, color);
+        d.drawLine(x + 12, y + 22 + offset, x + 17, y + 20 + offset, color);
+        d.drawLine(x + 17, y + 20 + offset, x + 22, y + 22 + offset, color);
+        d.drawLine(x + 22, y + 22 + offset, x + 28, y + 20 + offset, color);
+    }
+}
+
+void drawOkSymbol(IDisplay& d, int16_t x, int16_t y, uint16_t color = 0) {
+    d.drawCircle(x + 14, y + 14, 13, color);
+    d.drawCircle(x + 14, y + 14, 12, color);
+    d.drawLine(x + 7, y + 14, x + 12, y + 19, color);
+    d.drawLine(x + 12, y + 19, x + 22, y + 8, color);
+    d.drawLine(x + 7, y + 15, x + 12, y + 20, color);
+    d.drawLine(x + 12, y + 20, x + 22, y + 9, color);
+}
+
+void drawMiniBars(IDisplay& d, int16_t x, int16_t y, int16_t w, int16_t h,
+                  const SolarData& solar) {
+    if (solar.historyCount < 2 || w <= 0 || h <= 0) return;
+
+    float maxValue = 500.0f;
+    for (uint8_t i = 0; i < solar.historyCount; ++i) {
+        if (solar.history[i].productionPowerW > maxValue)
+            maxValue = solar.history[i].productionPowerW;
+    }
+
+    const uint8_t maxBars = static_cast<uint8_t>(w / 4);
+    if (maxBars == 0) return;
+    const uint8_t step = solar.historyCount > maxBars
+        ? static_cast<uint8_t>((solar.historyCount + maxBars - 1) / maxBars)
+        : 1;
+    const uint8_t bars = static_cast<uint8_t>((solar.historyCount + step - 1) / step);
+
+    for (uint8_t b = 0, i = 0; b < bars && i < solar.historyCount; ++b, i = static_cast<uint8_t>(i + step)) {
+        float value = 0.0f;
+        const uint8_t end = min<uint8_t>(solar.historyCount, static_cast<uint8_t>(i + step));
+        for (uint8_t j = i; j < end; ++j)
+            if (solar.history[j].productionPowerW > value) value = solar.history[j].productionPowerW;
+
+        int16_t bh = static_cast<int16_t>((value / maxValue) * h);
+        if (bh < 1 && value > 0.0f) bh = 1;
+        if (bh > h) bh = h;
+        const int16_t bx = x + (b * w) / bars;
+        d.fillRect(bx, y + h - bh, 2, bh, 0);
+    }
+}
+
+void drawPhaseBars(IDisplay& d, int16_t x, int16_t y, int16_t h,
+                   const AZRouterData& az) {
+    float maxValue = 1.0f;
+    for (uint8_t phase = 0; phase < 3; ++phase) {
+        if (az.hasRoutedPhasePower[phase] && az.routedPhasePowerW[phase] > maxValue)
+            maxValue = az.routedPhasePowerW[phase];
+    }
+
+    for (uint8_t phase = 0; phase < 3; ++phase) {
+        const float value = az.hasRoutedPhasePower[phase] ? az.routedPhasePowerW[phase] : 0.0f;
+        int16_t bh = static_cast<int16_t>((value / maxValue) * h);
+        if (bh < 1 && value > 0.0f) bh = 1;
+        d.drawRect(x + phase * 12, y, 7, h, 0);
+        if (bh > 0) d.fillRect(x + 1 + phase * 12, y + h - bh + 1, 5, bh - 1, 0);
+    }
+}
+
 void drawWeatherCard(IDisplay& display, const DataModel& dm, const LayoutWidget& widget,
                      const HomeLayoutWidgetConfig* style) {
     const int16_t x = widget.x;
@@ -231,8 +311,9 @@ void drawIndoorCard(IDisplay& display, const DataModel& dm, const LayoutWidget& 
     };
 
     if (h < 220) {
+        drawHouseSymbol(display, x + 12, y + 46, color);
         ScreenStyle::useMetric(display, color);
-        display.setCursor(x + 15, y + 83);
+        display.setCursor(x + 52, y + 83);
         if (dm.inside.status.available)
             display.printf("%.1f °C", dm.inside.temperatureC);
         else
@@ -324,6 +405,8 @@ void drawFveSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidg
     else
         display.print("--.- kW");
 
+    drawMiniBars(display, x + 145, y + 50, 60, 38, dm.solar);
+
     ScreenStyle::useBody(display);
     display.setCursor(x + 15, y + 122);
     if (dm.solar.status.available)
@@ -364,6 +447,8 @@ void drawAZRouterSummaryCard(IDisplay& display, const DataModel& dm, const Layou
     else
         display.print("-- W");
 
+    drawPhaseBars(display, x + 165, y + 51, 36, dm.azrouter);
+
     ScreenStyle::useBody(display);
     display.setCursor(x + 15, y + 122);
     if (dm.azrouter.hasRoutedEnergyToday)
@@ -389,8 +474,9 @@ void drawPoolSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWid
     const int16_t y = widget.y;
     drawHomeCardBackground(display, widget, nullptr, "BAZÉN");
 
+    drawPoolSymbol(display, x + 12, y + 45);
     ScreenStyle::useMetric(display);
-    display.setCursor(x + 15, y + 82);
+    display.setCursor(x + 52, y + 82);
     if (dm.pool.status.available)
         display.printf("%.1f °C", dm.pool.waterTempC);
     else
@@ -416,8 +502,9 @@ void drawConsumptionSummaryCard(IDisplay& display, const DataModel& dm, const La
     const int16_t w = widget.width;
     drawHomeCardBackground(display, widget, nullptr, "SPOTŘEBA DOMU");
 
+    drawHouseSymbol(display, x + 12, y + 44);
     ScreenStyle::useMetric(display);
-    display.setCursor(x + 15, y + 80);
+    display.setCursor(x + 52, y + 80);
     if (dm.solar.status.available)
         display.printf("%.1f kW", dm.solar.houseConsumptionW / 1000.0f);
     else
@@ -462,6 +549,7 @@ void drawSystemSummaryCard(IDisplay& display, const DataModel& dm, const LayoutW
     const int16_t x = widget.x;
     const int16_t y = widget.y;
     drawHomeCardBackground(display, widget, nullptr, "STAV SYSTÉMU");
+    drawOkSymbol(display, x + widget.width - 42, y + 42);
 
     ScreenStyle::useBody(display);
     display.setCursor(x + 12, y + 58);
