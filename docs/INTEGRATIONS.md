@@ -97,12 +97,11 @@ Při vypnutí zdroje:
 - diagnostika rozlišuje Vypnuto od nedostupného aktivního zdroje,
 - FVE obrazovka zůstane jen pokud je aktivní alespoň jeden energetický zdroj.
 
-Při vypnutí obou zdrojů se FVE odstraní ze ScreenManageru i sidebaru. Pokud byla
-právě aktivní, dashboard přejde na Home.
+GoodWe a AZRouter mají samostatné obrazovky a samostatné položky sidebaru. Každá
+se za běhu registruje nebo odregistruje podle aktivace příslušného zdroje; pokud
+je právě vypínaná obrazovka aktivní, dashboard přejde na Home.
 
-FVE obrazovka používá obecný pager:
-- **Přehled** — společné KPI GoodWe + AZRouter,
-- **GoodWe** — výroba, baterie, distribuce a denní graf,
+- **FVE / GoodWe** — výroba, baterie, distribuce a denní graf.
 - **AZRouter** — master stav, L1/L2/L3, vytěžování a uložená energie.
 
 Rozložení SolarScreen se přizpůsobuje režimu GoodWe + AZRouter, pouze GoodWe nebo pouze AZRouter.
