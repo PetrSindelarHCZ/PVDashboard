@@ -245,7 +245,7 @@ inverze. Skutečný fyzický render po uložení zůstává autoritativní.
 
 ## Aktuální limity a chování
 
-- maximálně 8 Home widgetů,
+- maximálně 7 Home widgetů,
 - maximálně 8 elementů v jednom custom widgetu,
 - minimální rozměry se liší podle typu widgetu a elementu,
 - vlastní widget musí mít alespoň jeden element,
