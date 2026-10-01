@@ -248,8 +248,13 @@ inline void drawSidebar(IDisplay& d, const DataModel& dm) {
     drawMenuItem(d, y, "home", dm, SidebarIcons::Icon::Home);
     y += itemStep;
 
-    if (dm.solar.enabled || dm.azrouter.enabled) {
+    if (dm.solar.enabled) {
         drawMenuItem(d, y, "solar", dm, SidebarIcons::Icon::Solar);
+        y += itemStep;
+    }
+
+    if (dm.azrouter.enabled) {
+        drawMenuItem(d, y, "azrouter", dm, SidebarIcons::Icon::AZRouter);
         y += itemStep;
     }
 
