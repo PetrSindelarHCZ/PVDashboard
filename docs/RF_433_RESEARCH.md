@@ -5,9 +5,9 @@
 > „diagnostickou větev“ nebo experimentální branch popisují historický průběh
 > výzkumu a nemají se chápat jako současné umístění implementace.
 
-> Stav k **20. 9. 2026**. Jde o vývojovou diagnostiku na větvi
-> `historická diagnostická větev (již sloučená do masteru)`, nikoli o potvrzenou funkcionalitu aktuálního
-> `masteru`.
+> Následující část začíná historickým snapshotem výzkumu ze **20. 9. 2026**.
+> Od té doby byly potvrzené části postupně sloučeny do `masteru`; jednotlivé
+> starší hypotézy proto číst v kontextu pozdějších potvrzení uvedených níže.
 >
 > Cílem není jen dekódovat jeden senzor, ale postupně **zmapovat všechny
 > opakující se 433MHz zdroje v dosahu**, rozlišit skutečné protokoly od šumu a
