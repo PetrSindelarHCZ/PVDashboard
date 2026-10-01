@@ -598,6 +598,65 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         editorMessage('Panel ' + widgetLabel(replacement) + ' byl vrácen na výchozí geometrii a vzhled. Změnu potvrď Uložit.', 'ok');
     }
 
+    function seedIndoorDefaultElements(widget) {
+        if (!widget || widget.type !== 'indoor' || (widget.elements || []).length) return;
+
+        const wide = Number(widget.width || 0) >= 500;
+        const leftX = wide ? 20 : 15;
+        const rightX = wide ? Math.floor(Number(widget.width || 0) / 2) + 10 : leftX;
+
+        const element = (id, type, source, label, text, x, y, width, height, showLabel = true) => ({
+            id,
+            type,
+            source: source || '',
+            label: label || '',
+            unit: sourceInfo(source).unit || '',
+            text: text || '',
+            x,
+            y,
+            width,
+            height,
+            decimals: Number(sourceInfo(source).decimals ?? 1),
+            min: 0,
+            max: 100,
+            fontSize: 'auto',
+            align: 'left',
+            showLabel,
+            graphStyle: 'line'
+        });
+
+        const leftWidth = wide
+            ? Math.max(140, Math.floor(Number(widget.width || 0) / 2) - 40)
+            : Math.max(140, Number(widget.width || 0) - 30);
+        const rightWidth = wide
+            ? Math.max(140, Number(widget.width || 0) - rightX - 15)
+            : leftWidth;
+
+        widget.elements = [
+            element('indoor-living-label', 'text', '', '', 'Obývák',
+                leftX, 45, leftWidth, 30, false),
+            element('indoor-living-temp', 'kpi', 'inside.temperatureC', '', '',
+                leftX, 70, leftWidth, 45, false),
+            element('indoor-living-humidity', 'kpi', 'inside.humidityPercent', 'Vlhkost', '',
+                leftX, 115, leftWidth, 55, true),
+            element('indoor-living-pressure', 'kpi', 'inside.pressureHpa', 'Tlak', '',
+                leftX, 165, leftWidth, 55, true),
+            element('indoor-bedroom-label', 'text', '', '', 'Ložnice',
+                rightX, wide ? 45 : 205, rightWidth, 30, false),
+            element('indoor-bedroom-temp', 'kpi', 'inside.bedroomTempC', '', '',
+                rightX, wide ? 70 : 230, rightWidth, 45, false),
+            element('indoor-pool-label', 'text', '', '', 'Bazén',
+                rightX, wide ? 165 : 285, rightWidth, 30, false),
+            element('indoor-pool-temp', 'kpi', 'inside.poolTempC', '', '',
+                rightX, wide ? 190 : 310, rightWidth, 45, false)
+        ].filter(item =>
+            item.x >= 8 &&
+            item.y >= 40 &&
+            item.x + item.width <= Number(widget.width || 0) - 8 &&
+            item.y + item.height <= Number(widget.height || 0) - 8
+        );
+    }
+
     function editPredefinedWidget(id) {
         let widget = byId(id);
         if (!widget) {
@@ -609,6 +668,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             widget = ensureWidgetStyle({...clone(template), visible: true});
             draft.push(widget);
         }
+        if (widget.type === 'indoor' && !(widget.elements || []).length) {
+            seedIndoorDefaultElements(widget);
+        }
+
         selectedId = id;
         selectedElementId = '';
         renderDraft();
