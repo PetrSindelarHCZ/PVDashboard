@@ -4,148 +4,152 @@
 
 ~~~text
 GoodWe UDP ───────┐
-AZRouter HTTP ────┼─> DataModel ─> Screen ─> DisplayWorker ─> DisplayManager ─> EpaperDisplay
-Weather HTTPS ────┤       ^          ^              └──────────────> DisplayPreview
-BME280 I²C ───────┘       |          |
+AZRouter HTTP ────┤
+Weather HTTPS ────┤
+BME280 I²C ───────┤
+MAX17048 I²C ─────┼─> DataModel ─> Screen ─> DisplayWorker ─> DisplayManager ─> EpaperDisplay
+CC1101 / RF ──────┘       ^          ^              └──────────────> DisplayPreview
                            |          |
-Telefon ─> WebServer ─> NavigationController ─> ScreenManager
+Joystick ───────────────> NavigationController ─> ScreenManager
+Telefon ─> WebServer ────┘
                  ├─> ConfigManager/NVS
                  └─> OtaManager/Update
 ~~~
 
-DashboardApp sestavuje moduly, plánuje periodické operace a přenáší události
-mezi WebUI, datovými zdroji a displejem.
+`DashboardApp` sestavuje moduly, plánuje periodické operace a přenáší události
+mezi WebUI, vstupy, datovými zdroji a displejem.
 
 ## Moduly
 
-- **src/app**: životní cyklus a plánování.
-- **src/data**: normalizovaný model a stav zdrojů.
-- **src/integrations**: protokoly GoodWe, AZRouteru a poskytovatelů počasí.
-- **src/screens**: čisté renderery bez síťové komunikace a jejich navigační layouty.
-- **src/display**: abstrakce displeje, asynchronní worker, preview a refresh politika.
-- **src/navigation**: společný stavový automat Sidebar / Pager / Page a geometrická navigace.
-- **src/input**: fyzický pětisměrný joystick, GPIO vstupy a debounce.
-- **src/network**: Wi-Fi, NTP, HTTP API, virtuální joystick a vložené WebUI.
-- **src/config**: konfigurace uložená v NVS.
-- **src/update**: příjem ručně nahraného OTA obrazu.
-- **src/diagnostics**: kumulativní měření trvání operací.
-
-Rozdělení hardwarové vrstvy od obrazovek je zachované přes IDisplay. Renderery
-pracují pouze s DataModel a kreslicím rozhraním.
+- **src/app**: životní cyklus a plánování,
+- **src/data**: normalizovaný model a stav zdrojů,
+- **src/integrations**: GoodWe, AZRouter, počasí, BME280, MAX17048 a CC1101/RF,
+- **src/screens**: renderery obrazovek,
+- **src/display**: e-paper abstrakce, worker, preview a refresh politika,
+- **src/navigation**: stavový automat Sidebar / Pager / Page,
+- **src/input**: fyzický joystick a SET/RESET,
+- **src/network**: Wi-Fi, NTP, HTTP API a WebUI,
+- **src/config**: NVS konfigurace a YAML backup,
+- **src/update**: OTA,
+- **src/diagnostics**: výkonová a provozní diagnostika.
 
 ## Hlavní smyčka
 
-Současná hlavní smyčka postupně:
+Současná hlavní smyčka zejména:
 
-1. obslouží Wi-Fi, NTP a jeden krok synchronního webového serveru,
-2. načte pětisměrný joystick a předá případnou akci NavigationControlleru,
-3. aktualizuje systémová data,
-4. předá připravený snímek dat display workeru,
-5. podle intervalů synchronně načte GoodWe a AZRouter,
-6. aktualizuje diagnostiku a čeká 20 ms.
+1. obsluhuje Wi-Fi, NTP a webový server,
+2. načítá pětisměrný joystick a SET/RESET,
+3. aktualizuje lokální systémová data,
+4. obsluhuje BME280, MAX17048 a RF sensor manager,
+5. připravuje display požadavky a dirty regiony,
+6. podle intervalů synchronně načítá GoodWe a AZRouter,
+7. předává data asynchronnímu DisplayWorkeru,
+8. aktualizuje diagnostiku.
 
-DisplayWorker je jediným vlastníkem DisplayManageru a e-paper ovladače. Požadavky
-ukládá do chráněného jednopolohového bufferu, slučuje změny a renderuje konzistentní
-kopii DataModel v samostatné FreeRTOS úloze. Síťové polling operace zatím zůstávají
-v hlavní smyčce a při timeoutu mohou krátce zdržet WebUI.
+GoodWe a AZRouter zůstávají synchronní a při timeoutu mohou krátce zdržet WebUI.
+WeatherWorker běží samostatně.
 
-BME280 je lokální zdroj v hlavní smyčce. Používá I²C na SDA GPIO21 / SCL GPIO22,
-zkouší adresy 0x76 a 0x77, měří teplotu, relativní vlhkost a tlak a zapisuje je
-do `InsideData`. Polling běží i bez Wi-Fi a při chybě se senzor při dalším pokusu
-znovu inicializuje.
+## Displej a refresh
+
+`DisplayWorker` je jediným vlastníkem fyzického e-paperu. Požadavky se slučují a
+full požadavek má přednost.
+
+Aktuální strategie:
+
+- start a explicitní full refresh používají čisticí full waveform,
+- běžné aktualizace používají differential partial refresh,
+- změny focusu používají regionální dirty refresh tam, kde lze oblast bezpečně
+  omezit,
+- Sidebar může obnovit pouze levý pruh,
+- vybrané automatické Home aktualizace obnovují jen oblast datové skupiny
+  Weather / Energy / Indoor / Battery / RF,
+- přepnutí obrazovky fyzickou navigací může použít full-window differential
+  partial refresh místo pomalého čistícího full refreshu.
+
+Počet partial refreshů sám o sobě automatický full refresh nevyvolává.
+
+## BME280 a MAX17048
+
+Oba senzory sdílejí I²C sběrnici:
+
+- SDA GPIO21,
+- SCL GPIO22,
+- 100 kHz.
+
+BME280 zkouší adresy 0x76 a 0x77. MAX17048 používá 0x36 a čte VCELL, SOC, CRATE,
+VERSION a STATUS. Při chybě se při dalším pollu provede nová inicializace.
+
+MAX17048 neurčuje spolehlivě skutečný stav nabíjení. Ten bude případně doplněn
+samostatným digitálním signálem z nabíjecího modulu.
+
+## 433 MHz / CC1101
+
+CC1101 sdílí SCK/MOSI s e-paperem, používá vlastní CS a samostatný MISO/GDO piny.
+Raw receiver publikuje rozpoznané `RfSensorObservation` do `RfSensorManager`.
+
+`RfSensorManager`:
+
+- během scanu eviduje nalezená podporovaná čidla,
+- páruje je podle protocol + sensorId + channel,
+- ukládá stabilní `slotId`,
+- zapisuje aktuální teplotu, vlhkost a stav baterie do DataModelu,
+- po 5 minutách bez paketu označí uložené čidlo jako nedostupné.
+
+RF dekódování je dnes součástí produkčního masteru, přestože dokument
+RF_433_RESEARCH.md obsahuje i historické experimenty a otevřené protokoly.
+
+## Navigace a fyzické vstupy
+
+Pětisměrný joystick:
+
+- UP GPIO17,
+- DOWN GPIO18,
+- LEFT GPIO33,
+- RIGHT GPIO16,
+- OK GPIO32.
+
+Používá active LOW, interní pull-up a debounce 20 ms. Auto-repeat je záměrně
+pouze pro UP/DOWN.
+
+Doplňková tlačítka:
+
+- SET GPIO35,
+- RESET GPIO34,
+- externí 10k pull-up na 3,3 V,
+- GPIO34/35 nemají interní pull-up,
+- firmware rozeznává krátké stisky a long-press SET 2,5 s.
+
+## Počasí a paměť
 
 WeatherWorker načítá internetovou předpověď v samostatné FreeRTOS úloze.
-Konkrétní klient je vybrán přes IWeatherProvider; Open-Meteo a MET Norway proto
-publikují stejný WeatherData. Worker udržuje cache podle lokality a může obsloužit
-nejvýše osm nakonfigurovaných míst. HTTPS klienti používají společný seznam
-důvěryhodných kořenových certifikátů.
+DisplayWorker a WeatherWorker sdílejí memory-heavy gate, aby se na ESP32 bez
+PSRAM nepřekrývaly velké nároky na interní DRAM.
 
-DisplayWorker a WeatherWorker sdílejí memory-heavy gate. Display jej drží během
-inicializace/renderu včetně tvorby preview a WeatherWorker během HTTPS/TLS fetchu.
-Tím se na ESP32 bez PSRAM nepřekrývají dva největší nároky na souvislou interní
-DRAM. Lifecycle workeru je řízený: při vypnutí počasí se task bezpečně ukončí,
-uvolní cache/mutex/stack a při opětovném zapnutí se vytvoří znovu.
+## Konfigurace
 
-## Požadavky na souběh
+Konfigurace se ukládá v ESP32 NVS namespace **dashboard**.
 
-Pro současné worker úlohy platí:
+Aktuální:
 
-- displej obsluhuje právě jedna úloha,
-- před vykreslením vznikne konzistentní snímek DataModel,
-- String ani stav zdrojů se nesmí číst současně se zápisem bez synchronizace,
-- více refresh požadavků se slučuje do jednoho,
-- plný požadavek nesmí být přepsán pozdějším částečným,
-- render/preview a Weather TLS se nesmí překrýt,
-- vypnutí WeatherWorkeru nesmí použít násilný `vTaskDelete()` uprostřed TLS operace,
-- stav display úlohy je dostupný přes `/api/status`.
+- **AppConfig schemaVersion = 12**,
+- YAML backup/import: **pvdashboard-config v7**.
 
-Publikované stavy displeje jsou **stopped**, **initializing**, **idle**, **queued**, **rendering_partial**,
-**rendering_full** a **error**.
+YAML obsahuje systém, aktuální Wi-Fi/IP, GoodWe, AZRouter, bazén, počasí,
+Home layout a uložená RF čidla. Zatím neobsahuje celý seznam známých Wi-Fi sítí
+ani jejich `autoConnect` příznaky.
 
-## Časování
+## Provozní zásady
 
-Polling GoodWe a AZRouteru je konfigurovatelný a výchozí interval je 10 sekund.
-Obraz se automaticky aktualizuje přibližně jednou za minutu a při změně
-dostupnosti zdroje. Požadavky vzniklé krátce po sobě se slučují v pětisekundovém
-okně.
-
-Přepnutí obrazovky vždy vyžádá čisticí plnou obnovu. Běžné aktualizace stejné
-obrazovky jsou částečné; počet částečných obnov už automatickou plnou obnovu
-nevyvolává.
-
-## Obrazovky a navigace
-
-ScreenManager registruje moduly dynamicky podle konfigurace:
-
-- `home` a `diagnostics` jsou vždy dostupné,
-- `solar` je dostupná, pokud je zapnutý GoodWe nebo AZRouter,
-- `pool` je dostupná pouze při `pool.enabled=true`,
-- `weather` a hodinové weather obrazovky jsou dostupné pouze při
-  `weather.enabled=true`.
-
-Když se právě aktivní dynamická obrazovka vypne, aplikace se vrátí na Home a
-NavigationController synchronizuje sidebar/focus s novou sadou obrazovek.
-
-NavigationController má tři oblasti: **Sidebar**, obecný **Pager** a **Page**.
-Každý renderer poskytuje aktuální `NavigationLayout` jako sadu focusovatelných
-obdélníků. Sousedi se odvozují z geometrie, takže budoucí konfigurovatelný layout
-nemusí mít ručně psaný navigační graf. Weather používá Pager pro lokality;
-dočasná volba lokality na e-inku nemění persistentní aktivní lokalitu Home.
-
-
-## Konfigurace a provozní zásady
-
-Konfigurace se ukládá do ESP32 NVS v namespace **dashboard**. Zahrnuje systém,
-síť, známé Wi-Fi, GoodWe, AZRouter, bazén a počasí. Dynamické moduly se po změně
-konfigurace registrují nebo odregistrují za běhu a NavigationController se
-následně synchronizuje.
-
-Známé Wi-Fi sítě mají SSID, heslo a persistentní autoConnect. Ruční Odpojit
-nastaví autoConnect=false; ruční Připojit síť znovu povolí. Pokud není dostupná
-žádná povolená známá síť, zařízení udržuje recovery AP **Dashboard-Setup**.
-
-Aktuální AppConfig schemaVersion je 6. YAML záloha používá vlastní formát
-**pvdashboard-config v5** a obsahuje systém, aktuální Wi-Fi/IP, GoodWe,
-AZRouter, bazén a počasí včetně lokalit. Zatím neobsahuje celý seznam známých
-Wi-Fi sítí ani jejich autoConnect příznaky.
-
-Základní provozní pravidla:
-
-- hesla a tokeny se nesmí objevit v běžném API ani logu,
-- vypnutý modul nesmí zanechat obrazovku ani neplatný navigační focus,
+- hesla a tokeny nesmí být v běžném API ani logu,
+- vypnutý modul nesmí zanechat neplatnou obrazovku ani focus,
 - neúspěšná OTA nesmí poškodit běžící firmware,
-- firmware musí zůstat menší než jeden OTA slot,
+- firmware musí zůstat menší než OTA slot,
 - lokální dashboard musí fungovat bez cloudové služby,
-- pomalý e-paper refresh nesmí blokovat WebUI.
+- pomalý e-paper refresh nesmí blokovat WebUI,
+- automatické datové změny mají pokud možno obnovovat jen nezbytnou část panelu.
 
 ## Omezení platformy
 
-Deska má přibližně 4 MB flash a nemá PSRAM. Partition layout `min_spiffs.csv`
-poskytuje dva OTA app sloty po **1 966 080 B (1,875 MiB)**. Skutečná velikost
-firmware se kontroluje při každém release; procento využití se proto v této
-architektuře záměrně nefixuje na jedno historické číslo.
-
-Do návrhu stále nepatří velký frontend framework, filesystem s duplicitními
-assety ani rozsáhlé fonty bez kontroly výsledné velikosti. Pro paměťově náročné
-operace je nutné počítat nejen s celkovým free heapem, ale i s největším
-souvislým blokem interní DRAM.
+ESP32-WROOM-32 nemá PSRAM. Kritická je nejen celková velikost heapu, ale i
+největší souvislý blok interní DRAM. Z tohoto důvodu zůstává frontend úsporný a
+paměťově náročné operace se serializují.
