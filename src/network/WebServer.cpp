@@ -331,13 +331,24 @@ void DashboardWebServer::onHomeLayoutConfig(HomeLayoutConfigCallback callback) {
 
     _server.on("/api/layout/home", HTTP_GET, [this]() {
         _server.sendHeader("Cache-Control", "no-store");
-        _server.send(
-            200,
-            "application/json",
-            homeLayoutResponseJson(_config.display.homeLayout, _config.rfSensors, _dataModel));
+        const String response =
+            homeLayoutResponseJson(_config.display.homeLayout, _config.rfSensors, _dataModel);
+        Serial.printf(
+            "[WEB][HOME-LAYOUT] Odpoved pripravena, json=%u B, freeHeap=%u B.\n",
+            static_cast<unsigned>(response.length()),
+            static_cast<unsigned>(ESP.getFreeHeap()));
+        _server.send(200, "application/json", response);
+        Serial.printf(
+            "[WEB][HOME-LAYOUT] Odpoved odeslana, freeHeap=%u B.\n",
+            static_cast<unsigned>(ESP.getFreeHeap()));
     });
 
     _server.on("/api/layout/home", HTTP_POST, [this]() {
+        Serial.printf(
+            "[WEB][HOME-LAYOUT] POST prijat, payload=%u B, freeHeap=%u B.\n",
+            static_cast<unsigned>(_server.hasArg("plain") ? _server.arg("plain").length() : 0),
+            static_cast<unsigned>(ESP.getFreeHeap()));
+
         if (!_homeLayoutConfigCallback || !_server.hasArg("plain")) {
             _server.send(
                 503,
