@@ -79,10 +79,10 @@ Před prvním úspěšným pollingem proto FVE UI zobrazuje nedostupné hodnoty.
 
 AZRouter username/password se ukládají pouze do lokální NVS. WebUI nikdy
 nevrací uložené heslo zpět do prohlížeče; prázdné heslo při uložení znamená
-zachovat stávající. YAML export záměrně neobsahuje credentials. Aktuální
-`pvdashboard-config v7` zároveň neexportuje ani `authEnabled`; po importu
-zálohy se proto AZRouter autentizace vrátí na výchozí vypnutý stav a musí se
-případně znovu zapnout ve WebUI.
+zachovat stávající. YAML export záměrně neobsahuje credentials. Aktuální `pvdashboard-config v7` zároveň neexportuje ani `authEnabled`.
+Při importu se lokálně uložené username/password zachovají, pokud záloha žádné
+credentials neobsahuje, ale `authEnabled` se vrátí na výchozí `false`.
+Autentizaci je proto po importu potřeba případně znovu zapnout ve WebUI.
 
 ## Společné chování GoodWe a AZRouteru
 
