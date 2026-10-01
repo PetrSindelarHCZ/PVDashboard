@@ -28,7 +28,7 @@ RF binding/rebind logiku a porovnávání verzí.
 Release artefakty připravuje:
 
 ~~~powershell
-python scripts/prepare-release.py --firmware .pio/build/esp32dev/firmware.bin --output dist --expected-version 1.26.261.1
+python scripts/prepare-release.py --firmware .pio/build/esp32dev/firmware.bin --output dist --expected-version 1.26.274.1
 ~~~
 
 Kontroluje se zejména:
@@ -38,7 +38,7 @@ Kontroluje se zejména:
 - SHA-256 firmware,
 - vytvoření manifestu.
 
-GitHub release tag používá formát **v1.YY.denRoku.pořadí** (např. **v1.26.261.1**) a musí odpovídat FIRMWARE_VERSION.
+GitHub release tag používá formát **v1.YY.denRoku.pořadí** (např. **v1.26.274.1**) a musí odpovídat FIRMWARE_VERSION.
 
 ## Měření odezvy
 
