@@ -110,22 +110,34 @@ inline bool knownWidget(const String& id, const String& type) {
     if (type == "rf-sensor") return validIdentifier(id) && id.startsWith("rf-card-");
     return (id == "weather-card" && type == "weather") ||
            (id == "energy-card" && type == "energy") ||
-           (id == "indoor-card" && type == "indoor");
+           (id == "indoor-card" && type == "indoor") ||
+           (id == "fve-summary" && type == "fve-summary") ||
+           (id == "azrouter-summary" && type == "azrouter-summary") ||
+           (id == "pool-summary" && type == "pool-summary") ||
+           (id == "consumption-summary" && type == "consumption-summary");
 }
 
 inline int16_t minWidth(const String& type) {
     if (type == "weather") return 190;
     if (type == "energy") return 190;
-    if (type == "indoor") return 180;
+    if (type == "indoor") return 150;
+    if (type == "fve-summary") return 190;
+    if (type == "azrouter-summary") return 190;
+    if (type == "pool-summary") return 150;
+    if (type == "consumption-summary") return 180;
     if (type == "rf-sensor") return 150;
     if (type == "custom") return 160;
     return 0;
 }
 
 inline int16_t minHeight(const String& type) {
-    if (type == "weather") return 360;
+    if (type == "weather") return 180;
     if (type == "energy") return 330;
-    if (type == "indoor") return 260;
+    if (type == "indoor") return 140;
+    if (type == "fve-summary") return 180;
+    if (type == "azrouter-summary") return 180;
+    if (type == "pool-summary") return 140;
+    if (type == "consumption-summary") return 140;
     if (type == "rf-sensor") return 140;
     if (type == "custom") return 120;
     return 0;
@@ -134,6 +146,10 @@ inline int16_t minHeight(const String& type) {
 inline LayoutWidgetType runtimeType(const String& type) {
     if (type == "weather") return LayoutWidgetType::HomeWeatherCard;
     if (type == "energy") return LayoutWidgetType::HomeEnergyCard;
+    if (type == "fve-summary") return LayoutWidgetType::HomeFveCard;
+    if (type == "azrouter-summary") return LayoutWidgetType::HomeAZRouterCard;
+    if (type == "pool-summary") return LayoutWidgetType::HomePoolCard;
+    if (type == "consumption-summary") return LayoutWidgetType::HomeConsumptionCard;
     if (type == "rf-sensor") return LayoutWidgetType::HomeRfSensorCard;
     if (type == "custom") return LayoutWidgetType::HomeCustomCard;
     return LayoutWidgetType::HomeIndoorCard;
@@ -529,47 +545,47 @@ inline void buildDefault(const DataModel& dm, ScreenLayout& layout) {
     }
 }
 
-inline bool buildDefaultWidget(const DataModel&, const String& id,
+inline bool buildDefaultWidget(const DataModel& dm, const String& id,
                               HomeLayoutWidgetConfig& result) {
-    // Editor templates stay independent from the runtime default Home layout.
-    // This preserves the existing predefined Weather / Energy / Indoor widgets
-    // even though the modern dashboard uses dedicated summary cards at runtime.
     result = HomeLayoutWidgetConfig();
     result.visible = true;
     result.showFrame = true;
     result.background = "white";
     result.inverseText = false;
 
-    if (id == "weather-card") {
-        result.id = "weather-card";
-        result.type = "weather";
-        result.x = 75;
-        result.y = 63;
-        result.width = 225;
-        result.height = 402;
+    auto set = [&](const char* widgetId, const char* type,
+                   int16_t x, int16_t y, int16_t w, int16_t h) {
+        result.id = widgetId;
+        result.type = type;
+        result.x = x;
+        result.y = y;
+        result.width = w;
+        result.height = h;
         return true;
+    };
+
+    if (id == "weather-card") return set("weather-card", "weather", 75, 63, 225, 215);
+    if (id == "fve-summary") return set("fve-summary", "fve-summary", 315, 63, 225, 215);
+    if (id == "azrouter-summary") return set("azrouter-summary", "azrouter-summary", 555, 63, 230, 215);
+    if (id == "indoor-card") return set("indoor-card", "indoor", 75, 293, 155, 172);
+    if (id == "pool-summary") return set("pool-summary", "pool-summary", 405, 293, 155, 172);
+    if (id == "consumption-summary") return set("consumption-summary", "consumption-summary", 570, 293, 215, 172);
+
+    if (id == "rf-card-1") {
+        if (!set("rf-card-1", "rf-sensor", 240, 293, 155, 172)) return false;
+        result.title = "VENKU";
+        for (uint8_t i = 0; i < dm.rfSensors.sensorCount && i < MaxRfSensors; ++i) {
+            const RfSensorData& sensor = dm.rfSensors.sensors[i];
+            if (sensor.configured && sensor.hasTemperature && !sensor.slotId.isEmpty()) {
+                result.rfSensorSlotId = sensor.slotId;
+                return true;
+            }
+        }
+        return false;
     }
 
-    if (id == "energy-card") {
-        result.id = "energy-card";
-        result.type = "energy";
-        result.x = 315;
-        result.y = 63;
-        result.width = 225;
-        result.height = 402;
-        return true;
-    }
-
-    if (id == "indoor-card") {
-        result.id = "indoor-card";
-        result.type = "indoor";
-        result.x = 555;
-        result.y = 63;
-        result.width = 230;
-        result.height = 402;
-        return true;
-    }
-
+    // Legacy editor template retained for older saved layouts.
+    if (id == "energy-card") return set("energy-card", "energy", 315, 63, 225, 402);
     return false;
 }
 
@@ -584,7 +600,10 @@ inline void buildResolved(const HomeLayoutConfig& config, const DataModel& dm, S
         const HomeLayoutWidgetConfig& widget = config.widgets[i];
         if (!widget.visible) continue;
         if (widget.type == "weather" && !dm.weather.enabled) continue;
-        if (widget.type == "energy" && !dm.solar.enabled) continue;
+        if ((widget.type == "energy" || widget.type == "fve-summary" ||
+             widget.type == "consumption-summary") && !dm.solar.enabled) continue;
+        if (widget.type == "azrouter-summary" && !dm.azrouter.enabled) continue;
+        if (widget.type == "pool-summary" && !dm.pool.enabled) continue;
 
         layout.add(
             widget.id.c_str(),
