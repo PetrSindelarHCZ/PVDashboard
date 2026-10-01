@@ -436,6 +436,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     const byId = id => draft.find(w => w.id === id);
     const supportedById = id => (apiState?.supportedWidgets || []).find(w => w.id === id);
     const defaultWidgetById = id => (apiState?.defaultWidgets || []).find(w => w.id === id);
+    const isElementEditableWidget = widget =>
+        !!widget && (widget.type === 'custom' || widget.type === 'indoor');
 
     function ensureWidgetStyle(widget) {
         if (!widget) return widget;
@@ -446,16 +448,20 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     }
 
     function widgetMinimum(widget) {
-        if (widget?.type === 'custom') {
-            let minW = Number(apiState?.customWidget?.minWidth || 160);
-            let minH = Number(apiState?.customWidget?.minHeight || 120);
-            (widget.elements || []).forEach((element, elementIndex) => {
+        const supported = supportedById(widget?.id);
+        if (isElementEditableWidget(widget)) {
+            let minW = widget.type === 'custom'
+                ? Number(apiState?.customWidget?.minWidth || 160)
+                : Number(supported?.minWidth || 180);
+            let minH = widget.type === 'custom'
+                ? Number(apiState?.customWidget?.minHeight || 120)
+                : Number(supported?.minHeight || 260);
+            (widget.elements || []).forEach(element => {
                 minW = Math.max(minW, Number(element.x || 0) + Number(element.width || 0) + 8);
                 minH = Math.max(minH, Number(element.y || 0) + Number(element.height || 0) + 8);
             });
             return {minWidth: minW, minHeight: minH};
         }
-        const supported = supportedById(widget?.id);
         return {
             minWidth: Number(supported?.minWidth || gridStep),
             minHeight: Number(supported?.minHeight || gridStep)
@@ -589,9 +595,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             draft.push(widget);
         }
         selectedId = id;
-        selectedElementId = '';
+        selectedElementId = widget.type === 'indoor'
+            ? (widget.elements?.[0]?.id || '')
+            : '';
         renderDraft();
-        document.getElementById('cardStylePanel')?.scrollIntoView({behavior:'smooth', block:'nearest'});
+        const targetPanel = widget.type === 'indoor'
+            ? document.getElementById('customEditorPanel')
+            : document.getElementById('cardStylePanel');
+        targetPanel?.scrollIntoView({behavior:'smooth', block:'nearest'});
     }
 
     function renderCardStyleEditor() {
@@ -788,7 +799,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         renderCustomEditor();
 
         const customInvalid = draft.some(widget =>
-            widget.type === 'custom' && customWidgetHasErrors(widget));
+            isElementEditableWidget(widget) && customWidgetHasErrors(widget));
         const save = document.getElementById('layoutSaveButton');
         if (save) save.disabled = invalid.size > 0 || customInvalid || !draft.some(w => w.visible);
         if (invalid.size > 0) editorMessage('Widgety se překrývají. Uložení je zablokované.', 'error');
@@ -802,7 +813,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         event.stopPropagation();
         selectedId = id;
         const selectedWidget = byId(id);
-        if (selectedWidget?.type === 'custom' &&
+        if (isElementEditableWidget(selectedWidget) &&
             !selectedWidget.elements?.some(element => element.id === selectedElementId)) {
             selectedElementId = selectedWidget.elements?.[0]?.id || '';
         }
@@ -1067,7 +1078,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
     function elementInvalidIds(widget) {
         const ids = new Set();
-        if (!widget || widget.type !== 'custom') return ids;
+        if (!isElementEditableWidget(widget)) return ids;
         const elements = widget.elements || [];
         for (let i = 0; i < elements.length; i++) {
             const a = elements[i];
@@ -1108,8 +1119,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     }
 
     function customWidgetHasErrors(widget) {
-        if (!widget || widget.type !== 'custom') return false;
+        if (!isElementEditableWidget(widget)) return false;
         const elements = widget.elements || [];
+        if (widget.type === 'indoor' && !elements.length) return false;
         if (!elements.length || elements.length > Number(apiState?.customWidget?.maxElements || 8)) return true;
         return elementInvalidIds(widget).size > 0;
     }
@@ -1397,7 +1409,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             ? '2px solid ' + (blackBackground ? '#fff' : '#111')
             : '1px dashed #9ca3af';
         if (title) {
-            title.textContent = widget.title || widget.id;
+            title.textContent = widget.type === 'indoor'
+                ? 'UVNITŘ'
+                : (widget.title || widget.id);
             title.style.color = foreground;
         }
         header.style.height = (40 / widget.height * 100) + '%';
@@ -1486,7 +1500,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const panel = document.getElementById('customEditorPanel');
         if (!panel) return;
         const widget = byId(selectedId);
-        if (!widget || widget.type !== 'custom') {
+        if (!isElementEditableWidget(widget)) {
             panel.hidden = true;
             return;
         }
@@ -1497,7 +1511,12 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         }
 
         const titleInput = document.getElementById('customWidgetTitleInput');
-        if (titleInput && document.activeElement !== titleInput) titleInput.value = widget.title || '';
+        if (titleInput) {
+            titleInput.disabled = widget.type === 'indoor';
+            if (document.activeElement !== titleInput) {
+                titleInput.value = widget.type === 'indoor' ? 'UVNITŘ' : (widget.title || '');
+            }
+        }
         const dimensions = document.getElementById('customWidgetDimensions');
         if (dimensions) dimensions.textContent = widget.width + ' × ' + widget.height + ' px';
 
@@ -1534,8 +1553,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
     function addCustomElement(type, preferredSourceId = '') {
         const widget = byId(selectedId);
-        if (!widget || widget.type !== 'custom') {
-            editorMessage('Nejdřív vyber vlastní widget.', 'error');
+        if (!isElementEditableWidget(widget)) {
+            editorMessage('Nejdřív vyber vlastní widget nebo kartu UVNITŘ.', 'error');
             return;
         }
         if ((widget.elements || []).length >= Number(apiState?.customWidget?.maxElements || 8)) {
@@ -1653,7 +1672,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         renderCustomElements(widget);
         const save = document.getElementById('layoutSaveButton');
         if (save) save.disabled = invalidIds().size > 0 ||
-            draft.some(item => item.type === 'custom' && customWidgetHasErrors(item));
+            draft.some(item => isElementEditableWidget(item) && customWidgetHasErrors(item));
     }
 
     function endElementInteraction(event) {
@@ -1794,7 +1813,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             editorMessage('Nejdřív odstraň překryvy widgetů.', 'error');
             return;
         }
-        if (draft.some(widget => widget.type === 'custom' && customWidgetHasErrors(widget))) {
+        if (draft.some(widget => isElementEditableWidget(widget) && customWidgetHasErrors(widget))) {
             editorMessage('Nejdřív oprav prvky uvnitř vlastních widgetů.', 'error');
             return;
         }
@@ -2000,14 +2019,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             gridStep = Number(gridSelect.value) || 5;
             updateGrid();
             const widget = byId(selectedId);
-            if (widget?.type === 'custom') renderCustomElements(widget);
+            if (isElementEditableWidget(widget)) renderCustomElements(widget);
         });
 
         document.getElementById('layoutSnapToggle').addEventListener('change', event => {
             snapEnabled = event.target.checked;
             updateGrid();
             const widget = byId(selectedId);
-            if (widget?.type === 'custom') renderCustomElements(widget);
+            if (isElementEditableWidget(widget)) renderCustomElements(widget);
         });
         document.getElementById('layoutAddCustomButton').addEventListener('click', addCustomWidget);
         document.querySelectorAll('[data-add-element]').forEach(button => {
@@ -2057,7 +2076,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         stageObserver = new ResizeObserver(() => {
             updateGrid();
             const widget = byId(selectedId);
-            if (widget?.type === 'custom') renderCustomElements(widget);
+            if (isElementEditableWidget(widget)) renderCustomElements(widget);
         });
         stageObserver.observe(stage);
         stageObserver.observe(customStage);
