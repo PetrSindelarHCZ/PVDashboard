@@ -702,7 +702,9 @@ void DashboardApp::setup() {
     _webServer.onHomeLayoutConfig([this](const HomeLayoutConfig& layout) {
         if (!_configManager.setHomeLayout(layout)) return false;
         _navigationController.syncToActiveScreen(false);
-        requestDisplayRefresh(true, 100);
+        // Give the HTTP handler enough time to serialize and send the updated
+        // layout response before the memory-heavy e-paper full refresh starts.
+        requestDisplayRefresh(true, 1200);
         Serial.println("[CONFIG] Home layout ulozen a aplikovan za behu.");
         return true;
     });
