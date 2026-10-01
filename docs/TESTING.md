@@ -34,7 +34,7 @@ python scripts/prepare-release.py --firmware .pio/build/esp32dev/firmware.bin --
 Kontroluje se zejména:
 
 - shoda očekávané verze s firmware,
-- velikost obrazu vůči OTA slotu **1 966 080 B**,
+- velikost obrazu vůči OTA slotu **2 031 616 B**,
 - SHA-256 firmware,
 - vytvoření manifestu.
 
