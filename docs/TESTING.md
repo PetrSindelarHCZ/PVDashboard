@@ -172,6 +172,19 @@ Ověřit oba režimy:
 - `authEnabled=false`: pole user/password nejsou použita a anonymní API funguje,
 - `authEnabled=true`: login, token/cookie a re-login po 401/403.
 
-Pozor: aktuální YAML v7 neexportuje `authEnabled` ani credentials. Import zálohy
-proto AZRouter autentizaci nezapne; tento stav je potřeba při testu explicitně
-ověřit a je veden jako známé omezení.
+Pozor: aktuální YAML v7 neexportuje `authEnabled` ani credentials. Při importu
+se existující lokální username/password zachovají, ale `authEnabled` se nastaví
+na výchozí `false`, takže autentizace se sama nezapne.
+
+
+## HTTP/API diagnostika
+
+Při release nebo větší změně WebUI ověřit také:
+
+- `GET /api/display` vrací metadata preview a `/api/display.bmp` odpovídající BMP,
+- `GET /api/diagnostics/device?source=goodwe|azrouter` vrací stav DNS/ping/port probe,
+- `POST /api/sources/test` testuje zadaný host/port před uložením konfigurace,
+- `GET /api/ntp/status` a `GET/POST /api/ntp/custom` fungují bez úniku citlivých údajů,
+- `GET /api/config/wifi` nevrací heslo,
+- `GET/POST /api/network/config` korektně rozlišuje DHCP a statickou IPv4,
+- RF management endpointy add/rename/rebind/remove odmítají neplatné sloty a duplicity.
