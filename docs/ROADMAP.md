@@ -34,6 +34,23 @@ a OK GPIO33. Všechny vstupy používají interní pull-up a tlačítka spínaj�
 GND. SET a RESET zatím nejsou součástí firmware. Pro I²C čidla zůstává pár
 SDA GPIO21 / SCL GPIO22.
 
+## B2 — napájení a stav baterie
+
+Současný MAX17048 zůstává zdrojem napětí a odhadu SoC. Samotný MAX17048 ale
+neurčuje spolehlivě, zda se akumulátor právě nabíjí.
+
+- [ ] doplnit detekci skutečného stavu nabíjení z nabíjecího modulu HW-357,
+- [ ] jako primární signál využít výstup TP4056 `CHG`; volitelně přidat i
+      `STDBY` pro rozlišení stavu „nabito“,
+- [ ] před připojením k ESP32 ověřit konkrétní revizi HW-357 a použít
+      3,3V-bezpečné rozhraní/pull-up; nepřipojovat stavový bod k GPIO bez
+      ověření jeho napěťových poměrů,
+- [ ] při aktivním nabíjení doplnit k ikoně baterie symbol blesku; při dostupném
+      `STDBY` lze samostatně indikovat dokončené nabití,
+- [ ] stav nabíjení neodvozovat pouze z růstu napětí nebo SoC MAX17048,
+- [ ] INA219 použít až tehdy, pokud bude potřeba měřit také velikost a směr
+      proudu, nikoli pouze binární stav nabíjení.
+
 ## C — skutečná data domácnosti
 
 ### Vnitřní prostředí
