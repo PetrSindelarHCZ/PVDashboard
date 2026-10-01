@@ -13,7 +13,10 @@ Nejbližší priority:
 - [ ] rozšířit host-side testy GoodWe, AZRouteru, konfigurace a verzování,
 - [ ] sjednotit WebUI stav vypnutých GoodWe/AZRouter na Vypnuto místo Offline,
 - [ ] rozhodnout, zda YAML backup rozšířit o celý seznam známých Wi-Fi sítí
-      včetně autoConnect.
+      včetně autoConnect,
+- [ ] rozhodnout a sjednotit backup AZRouter autentizace: aktuální YAML v7
+      neexportuje `authEnabled` ani credentials, takže po importu zůstane
+      autentizace vypnutá.
 
 ## B — fyzické ovládání
 
