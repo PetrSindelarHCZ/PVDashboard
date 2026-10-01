@@ -1751,7 +1751,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             editorMessage('Nejdřív je potřeba uložit alespoň jedno RF čidlo s teplotou.', 'error');
             return;
         }
-        const maxWidgets = Number(apiState?.maxWidgets || 8);
+        const maxWidgets = Number(apiState?.maxWidgets || 7);
         if (draft.length >= maxWidgets) {
             editorMessage('Home už má maximální počet ' + maxWidgets + ' widgetů.', 'error');
             return;
@@ -1789,7 +1789,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             editorMessage('Firmware nepodporuje vlastní widgety.', 'error');
             return;
         }
-        const maxWidgets = Number(apiState?.maxWidgets || 8);
+        const maxWidgets = Number(apiState?.maxWidgets || 7);
         if (draft.length >= maxWidgets) {
             editorMessage('Home už má maximální počet ' + maxWidgets + ' widgetů.', 'error');
             return;
