@@ -8,6 +8,7 @@ enum class LayoutWidgetType : uint8_t {
     HomeFveCard,
     HomeAZRouterCard,
     HomePoolCard,
+    HomeConsumptionCard,
     HomeSystemCard,
     HomeCustomCard
 };
