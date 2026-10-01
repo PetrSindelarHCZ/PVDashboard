@@ -135,7 +135,12 @@ String homeLayoutResponseJson(
         item["showFrame"] = widget.showFrame;
         item["background"] = widget.background;
         item["inverseText"] = widget.inverseText;
-        if (widget.type == "custom") {
+        if (widget.type == "rf-sensor") {
+            item["title"] = widget.title;
+            item["rfSensorSlotId"] = widget.rfSensorSlotId;
+            item["rfShowHumidity"] = widget.rfShowHumidity;
+            item["rfShowLastSeen"] = widget.rfShowLastSeen;
+        } else if (widget.type == "custom") {
             item["title"] = widget.title;
             JsonArray elements = item["elements"].to<JsonArray>();
             for (uint8_t e = 0; e < widget.elements.size() && e < MaxCustomWidgetElements; ++e) {
@@ -160,10 +165,18 @@ String homeLayoutResponseJson(
         item["height"] = widget.height;
     }
 
+    doc["maxWidgets"] = MaxHomeLayoutWidgets;
+
     JsonArray supported = doc["supportedWidgets"].to<JsonArray>();
-    const char* ids[] = {"weather-card", "energy-card", "indoor-card"};
-    const char* types[] = {"weather", "energy", "indoor"};
-    for (uint8_t i = 0; i < 3; ++i) {
+    const char* ids[] = {
+        "weather-card", "fve-summary", "azrouter-summary",
+        "indoor-card", "pool-summary", "consumption-summary"
+    };
+    const char* types[] = {
+        "weather", "fve-summary", "azrouter-summary",
+        "indoor", "pool-summary", "consumption-summary"
+    };
+    for (uint8_t i = 0; i < 6; ++i) {
         JsonObject item = supported.add<JsonObject>();
         item["id"] = ids[i];
         item["type"] = types[i];
@@ -172,7 +185,10 @@ String homeLayoutResponseJson(
     }
 
     JsonArray defaultWidgets = doc["defaultWidgets"].to<JsonArray>();
-    const char* defaultIds[] = {"weather-card", "energy-card", "indoor-card"};
+    const char* defaultIds[] = {
+        "weather-card", "fve-summary", "azrouter-summary",
+        "indoor-card", "rf-card-1", "pool-summary", "consumption-summary"
+    };
     for (const char* id : defaultIds) {
         HomeLayoutWidgetConfig widget;
         if (!HomeLayout::buildDefaultWidget(dataModel, id, widget)) continue;
@@ -187,6 +203,28 @@ String homeLayoutResponseJson(
         item["showFrame"] = widget.showFrame;
         item["background"] = widget.background;
         item["inverseText"] = widget.inverseText;
+        if (widget.type == "rf-sensor") {
+            item["title"] = widget.title;
+            item["rfSensorSlotId"] = widget.rfSensorSlotId;
+            item["rfShowHumidity"] = widget.rfShowHumidity;
+            item["rfShowLastSeen"] = widget.rfShowLastSeen;
+        }
+    }
+
+    JsonObject rfWidget = doc["rfSensorWidget"].to<JsonObject>();
+    rfWidget["type"] = "rf-sensor";
+    rfWidget["idPrefix"] = "rf-card-";
+    rfWidget["minWidth"] = HomeLayout::minWidth("rf-sensor");
+    rfWidget["minHeight"] = HomeLayout::minHeight("rf-sensor");
+
+    JsonArray rfChoices = rfWidget["sensors"].to<JsonArray>();
+    for (uint8_t i = 0; i < rfSensors.sensorCount && i < MaxRfSensors; ++i) {
+        const RfSensorConfig& sensor = rfSensors.sensors[i];
+        if (sensor.slotId.isEmpty() || !sensor.hasTemperature) continue;
+        JsonObject choice = rfChoices.add<JsonObject>();
+        choice["slotId"] = sensor.slotId;
+        choice["name"] = sensor.name.isEmpty() ? sensor.slotId : sensor.name;
+        choice["hasHumidity"] = sensor.hasHumidity;
     }
 
     JsonObject appearance = doc["cardAppearance"].to<JsonObject>();
