@@ -672,7 +672,8 @@ void DashboardApp::setup() {
             _dataModel.azrouter.status.recordError("Disabled");
         }
 
-        setSolarScreenEnabled(goodwe.enabled || azrouter.enabled);
+        setSolarScreenEnabled(goodwe.enabled);
+        setAZRouterScreenEnabled(azrouter.enabled);
         _navigationController.syncToActiveScreen(false);
 
         _goodweFailureStreak = 0;
@@ -923,8 +924,11 @@ void DashboardApp::setup() {
 
 void DashboardApp::registerScreens() {
     _screenManager.registerScreen(&_homeScreen);
-    if (_configManager.get().goodwe.enabled || _configManager.get().azrouter.enabled) {
+    if (_configManager.get().goodwe.enabled) {
         _screenManager.registerScreen(&_solarScreen);
+    }
+    if (_configManager.get().azrouter.enabled) {
+        _screenManager.registerScreen(&_azrouterScreen);
     }
     if (_configManager.get().pool.enabled) {
         _screenManager.registerScreen(&_poolScreen);
@@ -951,6 +955,26 @@ void DashboardApp::setSolarScreenEnabled(bool enabled) {
     _screenManager.unregisterScreen("solar");
 
     if (solarWasActive) {
+        _screenManager.activateScreen("home");
+        _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
+        requestDisplayRefresh(true, 100);
+    }
+    _navigationController.syncToActiveScreen(false);
+}
+
+void DashboardApp::setAZRouterScreenEnabled(bool enabled) {
+    const bool azrouterWasActive = _screenManager.getActiveScreenId() == "azrouter";
+
+    if (enabled) {
+        const uint8_t position = _configManager.get().goodwe.enabled ? 2 : 1;
+        _screenManager.registerScreenAt(&_azrouterScreen, position);
+        _navigationController.syncToActiveScreen(false);
+        return;
+    }
+
+    _screenManager.unregisterScreen("azrouter");
+
+    if (azrouterWasActive) {
         _screenManager.activateScreen("home");
         _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
         requestDisplayRefresh(true, 100);
@@ -1623,6 +1647,7 @@ void DashboardApp::loop() {
                 requestAutomaticRegionRefresh(weatherRegion, true);
             }
         } else if (activeScreenId == "solar" ||
+                   activeScreenId == "azrouter" ||
                    isWeatherScreenId(activeScreenId)) {
             requestAutomaticRegionRefresh(pageRegion(), true);
         }
@@ -1856,10 +1881,10 @@ void DashboardApp::loop() {
 
         const String activeScreenId = _screenManager.getActiveScreenId();
 
-        // Source availability is visible only on Home/FVE. Do not turn a
-        // GoodWe/AZ online/offline transition into a whole-screen partial.
+        // Source availability is visible on Home and the corresponding
+        // GoodWe/AZRouter screens. Keep updates inside the page region.
         if (availabilityChanged) {
-            if (activeScreenId == "solar") {
+            if (activeScreenId == "solar" || activeScreenId == "azrouter") {
                 const DisplayRegion region = pageRegion();
                 requestAutomaticRegionRefresh(region, true);
             } else if (activeScreenId == "home") {
@@ -1880,7 +1905,9 @@ void DashboardApp::loop() {
         // its own small partial refresh above.
         const unsigned long telemetryNow = millis();
         const bool showsLiveTelemetry =
-            activeScreenId == "home" || activeScreenId == "solar";
+            activeScreenId == "home" ||
+            activeScreenId == "solar" ||
+            activeScreenId == "azrouter";
 
         if (liveTelemetryUpdated &&
             showsLiveTelemetry &&
@@ -1888,7 +1915,7 @@ void DashboardApp::loop() {
 
             _lastTelemetryDisplayRefresh = telemetryNow;
 
-            if (activeScreenId == "solar") {
+            if (activeScreenId == "solar" || activeScreenId == "azrouter") {
                 const DisplayRegion region = pageRegion();
                 requestAutomaticRegionRefresh(region, true);
             } else {
