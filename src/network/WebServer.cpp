@@ -135,7 +135,8 @@ String homeLayoutResponseJson(
         item["showFrame"] = widget.showFrame;
         item["background"] = widget.background;
         item["inverseText"] = widget.inverseText;
-        if (widget.type == "custom" || widget.type == "indoor") {
+        if (widget.type == "custom" || widget.type == "weather" ||
+            widget.type == "energy" || widget.type == "indoor") {
             item["title"] = widget.title;
             JsonArray elements = item["elements"].to<JsonArray>();
             for (uint8_t e = 0; e < widget.elements.size() && e < MaxCustomWidgetElements; ++e) {
