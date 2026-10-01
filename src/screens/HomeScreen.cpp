@@ -548,27 +548,6 @@ void drawConsumptionSummaryCard(IDisplay& display, const DataModel& dm, const La
     }
 }
 
-void drawSystemSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidget& widget) {
-    const int16_t x = widget.x;
-    const int16_t y = widget.y;
-    drawHomeCardBackground(display, widget, nullptr, "STAV SYSTÉMU");
-
-    ScreenStyle::useBody(display);
-    display.setCursor(x + 14, y + 64);
-    display.printf("Wi-Fi        %s", dm.system.wifiConnected ? "OK" : "OFF");
-
-    display.setCursor(x + 14, y + 91);
-    display.printf("GoodWe       %s",
-                   dm.solar.enabled ? (dm.solar.status.available ? "OK" : "OFF") : "--");
-
-    display.setCursor(x + 14, y + 118);
-    display.printf("AZRouter     %s",
-                   dm.azrouter.enabled ? (dm.azrouter.status.available ? "OK" : "OFF") : "--");
-
-    display.setCursor(x + 14, y + 145);
-    display.printf("Předpověď    %s",
-                   dm.weather.enabled ? (dm.weather.status.available ? "OK" : "OFF") : "--");
-}
 
 } // namespace
 
@@ -611,9 +590,6 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
                 break;
             case LayoutWidgetType::HomeConsumptionCard:
                 drawConsumptionSummaryCard(display, dm, widget);
-                break;
-            case LayoutWidgetType::HomeSystemCard:
-                drawSystemSummaryCard(display, dm, widget);
                 break;
             case LayoutWidgetType::HomeCustomCard:
                 if (widgetConfig != nullptr) CustomWidgetRenderer::draw(display, dm, *widgetConfig);
