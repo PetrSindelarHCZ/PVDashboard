@@ -143,6 +143,7 @@ inline const char* typeName(LayoutWidgetType type) {
         case LayoutWidgetType::HomeFveCard: return "fve-summary";
         case LayoutWidgetType::HomeAZRouterCard: return "azrouter-summary";
         case LayoutWidgetType::HomePoolCard: return "pool-summary";
+        case LayoutWidgetType::HomeConsumptionCard: return "consumption-summary";
         case LayoutWidgetType::HomeSystemCard: return "system-summary";
         case LayoutWidgetType::HomeCustomCard: return "custom";
     }
@@ -471,9 +472,8 @@ inline bool parseJson(const String& json, HomeLayoutConfig& config, String* erro
 inline void buildDefault(const DataModel& dm, ScreenLayout& layout) {
     layout.clear();
 
-    // Modern overview: three primary cards above and three compact cards below.
-    // Individual cards disappear when their source is disabled; remaining cards
-    // keep their canonical positions to preserve a stable e-paper composition.
+    // Seven-card overview matching the visual Home concept:
+    // 3 large source cards above, 4 compact operational cards below.
     if (dm.weather.enabled)
         layout.add("weather-card", LayoutWidgetType::HomeWeatherCard, 75, 63, 225, 215);
 
@@ -483,12 +483,15 @@ inline void buildDefault(const DataModel& dm, ScreenLayout& layout) {
     if (dm.azrouter.enabled)
         layout.add("azrouter-summary", LayoutWidgetType::HomeAZRouterCard, 555, 63, 230, 215);
 
-    layout.add("indoor-card", LayoutWidgetType::HomeIndoorCard, 75, 293, 225, 172);
+    layout.add("indoor-card", LayoutWidgetType::HomeIndoorCard, 75, 293, 155, 172);
 
     if (dm.pool.enabled)
-        layout.add("pool-summary", LayoutWidgetType::HomePoolCard, 315, 293, 225, 172);
+        layout.add("pool-summary", LayoutWidgetType::HomePoolCard, 240, 293, 155, 172);
 
-    layout.add("system-summary", LayoutWidgetType::HomeSystemCard, 555, 293, 230, 172);
+    if (dm.solar.enabled)
+        layout.add("consumption-summary", LayoutWidgetType::HomeConsumptionCard, 405, 293, 190, 172);
+
+    layout.add("system-summary", LayoutWidgetType::HomeSystemCard, 605, 293, 180, 172);
 }
 
 inline bool buildDefaultWidget(const DataModel&, const String& id,
