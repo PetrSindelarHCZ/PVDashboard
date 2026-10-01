@@ -402,14 +402,16 @@ void drawIndoorCard(IDisplay& display, const DataModel& dm, const LayoutWidget& 
 }
 
 
-void drawFveSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidget& widget) {
+void drawFveSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidget& widget,
+                        const HomeLayoutWidgetConfig* style) {
     const int16_t x = widget.x;
     const int16_t y = widget.y;
-    drawHomeCardBackground(display, widget, nullptr, "FVE / GOODWE");
+    const uint16_t color = cardTextColor(style);
+    drawHomeCardBackground(display, widget, style, "FVE / GOODWE");
 
-    drawCardIcon(display, x + 38, y + 78, SidebarIcons::Icon::Solar);
+    drawCardIcon(display, x + 38, y + 78, SidebarIcons::Icon::Solar, color);
 
-    ScreenStyle::useMetric(display);
+    ScreenStyle::useMetric(display, color);
     display.setCursor(x + 72, y + 91);
     if (dm.solar.status.available)
         display.printf("%.1f kW", dm.solar.productionPowerW / 1000.0f);
@@ -418,7 +420,7 @@ void drawFveSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidg
 
     drawMiniBars(display, x + 150, y + 58, 54, 38, dm.solar);
 
-    ScreenStyle::useBody(display);
+    ScreenStyle::useBody(display, color);
     display.setCursor(x + 18, y + 132);
     if (dm.solar.status.available)
         display.printf("Dnes %.1f kWh", dm.solar.energyTodayKWh);
@@ -440,14 +442,16 @@ void drawFveSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidg
         display.print("GoodWe offline");
 }
 
-void drawAZRouterSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidget& widget) {
+void drawAZRouterSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidget& widget,
+                             const HomeLayoutWidgetConfig* style) {
     const int16_t x = widget.x;
     const int16_t y = widget.y;
-    drawHomeCardBackground(display, widget, nullptr, "AZROUTER");
+    const uint16_t color = cardTextColor(style);
+    drawHomeCardBackground(display, widget, style, "AZROUTER");
 
-    drawCardIcon(display, x + 38, y + 78, SidebarIcons::Icon::AZRouter);
+    drawCardIcon(display, x + 38, y + 78, SidebarIcons::Icon::AZRouter, color);
 
-    ScreenStyle::useMetric(display);
+    ScreenStyle::useMetric(display, color);
     display.setCursor(x + 72, y + 91);
     if (dm.azrouter.status.available && dm.azrouter.hasRoutedPower)
         display.printf("%.0f W", dm.azrouter.routedPowerW);
@@ -456,7 +460,7 @@ void drawAZRouterSummaryCard(IDisplay& display, const DataModel& dm, const Layou
 
     drawPhaseBars(display, x + 176, y + 56, 38, dm.azrouter);
 
-    ScreenStyle::useBody(display);
+    ScreenStyle::useBody(display, color);
     display.setCursor(x + 18, y + 132);
     if (dm.azrouter.hasRoutedEnergyToday)
         display.printf("Dnes %.1f kWh", dm.azrouter.routedEnergyTodayKWh);
@@ -548,21 +552,23 @@ void drawRfSensorCard(IDisplay& display, const DataModel& dm, const LayoutWidget
     }
 }
 
-void drawPoolSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidget& widget) {
+void drawPoolSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidget& widget,
+                         const HomeLayoutWidgetConfig* style) {
     const int16_t x = widget.x;
     const int16_t y = widget.y;
-    drawHomeCardBackground(display, widget, nullptr, "BAZÉN");
+    const uint16_t color = cardTextColor(style);
+    drawHomeCardBackground(display, widget, style, "BAZÉN");
 
-    drawCardIcon(display, x + 34, y + 78, SidebarIcons::Icon::Pool);
+    drawCardIcon(display, x + 34, y + 78, SidebarIcons::Icon::Pool, color);
 
-    ScreenStyle::useMetric(display);
+    ScreenStyle::useMetric(display, color);
     display.setCursor(x + 62, y + 91);
     if (dm.pool.status.available)
         display.printf("%.1f °C", dm.pool.waterTempC);
     else
         display.printf("%.1f °C", dm.inside.poolTempC);
 
-    ScreenStyle::useBody(display);
+    ScreenStyle::useBody(display, color);
     display.setCursor(x + 15, y + 132);
     if (dm.pool.status.available)
         display.printf("Cíl %.1f °C", dm.pool.targetTempC);
@@ -576,15 +582,17 @@ void drawPoolSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWid
         display.print("Řízení bez dat");
 }
 
-void drawConsumptionSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidget& widget) {
+void drawConsumptionSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidget& widget,
+                                const HomeLayoutWidgetConfig* style) {
     const int16_t x = widget.x;
     const int16_t y = widget.y;
     const int16_t w = widget.width;
-    drawHomeCardBackground(display, widget, nullptr, "SPOTŘEBA DOMU");
+    const uint16_t color = cardTextColor(style);
+    drawHomeCardBackground(display, widget, style, "SPOTŘEBA DOMU");
 
-    drawCardIcon(display, x + 34, y + 77, SidebarIcons::Icon::Home);
+    drawCardIcon(display, x + 34, y + 77, SidebarIcons::Icon::Home, color);
 
-    ScreenStyle::useMetric(display);
+    ScreenStyle::useMetric(display, color);
     display.setCursor(x + 62, y + 90);
     if (dm.solar.status.available)
         display.printf("%.1f kW", dm.solar.houseConsumptionW / 1000.0f);
@@ -614,7 +622,7 @@ void drawConsumptionSummaryCard(IDisplay& display, const DataModel& dm, const La
             display.drawLine(bx, graphY + graphH, bx, graphY + graphH - bh, 0);
         }
     } else {
-        ScreenStyle::useBody(display);
+        ScreenStyle::useBody(display, color);
         display.setCursor(x + 15, y + 140);
         display.print("Historie se sbírá");
     }
@@ -652,16 +660,16 @@ void HomeScreen::render(IDisplay& display, const DataModel& dm) {
                 drawIndoorCard(display, dm, widget, widgetConfig);
                 break;
             case LayoutWidgetType::HomeFveCard:
-                drawFveSummaryCard(display, dm, widget);
+                drawFveSummaryCard(display, dm, widget, widgetConfig);
                 break;
             case LayoutWidgetType::HomeAZRouterCard:
-                drawAZRouterSummaryCard(display, dm, widget);
+                drawAZRouterSummaryCard(display, dm, widget, widgetConfig);
                 break;
             case LayoutWidgetType::HomePoolCard:
-                drawPoolSummaryCard(display, dm, widget);
+                drawPoolSummaryCard(display, dm, widget, widgetConfig);
                 break;
             case LayoutWidgetType::HomeConsumptionCard:
-                drawConsumptionSummaryCard(display, dm, widget);
+                drawConsumptionSummaryCard(display, dm, widget, widgetConfig);
                 break;
             case LayoutWidgetType::HomeRfSensorCard:
                 drawRfSensorCard(display, dm, widget, widgetConfig);
