@@ -10,8 +10,8 @@ Aktuální firmware: **1.26.274.1**.
 
 ## Aktuální funkce
 
-- obrazovky **home**, **solar**, **pool**, **weather** a **diagnostics**; FVE, bazén
-  a počasí se za běhu registrují jen tehdy, když jsou příslušné moduly aktivní,
+- obrazovky **home**, **solar**, **azrouter**, **pool**, **weather** a **diagnostics**; FVE,
+  AZRouter, bazén a počasí se za běhu registrují jen tehdy, když jsou příslušné moduly aktivní,
 - GoodWe GW10K-ET přes Modbus RTU zapouzdřený v UDP na portu 8899,
 - AZRouter přes HTTP endpointy **/api/v1/power**, **/api/v1/status** a **/api/v1/devices**,
 - BME280 na společné I²C sběrnici GPIO21/GPIO22,
