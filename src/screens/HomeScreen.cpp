@@ -481,10 +481,11 @@ void drawAZRouterSummaryCard(IDisplay& display, const DataModel& dm, const Layou
 }
 
 const RfSensorData* rfSensorForWidget(const DataModel& dm, const HomeLayoutWidgetConfig* style) {
-    if (style != nullptr && !style->rfSensorSlotId.isEmpty()) {
+    if (style != nullptr && style->rfSensorSlot > 0) {
+        const String slotId = HomeLayout::rfSlotId(style->rfSensorSlot);
         for (uint8_t i = 0; i < dm.rfSensors.sensorCount && i < MaxRfSensors; ++i) {
             const RfSensorData& sensor = dm.rfSensors.sensors[i];
-            if (sensor.slotId == style->rfSensorSlotId) return &sensor;
+            if (sensor.slotId == slotId) return &sensor;
         }
         return nullptr;
     }
