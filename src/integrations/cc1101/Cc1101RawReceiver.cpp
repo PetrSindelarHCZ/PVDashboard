@@ -1724,7 +1724,7 @@ bool tryPrintGeevonTx19(const int32_t* data, uint16_t count) {
     constexpr uint32_t DataPulseMaxUs = 620;
     constexpr uint32_t BitSplitUs = 375;
     constexpr uint32_t FragmentWindowMs = 450;
-    constexpr uint16_t MaximumBits = 256;
+    constexpr uint16_t MaximumBits = 192;
     constexpr uint8_t MinimumCandidateHighs = 10;
     constexpr uint8_t MinimumCandidatePercent = 60;
 
@@ -1859,25 +1859,31 @@ bool tryPrintGeevonTx19(const int32_t* data, uint16_t count) {
         }
 
         if (bitCount >= MaximumBits) {
-            // Keep the newest 128 bits. Move them through the packed accessor
-            // so no byte-per-bit scratch buffer is needed.
-            constexpr uint16_t KeepBits = 128;
-            uint8_t compacted[KeepBits / 8] = {};
-            const uint16_t firstKept = bitCount - KeepBits;
+            // 72 bits are enough for one payload; retaining 96 newest bits
+            // leaves margin for framing while keeping DRAM use minimal.
+            constexpr uint16_t KeepBits = 96;
+            constexpr uint16_t DropBits = MaximumBits - KeepBits;
+
             for (uint16_t j = 0; j < KeepBits; ++j) {
                 const uint16_t sourceIndex =
-                    static_cast<uint16_t>(firstKept + j);
+                    static_cast<uint16_t>(DropBits + j);
                 const uint8_t value = static_cast<uint8_t>(
                     (bits[sourceIndex >> 3] >>
                      (7 - (sourceIndex & 7))) & 1U);
+
+                const uint8_t mask =
+                    static_cast<uint8_t>(1U << (7 - (j & 7)));
                 if (value) {
-                    compacted[j >> 3] |=
-                        static_cast<uint8_t>(1U << (7 - (j & 7)));
+                    bits[j >> 3] |= mask;
+                } else {
+                    bits[j >> 3] &= static_cast<uint8_t>(~mask);
                 }
             }
-            memcpy(bits, compacted, sizeof(compacted));
-            memset(bits + sizeof(compacted), 0,
-                   sizeof(bits) - sizeof(compacted));
+
+            for (uint16_t j = KeepBits; j < MaximumBits; ++j) {
+                bits[j >> 3] &=
+                    static_cast<uint8_t>(~(1U << (7 - (j & 7))));
+            }
             bitCount = KeepBits;
         }
 
