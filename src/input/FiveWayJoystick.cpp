@@ -113,7 +113,7 @@ bool FiveWayJoystick::poll(NavigationAction& action) {
 
     // Only vertical navigation repeats while held. Horizontal actions are
     // intentionally one-shot: LEFT/RIGHT switch pager pages on screens such
-    // as FVE, and an e-paper refresh is long enough that a held/released key
+    // as Weather, and an e-paper refresh is long enough that a held/released key
     // can otherwise advance across multiple pages before the UI settles.
     if (!eventReady) {
         for (auto& button : _buttons) {
