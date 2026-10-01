@@ -105,19 +105,19 @@ inline void drawRouterStatus(IDisplay& d, int16_t x, int16_t y, bool available) 
     d.drawRoundRect(x + 3, y + 4, 26, 24, 2, 1);
 
     // A
+    d.drawLine(x + 6,  y + 23, x + 10, y + 9, 1);
+    d.drawLine(x + 10, y + 9,  x + 14, y + 23, 1);
+    d.drawLine(x + 8,  y + 17, x + 12, y + 17, 1);
     d.drawLine(x + 7,  y + 23, x + 11, y + 9, 1);
     d.drawLine(x + 11, y + 9,  x + 15, y + 23, 1);
-    d.drawLine(x + 9,  y + 17, x + 13, y + 17, 1);
-    d.drawLine(x + 8,  y + 23, x + 12, y + 9, 1);
-    d.drawLine(x + 12, y + 9,  x + 16, y + 23, 1);
 
     // Z
-    d.drawLine(x + 17, y + 10, x + 26, y + 10, 1);
-    d.drawLine(x + 17, y + 11, x + 26, y + 11, 1);
-    d.drawLine(x + 26, y + 10, x + 17, y + 22, 1);
-    d.drawLine(x + 26, y + 11, x + 17, y + 23, 1);
-    d.drawLine(x + 17, y + 22, x + 26, y + 22, 1);
-    d.drawLine(x + 17, y + 23, x + 26, y + 23, 1);
+    d.drawLine(x + 16, y + 10, x + 25, y + 10, 1);
+    d.drawLine(x + 16, y + 11, x + 25, y + 11, 1);
+    d.drawLine(x + 25, y + 10, x + 16, y + 22, 1);
+    d.drawLine(x + 25, y + 11, x + 16, y + 23, 1);
+    d.drawLine(x + 16, y + 22, x + 25, y + 22, 1);
+    d.drawLine(x + 16, y + 23, x + 25, y + 23, 1);
 
     if (!available) drawDisconnected(d, x, y);
 }
