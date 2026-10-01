@@ -24,6 +24,20 @@ inline bool validIdentifier(const String& id) {
 }
 
 inline bool knownDataSource(const String& source) {
+    if (source.startsWith("rf.")) {
+        const int metricSeparator = source.indexOf('.', 3);
+        if (metricSeparator <= 3 || metricSeparator >= static_cast<int>(source.length()) - 1) {
+            return false;
+        }
+
+        const String slotId = source.substring(3, metricSeparator);
+        const String metric = source.substring(metricSeparator + 1);
+        if (!validIdentifier(slotId)) return false;
+
+        return metric == "temperatureC" ||
+               metric == "humidityPercent";
+    }
+
     static const char* sources[] = {
         "solar.productionPowerW",
         "solar.houseConsumptionW",
