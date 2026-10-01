@@ -18,8 +18,10 @@ Host-side testy:
 & "$env:USERPROFILE\.platformio\penv\Scripts\platformio.exe" test -e native
 ~~~
 
-Aktuálně je host-side pokrytí omezené. Roadmapa počítá s testy parseru GoodWe,
-AZRouter JSON variant, konfigurace a porovnávání verzí.
+Aktuálně je host-side pokrytí stále omezené; v `tests/native` je dnes pouze
+test logiky Wi-Fi signal levelu. Roadmapa proto správně počítá s rozšířením
+o parser GoodWe, AZRouter JSON varianty, konfiguraci, layout validaci,
+RF binding/rebind logiku a porovnávání verzí.
 
 ## Release kontrola
 
@@ -69,8 +71,11 @@ Krátké testy mají ověřit:
 
 - WebUI odpovídá během partial i full refreshu,
 - více rychlých požadavků se sloučí a full požadavek nezanikne,
-- změna obrazovky provede čisticí full refresh,
+- start a explicitní full-refresh provedou čisticí full refresh,
+- přepnutí obrazovky fyzickou navigací může použít full-window differential
+  partial refresh,
 - běžná aktualizace stejné obrazovky používá partial refresh,
+- změna focusu a vybrané Home datové změny používají regionální dirty refresh,
 - preview odpovídá poslednímu vyrenderovanému snímku,
 - Weather TLS a render se díky memory-heavy gate nepřekrývají.
 
@@ -112,3 +117,61 @@ Ověřit oba směry aktualizace:
 
 Před experimenty s OTA ponechat dostupný poslední známý funkční firmware pro
 obnovu přes USB.
+
+
+## BME280 a MAX17048
+
+Před release ověřit:
+
+- BME280 na 0x76/0x77 a správné hodnoty teploty/vlhkosti/tlaku,
+- odpojení a opětovné připojení BME280 bez nutnosti restartu zařízení,
+- MAX17048 na 0x36,
+- napětí, SoC a CRATE v rozumném rozsahu,
+- chování po odpojení MAX17048 a následné nové inicializaci,
+- že lokální I²C polling neblokuje WeatherWorker ani e-paper worker,
+- že bateriové hodnoty aktualizují pouze příslušný Home region.
+
+## 433 MHz / RF senzory
+
+Pro správu RF čidel ověřit:
+
+- scan 30–180 s,
+- nalezení podporovaného čidla,
+- přidání čidla a stabilní `slotId`,
+- přejmenování,
+- odstranění,
+- rebind po změně rádiového ID,
+- obnovu teploty/vlhkosti/battery dat,
+- přechod do nedostupného stavu po 5 minutách bez paketu,
+- použití RF hodnot ve vlastním Home widgetu,
+- export/import RF konfigurace přes YAML v7.
+
+Při RF testu současně sledovat, zda e-paper aktivita nevytváří nežádoucí
+výpadky capture nebo falešné vícenásobné vstupy.
+
+## Layout editor
+
+Ověřit minimálně:
+
+- defaultní automatický Home layout,
+- uložení vlastního layoutu a přežití restartu,
+- reset celé Home obrazovky na výchozí stav,
+- reset jednotlivého předdefinovaného panelu,
+- drag/resize s mřížkou i bez ní,
+- validaci minimálních rozměrů a hranic,
+- max. 6 Home widgetů a 8 elementů v custom widgetu,
+- překryvy uvnitř custom widgetu a správný Z-order,
+- numerický `fontSize` 7–64 px,
+- battery a RF datové zdroje,
+- YAML export/import layoutu.
+
+## AZRouter autentizace
+
+Ověřit oba režimy:
+
+- `authEnabled=false`: pole user/password nejsou použita a anonymní API funguje,
+- `authEnabled=true`: login, token/cookie a re-login po 401/403.
+
+Pozor: aktuální YAML v7 neexportuje `authEnabled` ani credentials. Import zálohy
+proto AZRouter autentizaci nezapne; tento stav je potřeba při testu explicitně
+ověřit a je veden jako známé omezení.
