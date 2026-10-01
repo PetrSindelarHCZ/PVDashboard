@@ -23,16 +23,19 @@ Zbývá fyzická vrstva:
 - [x] zvolit GPIO pro pětisměrný joystick,
 - [x] napojit pětisměrný joystick do NavigationControlleru,
 - [x] implementovat debounce,
-- [ ] ověřit pinout a chování na fyzickém zařízení,
+- [x] ověřit pinout a chování na fyzickém zařízení,
 - [x] implementovat auto-repeat směrových tlačítek,
 - [ ] podle potřeby doplnit samostatné long-press akce,
 - [ ] definovat akce OK nad konkrétními prvky,
 - [ ] podle potřeby doplnit ruční override navigace pro atypický layout.
 
-Aktuální joystick pinout je UP GPIO16, DOWN GPIO17, LEFT GPIO18, RIGHT GPIO32
-a OK GPIO33. Všechny vstupy používají interní pull-up a tlačítka spínají proti
-GND. SET a RESET zatím nejsou součástí firmware. Pro I²C čidla zůstává pár
-SDA GPIO21 / SCL GPIO22.
+Aktuální ověřený joystick pinout je UP GPIO17, DOWN GPIO18, LEFT GPIO33,
+RIGHT GPIO16 a OK GPIO32. Všechny vstupy používají interní pull-up a tlačítka
+spínají proti GND. Auto-repeat se používá pouze pro UP/DOWN.
+
+SET je GPIO35 a RESET GPIO34. Oba vstupy mají externí 10k pull-up na 3,3 V,
+protože GPIO34/35 nemají interní pull-up. Firmware obsluhuje krátké SET/RESET
+a dlouhý SET po 2,5 s. Pro I²C čidla zůstává pár SDA GPIO21 / SCL GPIO22.
 
 ## B2 — napájení a stav baterie
 
@@ -57,7 +60,7 @@ neurčuje spolehlivě, zda se akumulátor právě nabíjí.
 
 - [x] implementovat BME280 přes I²C (SDA GPIO21 / SCL GPIO22, adresy 0x76/0x77),
 - [x] napojit teplotu, vlhkost a tlak do DataModelu,
-- [ ] fyzicky připojit 4pinový modul a ověřit měření na cílové desce.
+- [x] fyzicky připojit 4pinový modul a ověřit měření na cílové desce.
 
 
 ### Bazén
@@ -83,9 +86,9 @@ Cílem je datový layout, nikoli obecný HTML/CSS framework v ESP32.
 
 ## E — vzdálená čidla
 
-Pro delší dosah a levná venkovní čidla je plánovaný samostatný gateway.
-Průzkum protokolů nyní probíhá přímo na hlavním dashboardu jako vývojový
-sniffer na větvi `feature/cc1101-diagnostics`; podrobný stav je v
+Pro delší dosah a levná venkovní čidla zůstává možná samostatná gateway.
+Současné CC1101 dekódování, scan/párování a `RfSensorManager` jsou již
+integrované v produkčním `masteru`. Podrobný výzkum protokolů je v
 [RF_433_RESEARCH.md](RF_433_RESEARCH.md).
 
 - [x] ověřit CC1101 hardware, SPI komunikaci a raw ASK/OOK capture na 433,92 MHz,
@@ -99,7 +102,10 @@ sniffer na větvi `feature/cc1101-diagnostics`; podrobný stav je v
 - [ ] rozhodnout Ethernet/PoE vs Wi-Fi podle umístění,
 - [ ] přesunout finální RF dekódování do samostatné gateway, pokud se potvrdí
       jako vhodnější architektura,
-- [ ] integrovat první venkovní teplotní čidlo do produkčního DataModelu.
+- [x] integrovat podporovaná uložená RF čidla do produkčního DataModelu,
+- [x] doplnit scan, párování, uživatelské jméno a stabilní slot ID,
+- [x] zahrnout RF čidla do YAML backupu a Home datových vazeb,
+- [ ] doplnit metodiku/re-assign při změně rádiového ID tam, kde se ID po resetu mění.
 
 Hlavní dashboard nemá být dlouhodobě zatěžovaný průběžným dekódováním různých
 rádiových protokolů. Současné přímé připojení CC1101 slouží hlavně k jejich
@@ -150,7 +156,8 @@ má soustředit na stav lokálního protokolu, pořadí požadavků, socket/klie
 
 - [ ] ČHMÚ provider, pouze pokud půjde bezpečně omezit objem regionálních dat,
 - [ ] Home Assistant jako volitelná integrační vrstva, nikoli závislost,
-- [ ] lokální refresh menších částí panelu, pokud jej odůvodní dlouhodobý test,
+- [x] lokální refresh vybraných regionů pro navigaci a automatické Home aktualizace,
+- [ ] podle dlouhodobého testu případně rozšířit regionální refresh na další obrazovky,
 - [ ] migrace na ESP32-S3 s PSRAM až pokud současný ESP32-WROOM-32 narazí na
       skutečný paměťový nebo funkční limit.
 
