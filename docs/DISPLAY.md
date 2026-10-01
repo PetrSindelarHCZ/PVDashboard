@@ -23,9 +23,10 @@ full refresh proto probíhá dvoufázově:
 1. celý panel se plným waveformem vyčistí do bíla,
 2. výsledná obrazovka se vykreslí diferenciálním waveformem.
 
-Full refresh se používá při startu, změně obrazovky a ručním požadavku.
-Běžné aktualizace stejné obrazovky používají diferenciální partial refresh celé
-plochy 800 × 480. **Počet partial refreshů sám o sobě full refresh nevyvolává.**
+Čisticí full refresh se používá při startu a explicitním ručním požadavku.
+Běžné aktualizace používají diferenciální partial refresh. Přepnutí obrazovky
+fyzickou navigací může použít celoplošný differential partial refresh bez
+čisticího full waveformu. **Počet partial refreshů sám o sobě full refresh nevyvolává.**
 
 Více požadavků vzniklých krátce po sobě se slučuje a full požadavek má přednost.
 
@@ -34,6 +35,10 @@ předává dirty region starého/nového kurzoru a Sidebar používá pouze lev�
 Přepnutí obrazovky z joysticku používá celoplošný differential partial refresh;
 čistící full refresh zůstává pro start a explicitní požadavky. Mezikroky fyzické
 navigace navíc nepřegenerovávají celý serverový preview snapshot.
+
+Automatické změny na Home navíc používají dirty region podle datové skupiny:
+Weather, Energy, Indoor, Battery nebo RF. U předdefinovaných karet se obnovuje
+především vnitřní datová oblast; vlastní widget může obnovit celý svůj obdélník.
 
 Dlouhodobý 24hodinový test ghostingu této politiky zůstává otevřený.
 
@@ -88,7 +93,8 @@ To je nutné pro správné bílé české znaky na černém záhlaví.
 
 - alespoň 24hodinový test minutových aktualizací a ghostingu,
 - rozhodnutí o nepoužívaném fullRefreshIntervalMinutes,
-- lokální refresh pouze hodin nebo jednotlivých hodnot zatím není implementovaný.
+- regionální refresh je implementovaný pro navigaci a vybrané Home datové skupiny;
+  případné další rozšíření má vycházet z dlouhodobého testu.
 
 Před změnou waveformu nebo driveru nejprve zopakovat dlouhodobý test, přepínání
 všech obrazovek, studený start a zaznamenat okolní teplotu při problému.
