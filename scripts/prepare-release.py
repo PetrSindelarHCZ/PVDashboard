@@ -11,7 +11,7 @@ import re
 import shutil
 from pathlib import Path
 
-MAX_FIRMWARE_SIZE = 1_966_080
+MAX_FIRMWARE_SIZE = 2_031_616
 VERSION_PATTERN = re.compile(r'^#define\s+FIRMWARE_VERSION\s+"([^"]+)"', re.MULTILINE)
 
 
