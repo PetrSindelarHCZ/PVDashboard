@@ -437,7 +437,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     const byId = id => draft.find(w => w.id === id);
     const supportedById = id => (apiState?.supportedWidgets || []).find(w => w.id === id);
     const defaultWidgetById = id => (apiState?.defaultWidgets || []).find(w => w.id === id);
-    const isElementWidget = widget => ['custom','rf-sensor','indoor','pool-summary'].includes(widget?.type);
+    const isElementWidget = widget =>
+        ['custom','weather','energy','rf-sensor','indoor','pool-summary'].includes(widget?.type);
 
     function ensureWidgetStyle(widget) {
         if (!widget) return widget;
@@ -598,63 +599,87 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         editorMessage('Panel ' + widgetLabel(replacement) + ' byl vrácen na výchozí geometrii a vzhled. Změnu potvrď Uložit.', 'ok');
     }
 
-    function seedIndoorDefaultElements(widget) {
-        if (!widget || widget.type !== 'indoor' || (widget.elements || []).length) return;
-
-        const wide = Number(widget.width || 0) >= 500;
-        const leftX = wide ? 20 : 15;
-        const rightX = wide ? Math.floor(Number(widget.width || 0) / 2) + 10 : leftX;
-
-        const element = (id, type, source, label, text, x, y, width, height, showLabel = true) => ({
+    function makeSeedElement(id, type, source, label, text, x, y, width, height, showLabel = true) {
+        const info = sourceInfo(source);
+        return {
             id,
             type,
             source: source || '',
             label: label || '',
-            unit: sourceInfo(source).unit || '',
+            unit: info.unit || '',
             text: text || '',
             x,
             y,
             width,
             height,
-            decimals: Number(sourceInfo(source).decimals ?? 1),
+            decimals: Number(info.decimals ?? 1),
             min: 0,
             max: 100,
             fontSize: 'auto',
             align: 'left',
             showLabel,
             graphStyle: 'line'
-        });
+        };
+    }
 
-        const leftWidth = wide
-            ? Math.max(140, Math.floor(Number(widget.width || 0) / 2) - 40)
-            : Math.max(140, Number(widget.width || 0) - 30);
-        const rightWidth = wide
-            ? Math.max(140, Number(widget.width || 0) - rightX - 15)
-            : leftWidth;
+    function seedPredefinedDefaultElements(widget) {
+        if (!widget || widget.type === 'custom' || (widget.elements || []).length) return;
 
-        widget.elements = [
-            element('indoor-living-label', 'text', '', '', 'Obývák',
-                leftX, 45, leftWidth, 30, false),
-            element('indoor-living-temp', 'kpi', 'inside.temperatureC', '', '',
-                leftX, 70, leftWidth, 45, false),
-            element('indoor-living-humidity', 'kpi', 'inside.humidityPercent', 'Vlhkost', '',
-                leftX, 115, leftWidth, 55, true),
-            element('indoor-living-pressure', 'kpi', 'inside.pressureHpa', 'Tlak', '',
-                leftX, 165, leftWidth, 55, true),
-            element('indoor-bedroom-label', 'text', '', '', 'Ložnice',
-                rightX, wide ? 45 : 205, rightWidth, 30, false),
-            element('indoor-bedroom-temp', 'kpi', 'inside.bedroomTempC', '', '',
-                rightX, wide ? 70 : 230, rightWidth, 45, false),
-            element('indoor-pool-label', 'text', '', '', 'Bazén',
-                rightX, wide ? 165 : 285, rightWidth, 30, false),
-            element('indoor-pool-temp', 'kpi', 'inside.poolTempC', '', '',
-                rightX, wide ? 190 : 310, rightWidth, 45, false)
-        ].filter(item =>
+        const w = Number(widget.width || 0);
+        const h = Number(widget.height || 0);
+        const fit = item =>
             item.x >= 8 &&
             item.y >= 40 &&
-            item.x + item.width <= Number(widget.width || 0) - 8 &&
-            item.y + item.height <= Number(widget.height || 0) - 8
-        );
+            item.x + item.width <= w - 8 &&
+            item.y + item.height <= h - 8;
+
+        if (widget.type === 'indoor') {
+            const wide = w >= 500;
+            const leftX = wide ? 20 : 15;
+            const rightX = wide ? Math.floor(w / 2) + 10 : leftX;
+            const leftWidth = wide ? Math.max(140, Math.floor(w / 2) - 40) : Math.max(140, w - 30);
+            const rightWidth = wide ? Math.max(140, w - rightX - 15) : leftWidth;
+
+            widget.elements = [
+                makeSeedElement('indoor-living-label', 'text', '', '', 'Obývák', leftX, 45, leftWidth, 30, false),
+                makeSeedElement('indoor-living-temp', 'kpi', 'inside.temperatureC', '', '', leftX, 70, leftWidth, 45, false),
+                makeSeedElement('indoor-living-humidity', 'kpi', 'inside.humidityPercent', 'Vlhkost', '', leftX, 115, leftWidth, 55, true),
+                makeSeedElement('indoor-living-pressure', 'kpi', 'inside.pressureHpa', 'Tlak', '', leftX, 165, leftWidth, 55, true),
+                makeSeedElement('indoor-bedroom-label', 'text', '', '', 'Ložnice', rightX, wide ? 45 : 205, rightWidth, 30, false),
+                makeSeedElement('indoor-bedroom-temp', 'kpi', 'inside.bedroomTempC', '', '', rightX, wide ? 70 : 230, rightWidth, 45, false),
+                makeSeedElement('indoor-pool-label', 'text', '', '', 'Bazén', rightX, wide ? 165 : 285, rightWidth, 30, false),
+                makeSeedElement('indoor-pool-temp', 'kpi', 'inside.poolTempC', '', '', rightX, wide ? 190 : 310, rightWidth, 45, false)
+            ].filter(fit);
+            return;
+        }
+
+        if (widget.type === 'energy') {
+            const wide = w >= 400;
+            const leftX = wide ? 20 : 15;
+            const rightX = wide ? Math.floor(w / 2) + 10 : leftX;
+            const leftWidth = wide ? Math.max(140, Math.floor(w / 2) - 35) : Math.max(140, w - 30);
+            const rightWidth = wide ? Math.max(140, w - rightX - 15) : leftWidth;
+
+            widget.elements = [
+                makeSeedElement('energy-production', 'kpi', 'solar.productionPowerW', 'Výroba FVE', '', leftX, 45, leftWidth, 60, true),
+                makeSeedElement('energy-house', 'kpi', 'solar.houseConsumptionW', 'Spotřeba domu', '', leftX, wide ? 155 : 115, leftWidth, 60, true),
+                makeSeedElement('energy-grid', 'kpi', 'solar.gridPowerW', 'Distribuce', '', rightX, wide ? 45 : 185, rightWidth, 60, true),
+                makeSeedElement('energy-battery-soc', 'kpi', 'solar.batterySocPercent', 'Baterie', '', rightX, wide ? 155 : 255, rightWidth, 60, true),
+                makeSeedElement('energy-battery-power', 'kpi', 'solar.batteryPowerW', 'Výkon baterie', '', rightX, wide ? 215 : 315, rightWidth, 55, true)
+            ].filter(fit);
+            return;
+        }
+
+        if (widget.type === 'weather') {
+            const x = 15;
+            const width = Math.max(140, w - 30);
+            widget.elements = [
+                makeSeedElement('weather-temp', 'kpi', 'weather.outdoorTempC', '', '', x, 55, width, 60, false),
+                makeSeedElement('weather-humidity', 'kpi', 'weather.outdoorHumidityPercent', 'Vlhkost', '', x, 105, width, 55, true),
+                makeSeedElement('weather-pressure', 'kpi', 'weather.surfacePressureHpa', 'Tlak', '', x, 160, width, 55, true),
+                makeSeedElement('weather-wind', 'kpi', 'weather.windSpeedKmh', 'Vítr', '', x, 215, width, 55, true)
+            ].filter(fit);
+        }
     }
 
     function editPredefinedWidget(id) {
@@ -668,14 +693,21 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             widget = ensureWidgetStyle({...clone(template), visible: true});
             draft.push(widget);
         }
-        if (widget.type === 'indoor' && !(widget.elements || []).length) {
-            seedIndoorDefaultElements(widget);
+        if (widget.type !== 'custom' && !(widget.elements || []).length) {
+            seedPredefinedDefaultElements(widget);
         }
 
         selectedId = id;
-        selectedElementId = '';
+        selectedElementId = isElementWidget(widget)
+            ? (widget.elements?.[0]?.id || '')
+            : '';
         renderDraft();
-        document.getElementById('cardStylePanel')?.scrollIntoView({behavior:'smooth', block:'nearest'});
+
+        const targetPanel = isElementWidget(widget)
+            ? document.getElementById('customEditorPanel')
+            : document.getElementById('cardStylePanel');
+
+        targetPanel?.scrollIntoView({behavior:'smooth', block:'nearest'});
     }
 
     function renderCardStyleEditor() {
@@ -1863,7 +1895,19 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         }
 
         const titleInput = document.getElementById('customWidgetTitleInput');
-        if (titleInput && document.activeElement !== titleInput) titleInput.value = widget.title || '';
+        if (titleInput) {
+            titleInput.disabled = widget.type !== 'custom';
+            if (document.activeElement !== titleInput) {
+                const fixedTitles = {
+                    weather: 'VENKU',
+                    energy: 'ENERGIE',
+                    indoor: 'UVNITŘ'
+                };
+                titleInput.value = widget.type === 'custom'
+                    ? (widget.title || '')
+                    : (fixedTitles[widget.type] || widgetLabel(widget));
+            }
+        }
         const dimensions = document.getElementById('customWidgetDimensions');
         if (dimensions) dimensions.textContent = widget.width + ' × ' + widget.height + ' px';
 
