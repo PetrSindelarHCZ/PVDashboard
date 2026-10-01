@@ -321,11 +321,14 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
             return fail("Home widget is outside the content area");
         }
 
-        if (widget.type == "custom" ||
-            (widget.type == "indoor" && !widget.elements.empty())) {
+        const bool predefinedWithCustomContent =
+            (widget.type == "weather" || widget.type == "energy" || widget.type == "indoor") &&
+            !widget.elements.empty();
+
+        if (widget.type == "custom" || predefinedWithCustomContent) {
             String customError;
             if (!validateCustomWidget(widget, &customError)) return fail(customError);
-        } else if (widget.type != "indoor" &&
+        } else if (!(widget.type == "weather" || widget.type == "energy" || widget.type == "indoor") &&
                    (!widget.elements.empty() || !widget.title.isEmpty())) {
             return fail("Predefined widget cannot contain custom elements");
         }
@@ -386,7 +389,8 @@ inline String serializeJson(const HomeLayoutConfig& config) {
         item["background"] = widget.background;
         item["inverseText"] = widget.inverseText;
 
-        if (widget.type == "custom" || widget.type == "indoor") {
+        if (widget.type == "custom" || widget.type == "weather" ||
+            widget.type == "energy" || widget.type == "indoor") {
             item["title"] = widget.title;
             JsonArray elements = item["elements"].to<JsonArray>();
             for (uint8_t e = 0; e < widget.elements.size() && e < MaxCustomWidgetElements; ++e) {
@@ -460,7 +464,8 @@ inline bool parseJson(const String& json, HomeLayoutConfig& config, String* erro
         widget.background = String(item["background"] | "white");
         widget.inverseText = item["inverseText"] | false;
 
-        if (widget.type == "custom" || widget.type == "indoor") {
+        if (widget.type == "custom" || widget.type == "weather" ||
+            widget.type == "energy" || widget.type == "indoor") {
             widget.title = String(item["title"] | "");
             JsonArray elements = item["elements"].as<JsonArray>();
             if (!elements.isNull()) {
