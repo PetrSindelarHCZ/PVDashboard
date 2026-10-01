@@ -878,6 +878,55 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         return (apiState?.customWidget?.dataSources || []).find(item => item.id === source) || {};
     }
 
+    function sourceGroupLabel(source) {
+        const id = String(source?.id || '');
+        if (id.startsWith('rf.')) return 'Známá RF čidla';
+        if (id.startsWith('solar.')) return 'FVE / GoodWe';
+        if (id.startsWith('azrouter.')) return 'AZRouter';
+        if (id.startsWith('weather.')) return 'Počasí';
+        if (id.startsWith('inside.')) return 'Vnitřní senzory';
+        if (id.startsWith('battery.')) return 'Baterie zařízení';
+        if (id.startsWith('pool.')) return 'Bazén';
+        if (id.startsWith('system.')) return 'Systém';
+        return 'Ostatní';
+    }
+
+    function sourceOptionsHtml(sources, selectedId = '') {
+        const groups = new Map();
+        (sources || []).forEach(source => {
+            const group = sourceGroupLabel(source);
+            if (!groups.has(group)) groups.set(group, []);
+            groups.get(group).push(source);
+        });
+
+        const preferredOrder = [
+            'Známá RF čidla',
+            'FVE / GoodWe',
+            'AZRouter',
+            'Počasí',
+            'Vnitřní senzory',
+            'Baterie zařízení',
+            'Bazén',
+            'Systém',
+            'Ostatní'
+        ];
+
+        return preferredOrder
+            .filter(group => groups.has(group))
+            .map(group => `<optgroup label="${escapeHtml(group)}">` +
+                groups.get(group).map(source =>
+                    `<option value="${escapeHtml(source.id)}" ${source.id === selectedId ? 'selected' : ''}>${escapeHtml(source.label)} (${escapeHtml(source.id)})</option>`
+                ).join('') +
+                '</optgroup>'
+            )
+            .join('');
+    }
+
+    function rfSources() {
+        return (apiState?.customWidget?.dataSources || [])
+            .filter(source => String(source.id || '').startsWith('rf.'));
+    }
+
     function normalizeFontSizeValue(value) {
         const legacy = {small:'16', normal:'18', large:'22'};
         const normalized = legacy[value] || String(value || 'auto');
@@ -1146,9 +1195,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
         const sources = (apiState?.customWidget?.dataSources || [])
             .filter(source => element.type !== 'sparkline' || source.history);
-        const sourceOptions = sources.map(source =>
-            `<option value="${escapeHtml(source.id)}" ${source.id === element.source ? 'selected' : ''}>${escapeHtml(source.label)} (${escapeHtml(source.id)})</option>`
-        ).join('');
+        const sourceOptions = sourceOptionsHtml(sources, element.source);
         const selectedFontSize = normalizeFontSizeValue(element.fontSize);
         const fontOptions = (apiState?.customWidget?.fontSizes || ['auto', ...Array.from({length:58}, (_, i) => String(i + 7))])
             .map(value => {
@@ -1454,6 +1501,21 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const dimensions = document.getElementById('customWidgetDimensions');
         if (dimensions) dimensions.textContent = widget.width + ' × ' + widget.height + ' px';
 
+        const rfSelect = document.getElementById('customRfSourceSelect');
+        const rfButton = document.getElementById('customAddRfKpiButton');
+        const availableRfSources = rfSources();
+        if (rfSelect) {
+            const previous = rfSelect.value;
+            rfSelect.innerHTML = availableRfSources.length
+                ? sourceOptionsHtml(availableRfSources, previous)
+                : '<option value="">Žádné známé RF čidlo</option>';
+            rfSelect.disabled = availableRfSources.length === 0;
+            if (previous && availableRfSources.some(source => source.id === previous)) {
+                rfSelect.value = previous;
+            }
+        }
+        if (rfButton) rfButton.disabled = availableRfSources.length === 0;
+
         renderCustomElements(widget);
     }
 
@@ -1470,7 +1532,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         return null;
     }
 
-    function addCustomElement(type) {
+    function addCustomElement(type, preferredSourceId = '') {
         const widget = byId(selectedId);
         if (!widget || widget.type !== 'custom') {
             editorMessage('Nejdřív vyber vlastní widget.', 'error');
@@ -1492,7 +1554,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const elementId = uniqueElementId(widget, type);
         const sources = (apiState?.customWidget?.dataSources || [])
             .filter(source => type !== 'sparkline' || source.history);
-        const source = sources[0] || {};
+        const source =
+            sources.find(item => item.id === preferredSourceId) ||
+            sources[0] ||
+            {};
         const element = {
             id: elementId,
             type,
@@ -1846,6 +1911,13 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                         </div>
                     </div>
                     <div class="custom-editor-actions">
+                        <div class="field" style="min-width:230px;margin:0">
+                            <label for="customRfSourceSelect">Známé RF čidlo</label>
+                            <select id="customRfSourceSelect">
+                                <option value="">Načítám…</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-secondary" type="button" id="customAddRfKpiButton">＋ RF KPI</button>
                         <button class="btn btn-secondary" type="button" data-add-element="text">＋ Text</button>
                         <button class="btn btn-secondary" type="button" data-add-element="kpi">＋ KPI</button>
                         <button class="btn btn-secondary" type="button" data-add-element="progress">＋ Progress</button>
@@ -1894,6 +1966,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         document.getElementById('layoutAddCustomButton').addEventListener('click', addCustomWidget);
         document.querySelectorAll('[data-add-element]').forEach(button => {
             button.addEventListener('click', () => addCustomElement(button.dataset.addElement));
+        });
+        document.getElementById('customAddRfKpiButton').addEventListener('click', () => {
+            const select = document.getElementById('customRfSourceSelect');
+            if (!select?.value) {
+                editorMessage('Nejdřív vyber známé RF čidlo a veličinu.', 'error');
+                return;
+            }
+            addCustomElement('kpi', select.value);
         });
         document.getElementById('customWidgetTitleInput').addEventListener('change', event => {
             const widget = byId(selectedId);
