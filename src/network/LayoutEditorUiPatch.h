@@ -410,9 +410,13 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     const DISPLAY_W = 800;
     const DISPLAY_H = 480;
     const labels = {
-        'weather-card': 'Počasí',
+        'weather-card': 'Předpověď',
         'energy-card': 'Energie',
-        'indoor-card': 'Uvnitř'
+        'fve-summary': 'FVE / GoodWe',
+        'azrouter-summary': 'AZRouter',
+        'indoor-card': 'Uvnitř',
+        'pool-summary': 'Bazén',
+        'consumption-summary': 'Spotřeba domu'
     };
 
     let installed = false;
@@ -446,6 +450,12 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     }
 
     function widgetMinimum(widget) {
+        if (widget?.type === 'rf-sensor') {
+            return {
+                minWidth: Number(apiState?.rfSensorWidget?.minWidth || 150),
+                minHeight: Number(apiState?.rfSensorWidget?.minHeight || 140)
+            };
+        }
         if (widget?.type === 'custom') {
             let minW = Number(apiState?.customWidget?.minWidth || 160);
             let minH = Number(apiState?.customWidget?.minHeight || 120);
@@ -464,7 +474,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
     function widgetLabel(widget) {
         if (!widget) return '';
-        if (widget.type === 'custom') return widget.title || widget.id;
+        if (widget.type === 'custom' || widget.type === 'rf-sensor')
+            return widget.title || labels[widget.id] || widget.id;
         return labels[widget.id] || widget.id;
     }
 
@@ -1600,9 +1611,52 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     function draftFromApi(state) {
         const widgets = state.customized && state.widgets?.length
             ? clone(state.widgets)
-            : clone(state.effectiveWidgets || []).map(widget => ({...widget, visible: true}));
+            : (state.effectiveWidgets || []).map(widget => {
+                const template = (state.defaultWidgets || []).find(item => item.id === widget.id);
+                return ensureWidgetStyle({...clone(template || widget), visible: true});
+            });
         widgets.forEach(ensureWidgetStyle);
         return widgets;
+    }
+
+    function addRfSensorWidget() {
+        const rf = apiState?.rfSensorWidget;
+        const sensors = rf?.sensors || [];
+        if (!rf || sensors.length === 0) {
+            editorMessage('Nejdřív je potřeba uložit alespoň jedno RF čidlo s teplotou.', 'error');
+            return;
+        }
+        const maxWidgets = Number(apiState?.maxWidgets || 8);
+        if (draft.length >= maxWidgets) {
+            editorMessage('Home už má maximální počet ' + maxWidgets + ' widgetů.', 'error');
+            return;
+        }
+
+        let sequence = 1;
+        while (byId('rf-card-' + sequence)) sequence++;
+        const sensor = sensors[0];
+        const widget = ensureWidgetStyle({
+            id: 'rf-card-' + sequence,
+            type: 'rf-sensor',
+            visible: true,
+            x: 240,
+            y: 293,
+            width: 155,
+            height: 172,
+            showFrame: true,
+            background: 'white',
+            inverseText: false,
+            title: sensor.name || 'VENKU',
+            rfSensorSlotId: sensor.slotId,
+            rfShowHumidity: sensor.hasHumidity !== false,
+            rfShowLastSeen: true
+        });
+        normalizeWidget(widget);
+        draft.push(widget);
+        selectedId = widget.id;
+        selectedElementId = '';
+        renderDraft();
+        editorMessage('RF karta přidána. Vyber čidlo a název v nastavení karty.');
     }
 
     function addCustomWidget() {
@@ -1610,8 +1664,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             editorMessage('Firmware nepodporuje vlastní widgety.', 'error');
             return;
         }
-        if (draft.length >= 6) {
-            editorMessage('Home už má maximální počet 6 widgetů.', 'error');
+        const maxWidgets = Number(apiState?.maxWidgets || 8);
+        if (draft.length >= maxWidgets) {
+            editorMessage('Home už má maximální počet ' + maxWidgets + ' widgetů.', 'error');
             return;
         }
 
@@ -1774,6 +1829,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                         <label>Magnetismus</label>
                         <label class="toggle"><input id="layoutSnapToggle" type="checkbox" checked><span class="slider"></span></label>
                     </div>
+                    <button class="btn btn-secondary" type="button" id="layoutAddRfButton">＋ RF čidlo</button>
                     <button class="btn btn-secondary" type="button" id="layoutAddCustomButton">＋ Přidat vlastní</button>
                     <button class="btn btn-secondary" type="button" id="layoutShowHomeButton">⌂ Zobrazit Home</button>
                     <button class="btn btn-secondary" type="button" id="layoutReloadButton">↻ Znovu načíst</button>
@@ -1825,6 +1881,29 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     </div>
                     <div class="field">
                         <button class="btn btn-secondary" type="button" id="cardResetSelected" style="width:auto">Obnovit tento panel</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-style-panel" id="rfCardEditor" hidden>
+                <div class="card-title">RF čidlo</div>
+                <div class="field-help" style="margin-bottom:10px">Karta je navázaná na stabilní slot uloženého 433 MHz čidla.</div>
+                <div class="card-style-grid">
+                    <div class="field">
+                        <label for="rfCardTitle">Název karty</label>
+                        <input id="rfCardTitle" maxlength="40">
+                    </div>
+                    <div class="field">
+                        <label for="rfCardSensor">Čidlo</label>
+                        <select id="rfCardSensor"></select>
+                    </div>
+                    <div class="field">
+                        <label>Zobrazit vlhkost</label>
+                        <label class="toggle"><input id="rfCardHumidity" type="checkbox"><span class="slider"></span></label>
+                    </div>
+                    <div class="field">
+                        <label>Zobrazit poslední příjem</label>
+                        <label class="toggle"><input id="rfCardLastSeen" type="checkbox"><span class="slider"></span></label>
                     </div>
                 </div>
             </div>
@@ -1891,6 +1970,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             const widget = byId(selectedId);
             if (widget?.type === 'custom') renderCustomElements(widget);
         });
+        document.getElementById('layoutAddRfButton').addEventListener('click', addRfSensorWidget);
         document.getElementById('layoutAddCustomButton').addEventListener('click', addCustomWidget);
         document.querySelectorAll('[data-add-element]').forEach(button => {
             button.addEventListener('click', () => addCustomElement(button.dataset.addElement));
