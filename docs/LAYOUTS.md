@@ -1,6 +1,7 @@
 # Konfigurovatelné obrazovky
 
-Tento dokument popisuje datový layout zaváděný ve scénáři D roadmapy.
+Tento dokument popisuje aktuální implementaci konfigurovatelného Home layoutu
+a jeho datové vazby.
 
 ## Princip
 
@@ -17,9 +18,9 @@ Základní geometrie widgetu:
 
 Souřadnice jsou v logickém prostoru displeje 800 × 480.
 
-## První podporovaná sada
+## Podporovaná sada
 
-První implementační krok pokrývá obrazovku Home:
+Aktuální implementace pokrývá obrazovku Home:
 
 - `weather-card` / `HomeWeatherCard`,
 - `energy-card` / `HomeEnergyCard`,
@@ -31,13 +32,10 @@ Obě vrstvy dostávají jeden společný `ScreenLayout`.
 Výchozí layout zatím zachovává dnešní automatické rozložení podle toho, zda je
 aktivní počasí a FVE. Tím se první krok scénáře D obejde bez změny vzhledu.
 
-## Omezení první fáze
+## Validace
 
-Datový model je zatím runtime popis. Persistovaná konfigurace, validace změn
-z WebUI, editor, export/import a reset šablony budou doplněny v následujících
-krocích scénáře D.
-
-Při zavedení editoru musí firmware validovat alespoň:
+Layout je persistovaný v NVS, editovatelný ve WebUI a je součástí YAML backupu.
+Firmware validuje alespoň:
 
 - widget leží v ploše obsahu a nepřekračuje 800 × 480,
 - šířka a výška splňují minimum daného typu,
@@ -99,8 +97,9 @@ POST používá JSON, například:
 Firmware odmítá neznámé nebo duplicitní widgety, geometrii mimo obsahovou
 plochu, příliš malé widgety a překryv viditelných widgetů.
 
-Formát YAML zálohy je od této fáze verze 6 a obsahuje `layout.home_json`.
-Starší zálohy se importují s výchozím automatickým Home layoutem.
+Aktuální YAML záloha je **pvdashboard-config v7** a obsahuje
+`layout.home_json`. Starší zálohy bez layoutu se importují s výchozím
+automatickým Home layoutem.
 
 
 ## D3 — grafický editor Home layoutu
@@ -148,7 +147,9 @@ Dynamické elementy používají stabilní klíč `source`, například
 `solar.productionPowerW`, `azrouter.routedPowerW`,
 `azrouter.routedL1PowerW`, `azrouter.routedEnergyTodayKWh`,
 `azrouter.systemTempC`, `weather.outdoorTempC`, `inside.temperatureC`,
-`inside.humidityPercent`, `inside.pressureHpa` nebo `pool.waterTempC`.
+`inside.humidityPercent`, `inside.pressureHpa`, `battery.voltageV`,
+`battery.socPercent`, `battery.changeRatePercentPerHour`,
+`pool.waterTempC` a dynamické RF zdroje navázané na uložené `slotId`.
 Katalog podporovaných zdrojů vrací
 `GET /api/layout/home` v objektu `customWidget.dataSources`, takže WebUI
 nemusí seznam datových vazeb duplikovat.
@@ -181,7 +182,8 @@ aktuální vnitřní elementy.
 
 Vlastní elementy mají společné volitelné parametry:
 
-- `fontSize`: `auto | small | normal | large` — používá se pro statický text a hlavní KPI hodnotu,
+- `fontSize`: `auto` nebo číselná výška **7–64 px**; starší hodnoty
+  `small/normal/large` se při importu převádějí na přibližně 16/18/22 px,
 - `align`: `left | center | right` — zarovnání textu nebo popisku uvnitř šířky elementu,
 - `showLabel`: možnost skrýt popisek u KPI, progress baru a grafu,
 - `graphStyle`: `line | bars` pro sparkline.
@@ -231,3 +233,19 @@ probíhá přes custom widgety.
 Vnořený editor custom widgetu zobrazuje browserový živý náhled textu, KPI,
 progress baru a grafu včetně zvoleného zarovnání, velikosti písma, pozadí a
 inverze. Skutečný fyzický render po uložení zůstává autoritativní.
+
+
+## Aktuální limity a chování
+
+- maximálně 6 Home widgetů,
+- maximálně 8 elementů v jednom custom widgetu,
+- minimální rozměry se liší podle typu widgetu a elementu,
+- vlastní widget musí mít alespoň jeden element,
+- viditelné top-level Home widgety se nesmí překrývat,
+- vnitřní elementy custom widgetu se naopak překrývat mohou a jejich pořadí
+  určuje Z-order,
+- custom widget invaliduje při změně dat celý svůj obdélník,
+- předdefinované Home karty používají při automatickém refreshi užší dirty
+  region zaměřený hlavně na datový obsah,
+- katalog datových zdrojů vrací firmware přes `GET /api/layout/home`; WebUI
+  si nemá držet vlastní pevnou kopii podporovaných zdrojů.
