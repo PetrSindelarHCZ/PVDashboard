@@ -1670,6 +1670,23 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         return widgets;
     }
 
+    function findWidgetPosition(width, height) {
+        const bounds = apiState?.bounds;
+        if (!bounds) return null;
+        const step = gridStep || 5;
+        const visibleWidgets = draft.filter(widget => widget.visible);
+
+        for (let y = bounds.y; y + height <= bounds.y + bounds.height; y += step) {
+            for (let x = bounds.x; x + width <= bounds.x + bounds.width; x += step) {
+                const probe = {x, y, width, height, visible: true};
+                if (!visibleWidgets.some(widget => overlap(probe, widget))) {
+                    return {x, y};
+                }
+            }
+        }
+        return null;
+    }
+
     function addCustomWidget() {
         if (!apiState?.customWidget) {
             editorMessage('Firmware nepodporuje vlastní widgety.', 'error');
@@ -1684,14 +1701,43 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         while (byId('custom-' + sequence)) sequence++;
         const id = 'custom-' + sequence;
         const bounds = apiState.bounds;
+        const minWidth = Number(apiState.customWidget.minWidth || 160);
+        const minHeight = Number(apiState.customWidget.minHeight || 120);
+
+        const sizeCandidates = [
+            {width: 300, height: 180},
+            {width: 240, height: 160},
+            {width: 200, height: 140},
+            {width: minWidth, height: minHeight}
+        ];
+
+        let placement = null;
+        let chosenSize = null;
+        for (const candidate of sizeCandidates) {
+            const width = Math.max(minWidth, Math.min(candidate.width, bounds.width));
+            const height = Math.max(minHeight, Math.min(candidate.height, bounds.height));
+            const position = findWidgetPosition(width, height);
+            if (!position) continue;
+            placement = position;
+            chosenSize = {width, height};
+            break;
+        }
+
+        if (!placement || !chosenSize) {
+            editorMessage(
+                'Na Home není volné místo ani pro minimální vlastní widget. Nejprve zmenši, přesuň nebo skryj některou kartu.',
+                'error');
+            return;
+        }
+
         const widget = {
             id,
             type: 'custom',
             visible: true,
-            x: bounds.x,
-            y: bounds.y,
-            width: 300,
-            height: 180,
+            x: placement.x,
+            y: placement.y,
+            width: chosenSize.width,
+            height: chosenSize.height,
             showFrame: true,
             background: 'white',
             inverseText: false,
@@ -1705,7 +1751,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 text: 'Nový vlastní widget',
                 x: 10,
                 y: 45,
-                width: 180,
+                width: Math.min(180, Math.max(40, chosenSize.width - 20)),
                 height: 30,
                 decimals: 1,
                 min: 0,
@@ -1721,7 +1767,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         selectedId = id;
         selectedElementId = 'text-1';
         renderDraft();
-        editorMessage('Vlastní widget přidán. Obsah můžeš upravit v editoru pod náhledem.');
+        editorMessage('Vlastní widget přidán do volného místa. Obsah můžeš upravit v editoru pod náhledem.');
     }
 
     async function loadLayoutEditor() {
