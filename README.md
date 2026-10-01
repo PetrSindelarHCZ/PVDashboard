@@ -71,7 +71,7 @@ python scripts/prepare-release.py --firmware .pio/build/esp32dev/firmware.bin --
 
 Výstup obsahuje **firmware.bin**, **firmware.bin.sha256** a
 **dashboard-manifest.json**. Aktuální OTA partition poskytuje dva sloty po
-**1 966 080 B (1,875 MiB)**.
+**2 031 616 B (1,9375 MiB)**.
 
 ## REST API
 
