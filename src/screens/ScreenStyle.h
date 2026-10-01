@@ -71,29 +71,54 @@ inline void drawWifi(IDisplay& d, int16_t x, int16_t y, bool connected, uint8_t 
 }
 
 inline void drawSolarStatus(IDisplay& d, int16_t x, int16_t y, bool available) {
-    // Solar panel with cells and a stand (GoodWe).
-    d.drawRoundRect(x + 2, y + 3, 28, 21, 2, 1);
-    d.drawRoundRect(x + 3, y + 4, 26, 19, 1, 1);
-    d.fillRect(x + 11, y + 5, 2, 17, 1);
-    d.fillRect(x + 20, y + 5, 2, 17, 1);
-    d.fillRect(x + 4, y + 12, 24, 2, 1);
-    d.fillRect(x + 15, y + 24, 2, 4, 1);
-    d.fillRect(x + 9, y + 28, 14, 2, 1);
+    // Same visual language as the sidebar: inverter enclosure + AC sine wave.
+    d.drawRoundRect(x + 2, y + 3, 28, 26, 3, 1);
+    d.drawRoundRect(x + 3, y + 4, 26, 24, 2, 1);
+
+    // Compact sine wave, intentionally built from line segments so it remains
+    // crisp on the monochrome e-paper header.
+    const int16_t sx = x + 6;
+    const int16_t sy = y + 16;
+    d.drawLine(sx + 0,  sy + 0, sx + 3,  sy - 4, 1);
+    d.drawLine(sx + 3,  sy - 4, sx + 6,  sy - 6, 1);
+    d.drawLine(sx + 6,  sy - 6, sx + 9,  sy - 4, 1);
+    d.drawLine(sx + 9,  sy - 4, sx + 12, sy + 0, 1);
+    d.drawLine(sx + 12, sy + 0, sx + 15, sy + 4, 1);
+    d.drawLine(sx + 15, sy + 4, sx + 18, sy + 6, 1);
+    d.drawLine(sx + 18, sy + 6, sx + 21, sy + 4, 1);
+
+    // Thicken the waveform by one pixel for readability at 32 px.
+    d.drawLine(sx + 0,  sy + 1, sx + 3,  sy - 3, 1);
+    d.drawLine(sx + 3,  sy - 3, sx + 6,  sy - 5, 1);
+    d.drawLine(sx + 6,  sy - 5, sx + 9,  sy - 3, 1);
+    d.drawLine(sx + 9,  sy - 3, sx + 12, sy + 1, 1);
+    d.drawLine(sx + 12, sy + 1, sx + 15, sy + 5, 1);
+    d.drawLine(sx + 15, sy + 5, sx + 18, sy + 7, 1);
+    d.drawLine(sx + 18, sy + 7, sx + 21, sy + 5, 1);
+
     if (!available) drawDisconnected(d, x, y);
 }
 
 inline void drawRouterStatus(IDisplay& d, int16_t x, int16_t y, bool available) {
-    // Neutral AZRouter icon: incoming energy is routed into three phases.
-    d.drawRoundRect(x + 2, y + 3, 28, 26, 4, 1);
-    d.fillRect(x + 7, y + 9, 8, 2, 1);
-    d.drawLine(x + 15, y + 10, x + 20, y + 10, 1);
-    d.drawLine(x + 20, y + 10, x + 20, y + 22, 1);
-    d.fillCircle(x + 20, y + 10, 2, 1);
-    d.fillCircle(x + 20, y + 16, 2, 1);
-    d.fillCircle(x + 20, y + 22, 2, 1);
-    d.drawLine(x + 20, y + 10, x + 26, y + 10, 1);
-    d.drawLine(x + 20, y + 16, x + 26, y + 16, 1);
-    d.drawLine(x + 20, y + 22, x + 26, y + 22, 1);
+    // Same visual language as the sidebar: AZ lettering inside the device.
+    d.drawRoundRect(x + 2, y + 3, 28, 26, 3, 1);
+    d.drawRoundRect(x + 3, y + 4, 26, 24, 2, 1);
+
+    // A
+    d.drawLine(x + 6,  y + 23, x + 10, y + 9, 1);
+    d.drawLine(x + 10, y + 9,  x + 14, y + 23, 1);
+    d.drawLine(x + 8,  y + 17, x + 12, y + 17, 1);
+    d.drawLine(x + 7,  y + 23, x + 11, y + 9, 1);
+    d.drawLine(x + 11, y + 9,  x + 15, y + 23, 1);
+
+    // Z
+    d.drawLine(x + 16, y + 10, x + 25, y + 10, 1);
+    d.drawLine(x + 16, y + 11, x + 25, y + 11, 1);
+    d.drawLine(x + 25, y + 10, x + 16, y + 22, 1);
+    d.drawLine(x + 25, y + 11, x + 16, y + 23, 1);
+    d.drawLine(x + 16, y + 22, x + 25, y + 22, 1);
+    d.drawLine(x + 16, y + 23, x + 25, y + 23, 1);
+
     if (!available) drawDisconnected(d, x, y);
 }
 
@@ -248,8 +273,13 @@ inline void drawSidebar(IDisplay& d, const DataModel& dm) {
     drawMenuItem(d, y, "home", dm, SidebarIcons::Icon::Home);
     y += itemStep;
 
-    if (dm.solar.enabled || dm.azrouter.enabled) {
+    if (dm.solar.enabled) {
         drawMenuItem(d, y, "solar", dm, SidebarIcons::Icon::Solar);
+        y += itemStep;
+    }
+
+    if (dm.azrouter.enabled) {
+        drawMenuItem(d, y, "azrouter", dm, SidebarIcons::Icon::AZRouter);
         y += itemStep;
     }
 
