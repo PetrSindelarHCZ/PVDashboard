@@ -15,8 +15,8 @@ Nejbližší priority:
 - [ ] rozhodnout, zda YAML backup rozšířit o celý seznam známých Wi-Fi sítí
       včetně autoConnect,
 - [ ] rozhodnout a sjednotit backup AZRouter autentizace: aktuální YAML v7
-      neexportuje `authEnabled` ani credentials, takže po importu zůstane
-      autentizace vypnutá.
+      neexportuje `authEnabled` ani credentials; při importu se lokální
+      credentials zachovají, ale `authEnabled` se vrátí na `false`.
 
 ## B — fyzické ovládání
 
