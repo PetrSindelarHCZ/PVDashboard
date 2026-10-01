@@ -489,12 +489,13 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
     }
 }
 
-inline void draw(IDisplay& display, const DataModel& dm, const HomeLayoutWidgetConfig& widget) {
+inline void draw(IDisplay& display, const DataModel& dm, const HomeLayoutWidgetConfig& widget,
+                 const char* fallbackTitle = "VLASTNÍ") {
     const bool blackBackground = widget.background == "black";
     const uint16_t textColor = widget.inverseText ? 1 : 0;
     ScreenStyle::drawStyledCard(
         display, widget.x, widget.y, widget.width, widget.height,
-        widget.title.isEmpty() ? "VLASTNÍ" : widget.title.c_str(),
+        widget.title.isEmpty() ? fallbackTitle : widget.title.c_str(),
         widget.showFrame, blackBackground, widget.inverseText);
 
     // elements[] is the Z-order: first is bottom, last is top.
