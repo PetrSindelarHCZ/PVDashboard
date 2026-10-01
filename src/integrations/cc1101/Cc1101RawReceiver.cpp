@@ -1724,15 +1724,18 @@ bool tryPrintGeevonTx19(const int32_t* data, uint16_t count) {
     constexpr uint32_t DataPulseMaxUs = 620;
     constexpr uint32_t BitSplitUs = 375;
     constexpr uint32_t FragmentWindowMs = 450;
-    constexpr uint16_t MaximumBits = 512;
+    constexpr uint16_t MaximumBits = 256;
     constexpr uint8_t MinimumCandidateHighs = 10;
     constexpr uint8_t MinimumCandidatePercent = 60;
 
-    static uint8_t bits[MaximumBits] = {};
+    // Bit-pack the assembler: 256 bits require only 32 B instead of 256 B
+    // (and the previous 512-byte byte-per-bit buffer overflowed ESP32 DRAM).
+    static uint8_t bits[MaximumBits / 8] = {};
     static uint16_t bitCount = 0;
     static uint32_t lastFragmentMs = 0;
 
     auto clearAssembler = [&]() {
+        memset(bits, 0, sizeof(bits));
         bitCount = 0;
         lastFragmentMs = 0;
     };
@@ -1743,8 +1746,11 @@ bool tryPrintGeevonTx19(const int32_t* data, uint16_t count) {
         for (uint8_t byte = 0; byte < 9; ++byte) {
             uint8_t value = 0;
             for (uint8_t bit = 0; bit < 8; ++bit) {
-                value = static_cast<uint8_t>(
-                    (value << 1) | bits[start + byte * 8 + bit]);
+                const uint16_t bitIndex =
+                    static_cast<uint16_t>(start + byte * 8 + bit);
+                const uint8_t bitValue = static_cast<uint8_t>(
+                    (bits[bitIndex >> 3] >> (7 - (bitIndex & 7))) & 1U);
+                value = static_cast<uint8_t>((value << 1) | bitValue);
             }
             out[byte] = value;
         }
@@ -1853,17 +1859,39 @@ bool tryPrintGeevonTx19(const int32_t* data, uint16_t count) {
         }
 
         if (bitCount >= MaximumBits) {
-            // Keep the newest data; a complete TX19 payload is only 72 bits.
-            const uint16_t keep = 144;
-            for (uint16_t j = 0; j < keep; ++j) {
-                bits[j] = bits[bitCount - keep + j];
+            // Keep the newest 128 bits. Move them through the packed accessor
+            // so no byte-per-bit scratch buffer is needed.
+            constexpr uint16_t KeepBits = 128;
+            uint8_t compacted[KeepBits / 8] = {};
+            const uint16_t firstKept = bitCount - KeepBits;
+            for (uint16_t j = 0; j < KeepBits; ++j) {
+                const uint16_t sourceIndex =
+                    static_cast<uint16_t>(firstKept + j);
+                const uint8_t value = static_cast<uint8_t>(
+                    (bits[sourceIndex >> 3] >>
+                     (7 - (sourceIndex & 7))) & 1U);
+                if (value) {
+                    compacted[j >> 3] |=
+                        static_cast<uint8_t>(1U << (7 - (j & 7)));
+                }
             }
-            bitCount = keep;
+            memcpy(bits, compacted, sizeof(compacted));
+            memset(bits + sizeof(compacted), 0,
+                   sizeof(bits) - sizeof(compacted));
+            bitCount = KeepBits;
         }
 
         // rtl_433 OOK_PWM produces short=1,long=0 and the TX19 decoder
         // inverts the row. Net decoded payload: short pulse=0, long pulse=1.
-        bits[bitCount++] = pulseUs >= BitSplitUs ? 1 : 0;
+        const bool bitValue = pulseUs >= BitSplitUs;
+        const uint16_t targetIndex = bitCount++;
+        const uint8_t mask =
+            static_cast<uint8_t>(1U << (7 - (targetIndex & 7)));
+        if (bitValue) {
+            bits[targetIndex >> 3] |= mask;
+        } else {
+            bits[targetIndex >> 3] &= static_cast<uint8_t>(~mask);
+        }
     }
 
     if (bitCount < 72) return false;
