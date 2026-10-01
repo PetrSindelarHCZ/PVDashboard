@@ -5,7 +5,7 @@
 
 ## Základ
 
-- firmware: **1.26.261.1**,
+- firmware: **1.26.274.1**,
 - řídicí deska: Waveshare ESP32 e-Paper Driver Board / ESP32-WROOM-32,
 - panel: černobílý 7,5" e-paper 800 × 480,
 - dva OTA sloty po **1 966 080 B (1,875 MiB)**,
