@@ -337,11 +337,18 @@ DisplayRegion homeDataRegion(
 
         switch (widget.type) {
             case LayoutWidgetType::HomeWeatherCard:
-                matches = group == HomeDataGroup::Weather;
+            case LayoutWidgetType::HomeEnergyCard: {
+                const HomeLayoutWidgetConfig* configured =
+                    HomeLayout::findWidget(config, widget.id);
+                if (configured != nullptr && !configured->elements.empty()) {
+                    matches = widgetUsesGroup(*configured, group);
+                } else if (widget.type == LayoutWidgetType::HomeWeatherCard) {
+                    matches = group == HomeDataGroup::Weather;
+                } else {
+                    matches = group == HomeDataGroup::Energy;
+                }
                 break;
-            case LayoutWidgetType::HomeEnergyCard:
-                matches = group == HomeDataGroup::Energy;
-                break;
+            }
             case LayoutWidgetType::HomeIndoorCard: {
                 const HomeLayoutWidgetConfig* configured =
                     HomeLayout::findWidget(config, widget.id);
