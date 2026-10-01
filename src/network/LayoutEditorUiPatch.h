@@ -649,6 +649,63 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         };
     }
 
+    function renderRfCardEditor() {
+        const panel = document.getElementById('rfCardEditor');
+        if (!panel) return;
+        const widget = byId(selectedId);
+        if (!widget || widget.type !== 'rf-sensor') {
+            panel.hidden = true;
+            return;
+        }
+        panel.hidden = false;
+
+        const title = document.getElementById('rfCardTitle');
+        const sensor = document.getElementById('rfCardSensor');
+        const humidity = document.getElementById('rfCardHumidity');
+        const lastSeen = document.getElementById('rfCardLastSeen');
+
+        if (title) {
+            title.value = widget.title || '';
+            title.onchange = () => {
+                widget.title = title.value.trim() || 'RF ČIDLO';
+                renderDraft();
+            };
+        }
+
+        if (sensor) {
+            const choices = apiState?.rfSensorWidget?.sensors || [];
+            sensor.innerHTML = choices.map(item =>
+                '<option value="' + escapeHtml(item.slotId) + '">' +
+                escapeHtml(item.name || item.slotId) + '</option>').join('');
+            sensor.value = widget.rfSensorSlotId || '';
+            sensor.onchange = () => {
+                widget.rfSensorSlotId = sensor.value;
+                const selected = choices.find(item => item.slotId === sensor.value);
+                if (selected && selected.hasHumidity === false) widget.rfShowHumidity = false;
+                renderDraft();
+            };
+        }
+
+        if (humidity) {
+            const selected = (apiState?.rfSensorWidget?.sensors || [])
+                .find(item => item.slotId === widget.rfSensorSlotId);
+            humidity.disabled = selected?.hasHumidity === false;
+            humidity.checked = widget.rfShowHumidity !== false && !humidity.disabled;
+            humidity.onchange = () => {
+                widget.rfShowHumidity = humidity.checked;
+                renderDraft();
+            };
+        }
+
+        if (lastSeen) {
+            lastSeen.checked = widget.rfShowLastSeen !== false;
+            lastSeen.onchange = () => {
+                widget.rfShowLastSeen = lastSeen.checked;
+                renderDraft();
+            };
+        }
+    }
+
     function renderWidgetList() {
         const list = document.getElementById('layoutEditorWidgetList');
         if (!list) return;
@@ -671,6 +728,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     </label>
                     <button class="btn btn-secondary" type="button" data-layout-edit="${supported.id}" style="width:auto;min-height:0;padding:6px 9px">Upravit</button>
                     <button class="btn btn-secondary" type="button" data-layout-reset-one="${supported.id}" style="width:auto;min-height:0;padding:6px 9px">Výchozí</button>
+                    <button class="btn btn-secondary" type="button" data-layout-delete="${supported.id}" style="width:auto;min-height:0;padding:6px 9px">Smazat</button>
                 </div>
             `;
             list.appendChild(row);
@@ -680,13 +738,15 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             input.addEventListener('change', () => {
                 let widget = byId(input.dataset.layoutVisible);
                 if (!widget) {
-                    const source = (apiState.effectiveWidgets || []).find(w => w.id === input.dataset.layoutVisible);
+                    const source =
+                        (apiState.effectiveWidgets || []).find(w => w.id === input.dataset.layoutVisible) ||
+                        defaultWidgetById(input.dataset.layoutVisible);
                     if (!source) {
                         input.checked = false;
-                        editorMessage('Widget není v aktuální automatické šabloně dostupný.', 'error');
+                        editorMessage('Pro tuto kartu není dostupná výchozí šablona.', 'error');
                         return;
                     }
-                    widget = {...clone(source), visible: true};
+                    widget = ensureWidgetStyle({...clone(source), visible: true});
                     draft.push(widget);
                 }
                 widget.visible = input.checked;
@@ -700,6 +760,70 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         });
         list.querySelectorAll('[data-layout-reset-one]').forEach(button => {
             button.addEventListener('click', () => resetPredefinedWidget(button.dataset.layoutResetOne));
+        });
+
+        list.querySelectorAll('[data-layout-delete]').forEach(button => {
+            button.addEventListener('click', () => {
+                const id = button.dataset.layoutDelete;
+                if (!byId(id)) return;
+                draft = draft.filter(widget => widget.id !== id);
+                if (selectedId === id) {
+                    selectedId = draft.find(widget => widget.visible)?.id || '';
+                    selectedElementId = '';
+                }
+                renderDraft();
+                editorMessage('Karta odstraněna z návrhu. Změnu potvrď tlačítkem Uložit.');
+            });
+        });
+
+        draft.filter(widget => widget.type === 'rf-sensor').forEach(widget => {
+            const minimum = widgetMinimum(widget);
+            const sensor = (apiState?.rfSensorWidget?.sensors || [])
+                .find(item => item.slotId === widget.rfSensorSlotId);
+            const row = document.createElement('div');
+            row.className = 'layout-widget-row';
+            row.innerHTML = `
+                <div class="layout-widget-row-main">
+                    <div class="layout-widget-row-title">${escapeHtml(widgetLabel(widget))}</div>
+                    <div class="layout-widget-row-meta">RF čidlo · ${escapeHtml(sensor?.name || widget.rfSensorSlotId || 'bez vazby')} · min. ${minimum.minWidth} × ${minimum.minHeight} px</div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                    <label class="toggle">
+                        <input type="checkbox" data-rf-visible="${widget.id}" ${widget.visible ? 'checked' : ''}>
+                        <span class="slider"></span>
+                    </label>
+                    <button class="btn btn-secondary" type="button" data-rf-edit="${widget.id}" style="width:auto;min-height:0;padding:6px 9px">Upravit</button>
+                    <button class="btn btn-secondary" type="button" data-rf-delete="${widget.id}" style="width:auto;min-height:0;padding:6px 9px">Smazat</button>
+                </div>
+            `;
+            list.appendChild(row);
+        });
+
+        list.querySelectorAll('[data-rf-visible]').forEach(input => {
+            input.addEventListener('change', () => {
+                const widget = byId(input.dataset.rfVisible);
+                if (!widget) return;
+                widget.visible = input.checked;
+                if (widget.visible) selectedId = widget.id;
+                renderDraft();
+            });
+        });
+        list.querySelectorAll('[data-rf-edit]').forEach(button => {
+            button.addEventListener('click', () => {
+                selectedId = button.dataset.rfEdit;
+                selectedElementId = '';
+                renderDraft();
+                document.getElementById('rfCardEditor')?.scrollIntoView({behavior:'smooth', block:'nearest'});
+            });
+        });
+        list.querySelectorAll('[data-rf-delete]').forEach(button => {
+            button.addEventListener('click', () => {
+                const id = button.dataset.rfDelete;
+                draft = draft.filter(widget => widget.id !== id);
+                if (selectedId === id) selectedId = draft.find(widget => widget.visible)?.id || '';
+                renderDraft();
+                editorMessage('RF karta odstraněna z návrhu. Změnu potvrď tlačítkem Uložit.');
+            });
         });
 
         draft.filter(widget => widget.type === 'custom').forEach(widget => {
@@ -796,6 +920,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         renderWidgetList();
         updateGrid();
         renderCardStyleEditor();
+        renderRfCardEditor();
         renderCustomEditor();
 
         const customInvalid = draft.some(widget =>
