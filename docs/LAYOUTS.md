@@ -245,7 +245,7 @@ inverze. Skutečný fyzický render po uložení zůstává autoritativní.
 
 ## Aktuální limity a chování
 
-- maximálně 6 Home widgetů,
+- maximálně 8 Home widgetů,
 - maximálně 8 elementů v jednom custom widgetu,
 - minimální rozměry se liší podle typu widgetu a elementu,
 - vlastní widget musí mít alespoň jeden element,
@@ -257,3 +257,21 @@ inverze. Skutečný fyzický render po uložení zůstává autoritativní.
   region zaměřený hlavně na datový obsah,
 - katalog datových zdrojů vrací firmware přes `GET /api/layout/home`; WebUI
   si nemá držet vlastní pevnou kopii podporovaných zdrojů.
+
+
+## RF sensor karta
+
+Home podporuje předdefinovaný typ `rf-sensor`. Karta je navázaná na stabilní
+`slotId` uloženého 433 MHz čidla, nikoli na aktuální radio-side ID. Tím zůstává
+vazba platná i po re-assignu čidla.
+
+Konfigurace karty obsahuje:
+
+- `title` — vlastní název, např. VENKU / SKLENÍK / MRAZÁK,
+- `rfSensorSlotId` — stabilní slot uloženého RF čidla,
+- `rfShowHumidity` — zobrazení vlhkosti, pokud ji čidlo poskytuje,
+- `rfShowLastSeen` — zobrazení stáří posledního přijatého vzorku.
+
+Editor Home umožňuje karty přesouvat, měnit jejich velikost a vzhled, skrývat je
+nebo je úplně odebrat. Odebranou předdefinovanou kartu lze znovu přidat přes její
+výchozí šablonu; nové RF karty se přidávají tlačítkem **RF čidlo**.
