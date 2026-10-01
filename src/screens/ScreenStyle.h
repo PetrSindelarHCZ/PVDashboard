@@ -97,6 +97,41 @@ inline void drawRouterStatus(IDisplay& d, int16_t x, int16_t y, bool available) 
     if (!available) drawDisconnected(d, x, y);
 }
 
+inline void drawDeviceBatteryStatus(
+    IDisplay& d,
+    int16_t x,
+    int16_t y,
+    const FuelGaugeData& battery) {
+
+    // Compact 32x32 device-battery indicator. The filled area follows SOC;
+    // a slash means the MAX17048 is currently unavailable.
+    constexpr int16_t bodyX = 2;
+    constexpr int16_t bodyY = 9;
+    constexpr int16_t bodyW = 25;
+    constexpr int16_t bodyH = 14;
+
+    d.drawRoundRect(x + bodyX, y + bodyY, bodyW, bodyH, 2, 1);
+    d.fillRect(x + bodyX + bodyW, y + bodyY + 4, 3, 6, 1);
+
+    if (battery.status.available) {
+        float soc = battery.socPercent;
+        if (soc < 0.0f) soc = 0.0f;
+        if (soc > 100.0f) soc = 100.0f;
+        const int16_t fillW =
+            static_cast<int16_t>((bodyW - 4) * soc / 100.0f + 0.5f);
+        if (fillW > 0) {
+            d.fillRect(
+                x + bodyX + 2,
+                y + bodyY + 2,
+                fillW,
+                bodyH - 4,
+                1);
+        }
+    } else {
+        drawDisconnected(d, x, y);
+    }
+}
+
 inline void drawHeader(IDisplay& d, const DataModel& dm) {
     d.fillRect(0, 0, Width, HeaderHeight, 0);
     const bool online = dm.system.wifiConnected;
@@ -109,6 +144,11 @@ inline void drawHeader(IDisplay& d, const DataModel& dm) {
     }
     if (dm.azrouter.enabled) {
         drawRouterStatus(d, sourceX, 8, online && dm.azrouter.status.available);
+        sourceX += 48;
+    }
+    if (dm.battery.status.available || dm.battery.version != 0) {
+        drawDeviceBatteryStatus(d, sourceX, 8, dm.battery);
+        sourceX += 48;
     }
 
     // The header was cleared above, so invalid time also erases old e-ink text.
@@ -122,7 +162,7 @@ inline void drawHeader(IDisplay& d, const DataModel& dm) {
 
     d.setUnicodeFont(DisplayFonts::strongBody());
     String date = dm.system.dateStr;
-    constexpr int16_t dateLeft = 160;
+    const int16_t dateLeft = max<int16_t>(160, sourceX);
     const int16_t dateRight = timeX - 20;
     const int16_t availableWidth = dateRight - dateLeft;
     // Truncate only complete UTF-8 code points if a future label is too long.
