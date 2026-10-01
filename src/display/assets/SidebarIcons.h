@@ -7,6 +7,7 @@ namespace SidebarIcons {
 enum class Icon : uint8_t {
     Home,
     Solar,
+    AZRouter,
     Pool,
     Weather,
     Settings
