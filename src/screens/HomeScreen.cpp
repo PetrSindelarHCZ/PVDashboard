@@ -64,7 +64,7 @@ void drawOkSymbol(IDisplay& d, int16_t x, int16_t y, uint16_t color = 0) {
 }
 
 void drawMiniBars(IDisplay& d, int16_t x, int16_t y, int16_t w, int16_t h,
-                  const SolarData& solar) {
+                  const SolarData& solar, uint16_t color = 0) {
     if (solar.historyCount < 2 || w <= 0 || h <= 0) return;
 
     float maxValue = 500.0f;
@@ -90,12 +90,12 @@ void drawMiniBars(IDisplay& d, int16_t x, int16_t y, int16_t w, int16_t h,
         if (bh < 1 && value > 0.0f) bh = 1;
         if (bh > h) bh = h;
         const int16_t bx = x + (b * w) / bars;
-        d.fillRect(bx, y + h - bh, 2, bh, 0);
+        d.fillRect(bx, y + h - bh, 2, bh, color);
     }
 }
 
 void drawPhaseBars(IDisplay& d, int16_t x, int16_t y, int16_t h,
-                   const AZRouterData& az) {
+                   const AZRouterData& az, uint16_t color = 0) {
     float maxValue = 1.0f;
     for (uint8_t phase = 0; phase < 3; ++phase) {
         if (az.hasRoutedPhasePower[phase] && az.routedPhasePowerW[phase] > maxValue)
@@ -106,8 +106,8 @@ void drawPhaseBars(IDisplay& d, int16_t x, int16_t y, int16_t h,
         const float value = az.hasRoutedPhasePower[phase] ? az.routedPhasePowerW[phase] : 0.0f;
         int16_t bh = static_cast<int16_t>((value / maxValue) * h);
         if (bh < 1 && value > 0.0f) bh = 1;
-        d.drawRect(x + phase * 12, y, 7, h, 0);
-        if (bh > 0) d.fillRect(x + 1 + phase * 12, y + h - bh + 1, 5, bh - 1, 0);
+        d.drawRect(x + phase * 12, y, 7, h, color);
+        if (bh > 0) d.fillRect(x + 1 + phase * 12, y + h - bh + 1, 5, bh - 1, color);
     }
 }
 
@@ -418,7 +418,7 @@ void drawFveSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidg
     else
         display.print("--.- kW");
 
-    drawMiniBars(display, x + 150, y + 58, 54, 38, dm.solar);
+    drawMiniBars(display, x + 150, y + 58, 54, 38, dm.solar, color);
 
     ScreenStyle::useBody(display, color);
     display.setCursor(x + 18, y + 132);
@@ -458,7 +458,7 @@ void drawAZRouterSummaryCard(IDisplay& display, const DataModel& dm, const Layou
     else
         display.print("-- W");
 
-    drawPhaseBars(display, x + 176, y + 56, 38, dm.azrouter);
+    drawPhaseBars(display, x + 176, y + 56, 38, dm.azrouter, color);
 
     ScreenStyle::useBody(display, color);
     display.setCursor(x + 18, y + 132);
@@ -609,7 +609,7 @@ void drawConsumptionSummaryCard(IDisplay& display, const DataModel& dm, const La
         const int16_t graphY = y + 112;
         const int16_t graphW = w - 30;
         const int16_t graphH = 42;
-        display.drawLine(graphX, graphY + graphH, graphX + graphW, graphY + graphH, 0);
+        display.drawLine(graphX, graphY + graphH, graphX + graphW, graphY + graphH, color);
 
         const uint8_t bars = 24;
         for (uint8_t b = 0; b < bars; ++b) {
@@ -619,7 +619,7 @@ void drawConsumptionSummaryCard(IDisplay& display, const DataModel& dm, const La
             if (bh < 1 && watts > 0.0f) bh = 1;
             if (bh > graphH) bh = graphH;
             const int16_t bx = graphX + (b * graphW) / bars;
-            display.drawLine(bx, graphY + graphH, bx, graphY + graphH - bh, 0);
+            display.drawLine(bx, graphY + graphH, bx, graphY + graphH - bh, color);
         }
     } else {
         ScreenStyle::useBody(display, color);
