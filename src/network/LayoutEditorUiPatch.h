@@ -650,6 +650,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 makeSeedElement('indoor-pool-label', 'text', '', '', 'Bazén', rightX, wide ? 165 : 285, rightWidth, 30, false),
                 makeSeedElement('indoor-pool-temp', 'kpi', 'inside.poolTempC', '', '', rightX, wide ? 190 : 310, rightWidth, 45, false)
             ].filter(fit);
+            widget.elements.forEach(item => normalizeElement(widget, item));
             return;
         }
 
@@ -667,6 +668,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 makeSeedElement('energy-battery-soc', 'kpi', 'solar.batterySocPercent', 'Baterie', '', rightX, wide ? 155 : 255, rightWidth, 60, true),
                 makeSeedElement('energy-battery-power', 'kpi', 'solar.batteryPowerW', 'Výkon baterie', '', rightX, wide ? 215 : 315, rightWidth, 55, true)
             ].filter(fit);
+            widget.elements.forEach(item => normalizeElement(widget, item));
             return;
         }
 
@@ -679,6 +681,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 makeSeedElement('weather-pressure', 'kpi', 'weather.surfacePressureHpa', 'Tlak', '', x, 160, width, 55, true),
                 makeSeedElement('weather-wind', 'kpi', 'weather.windSpeedKmh', 'Vítr', '', x, 215, width, 55, true)
             ].filter(fit);
+            widget.elements.forEach(item => normalizeElement(widget, item));
         }
     }
 
@@ -1126,7 +1129,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const save = document.getElementById('layoutSaveButton');
         if (save) save.disabled = invalid.size > 0 || customInvalid || !draft.some(w => w.visible);
         if (invalid.size > 0) editorMessage('Widgety se překrývají. Uložení je zablokované.', 'error');
-        else if (customInvalid) editorMessage('Widget obsahuje neplatný vnitřní prvek.', 'error');
+        else if (customInvalid) {
+            const detail = firstInvalidElementDescription();
+            editorMessage(
+                detail
+                    ? 'Neplatný prvek: ' + detail
+                    : 'Widget obsahuje neplatný vnitřní prvek.',
+                'error');
+        }
     }
 
     function beginInteraction(event, id) {
@@ -1447,9 +1457,36 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     function customWidgetHasErrors(widget) {
         if (!widget || !isElementWidget(widget)) return false;
         const elements = widget.elements || [];
-        if ((widget.type === 'rf-sensor' || widget.type === 'indoor' || widget.type === 'pool-summary') && elements.length === 0) return false;
+        if (widget.type !== 'custom' && elements.length === 0) return false;
         if (!elements.length || elements.length > Number(apiState?.customWidget?.maxElements || 8)) return true;
         return elementInvalidIds(widget).size > 0;
+    }
+
+    function firstInvalidElementDescription() {
+        for (const widget of draft) {
+            if (!isElementWidget(widget)) continue;
+
+            const elements = widget.elements || [];
+
+            if (widget.type === 'custom' && !elements.length) {
+                return widgetLabel(widget) + ': widget nemá žádný prvek';
+            }
+
+            if (elements.length > Number(apiState?.customWidget?.maxElements || 8)) {
+                return widgetLabel(widget) + ': příliš mnoho prvků';
+            }
+
+            const invalid = elementInvalidIds(widget);
+            if (!invalid.size) continue;
+
+            const id = [...invalid][0];
+            const element = elements.find(item => item.id === id);
+
+            return widgetLabel(widget) + ': ' +
+                (element ? customElementLabel(element) : id || 'neznámý prvek');
+        }
+
+        return '';
     }
 
     function customStagePoint(event, widget) {
@@ -2350,7 +2387,12 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             return;
         }
         if (draft.some(widget => isElementWidget(widget) && customWidgetHasErrors(widget))) {
-            editorMessage('Nejdřív oprav prvky uvnitř vlastních widgetů.', 'error');
+            const detail = firstInvalidElementDescription();
+            editorMessage(
+                detail
+                    ? 'Nejdřív oprav neplatný prvek: ' + detail
+                    : 'Nejdřív oprav prvky uvnitř vlastních widgetů.',
+                'error');
             return;
         }
 
