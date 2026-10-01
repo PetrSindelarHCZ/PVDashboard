@@ -1,7 +1,12 @@
 # 433 MHz / CC1101 – stav průzkumu a další postup
 
+> **Aktuální stav k 1. 10. 2026:** produkční dekódování, scan/párování a
+> `RfSensorManager` jsou již součástí `masteru`. Odkazy níže na
+> „diagnostickou větev“ nebo experimentální branch popisují historický průběh
+> výzkumu a nemají se chápat jako současné umístění implementace.
+
 > Stav k **20. 9. 2026**. Jde o vývojovou diagnostiku na větvi
-> `feature/cc1101-diagnostics`, nikoli o potvrzenou funkcionalitu aktuálního
+> `historická diagnostická větev (již sloučená do masteru)`, nikoli o potvrzenou funkcionalitu aktuálního
 > `masteru`.
 >
 > Cílem není jen dekódovat jeden senzor, ale postupně **zmapovat všechny
