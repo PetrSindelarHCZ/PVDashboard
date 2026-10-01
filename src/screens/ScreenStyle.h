@@ -162,7 +162,7 @@ inline void drawHeader(IDisplay& d, const DataModel& dm) {
 
     d.setUnicodeFont(DisplayFonts::strongBody());
     String date = dm.system.dateStr;
-    const int16_t dateLeft = max<int16_t>(160, sourceX);
+    const int16_t dateLeft = sourceX > 160 ? sourceX : 160;
     const int16_t dateRight = timeX - 20;
     const int16_t availableWidth = dateRight - dateLeft;
     // Truncate only complete UTF-8 code points if a future label is too long.
