@@ -139,7 +139,8 @@ String homeLayoutResponseJson(
         item["inverseText"] = widget.inverseText;
         item["icon"] =
             WidgetIcons::key(static_cast<WidgetIcons::Icon>(widget.icon));
-        if (widget.type == "indoor" || widget.type == "pool-summary") {
+        if (widget.type == "weather" || widget.type == "energy" ||
+            widget.type == "indoor" || widget.type == "pool-summary") {
             item["title"] = widget.title;
             if (widget.type == "pool-summary")
                 item["rfSensorSlotId"] = HomeLayout::rfSlotId(widget.rfSensorSlot);
@@ -225,7 +226,8 @@ String homeLayoutResponseJson(
         item["inverseText"] = widget.inverseText;
         item["icon"] =
             WidgetIcons::key(static_cast<WidgetIcons::Icon>(widget.icon));
-        if (widget.type == "indoor" || widget.type == "pool-summary") {
+        if (widget.type == "weather" || widget.type == "energy" ||
+            widget.type == "indoor" || widget.type == "pool-summary") {
             item["title"] = widget.title;
             if (widget.type == "pool-summary")
                 item["rfSensorSlotId"] = HomeLayout::rfSlotId(widget.rfSensorSlot);
