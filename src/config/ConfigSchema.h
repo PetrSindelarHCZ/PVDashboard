@@ -21,7 +21,7 @@ struct WifiConfig {
     String dns2 = "";
 };
 
-constexpr uint8_t MaxHomeLayoutWidgets = 6;
+constexpr uint8_t MaxHomeLayoutWidgets = 8;
 constexpr uint8_t MaxCustomWidgetElements = 8;
 
 struct CustomWidgetElementConfig {
@@ -58,8 +58,16 @@ struct HomeLayoutWidgetConfig {
     String background = "white"; // white | black
     bool inverseText = false;
 
-    // Used only by type == "custom". Predefined widgets keep these empty.
+    // Custom title is also used by RF sensor cards.
     String title = "";
+
+    // Used by type == "rf-sensor". slotId is the stable dashboard identity
+    // of a paired 433 MHz sensor, so radio-side ID changes do not break Home.
+    String rfSensorSlotId = "";
+    bool rfShowHumidity = true;
+    bool rfShowLastSeen = true;
+
+    // Used only by type == "custom".
     std::vector<CustomWidgetElementConfig> elements;
 };
 
