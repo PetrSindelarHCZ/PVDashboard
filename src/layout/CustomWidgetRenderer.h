@@ -427,14 +427,26 @@ inline bool rfHistorySource(const String& source, int& stableIndex, String& metr
     return true;
 }
 
-inline uint8_t historyCount(const DataModel& dm, const String& source) {
-    if (source == "solar.productionPowerW" || source == "solar.houseConsumptionW")
+inline uint8_t normalizedGraphPeriodHours(uint8_t hours) {
+    return sensorGraphPeriodIndex(hours) >= 0 ? hours : 12;
+}
+
+inline uint8_t historyCount(const DataModel& dm, const String& source,
+                            uint8_t periodHours) {
+    if (source == "solar.productionPowerW" ||
+        source == "solar.houseConsumptionW") {
         return dm.solar.historyCount;
+    }
+
+    const int8_t periodIndex =
+        sensorGraphPeriodIndex(normalizedGraphPeriodHours(periodHours));
+    if (periodIndex < 0) return 0;
 
     if (source == "inside.temperatureC" ||
         source == "inside.humidityPercent" ||
         source == "inside.pressureHpa") {
-        return dm.inside.history != nullptr ? dm.inside.history->count : 0;
+        if (dm.inside.history == nullptr) return 0;
+        return dm.inside.history->series[periodIndex].count;
     }
 
     int stableIndex = -1;
@@ -443,42 +455,57 @@ inline uint8_t historyCount(const DataModel& dm, const String& source) {
         dm.rfSensors.history == nullptr) {
         return 0;
     }
-    return dm.rfSensors.history[stableIndex].count;
+    return dm.rfSensors.history[stableIndex].series[periodIndex].count;
 }
 
 inline bool historyValueAt(const DataModel& dm, const String& source,
+                           uint8_t periodHours,
                            uint8_t chronologicalIndex, float& value) {
-    if (source == "solar.productionPowerW" || source == "solar.houseConsumptionW") {
+    if (source == "solar.productionPowerW" ||
+        source == "solar.houseConsumptionW") {
         if (chronologicalIndex >= dm.solar.historyCount) return false;
         const SolarHistorySample& sample = dm.solar.history[chronologicalIndex];
-        if (source == "solar.productionPowerW") value = sample.productionPowerW;
-        else value = sample.houseConsumptionW;
+        if (source == "solar.productionPowerW")
+            value = sample.productionPowerW;
+        else
+            value = sample.houseConsumptionW;
         return true;
     }
+
+    const int8_t periodIndex =
+        sensorGraphPeriodIndex(normalizedGraphPeriodHours(periodHours));
+    if (periodIndex < 0) return false;
 
     if (source == "inside.temperatureC" ||
         source == "inside.humidityPercent" ||
         source == "inside.pressureHpa") {
-        if (dm.inside.history == nullptr ||
-            chronologicalIndex >= dm.inside.history->count) {
-            return false;
-        }
+        if (dm.inside.history == nullptr) return false;
 
-        const InsideHistory& history = *dm.inside.history;
+        const InsideHistorySeries& series =
+            dm.inside.history->series[periodIndex];
+        if (chronologicalIndex >= series.count) return false;
+
         const uint8_t oldest =
-            static_cast<uint8_t>((history.next + InsideHistorySampleCount - history.count) %
-                                 InsideHistorySampleCount);
+            static_cast<uint8_t>(
+                (series.next + SensorGraphSampleCount - series.count) %
+                SensorGraphSampleCount);
         const uint8_t physical =
-            static_cast<uint8_t>((oldest + chronologicalIndex) %
-                                 InsideHistorySampleCount);
-        const InsideHistorySample& sample = history.samples[physical];
+            static_cast<uint8_t>(
+                (oldest + chronologicalIndex) % SensorGraphSampleCount);
+        const InsideHistorySample& sample = series.samples[physical];
 
-        if (source == "inside.temperatureC")
+        if (source == "inside.temperatureC") {
+            if ((sample.flags & 0x01) == 0) return false;
             value = sample.temperatureCenti / 100.0f;
-        else if (source == "inside.humidityPercent")
+            return true;
+        }
+        if (source == "inside.humidityPercent") {
+            if ((sample.flags & 0x02) == 0) return false;
             value = sample.humidityPercent;
-        else
-            value = sample.pressureDeciHpa / 10.0f;
+            return true;
+        }
+        if ((sample.flags & 0x04) == 0) return false;
+        value = sample.pressureDeciHpa / 10.0f;
         return true;
     }
 
@@ -489,15 +516,18 @@ inline bool historyValueAt(const DataModel& dm, const String& source,
         return false;
     }
 
-    const RfSensorHistory& history = dm.rfSensors.history[stableIndex];
-    if (chronologicalIndex >= history.count) return false;
+    const RfHistorySeries& series =
+        dm.rfSensors.history[stableIndex].series[periodIndex];
+    if (chronologicalIndex >= series.count) return false;
 
     const uint8_t oldest =
-        static_cast<uint8_t>((history.next + RfHistorySampleCount - history.count) %
-                             RfHistorySampleCount);
+        static_cast<uint8_t>(
+            (series.next + SensorGraphSampleCount - series.count) %
+            SensorGraphSampleCount);
     const uint8_t physical =
-        static_cast<uint8_t>((oldest + chronologicalIndex) % RfHistorySampleCount);
-    const RfHistorySample& sample = history.samples[physical];
+        static_cast<uint8_t>(
+            (oldest + chronologicalIndex) % SensorGraphSampleCount);
+    const RfHistorySample& sample = series.samples[physical];
 
     if (metric == "temperatureC") {
         if ((sample.flags & 0x01) == 0) return false;
@@ -511,20 +541,42 @@ inline bool historyValueAt(const DataModel& dm, const String& source,
 
 inline void drawTrend(IDisplay& display, const DataModel& dm, int16_t x, int16_t y,
                       const CustomWidgetElementConfig& element, uint16_t textColor) {
-    const uint8_t count = historyCount(dm, element.source);
+    const uint8_t periodHours =
+        normalizedGraphPeriodHours(element.graphPeriodHours);
+    const uint8_t count =
+        historyCount(dm, element.source, periodHours);
+
     int direction = 0;
-    if (count >= 2) {
-        float previous = 0.0f;
-        float current = 0.0f;
-        if (historyValueAt(dm, element.source, count - 2, previous) &&
-            historyValueAt(dm, element.source, count - 1, current)) {
-            float threshold = 0.15f;
-            if (element.source.endsWith(".humidityPercent")) threshold = 1.0f;
-            else if (element.source.endsWith(".pressureHpa")) threshold = 0.5f;
-            const float delta = current - previous;
-            if (delta > threshold) direction = 1;
-            else if (delta < -threshold) direction = -1;
+    float newest = 0.0f;
+    float previous = 0.0f;
+    bool haveNewest = false;
+    bool havePrevious = false;
+
+    for (int16_t i = static_cast<int16_t>(count) - 1;
+         i >= 0 && !havePrevious;
+         --i) {
+        float candidate = 0.0f;
+        if (!historyValueAt(
+                dm, element.source, periodHours,
+                static_cast<uint8_t>(i), candidate)) {
+            continue;
         }
+        if (!haveNewest) {
+            newest = candidate;
+            haveNewest = true;
+        } else {
+            previous = candidate;
+            havePrevious = true;
+        }
+    }
+
+    if (haveNewest && havePrevious) {
+        float threshold = 0.15f;
+        if (element.source.endsWith(".humidityPercent")) threshold = 1.0f;
+        else if (element.source.endsWith(".pressureHpa")) threshold = 0.5f;
+        const float delta = newest - previous;
+        if (delta > threshold) direction = 1;
+        else if (delta < -threshold) direction = -1;
     }
 
     int16_t top = y;
@@ -592,7 +644,10 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
     int16_t graphH = element.height - (graphY - y) - 2;
     if (graphH < 20) graphH = 20;
 
-    const uint8_t count = historyCount(dm, element.source);
+    const uint8_t periodHours =
+        normalizedGraphPeriodHours(element.graphPeriodHours);
+    const uint8_t count =
+        historyCount(dm, element.source, periodHours);
 
     // Bar graphs deliberately have no frame. A single baseline sits three
     // pixels below the bars, matching the compact Home mock-up.
@@ -615,7 +670,7 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
         bool firstValue = true;
         for (uint8_t i = 0; i < count; ++i) {
             float value = 0.0f;
-            if (!historyValueAt(dm, element.source, i, value)) continue;
+            if (!historyValueAt(dm, element.source, periodHours, i, value)) continue;
             if (firstValue) {
                 minValue = maxValue = value;
                 firstValue = false;
@@ -639,7 +694,7 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
 
         for (uint8_t i = 0; i < count; ++i) {
             float value = 0.0f;
-            if (!historyValueAt(dm, element.source, i, value)) continue;
+            if (!historyValueAt(dm, element.source, periodHours, i, value)) continue;
 
             float normalized = (value - minValue) / (maxValue - minValue);
             if (normalized < 0.0f) normalized = 0.0f;
@@ -680,7 +735,7 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
     bool firstValue = true;
     for (uint8_t i = 0; i < count; ++i) {
         float value = 0.0f;
-        if (!historyValueAt(dm, element.source, i, value)) continue;
+        if (!historyValueAt(dm, element.source, periodHours, i, value)) continue;
         if (firstValue) {
             minValue = maxValue = value;
             firstValue = false;
@@ -712,7 +767,7 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
 
     for (uint8_t i = 0; i < count; ++i) {
         float value = 0.0f;
-        if (!historyValueAt(dm, element.source, i, value)) continue;
+        if (!historyValueAt(dm, element.source, periodHours, i, value)) continue;
         const int16_t px = left + static_cast<int16_t>(
             (static_cast<uint32_t>(i) * (plotW - 1)) / (count - 1));
         float normalized = (value - minValue) / (maxValue - minValue);
