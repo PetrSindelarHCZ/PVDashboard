@@ -489,14 +489,8 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
     }
 }
 
-inline void draw(IDisplay& display, const DataModel& dm, const HomeLayoutWidgetConfig& widget) {
-    const bool blackBackground = widget.background == "black";
-    const uint16_t textColor = widget.inverseText ? 1 : 0;
-    ScreenStyle::drawStyledCard(
-        display, widget.x, widget.y, widget.width, widget.height,
-        widget.title.isEmpty() ? "VLASTNÍ" : widget.title.c_str(),
-        widget.showFrame, blackBackground, widget.inverseText);
-
+inline void drawElements(IDisplay& display, const DataModel& dm,
+                         const HomeLayoutWidgetConfig& widget, uint16_t textColor) {
     // elements[] is the Z-order: first is bottom, last is top.
     for (uint8_t i = 0; i < widget.elements.size() && i < MaxCustomWidgetElements; ++i) {
         const CustomWidgetElementConfig& element = widget.elements[i];
@@ -508,6 +502,16 @@ inline void draw(IDisplay& display, const DataModel& dm, const HomeLayoutWidgetC
         else if (element.type == "progress") drawProgress(display, dm, x, y, element, textColor);
         else if (element.type == "sparkline") drawSparkline(display, dm, x, y, element, textColor);
     }
+}
+
+inline void draw(IDisplay& display, const DataModel& dm, const HomeLayoutWidgetConfig& widget) {
+    const bool blackBackground = widget.background == "black";
+    const uint16_t textColor = widget.inverseText ? 1 : 0;
+    ScreenStyle::drawStyledCard(
+        display, widget.x, widget.y, widget.width, widget.height,
+        widget.title.isEmpty() ? "VLASTNÍ" : widget.title.c_str(),
+        widget.showFrame, blackBackground, widget.inverseText);
+    drawElements(display, dm, widget, textColor);
 }
 
 } // namespace CustomWidgetRenderer
