@@ -5,6 +5,7 @@
 #include "../config/ConfigSchema.h"
 #include "../data/DataModel.h"
 #include "../display/IDisplay.h"
+#include "../display/assets/WidgetIcons.h"
 #include "../screens/ScreenStyle.h"
 
 namespace CustomWidgetRenderer {
@@ -890,10 +891,24 @@ inline void drawElements(IDisplay& display, const DataModel& dm,
 inline void draw(IDisplay& display, const DataModel& dm, const HomeLayoutWidgetConfig& widget) {
     const bool blackBackground = widget.background == "black";
     const uint16_t textColor = widget.inverseText ? 1 : 0;
+    const WidgetIcons::Icon icon =
+        WidgetIcons::resolved(widget.icon, widget.type);
+    const bool hasIcon = icon != WidgetIcons::Icon::None;
+
     ScreenStyle::drawStyledCard(
         display, widget.x, widget.y, widget.width, widget.height,
         widget.title.isEmpty() ? "VLASTNÍ" : widget.title.c_str(),
-        widget.showFrame, blackBackground, widget.inverseText);
+        widget.showFrame, blackBackground, widget.inverseText,
+        hasIcon ? 51 : 12,
+        hasIcon ? 51 : 10);
+
+    if (hasIcon) {
+        WidgetIcons::draw(
+            display, icon,
+            widget.x + 8, widget.y + 2,
+            textColor);
+    }
+
     drawElements(display, dm, widget, textColor);
 }
 
