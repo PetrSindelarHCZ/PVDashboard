@@ -135,6 +135,8 @@ String homeLayoutResponseJson(
         item["showFrame"] = widget.showFrame;
         item["background"] = widget.background;
         item["inverseText"] = widget.inverseText;
+        item["icon"] =
+            WidgetIcons::key(static_cast<WidgetIcons::Icon>(widget.icon));
         if (widget.type == "indoor" || widget.type == "pool-summary") {
             item["title"] = widget.title;
             if (widget.type == "pool-summary")
@@ -219,6 +221,8 @@ String homeLayoutResponseJson(
         item["showFrame"] = widget.showFrame;
         item["background"] = widget.background;
         item["inverseText"] = widget.inverseText;
+        item["icon"] =
+            WidgetIcons::key(static_cast<WidgetIcons::Icon>(widget.icon));
         if (widget.type == "indoor" || widget.type == "pool-summary") {
             item["title"] = widget.title;
             if (widget.type == "pool-summary")
@@ -263,6 +267,16 @@ String homeLayoutResponseJson(
     JsonArray backgrounds = appearance["backgrounds"].to<JsonArray>();
     backgrounds.add("white");
     backgrounds.add("black");
+
+    JsonArray icons = appearance["icons"].to<JsonArray>();
+    for (uint8_t i = 0;
+         i < static_cast<uint8_t>(WidgetIcons::Icon::Count);
+         ++i) {
+        const WidgetIcons::Icon icon = static_cast<WidgetIcons::Icon>(i);
+        JsonObject choice = icons.add<JsonObject>();
+        choice["id"] = WidgetIcons::key(icon);
+        choice["label"] = WidgetIcons::label(icon);
+    }
 
     JsonObject custom = doc["customWidget"].to<JsonObject>();
     custom["type"] = "custom";
