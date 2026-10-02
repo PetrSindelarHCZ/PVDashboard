@@ -440,7 +440,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     const byId = id => draft.find(w => w.id === id);
     const supportedById = id => (apiState?.supportedWidgets || []).find(w => w.id === id);
     const defaultWidgetById = id => (apiState?.defaultWidgets || []).find(w => w.id === id);
-    const isElementWidget = widget => widget?.type === 'custom' || widget?.type === 'rf-sensor';
+    const isElementWidget = widget => ['custom','rf-sensor','indoor','pool-summary'].includes(widget?.type);
 
     function ensureWidgetStyle(widget) {
         if (!widget) return widget;
@@ -461,10 +461,11 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             });
             return {minWidth: minW, minHeight: minH};
         }
-        if (widget?.type === 'custom') {
-            let minW = Number(apiState?.customWidget?.minWidth || 160);
-            let minH = Number(apiState?.customWidget?.minHeight || 120);
-            (widget.elements || []).forEach((element, elementIndex) => {
+        if (widget?.type === 'custom' || widget?.type === 'indoor' || widget?.type === 'pool-summary') {
+            const supported = supportedById(widget?.id);
+            let minW = Number(widget.type === 'custom' ? (apiState?.customWidget?.minWidth || 160) : (supported?.minWidth || 150));
+            let minH = Number(widget.type === 'custom' ? (apiState?.customWidget?.minHeight || 120) : (supported?.minHeight || 140));
+            (widget.elements || []).forEach(element => {
                 minW = Math.max(minW, Number(element.x || 0) + Number(element.width || 0) + 8);
                 minH = Math.max(minH, Number(element.y || 0) + Number(element.height || 0) + 8);
             });
@@ -479,7 +480,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
     function widgetLabel(widget) {
         if (!widget) return '';
-        if (widget.type === 'custom' || widget.type === 'rf-sensor')
+        if (isElementWidget(widget))
             return widget.title || labels[widget.id] || widget.id;
         return labels[widget.id] || widget.id;
     }
@@ -658,11 +659,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const panel = document.getElementById('rfCardEditor');
         if (!panel) return;
         const widget = byId(selectedId);
-        if (!widget || widget.type !== 'rf-sensor') {
+        if (!widget || (widget.type !== 'rf-sensor' && widget.type !== 'pool-summary')) {
             panel.hidden = true;
             return;
         }
         panel.hidden = false;
+        const editorTitle = document.getElementById('rfCardEditorTitle');
+        if (editorTitle) editorTitle.textContent =
+            widget.type === 'pool-summary' ? 'Bazénové RF čidlo' : 'RF čidlo';
 
         const title = document.getElementById('rfCardTitle');
         const sensor = document.getElementById('rfCardSensor');
@@ -673,6 +677,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
         if (advancedField) advancedField.hidden = (widget.elements || []).length > 0;
         if (advanced) {
+            advanced.textContent = widget.type === 'pool-summary'
+                ? 'Převést bazén na volné rozložení'
+                : 'Převést na volné rozložení';
             advanced.onclick = () => {
                 const selected = (apiState?.rfSensorWidget?.sensors || [])
                     .find(item => item.slotId === widget.rfSensorSlotId);
@@ -696,7 +703,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     showLabel: false,
                     graphStyle: 'line'
                 }];
-                if (selected?.hasHumidity !== false && widget.rfShowHumidity !== false) {
+                if (selected?.hasHumidity !== false &&
+                    (widget.type === 'pool-summary' || widget.rfShowHumidity !== false)) {
                     widget.elements.push({
                         id: 'humidity',
                         type: 'kpi',
@@ -719,14 +727,15 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 }
                 selectedElementId = 'temperature';
                 renderDraft();
-                editorMessage('RF karta převedena na volné rozložení. Prvky můžeš přesouvat a měnit.', 'ok');
+                editorMessage((widget.type === 'pool-summary' ? 'Bazénová' : 'RF') + ' karta převedena na volné rozložení. Prvky můžeš přesouvat a měnit.', 'ok');
             };
         }
 
         if (title) {
             title.value = widget.title || '';
             title.onchange = () => {
-                widget.title = title.value.trim() || 'RF ČIDLO';
+                widget.title = title.value.trim() ||
+                    (widget.type === 'pool-summary' ? 'BAZÉN' : 'RF ČIDLO');
                 renderDraft();
             };
         }
@@ -736,6 +745,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             sensor.innerHTML = choices.map(item =>
                 '<option value="' + escapeHtml(item.slotId) + '">' +
                 escapeHtml(item.name || item.slotId) + '</option>').join('');
+            if (!widget.rfSensorSlotId && widget.type === 'pool-summary' && choices.length) {
+                widget.rfSensorSlotId = choices[0].slotId;
+            }
             sensor.value = widget.rfSensorSlotId || '';
             sensor.onchange = () => {
                 const previousSlot = widget.rfSensorSlotId || '';
@@ -755,7 +767,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         if (humidity) {
             const selected = (apiState?.rfSensorWidget?.sensors || [])
                 .find(item => item.slotId === widget.rfSensorSlotId);
-            humidity.closest('.field').hidden = (widget.elements || []).length > 0;
+            humidity.closest('.field').hidden =
+                widget.type === 'pool-summary' || (widget.elements || []).length > 0;
             humidity.disabled = selected?.hasHumidity === false;
             humidity.checked = widget.rfShowHumidity !== false && !humidity.disabled;
             humidity.onchange = () => {
@@ -765,7 +778,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         }
 
         if (lastSeen) {
-            lastSeen.closest('.field').hidden = (widget.elements || []).length > 0;
+            lastSeen.closest('.field').hidden =
+                widget.type === 'pool-summary' || (widget.elements || []).length > 0;
             lastSeen.checked = widget.rfShowLastSeen !== false;
             lastSeen.onchange = () => {
                 widget.rfShowLastSeen = lastSeen.checked;
@@ -1085,9 +1099,17 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     function elementSources(widget, type) {
         let sources = (apiState?.customWidget?.dataSources || [])
             .filter(source => (type !== 'sparkline' && type !== 'trend') || source.history);
-        if (widget?.type === 'rf-sensor') {
+
+        if (widget?.type === 'rf-sensor' || widget?.type === 'pool-summary') {
             const prefix = 'rf.' + (widget.rfSensorSlotId || '') + '.';
             sources = sources.filter(source => source.id.startsWith(prefix));
+        } else if (widget?.type === 'indoor') {
+            const allowed = new Set([
+                'inside.temperatureC',
+                'inside.humidityPercent',
+                'inside.pressureHpa'
+            ]);
+            sources = sources.filter(source => allowed.has(source.id));
         }
         return sources;
     }
@@ -1282,7 +1304,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     function customWidgetHasErrors(widget) {
         if (!widget || !isElementWidget(widget)) return false;
         const elements = widget.elements || [];
-        if (widget.type === 'rf-sensor' && elements.length === 0) return false;
+        if ((widget.type === 'rf-sensor' || widget.type === 'indoor' || widget.type === 'pool-summary') && elements.length === 0) return false;
         if (!elements.length || elements.length > Number(apiState?.customWidget?.maxElements || 8)) return true;
         return elementInvalidIds(widget).size > 0;
     }
@@ -1361,7 +1383,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         if (!form) return;
         const element = (widget.elements || []).find(item => item.id === selectedElementId);
         if (!element) {
-            form.innerHTML = '<div class="field-help">Vyber prvek ve vlastní kartě.</div>';
+            form.innerHTML = '<div class="field-help">Vyber prvek uvnitř karty.</div>';
             return;
         }
 
@@ -2137,7 +2159,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             </div>
 
             <div class="card-style-panel" id="rfCardEditor" hidden>
-                <div class="card-title">RF čidlo</div>
+                <div class="card-title" id="rfCardEditorTitle">RF čidlo</div>
                 <div class="field-help" style="margin-bottom:10px">Karta je navázaná na stabilní slot uloženého 433 MHz čidla.</div>
                 <div class="card-style-grid">
                     <div class="field">
