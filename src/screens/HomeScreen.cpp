@@ -36,20 +36,23 @@ void drawCardHeaderIcon(IDisplay& d, const LayoutWidget& widget,
     const SidebarIcons::Bitmap icon = SidebarIcons::get(iconId);
     if (icon.data == nullptr || icon.width != 40 || icon.height != 40) return;
 
-    constexpr int16_t target = 20;
-    const int16_t left = widget.x + widget.width - 12 - target;
-    const int16_t top = widget.y + 7;
+    // Header icon intentionally follows the visual mock-up:
+    // larger symbol on the left, title starts beside it.
+    constexpr int16_t target = 24;
     constexpr int16_t sourceRowBytes = 5;
+    const int16_t left = widget.x + 10;
+    const int16_t top = widget.y + 5;
 
     for (int16_t ty = 0; ty < target; ++ty) {
         for (int16_t tx = 0; tx < target; ++tx) {
+            const int16_t sx0 = (tx * 40) / target;
+            const int16_t sx1 = ((tx + 1) * 40) / target;
+            const int16_t sy0 = (ty * 40) / target;
+            const int16_t sy1 = ((ty + 1) * 40) / target;
             bool set = false;
-            const int16_t sx0 = tx * 2;
-            const int16_t sy0 = ty * 2;
-            for (int16_t dy = 0; dy < 2 && !set; ++dy) {
-                for (int16_t dx = 0; dx < 2; ++dx) {
-                    const int16_t sx = sx0 + dx;
-                    const int16_t sy = sy0 + dy;
+
+            for (int16_t sy = sy0; sy < sy1 && !set; ++sy) {
+                for (int16_t sx = sx0; sx < sx1; ++sx) {
                     const uint8_t value =
                         pgm_read_byte(icon.data + sy * sourceRowBytes + sx / 8);
                     if (value & (0x80 >> (sx & 7))) {
@@ -64,14 +67,14 @@ void drawCardHeaderIcon(IDisplay& d, const LayoutWidget& widget,
 }
 
 void drawRfHeaderIcon(IDisplay& d, const LayoutWidget& widget, uint16_t color = 0) {
-    const int16_t x = widget.x + widget.width - 31;
-    const int16_t y = widget.y + 8;
-    d.drawLine(x + 8, y + 7, x + 8, y + 18, color);
-    d.fillCircle(x + 8, y + 19, 1, color);
-    d.drawLine(x + 5, y + 8, x + 2, y + 5, color);
-    d.drawLine(x + 11, y + 8, x + 14, y + 5, color);
-    d.drawLine(x + 3, y + 11, x, y + 8, color);
-    d.drawLine(x + 13, y + 11, x + 16, y + 8, color);
+    const int16_t x = widget.x + 11;
+    const int16_t y = widget.y + 4;
+    d.drawLine(x + 10, y + 8, x + 10, y + 22, color);
+    d.fillCircle(x + 10, y + 23, 1, color);
+    d.drawLine(x + 6, y + 10, x + 2, y + 6, color);
+    d.drawLine(x + 14, y + 10, x + 18, y + 6, color);
+    d.drawLine(x + 4, y + 14, x, y + 10, color);
+    d.drawLine(x + 16, y + 14, x + 20, y + 10, color);
 }
 
 void drawHouseSymbol(IDisplay& d, int16_t x, int16_t y, uint16_t color = 0) {
