@@ -735,7 +735,7 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
             const String nowLabel = "teď";
             display.setCursor(left, axisY + 11);
             display.print(fromLabel);
-            const int16_t nowWidth = display.getTextBounds(nowLabel).width;
+            const int16_t nowWidth = display.textWidth(nowLabel);
             display.setCursor(left + plotW - nowWidth, axisY + 11);
             display.print(nowLabel);
         }
