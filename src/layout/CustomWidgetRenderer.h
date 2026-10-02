@@ -437,26 +437,6 @@ inline uint8_t historyCount(const DataModel& dm, const String& source) {
         return dm.inside.history != nullptr ? dm.inside.history->count : 0;
     }
 
-    if (source == "inside.temperatureC" ||
-        source == "inside.humidityPercent" ||
-        source == "inside.pressureHpa") {
-        if (dm.inside.history == nullptr ||
-            chronologicalIndex >= dm.inside.history->count) {
-            return false;
-        }
-        const InsideHistory& history = *dm.inside.history;
-        const uint8_t oldest =
-            static_cast<uint8_t>((history.next + InsideHistorySampleCount - history.count) %
-                                 InsideHistorySampleCount);
-        const uint8_t physical =
-            static_cast<uint8_t>((oldest + chronologicalIndex) % InsideHistorySampleCount);
-        const InsideHistorySample& sample = history.samples[physical];
-        if (source == "inside.temperatureC") value = sample.temperatureCenti / 100.0f;
-        else if (source == "inside.humidityPercent") value = sample.humidityPercent;
-        else value = sample.pressureDeciHpa / 10.0f;
-        return true;
-    }
-
     int stableIndex = -1;
     String metric;
     if (!rfHistorySource(source, stableIndex, metric) ||
@@ -473,6 +453,32 @@ inline bool historyValueAt(const DataModel& dm, const String& source,
         const SolarHistorySample& sample = dm.solar.history[chronologicalIndex];
         if (source == "solar.productionPowerW") value = sample.productionPowerW;
         else value = sample.houseConsumptionW;
+        return true;
+    }
+
+    if (source == "inside.temperatureC" ||
+        source == "inside.humidityPercent" ||
+        source == "inside.pressureHpa") {
+        if (dm.inside.history == nullptr ||
+            chronologicalIndex >= dm.inside.history->count) {
+            return false;
+        }
+
+        const InsideHistory& history = *dm.inside.history;
+        const uint8_t oldest =
+            static_cast<uint8_t>((history.next + InsideHistorySampleCount - history.count) %
+                                 InsideHistorySampleCount);
+        const uint8_t physical =
+            static_cast<uint8_t>((oldest + chronologicalIndex) %
+                                 InsideHistorySampleCount);
+        const InsideHistorySample& sample = history.samples[physical];
+
+        if (source == "inside.temperatureC")
+            value = sample.temperatureCenti / 100.0f;
+        else if (source == "inside.humidityPercent")
+            value = sample.humidityPercent;
+        else
+            value = sample.pressureDeciHpa / 10.0f;
         return true;
     }
 
