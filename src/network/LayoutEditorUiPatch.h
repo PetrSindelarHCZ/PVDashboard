@@ -701,7 +701,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     fontSize: '28',
                     align: 'left',
                     showLabel: false,
-                    graphStyle: 'line'
+                    graphStyle: 'line',
+                    graphPeriodHours: 12
                 }];
                 if (selected?.hasHumidity !== false &&
                     (widget.type === 'pool-summary' || widget.rfShowHumidity !== false)) {
@@ -1370,6 +1371,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             element.text = '';
             element.showLabel = element.showLabel !== false;
             element.graphStyle = newType === 'sparkline' ? 'bars' : 'line';
+            if (newType === 'sparkline' || newType === 'trend') {
+                element.graphPeriodHours = Number(element.graphPeriodHours || 12);
+            }
             if (newType === 'progress' && !(Number(element.max) > Number(element.min))) {
                 element.min = 0;
                 element.max = source.unit === '%' ? 100 : 100;
@@ -1407,6 +1411,22 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 const names = {line:'Čára', bars:'Sloupce'};
                 return `<option value="${value}" ${value === (element.graphStyle || 'line') ? 'selected' : ''}>${names[value] || value}</option>`;
             }).join('');
+        const graphPeriodOptions = (apiState?.customWidget?.graphPeriods || [
+            {hours:1,bucketSeconds:150},{hours:2,bucketSeconds:300},
+            {hours:4,bucketSeconds:600},{hours:6,bucketSeconds:900},
+            {hours:12,bucketSeconds:1800},{hours:24,bucketSeconds:3600},
+            {hours:48,bucketSeconds:7200},{hours:72,bucketSeconds:10800}
+        ]).map(item => {
+            const hours = Number(item.hours);
+            const bucketSeconds = Number(item.bucketSeconds);
+            const periodLabel = hours < 24 ? hours + ' h' : (hours / 24) + ' d';
+            const intervalLabel = bucketSeconds < 3600
+                ? (bucketSeconds % 60 === 0
+                    ? (bucketSeconds / 60) + ' min'
+                    : (bucketSeconds / 60).toLocaleString('cs-CZ', {maximumFractionDigits:1}) + ' min')
+                : (bucketSeconds / 3600) + ' h';
+            return `<option value="${hours}" ${hours === Number(element.graphPeriodHours || 12) ? 'selected' : ''}>${periodLabel} · ${intervalLabel}/sloupec</option>`;
+        }).join('');
 
         form.innerHTML = `
             <div class="field full">
@@ -1472,6 +1492,12 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <select id="customFieldGraphStyle">${graphStyleOptions}</select>
                 </div>
             ` : ''}
+            ${(element.type === 'sparkline' || element.type === 'trend') ? `
+                <div class="field full">
+                    <label>Časové období</label>
+                    <select id="customFieldGraphPeriod">${graphPeriodOptions}</select>
+                </div>
+            ` : ''}
             <div class="field"><label>X</label><input id="customFieldX" type="number" value="${element.x}"></div>
             <div class="field"><label>Y</label><input id="customFieldY" type="number" value="${element.y}"></div>
             <div class="field"><label>Šířka</label><input id="customFieldW" type="number" value="${element.width}"></div>
@@ -1503,6 +1529,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             const align = document.getElementById('customFieldAlign');
             const showLabel = document.getElementById('customFieldShowLabel');
             const graphStyle = document.getElementById('customFieldGraphStyle');
+            const graphPeriod = document.getElementById('customFieldGraphPeriod');
             if (text) current.text = text.value;
             if (source) {
                 const previousSource = current.source;
@@ -1529,6 +1556,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             current.align = align ? align.value : (current.align || 'left');
             current.showLabel = showLabel ? showLabel.checked : (current.showLabel !== false);
             current.graphStyle = graphStyle ? graphStyle.value : (current.graphStyle || 'line');
+            current.graphPeriodHours = graphPeriod
+                ? Number(graphPeriod.value)
+                : Number(current.graphPeriodHours || 12);
             current.x = Number(document.getElementById('customFieldX')?.value ?? current.x);
             current.y = Number(document.getElementById('customFieldY')?.value ?? current.y);
             current.width = Number(document.getElementById('customFieldW')?.value ?? current.width);
@@ -1754,7 +1784,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             fontSize: type === 'trend' ? '28' : 'auto',
             align: 'left',
             showLabel: true,
-            graphStyle: type === 'sparkline' ? 'bars' : 'line'
+            graphStyle: type === 'sparkline' ? 'bars' : 'line',
+            graphPeriodHours: 12
         };
         widget.elements = widget.elements || [];
         widget.elements.push(element);
@@ -1901,7 +1932,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     fontSize: '28',
                     align: 'left',
                     showLabel: false,
-                    graphStyle: 'line'
+                    graphStyle: 'line',
+                    graphPeriodHours: 12
                 },
                 ...(sensor.hasHumidity === false ? [] : [{
                     id: 'humidity',
@@ -1920,7 +1952,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     fontSize: '18',
                     align: 'left',
                     showLabel: true,
-                    graphStyle: 'line'
+                    graphStyle: 'line',
+                    graphPeriodHours: 12
                 }])
             ]
         });
@@ -1976,7 +2009,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 fontSize: 'auto',
                 align: 'left',
                 showLabel: true,
-                graphStyle: 'line'
+                graphStyle: 'line',
+                graphPeriodHours: 12
             }]
         };
         normalizeWidget(widget);
