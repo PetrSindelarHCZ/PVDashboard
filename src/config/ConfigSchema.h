@@ -42,6 +42,7 @@ struct CustomWidgetElementConfig {
     String align = "left";      // left | center | right
     bool showLabel = true;
     String graphStyle = "line"; // line | bars (sparkline only)
+    uint8_t graphPeriodHours = 12; // 1,2,4,6,12,24,48,72
 };
 
 struct HomeLayoutWidgetConfig {
