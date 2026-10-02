@@ -553,12 +553,16 @@ void drawRfSensorCard(IDisplay& display, const DataModel& dm, const LayoutWidget
     const String title =
         style != nullptr && !style->title.isEmpty() ? style->title : String("VENKU");
     drawHomeCardBackground(display, widget, style, title.c_str(), true);
+    drawRfHeaderIcon(display, widget, color);
+
+    if (style != nullptr && !style->elements.empty()) {
+        CustomWidgetRenderer::drawElements(display, dm, *style, color);
+        return;
+    }
 
     const RfSensorData* sensor = rfSensorForWidget(dm, style);
     const bool showHumidity = style == nullptr || style->rfShowHumidity;
     const bool showLastSeen = style == nullptr || style->rfShowLastSeen;
-
-    drawRfHeaderIcon(display, widget, color);
 
     ScreenStyle::useMetric(display, color);
     display.setCursor(x + 15, y + 91);
