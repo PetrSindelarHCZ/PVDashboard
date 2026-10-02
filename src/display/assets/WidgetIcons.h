@@ -15,6 +15,7 @@ enum class Icon : uint8_t {
     Home,
     Outdoor,
     Solar,
+    AZRouter,
     Power,
     Battery,
     Weather,
@@ -37,6 +38,7 @@ inline const char* key(Icon icon) {
         case Icon::Home:        return "home";
         case Icon::Outdoor:     return "outdoor";
         case Icon::Solar:       return "solar";
+        case Icon::AZRouter:    return "azrouter";
         case Icon::Power:       return "power";
         case Icon::Battery:     return "battery";
         case Icon::Weather:     return "weather";
@@ -61,6 +63,7 @@ inline const char* label(Icon icon) {
         case Icon::Home:        return "Dům";
         case Icon::Outdoor:     return "Venku";
         case Icon::Solar:       return "FVE";
+        case Icon::AZRouter:    return "AZRouter";
         case Icon::Power:       return "Výkon";
         case Icon::Battery:     return "Baterie";
         case Icon::Weather:     return "Počasí";
@@ -89,7 +92,7 @@ inline bool valid(uint8_t value) {
 inline Icon defaultForWidgetType(const String& type) {
     if (type == "weather") return Icon::Weather;
     if (type == "fve-summary" || type == "energy") return Icon::Solar;
-    if (type == "azrouter-summary") return Icon::Power;
+    if (type == "azrouter-summary") return Icon::AZRouter;
     if (type == "indoor") return Icon::Home;
     if (type == "rf-sensor") return Icon::Outdoor;
     if (type == "pool-summary") return Icon::Pool;
@@ -168,6 +171,20 @@ inline void drawSolar(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
     d.drawCircle(x + 7, y + 6, 3, c);
 }
 
+inline void drawAZRouter(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
+    d.drawRoundRect(x + 3, y + 4, 26, 24, 3, c);
+
+    // A
+    d.drawLine(x + 7, y + 23, x + 11, y + 9, c);
+    d.drawLine(x + 11, y + 9, x + 15, y + 23, c);
+    d.drawLine(x + 9, y + 17, x + 13, y + 17, c);
+
+    // Z
+    d.drawLine(x + 17, y + 10, x + 25, y + 10, c);
+    d.drawLine(x + 25, y + 10, x + 17, y + 22, c);
+    d.drawLine(x + 17, y + 22, x + 25, y + 22, c);
+}
+
 inline void drawPower(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
     d.drawLine(x + 18, y + 3, x + 9, y + 17, c);
     d.drawLine(x + 9, y + 17, x + 16, y + 17, c);
@@ -243,6 +260,7 @@ inline void draw(IDisplay& d, Icon icon, int16_t x, int16_t y, uint16_t color = 
         case Icon::Home:        drawHouse(d, x, y, color); break;
         case Icon::Outdoor:     drawOutdoor(d, x, y, color); break;
         case Icon::Solar:       drawSolar(d, x, y, color); break;
+        case Icon::AZRouter:    drawAZRouter(d, x, y, color); break;
         case Icon::Power:       drawPower(d, x, y, color); break;
         case Icon::Battery:     drawBattery(d, x, y, color); break;
         case Icon::Weather:     drawWeather(d, x, y, color); break;
