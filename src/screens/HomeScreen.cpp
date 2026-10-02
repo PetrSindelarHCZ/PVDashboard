@@ -343,8 +343,15 @@ void drawIndoorCard(IDisplay& display, const DataModel& dm, const LayoutWidget& 
     const int16_t h = widget.height;
 
     const uint16_t color = cardTextColor(style);
-    drawHomeCardBackground(display, widget, style, "UVNITŘ", true);
+    const String title =
+        style != nullptr && !style->title.isEmpty() ? style->title : String("UVNITŘ");
+    drawHomeCardBackground(display, widget, style, title.c_str(), true);
     drawCardHeaderIcon(display, widget, SidebarIcons::Icon::Home, color);
+
+    if (style != nullptr && !style->elements.empty()) {
+        CustomWidgetRenderer::drawElements(display, dm, *style, color);
+        return;
+    }
 
     auto drawBmeTemperature = [&](int16_t valueX, int16_t valueY) {
         ScreenStyle::useValue(display, color);
@@ -604,8 +611,15 @@ void drawPoolSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWid
     const int16_t x = widget.x;
     const int16_t y = widget.y;
     const uint16_t color = cardTextColor(style);
-    drawHomeCardBackground(display, widget, style, "BAZÉN", true);
+    const String title =
+        style != nullptr && !style->title.isEmpty() ? style->title : String("BAZÉN");
+    drawHomeCardBackground(display, widget, style, title.c_str(), true);
     drawCardHeaderIcon(display, widget, SidebarIcons::Icon::Pool, color);
+
+    if (style != nullptr && !style->elements.empty()) {
+        CustomWidgetRenderer::drawElements(display, dm, *style, color);
+        return;
+    }
 
     ScreenStyle::useMetric(display, color);
     display.setCursor(x + 15, y + 91);
