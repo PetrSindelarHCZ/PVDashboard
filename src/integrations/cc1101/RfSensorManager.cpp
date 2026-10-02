@@ -15,6 +15,65 @@ RfSensorManager::RfSensorManager(DataModel& dataModel)
     : _dataModel(dataModel) {
 }
 
+int RfSensorManager::slotIndex(const String& slotId) {
+    if (!slotId.startsWith("sensor")) return -1;
+    const int value = slotId.substring(6).toInt();
+    if (value < 1 || value > MaxRfSensors) return -1;
+    if (slotId != "sensor" + String(value)) return -1;
+    return value - 1;
+}
+
+void RfSensorManager::ensureHistory() {
+    if (_history != nullptr) return;
+    _history = new (std::nothrow) RfSensorHistory[MaxRfSensors];
+    if (_history == nullptr) {
+        Serial.println("[RF-SENSORS] Historie nelze alokovat: nedostatek heap pameti.");
+        return;
+    }
+    _dataModel.rfSensors.history = _history;
+}
+
+void RfSensorManager::sampleHistory(
+    uint8_t configuredIndex,
+    const RfSensorObservation& observation,
+    uint32_t now) {
+
+    ensureHistory();
+    if (_history == nullptr || _config == nullptr ||
+        configuredIndex >= _config->sensorCount || configuredIndex >= MaxRfSensors) {
+        return;
+    }
+
+    const int stableIndex = slotIndex(_config->sensors[configuredIndex].slotId);
+    if (stableIndex < 0) return;
+
+    RfSensorHistory& history = _history[stableIndex];
+    if (history.count > 0 &&
+        !elapsedAtLeast(now, history.lastSampleMs, RfHistoryIntervalMs)) {
+        return;
+    }
+
+    RfHistorySample sample;
+    if (observation.hasTemperature) {
+        sample.temperatureCenti =
+            static_cast<int16_t>(lroundf(observation.temperatureC * 100.0f));
+        sample.flags |= 0x01;
+    }
+    if (observation.hasHumidity) {
+        int humidity = observation.humidityPercent;
+        if (humidity < 0) humidity = 0;
+        if (humidity > 100) humidity = 100;
+        sample.humidityPercent = static_cast<uint8_t>(humidity);
+        sample.flags |= 0x02;
+    }
+    if (sample.flags == 0) return;
+
+    history.samples[history.next] = sample;
+    history.next = static_cast<uint8_t>((history.next + 1) % RfHistorySampleCount);
+    if (history.count < RfHistorySampleCount) ++history.count;
+    history.lastSampleMs = now;
+}
+
 String RfSensorManager::normalizedName(String name) {
     name.trim();
     if (name.length() > 40) name.remove(40);
@@ -54,6 +113,9 @@ bool RfSensorManager::sameBinding(
 }
 
 void RfSensorManager::applyConfig(const RfSensorsConfig& config) {
+    ensureHistory();
+    if (_history != nullptr) _dataModel.rfSensors.history = _history;
+
     RfSensorData previous[MaxRfSensors];
     const uint8_t previousCount = _dataModel.rfSensors.sensorCount;
     for (uint8_t i = 0; i < previousCount && i < MaxRfSensors; ++i) {
@@ -163,6 +225,8 @@ bool RfSensorManager::observe(const RfSensorObservation& observation) {
         target.hasBattery = true;
         target.batteryOk = observation.batteryOk;
     }
+
+    sampleHistory(static_cast<uint8_t>(configuredIndex), observation, now);
     return true;
 }
 
