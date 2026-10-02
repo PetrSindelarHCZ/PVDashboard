@@ -18,8 +18,8 @@ void drawHomeCardBackground(IDisplay& display, const LayoutWidget& widget,
     const bool inverseText = style != nullptr && style->inverseText;
     ScreenStyle::drawStyledCard(display, widget.x, widget.y, widget.width, widget.height,
                                 title, showFrame, blackBackground, inverseText,
-                                hasHeaderIcon ? 42 : 12,
-                                hasHeaderIcon ? 42 : 10);
+                                hasHeaderIcon ? 48 : 12,
+                                hasHeaderIcon ? 48 : 10);
 }
 
 void drawCardIcon(IDisplay& d, int16_t centerX, int16_t centerY,
@@ -41,10 +41,10 @@ void drawCardHeaderIcon(IDisplay& d, const LayoutWidget& widget,
 
     // Header icon intentionally follows the visual mock-up:
     // larger symbol on the left, title starts beside it.
-    constexpr int16_t target = 28;
+    constexpr int16_t target = 32;
     constexpr int16_t sourceRowBytes = 5;
     const int16_t left = widget.x + 8;
-    const int16_t top = widget.y + 3;
+    const int16_t top = widget.y + 2;
 
     for (int16_t ty = 0; ty < target; ++ty) {
         for (int16_t tx = 0; tx < target; ++tx) {
@@ -70,14 +70,14 @@ void drawCardHeaderIcon(IDisplay& d, const LayoutWidget& widget,
 }
 
 void drawRfHeaderIcon(IDisplay& d, const LayoutWidget& widget, uint16_t color = 0) {
-    const int16_t x = widget.x + 9;
+    const int16_t x = widget.x + 8;
     const int16_t y = widget.y + 2;
-    d.drawLine(x + 12, y + 9, x + 12, y + 25, color);
-    d.fillCircle(x + 12, y + 26, 1, color);
-    d.drawLine(x + 7, y + 11, x + 2, y + 6, color);
-    d.drawLine(x + 17, y + 11, x + 22, y + 6, color);
-    d.drawLine(x + 5, y + 16, x, y + 11, color);
-    d.drawLine(x + 19, y + 16, x + 24, y + 11, color);
+    d.drawLine(x + 15, y + 9, x + 15, y + 29, color);
+    d.fillCircle(x + 15, y + 30, 1, color);
+    d.drawLine(x + 10, y + 11, x + 5, y + 6, color);
+    d.drawLine(x + 20, y + 11, x + 25, y + 6, color);
+    d.drawLine(x + 7, y + 16, x + 1, y + 10, color);
+    d.drawLine(x + 23, y + 16, x + 29, y + 10, color);
 }
 
 void drawHouseSymbol(IDisplay& d, int16_t x, int16_t y, uint16_t color = 0) {
