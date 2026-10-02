@@ -252,7 +252,7 @@ String homeLayoutResponseJson(
     custom["maxElements"] = MaxCustomWidgetElements;
 
     JsonArray elementTypes = custom["elementTypes"].to<JsonArray>();
-    const char* customTypes[] = {"text", "kpi", "progress", "sparkline"};
+    const char* customTypes[] = {"text", "kpi", "progress", "sparkline", "trend"};
     for (const char* type : customTypes) {
         JsonObject item = elementTypes.add<JsonObject>();
         item["type"] = type;
@@ -358,7 +358,7 @@ String homeLayoutResponseJson(
                 baseLabel + " – teplota",
                 "°C",
                 1,
-                false);
+                true);
         }
         if (sensor.hasHumidity) {
             addSource(
@@ -366,7 +366,7 @@ String homeLayoutResponseJson(
                 baseLabel + " – vlhkost",
                 "%",
                 0,
-                false);
+                true);
         }
     }
 
