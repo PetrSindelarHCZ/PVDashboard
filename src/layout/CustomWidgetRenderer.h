@@ -604,18 +604,56 @@ inline void drawTrend(IDisplay& display, const DataModel& dm, int16_t x, int16_t
     const int16_t cy = top + availableH / 2;
     const int16_t half = max<int16_t>(4, size / 3);
 
+    const int16_t shaftHalf = max<int16_t>(1, size / 12);
+    const int16_t headHalf = max<int16_t>(4, size / 4);
+    const int16_t headDepth = max<int16_t>(4, size / 4);
+
     if (direction > 0) {
-        display.drawLine(cx, cy + half, cx, cy - half, textColor);
-        display.drawLine(cx, cy - half, cx - half / 2, cy - half / 2, textColor);
-        display.drawLine(cx, cy - half, cx + half / 2, cy - half / 2, textColor);
+        // Wide filled-looking upward arrow, built from primitive lines so it
+        // stays crisp on the monochrome panel.
+        display.fillRect(
+            cx - shaftHalf, cy - half + headDepth,
+            shaftHalf * 2 + 1, half * 2 - headDepth, textColor);
+        for (int16_t row = 0; row < headDepth; ++row) {
+            const int16_t spread =
+                static_cast<int16_t>(
+                    (static_cast<int32_t>(headHalf) * row) /
+                    max<int16_t>(1, headDepth - 1));
+            display.drawLine(
+                cx - spread, cy - half + row,
+                cx + spread, cy - half + row, textColor);
+        }
     } else if (direction < 0) {
-        display.drawLine(cx, cy - half, cx, cy + half, textColor);
-        display.drawLine(cx, cy + half, cx - half / 2, cy + half / 2, textColor);
-        display.drawLine(cx, cy + half, cx + half / 2, cy + half / 2, textColor);
+        display.fillRect(
+            cx - shaftHalf, cy - half,
+            shaftHalf * 2 + 1, half * 2 - headDepth, textColor);
+        for (int16_t row = 0; row < headDepth; ++row) {
+            const int16_t spread =
+                static_cast<int16_t>(
+                    (static_cast<int32_t>(headHalf) *
+                     (headDepth - 1 - row)) /
+                    max<int16_t>(1, headDepth - 1));
+            display.drawLine(
+                cx - spread, cy + half - headDepth + 1 + row,
+                cx + spread, cy + half - headDepth + 1 + row,
+                textColor);
+        }
     } else {
-        display.drawLine(cx - half, cy, cx + half, cy, textColor);
-        display.drawLine(cx + half, cy, cx + half / 2, cy - half / 2, textColor);
-        display.drawLine(cx + half, cy, cx + half / 2, cy + half / 2, textColor);
+        // Stable state uses a bold horizontal arrow instead of a thin dash.
+        display.fillRect(
+            cx - half, cy - shaftHalf,
+            half * 2 - headDepth, shaftHalf * 2 + 1, textColor);
+        for (int16_t col = 0; col < headDepth; ++col) {
+            const int16_t spread =
+                static_cast<int16_t>(
+                    (static_cast<int32_t>(headHalf) *
+                     (headDepth - 1 - col)) /
+                    max<int16_t>(1, headDepth - 1));
+            display.drawLine(
+                cx + half - headDepth + 1 + col, cy - spread,
+                cx + half - headDepth + 1 + col, cy + spread,
+                textColor);
+        }
     }
 }
 
@@ -627,6 +665,18 @@ inline uint8_t historySlotCount(const String& source, uint8_t count) {
         return 24;
     }
     return count > 0 ? count : 1;
+}
+
+inline float graphMinimumDelta(const String& source) {
+    if (source.endsWith(".humidityPercent")) return 2.0f;
+    if (source.endsWith(".pressureHpa")) return 1.0f;
+    if (source.endsWith(".temperatureC")) return 0.5f;
+    return 1.0f;
+}
+
+inline String graphPeriodLabel(uint8_t periodHours) {
+    if (periodHours < 24) return "-" + String(periodHours) + " h";
+    return "-" + String(periodHours / 24) + " d";
 }
 
 inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int16_t y,
@@ -649,61 +699,98 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
     const uint8_t count =
         historyCount(dm, element.source, periodHours);
 
-    // Bar graphs deliberately have no frame. A single baseline sits three
-    // pixels below the bars, matching the compact Home mock-up.
+    // Sensor bar graph: current live value is the visual zero in the middle.
+    // Historical samples extend above/below that center according to their
+    // deviation from the current value.
     if (element.graphStyle == "bars") {
-        const int16_t left = x;
-        int16_t plotW = element.width;
+        const int16_t labelHeight = element.height >= 48 ? 13 : 0;
+        const int16_t leftAxisWidth = element.width >= 70 ? 7 : 3;
+        const int16_t left = x + leftAxisWidth;
+        int16_t plotW = element.width - leftAxisWidth;
         if (plotW < 1) plotW = 1;
 
-        const int16_t baselineY = graphY + graphH - 1;
-        const int16_t barsBottomY = baselineY - 3;
-        const int16_t top = graphY + 1;
-        int16_t plotH = barsBottomY - top + 1;
-        if (plotH < 1) plotH = 1;
+        const int16_t axisY = graphY + graphH - labelHeight - 1;
+        const int16_t plotTop = graphY + 1;
+        const int16_t plotBottom = axisY - 3;
+        int16_t plotH = plotBottom - plotTop + 1;
+        if (plotH < 4) plotH = 4;
 
-        display.drawLine(left, baselineY, left + plotW - 1, baselineY, textColor);
+        const int16_t centerY = plotTop + plotH / 2;
+        const int16_t halfH = max<int16_t>(1, plotH / 2 - 1);
+
+        // Minimal axes only: short vertical axis with a center mark, and the
+        // time axis three pixels below the bars.
+        const int16_t yAxisX = x + leftAxisWidth - 2;
+        display.drawLine(yAxisX, plotTop, yAxisX, plotBottom, textColor);
+        display.drawLine(yAxisX - 2, centerY, yAxisX + 3, centerY, textColor);
+        display.drawLine(left, axisY, left + plotW - 1, axisY, textColor);
+        display.drawLine(left, axisY, left, axisY + 2, textColor);
+        display.drawLine(left + plotW - 1, axisY,
+                         left + plotW - 1, axisY + 2, textColor);
+
+        if (labelHeight > 0) {
+            display.setTextColor(textColor);
+            display.setUnicodeFont(u8g2_font_t0_11_te);
+            const String fromLabel = graphPeriodLabel(periodHours);
+            const String nowLabel = "teď";
+            display.setCursor(left, axisY + 11);
+            display.print(fromLabel);
+            const int16_t nowWidth = display.getTextBounds(nowLabel).width;
+            display.setCursor(left + plotW - nowWidth, axisY + 11);
+            display.print(nowLabel);
+        }
+
         if (count == 0) return;
 
-        float minValue = 0.0f;
-        float maxValue = 0.0f;
-        bool firstValue = true;
-        for (uint8_t i = 0; i < count; ++i) {
-            float value = 0.0f;
-            if (!historyValueAt(dm, element.source, periodHours, i, value)) continue;
-            if (firstValue) {
-                minValue = maxValue = value;
-                firstValue = false;
-            } else {
-                if (value < minValue) minValue = value;
-                if (value > maxValue) maxValue = value;
+        float currentValue = 0.0f;
+        if (!resolveValue(dm, element.source, currentValue)) {
+            // If live data is temporarily unavailable, use the newest valid
+            // historical sample as the center reference.
+            bool found = false;
+            for (int16_t i = static_cast<int16_t>(count) - 1;
+                 i >= 0 && !found;
+                 --i) {
+                found = historyValueAt(
+                    dm, element.source, periodHours,
+                    static_cast<uint8_t>(i), currentValue);
             }
-        }
-        if (firstValue) return;
-
-        const bool sensorSource =
-            element.source.startsWith("rf.") || element.source.startsWith("inside.");
-        if (!sensorSource && minValue > 0.0f) minValue = 0.0f;
-        if (maxValue - minValue < 0.01f) {
-            minValue -= 0.5f;
-            maxValue += 0.5f;
+            if (!found) return;
         }
 
-        const uint8_t slotCount = historySlotCount(element.source, count);
-        const uint8_t firstSlot = count < slotCount ? slotCount - count : 0;
+        float maxAbsDelta = graphMinimumDelta(element.source);
+        for (uint8_t i = 0; i < count; ++i) {
+            float value = 0.0f;
+            if (!historyValueAt(
+                    dm, element.source, periodHours, i, value)) {
+                continue;
+            }
+            const float delta = fabsf(value - currentValue);
+            if (delta > maxAbsDelta) maxAbsDelta = delta;
+        }
+        if (maxAbsDelta < 0.001f)
+            maxAbsDelta = graphMinimumDelta(element.source);
+
+        const uint8_t slotCount =
+            historySlotCount(element.source, count);
+        const uint8_t firstSlot =
+            count < slotCount ? slotCount - count : 0;
 
         for (uint8_t i = 0; i < count; ++i) {
             float value = 0.0f;
-            if (!historyValueAt(dm, element.source, periodHours, i, value)) continue;
+            if (!historyValueAt(
+                    dm, element.source, periodHours, i, value)) {
+                continue;
+            }
 
-            float normalized = (value - minValue) / (maxValue - minValue);
-            if (normalized < 0.0f) normalized = 0.0f;
-            if (normalized > 1.0f) normalized = 1.0f;
+            const float delta = value - currentValue;
+            float magnitude = fabsf(delta) / maxAbsDelta;
+            if (magnitude > 1.0f) magnitude = 1.0f;
 
             int16_t barH =
-                static_cast<int16_t>(normalized * static_cast<float>(plotH));
-            if (barH < 1) barH = 1;
-            if (barH > plotH) barH = plotH;
+                static_cast<int16_t>(
+                    magnitude * static_cast<float>(halfH) + 0.5f);
+            if (barH < 1 && fabsf(delta) > 0.001f) barH = 1;
+            if (barH > halfH) barH = halfH;
 
             const uint8_t slot =
                 static_cast<uint8_t>(firstSlot + i);
@@ -716,12 +803,27 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
             int16_t barW = slotRight - slotLeft - 1;
             if (barW < 1) barW = 1;
 
-            display.fillRect(
-                slotLeft,
-                barsBottomY - barH + 1,
-                barW,
-                barH,
-                textColor);
+            if (barH > 0) {
+                if (delta > 0.0f) {
+                    display.fillRect(
+                        slotLeft, centerY - barH,
+                        barW, barH, textColor);
+                } else if (delta < 0.0f) {
+                    display.fillRect(
+                        slotLeft, centerY + 1,
+                        barW, barH, textColor);
+                } else {
+                    // Exact current/reference value: tiny center marker keeps
+                    // the slot visible without implying positive/negative.
+                    display.drawLine(
+                        slotLeft, centerY,
+                        slotLeft + barW - 1, centerY, textColor);
+                }
+            } else {
+                display.drawLine(
+                    slotLeft, centerY,
+                    slotLeft + barW - 1, centerY, textColor);
+            }
         }
         return;
     }
