@@ -11,12 +11,14 @@ uint16_t cardTextColor(const HomeLayoutWidgetConfig* style) {
 }
 
 void drawHomeCardBackground(IDisplay& display, const LayoutWidget& widget,
-                            const HomeLayoutWidgetConfig* style, const char* title) {
+                            const HomeLayoutWidgetConfig* style, const char* title,
+                            bool hasHeaderIcon = false) {
     const bool showFrame = style == nullptr ? true : style->showFrame;
     const bool blackBackground = style != nullptr && style->background == "black";
     const bool inverseText = style != nullptr && style->inverseText;
     ScreenStyle::drawStyledCard(display, widget.x, widget.y, widget.width, widget.height,
-                                title, showFrame, blackBackground, inverseText);
+                                title, showFrame, blackBackground, inverseText,
+                                hasHeaderIcon ? 42 : 12);
 }
 
 void drawCardIcon(IDisplay& d, int16_t centerX, int16_t centerY,
@@ -165,7 +167,7 @@ void drawWeatherCard(IDisplay& display, const DataModel& dm, const LayoutWidget&
     const int16_t h = widget.height;
 
     const uint16_t color = cardTextColor(style);
-    drawHomeCardBackground(display, widget, style, "PŘEDPOVĚĎ");
+    drawHomeCardBackground(display, widget, style, "PŘEDPOVĚĎ", true);
     drawCardHeaderIcon(display, widget, SidebarIcons::Icon::Weather, color);
 
     if (h < 250) {
@@ -340,7 +342,7 @@ void drawIndoorCard(IDisplay& display, const DataModel& dm, const LayoutWidget& 
     const int16_t h = widget.height;
 
     const uint16_t color = cardTextColor(style);
-    drawHomeCardBackground(display, widget, style, "UVNITŘ");
+    drawHomeCardBackground(display, widget, style, "UVNITŘ", true);
     drawCardHeaderIcon(display, widget, SidebarIcons::Icon::Home, color);
 
     auto drawBmeTemperature = [&](int16_t valueX, int16_t valueY) {
@@ -454,7 +456,7 @@ void drawFveSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidg
     const int16_t x = widget.x;
     const int16_t y = widget.y;
     const uint16_t color = cardTextColor(style);
-    drawHomeCardBackground(display, widget, style, "FVE / GOODWE");
+    drawHomeCardBackground(display, widget, style, "FVE / GOODWE", true);
     drawCardHeaderIcon(display, widget, SidebarIcons::Icon::Solar, color);
 
     ScreenStyle::useMetric(display, color);
@@ -493,7 +495,7 @@ void drawAZRouterSummaryCard(IDisplay& display, const DataModel& dm, const Layou
     const int16_t x = widget.x;
     const int16_t y = widget.y;
     const uint16_t color = cardTextColor(style);
-    drawHomeCardBackground(display, widget, style, "AZROUTER");
+    drawHomeCardBackground(display, widget, style, "AZROUTER", true);
     drawCardHeaderIcon(display, widget, SidebarIcons::Icon::AZRouter, color);
 
     ScreenStyle::useMetric(display, color);
@@ -549,7 +551,7 @@ void drawRfSensorCard(IDisplay& display, const DataModel& dm, const LayoutWidget
     const uint16_t color = cardTextColor(style);
     const String title =
         style != nullptr && !style->title.isEmpty() ? style->title : String("VENKU");
-    drawHomeCardBackground(display, widget, style, title.c_str());
+    drawHomeCardBackground(display, widget, style, title.c_str(), true);
 
     const RfSensorData* sensor = rfSensorForWidget(dm, style);
     const bool showHumidity = style == nullptr || style->rfShowHumidity;
@@ -597,7 +599,7 @@ void drawPoolSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWid
     const int16_t x = widget.x;
     const int16_t y = widget.y;
     const uint16_t color = cardTextColor(style);
-    drawHomeCardBackground(display, widget, style, "BAZÉN");
+    drawHomeCardBackground(display, widget, style, "BAZÉN", true);
     drawCardHeaderIcon(display, widget, SidebarIcons::Icon::Pool, color);
 
     ScreenStyle::useMetric(display, color);
@@ -627,7 +629,7 @@ void drawConsumptionSummaryCard(IDisplay& display, const DataModel& dm, const La
     const int16_t y = widget.y;
     const int16_t w = widget.width;
     const uint16_t color = cardTextColor(style);
-    drawHomeCardBackground(display, widget, style, "SPOTŘEBA DOMU");
+    drawHomeCardBackground(display, widget, style, "SPOTŘEBA DOMU", true);
     drawCardHeaderIcon(display, widget, SidebarIcons::Icon::Home, color);
 
     ScreenStyle::useMetric(display, color);
