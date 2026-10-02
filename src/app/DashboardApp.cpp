@@ -209,11 +209,9 @@ enum class HomeDataGroup : uint8_t {
     Rf
 };
 
-bool customWidgetUsesGroup(
+bool widgetUsesGroup(
     const HomeLayoutWidgetConfig& widget,
     HomeDataGroup group) {
-
-    if (widget.type != "custom") return false;
 
     for (const auto& element : widget.elements) {
         const String& source = element.source;
@@ -259,16 +257,26 @@ DisplayRegion homeDataRegion(
             case LayoutWidgetType::HomeEnergyCard:
                 matches = group == HomeDataGroup::Energy;
                 break;
-            case LayoutWidgetType::HomeIndoorCard:
-                matches = group == HomeDataGroup::Indoor;
+            case LayoutWidgetType::HomeIndoorCard: {
+                const HomeLayoutWidgetConfig* configured =
+                    HomeLayout::findWidget(config, widget.id);
+                matches = configured != nullptr && !configured->elements.empty()
+                    ? widgetUsesGroup(*configured, group)
+                    : group == HomeDataGroup::Indoor;
                 break;
+            }
             case LayoutWidgetType::HomeFveCard:
             case LayoutWidgetType::HomeAZRouterCard:
                 matches = group == HomeDataGroup::Energy;
                 break;
-            case LayoutWidgetType::HomePoolCard:
-                matches = group == HomeDataGroup::Indoor;
+            case LayoutWidgetType::HomePoolCard: {
+                const HomeLayoutWidgetConfig* configured =
+                    HomeLayout::findWidget(config, widget.id);
+                matches = configured != nullptr && !configured->elements.empty()
+                    ? widgetUsesGroup(*configured, group)
+                    : group == HomeDataGroup::Indoor;
                 break;
+            }
             case LayoutWidgetType::HomeConsumptionCard:
                 matches = group == HomeDataGroup::Energy;
                 break;
@@ -280,7 +288,7 @@ DisplayRegion homeDataRegion(
                     HomeLayout::findWidget(config, widget.id);
                 matches =
                     configured != nullptr &&
-                    customWidgetUsesGroup(*configured, group);
+                    widgetUsesGroup(*configured, group);
                 break;
             }
         }
