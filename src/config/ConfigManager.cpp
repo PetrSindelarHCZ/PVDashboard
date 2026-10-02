@@ -247,9 +247,23 @@ bool isLegacyPredefinedHomeLayout(const HomeLayoutConfig& layout) {
 }
 
 bool saveHomeLayout(Preferences& preferences, const HomeLayoutConfig& layout) {
-    const String json = HomeLayout::serializeJson(layout);
-    const size_t written = preferences.putBytes("layout_blob", json.c_str(), json.length());
-    if (written != json.length()) return false;
+    const String json = HomeLayout::serializeStorageJson(layout);
+    const size_t expected = json.length();
+    const size_t written =
+        preferences.putBytes("layout_blob", json.c_str(), expected);
+
+    if (written != expected) {
+        Serial.printf(
+            "[CONFIG] Home layout zapis do NVS selhal: %u/%u B.\n",
+            static_cast<unsigned>(written),
+            static_cast<unsigned>(expected));
+        return false;
+    }
+
+    Serial.printf(
+        "[CONFIG] Home layout NVS blob: %u B.\n",
+        static_cast<unsigned>(expected));
+
     if (preferences.isKey("layout_home")) preferences.remove("layout_home");
     return true;
 }
