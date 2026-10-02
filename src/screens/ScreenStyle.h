@@ -305,7 +305,7 @@ inline void drawChrome(IDisplay& d, const DataModel& dm) {
 inline void drawStyledCard(IDisplay& d, int16_t x, int16_t y, int16_t w, int16_t h,
                            const char* title, bool showFrame = true,
                            bool blackBackground = false, bool inverseText = false,
-                           int16_t titleInset = 12) {
+                           int16_t titleInset = 12, int16_t dividerInset = 10) {
     const uint16_t backgroundColor = blackBackground ? 0 : 1;
     const uint16_t textColor = inverseText ? 1 : 0;
     const uint16_t frameColor = blackBackground ? 1 : 0;
@@ -316,7 +316,7 @@ inline void drawStyledCard(IDisplay& d, int16_t x, int16_t y, int16_t w, int16_t
     useSectionTitle(d, textColor);
     d.setCursor(x + titleInset, y + 27);
     d.print(title);
-    d.drawLine(x + 10, y + 34, x + w - 10, y + 34, textColor);
+    d.drawLine(x + dividerInset, y + 34, x + w - 10, y + 34, textColor);
 }
 
 inline void drawCard(IDisplay& d, int16_t x, int16_t y, int16_t w, int16_t h, const char* title) {
