@@ -140,6 +140,12 @@ String homeLayoutResponseJson(
             item["rfSensorSlotId"] = HomeLayout::rfSlotId(widget.rfSensorSlot);
             item["rfShowHumidity"] = widget.rfShowHumidity;
             item["rfShowLastSeen"] = widget.rfShowLastSeen;
+            if (!widget.elements.empty()) {
+                JsonArray elements = item["elements"].to<JsonArray>();
+                for (uint8_t e = 0; e < widget.elements.size() && e < MaxCustomWidgetElements; ++e) {
+                    HomeLayout::serializeElement(elements.add<JsonObject>(), widget.elements[e]);
+                }
+            }
         } else if (widget.type == "custom") {
             item["title"] = widget.title;
             JsonArray elements = item["elements"].to<JsonArray>();
@@ -208,6 +214,12 @@ String homeLayoutResponseJson(
             item["rfSensorSlotId"] = HomeLayout::rfSlotId(widget.rfSensorSlot);
             item["rfShowHumidity"] = widget.rfShowHumidity;
             item["rfShowLastSeen"] = widget.rfShowLastSeen;
+            if (!widget.elements.empty()) {
+                JsonArray elements = item["elements"].to<JsonArray>();
+                for (uint8_t e = 0; e < widget.elements.size() && e < MaxCustomWidgetElements; ++e) {
+                    HomeLayout::serializeElement(elements.add<JsonObject>(), widget.elements[e]);
+                }
+            }
         }
     }
 
