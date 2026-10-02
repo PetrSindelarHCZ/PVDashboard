@@ -37,6 +37,18 @@ inline String rfSlotId(uint8_t slot) {
 }
 
 inline bool knownDataSource(const String& source) {
+    if (source.startsWith("rf.sensor")) {
+        const int metricSeparator = source.indexOf('.', 3);
+        if (metricSeparator > 3) {
+            const String slotId = source.substring(3, metricSeparator);
+            const String metric = source.substring(metricSeparator + 1);
+            if (rfSlotNumber(slotId) > 0 &&
+                (metric == "temperatureC" || metric == "humidityPercent")) {
+                return true;
+            }
+        }
+    }
+
     static const char* sources[] = {
         "solar.productionPowerW",
         "solar.houseConsumptionW",
@@ -351,8 +363,16 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
                 return fail("RF sensor widget requires a valid sensor slot");
             if (widget.title.length() > 40)
                 return fail("RF sensor widget title is too long");
-            if (!widget.elements.empty())
-                return fail("RF sensor widget cannot contain custom elements");
+            if (!widget.elements.empty()) {
+                String elementError;
+                if (!validateCustomWidget(widget, &elementError)) return fail(elementError);
+                const String rfPrefix = "rf." + rfSlotId(widget.rfSensorSlot) + ".";
+                for (const CustomWidgetElementConfig& element : widget.elements) {
+                    if (element.type != "text" && !element.source.startsWith(rfPrefix)) {
+                        return fail("RF widget element must use its selected sensor");
+                    }
+                }
+            }
         } else if (!widget.elements.empty() || !widget.title.isEmpty()) {
             return fail("Predefined widget cannot contain custom elements");
         }
@@ -419,6 +439,12 @@ inline String serializeJson(const HomeLayoutConfig& config) {
             item["rfSensorSlotId"] = rfSlotId(widget.rfSensorSlot);
             item["rfShowHumidity"] = widget.rfShowHumidity;
             item["rfShowLastSeen"] = widget.rfShowLastSeen;
+            if (!widget.elements.empty()) {
+                JsonArray elements = item["elements"].to<JsonArray>();
+                for (uint8_t e = 0; e < widget.elements.size() && e < MaxCustomWidgetElements; ++e) {
+                    serializeElement(elements.add<JsonObject>(), widget.elements[e]);
+                }
+            }
         } else if (widget.type == "custom") {
             item["title"] = widget.title;
             JsonArray elements = item["elements"].to<JsonArray>();
@@ -498,6 +524,18 @@ inline bool parseJson(const String& json, HomeLayoutConfig& config, String* erro
             widget.rfSensorSlot = rfSlotNumber(String(item["rfSensorSlotId"] | ""));
             widget.rfShowHumidity = item["rfShowHumidity"] | true;
             widget.rfShowLastSeen = item["rfShowLastSeen"] | true;
+            JsonArray elements = item["elements"].as<JsonArray>();
+            if (!elements.isNull()) {
+                if (elements.size() > MaxCustomWidgetElements) {
+                    if (error != nullptr) *error = "Too many RF widget elements";
+                    return false;
+                }
+                for (JsonObject elementItem : elements) {
+                    CustomWidgetElementConfig element;
+                    parseElement(elementItem, element);
+                    widget.elements.push_back(element);
+                }
+            }
         } else if (widget.type == "custom") {
             widget.title = String(item["title"] | "");
             JsonArray elements = item["elements"].as<JsonArray>();
