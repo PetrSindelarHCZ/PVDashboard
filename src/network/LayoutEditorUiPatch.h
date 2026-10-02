@@ -447,6 +447,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         if (typeof widget.showFrame !== 'boolean') widget.showFrame = true;
         if (!widget.background) widget.background = 'white';
         if (typeof widget.inverseText !== 'boolean') widget.inverseText = false;
+        if (!widget.icon) widget.icon = 'auto';
         if (isElementWidget(widget) && !Array.isArray(widget.elements)) widget.elements = [];
         return widget;
     }
@@ -628,10 +629,21 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const frame = document.getElementById('cardShowFrame');
         const background = document.getElementById('cardBackground');
         const inverse = document.getElementById('cardInverseText');
+        const icon = document.getElementById('cardIcon');
         const reset = document.getElementById('cardResetSelected');
         if (frame) frame.checked = widget.showFrame !== false;
         if (background) background.value = widget.background || 'white';
         if (inverse) inverse.checked = widget.inverseText === true;
+        if (icon) {
+            const choices = apiState?.cardAppearance?.icons || [
+                {id:'auto',label:'Automatická'},
+                {id:'none',label:'Bez ikony'}
+            ];
+            icon.innerHTML = choices.map(item =>
+                '<option value="' + escapeHtml(item.id) + '">' +
+                escapeHtml(item.label || item.id) + '</option>').join('');
+            icon.value = widget.icon || 'auto';
+        }
 
         if (reset) {
             reset.hidden = widget.type === 'custom';
@@ -651,6 +663,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         };
         if (inverse) inverse.onchange = () => {
             widget.inverseText = inverse.checked;
+            renderDraft();
+        };
+        if (icon) icon.onchange = () => {
+            widget.icon = icon.value || 'auto';
             renderDraft();
         };
     }
@@ -1931,6 +1947,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             showFrame: true,
             background: 'white',
             inverseText: false,
+            icon: 'auto',
             title: sensor.name || 'VENKU',
             rfSensorSlotId: sensor.slotId,
             rfShowHumidity: sensor.hasHumidity !== false,
@@ -2012,6 +2029,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             showFrame: true,
             background: 'white',
             inverseText: false,
+            icon: 'auto',
             title: 'Vlastní ' + sequence,
             elements: [{
                 id: 'text-1',
@@ -2206,6 +2224,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <div class="field">
                         <label>Inverzní text</label>
                         <label class="toggle"><input id="cardInverseText" type="checkbox"><span class="slider"></span></label>
+                    </div>
+                    <div class="field">
+                        <label for="cardIcon">Ikona</label>
+                        <select id="cardIcon"></select>
                     </div>
                     <div class="field">
                         <button class="btn btn-secondary" type="button" id="cardResetSelected" style="width:auto">Obnovit tento panel</button>
