@@ -567,6 +567,16 @@ inline void drawTrend(IDisplay& display, const DataModel& dm, int16_t x, int16_t
     }
 }
 
+inline uint8_t historySlotCount(const String& source, uint8_t count) {
+    if (source.startsWith("rf.") ||
+        source == "inside.temperatureC" ||
+        source == "inside.humidityPercent" ||
+        source == "inside.pressureHpa") {
+        return 24;
+    }
+    return count > 0 ? count : 1;
+}
+
 inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int16_t y,
                           const CustomWidgetElementConfig& element, uint16_t textColor) {
     int16_t graphY = y + 2;
@@ -581,9 +591,88 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
 
     int16_t graphH = element.height - (graphY - y) - 2;
     if (graphH < 20) graphH = 20;
-    display.drawRect(x, graphY, element.width, graphH, textColor);
 
     const uint8_t count = historyCount(dm, element.source);
+
+    // Bar graphs deliberately have no frame. A single baseline sits three
+    // pixels below the bars, matching the compact Home mock-up.
+    if (element.graphStyle == "bars") {
+        const int16_t left = x;
+        int16_t plotW = element.width;
+        if (plotW < 1) plotW = 1;
+
+        const int16_t baselineY = graphY + graphH - 1;
+        const int16_t barsBottomY = baselineY - 3;
+        const int16_t top = graphY + 1;
+        int16_t plotH = barsBottomY - top + 1;
+        if (plotH < 1) plotH = 1;
+
+        display.drawLine(left, baselineY, left + plotW - 1, baselineY, textColor);
+        if (count == 0) return;
+
+        float minValue = 0.0f;
+        float maxValue = 0.0f;
+        bool firstValue = true;
+        for (uint8_t i = 0; i < count; ++i) {
+            float value = 0.0f;
+            if (!historyValueAt(dm, element.source, i, value)) continue;
+            if (firstValue) {
+                minValue = maxValue = value;
+                firstValue = false;
+            } else {
+                if (value < minValue) minValue = value;
+                if (value > maxValue) maxValue = value;
+            }
+        }
+        if (firstValue) return;
+
+        const bool sensorSource =
+            element.source.startsWith("rf.") || element.source.startsWith("inside.");
+        if (!sensorSource && minValue > 0.0f) minValue = 0.0f;
+        if (maxValue - minValue < 0.01f) {
+            minValue -= 0.5f;
+            maxValue += 0.5f;
+        }
+
+        const uint8_t slotCount = historySlotCount(element.source, count);
+        const uint8_t firstSlot = count < slotCount ? slotCount - count : 0;
+
+        for (uint8_t i = 0; i < count; ++i) {
+            float value = 0.0f;
+            if (!historyValueAt(dm, element.source, i, value)) continue;
+
+            float normalized = (value - minValue) / (maxValue - minValue);
+            if (normalized < 0.0f) normalized = 0.0f;
+            if (normalized > 1.0f) normalized = 1.0f;
+
+            int16_t barH =
+                static_cast<int16_t>(normalized * static_cast<float>(plotH));
+            if (barH < 1) barH = 1;
+            if (barH > plotH) barH = plotH;
+
+            const uint8_t slot =
+                static_cast<uint8_t>(firstSlot + i);
+            const int16_t slotLeft =
+                left + static_cast<int16_t>(
+                    (static_cast<uint32_t>(slot) * plotW) / slotCount);
+            const int16_t slotRight =
+                left + static_cast<int16_t>(
+                    (static_cast<uint32_t>(slot + 1) * plotW) / slotCount);
+            int16_t barW = slotRight - slotLeft - 1;
+            if (barW < 1) barW = 1;
+
+            display.fillRect(
+                slotLeft,
+                barsBottomY - barH + 1,
+                barW,
+                barH,
+                textColor);
+        }
+        return;
+    }
+
+    // Keep the framed line graph behavior for users who explicitly select it.
+    display.drawRect(x, graphY, element.width, graphH, textColor);
     if (count < 2) return;
 
     float minValue = 0.0f;
@@ -602,8 +691,9 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
     }
     if (firstValue) return;
 
-    const bool rfSource = element.source.startsWith("rf.");
-    if (!rfSource && minValue > 0.0f) minValue = 0.0f;
+    const bool sensorSource =
+        element.source.startsWith("rf.") || element.source.startsWith("inside.");
+    if (!sensorSource && minValue > 0.0f) minValue = 0.0f;
     if (maxValue - minValue < 0.01f) {
         minValue -= 0.5f;
         maxValue += 0.5f;
@@ -616,25 +706,6 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
     if (plotW < 1) plotW = 1;
     if (plotH < 1) plotH = 1;
 
-    if (element.graphStyle == "bars") {
-        int16_t barWidth = count > 0 ? plotW / count : 1;
-        if (barWidth < 1) barWidth = 1;
-        for (uint8_t i = 0; i < count; ++i) {
-            float value = 0.0f;
-            if (!historyValueAt(dm, element.source, i, value)) continue;
-            float normalized = (value - minValue) / (maxValue - minValue);
-            if (normalized < 0.0f) normalized = 0.0f;
-            if (normalized > 1.0f) normalized = 1.0f;
-            const int16_t barH = static_cast<int16_t>(normalized * (plotH - 1));
-            const int16_t px = left + static_cast<int16_t>((static_cast<uint32_t>(i) * plotW) / count);
-            if (barH > 0) {
-                const int16_t w = barWidth > 1 ? barWidth - 1 : 1;
-                display.fillRect(px, top + plotH - barH, w, barH, textColor);
-            }
-        }
-        return;
-    }
-
     int16_t previousX = left;
     int16_t previousY = top + plotH - 1;
     bool previousValid = false;
@@ -642,12 +713,15 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
     for (uint8_t i = 0; i < count; ++i) {
         float value = 0.0f;
         if (!historyValueAt(dm, element.source, i, value)) continue;
-        const int16_t px = left + static_cast<int16_t>((static_cast<uint32_t>(i) * (plotW - 1)) / (count - 1));
+        const int16_t px = left + static_cast<int16_t>(
+            (static_cast<uint32_t>(i) * (plotW - 1)) / (count - 1));
         float normalized = (value - minValue) / (maxValue - minValue);
         if (normalized < 0.0f) normalized = 0.0f;
         if (normalized > 1.0f) normalized = 1.0f;
-        const int16_t py = top + plotH - 1 - static_cast<int16_t>(normalized * (plotH - 1));
-        if (previousValid) display.drawLine(previousX, previousY, px, py, textColor);
+        const int16_t py = top + plotH - 1 -
+            static_cast<int16_t>(normalized * (plotH - 1));
+        if (previousValid)
+            display.drawLine(previousX, previousY, px, py, textColor);
         previousX = px;
         previousY = py;
         previousValid = true;
