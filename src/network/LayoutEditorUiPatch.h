@@ -440,21 +440,26 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     const byId = id => draft.find(w => w.id === id);
     const supportedById = id => (apiState?.supportedWidgets || []).find(w => w.id === id);
     const defaultWidgetById = id => (apiState?.defaultWidgets || []).find(w => w.id === id);
+    const isElementWidget = widget => widget?.type === 'custom' || widget?.type === 'rf-sensor';
 
     function ensureWidgetStyle(widget) {
         if (!widget) return widget;
         if (typeof widget.showFrame !== 'boolean') widget.showFrame = true;
         if (!widget.background) widget.background = 'white';
         if (typeof widget.inverseText !== 'boolean') widget.inverseText = false;
+        if (isElementWidget(widget) && !Array.isArray(widget.elements)) widget.elements = [];
         return widget;
     }
 
     function widgetMinimum(widget) {
         if (widget?.type === 'rf-sensor') {
-            return {
-                minWidth: Number(apiState?.rfSensorWidget?.minWidth || 150),
-                minHeight: Number(apiState?.rfSensorWidget?.minHeight || 140)
-            };
+            let minW = Number(apiState?.rfSensorWidget?.minWidth || 150);
+            let minH = Number(apiState?.rfSensorWidget?.minHeight || 140);
+            (widget.elements || []).forEach(element => {
+                minW = Math.max(minW, Number(element.x || 0) + Number(element.width || 0) + 8);
+                minH = Math.max(minH, Number(element.y || 0) + Number(element.height || 0) + 8);
+            });
+            return {minWidth: minW, minHeight: minH};
         }
         if (widget?.type === 'custom') {
             let minW = Number(apiState?.customWidget?.minWidth || 160);
@@ -679,9 +684,16 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 escapeHtml(item.name || item.slotId) + '</option>').join('');
             sensor.value = widget.rfSensorSlotId || '';
             sensor.onchange = () => {
+                const previousSlot = widget.rfSensorSlotId || '';
                 widget.rfSensorSlotId = sensor.value;
                 const selected = choices.find(item => item.slotId === sensor.value);
                 if (selected && selected.hasHumidity === false) widget.rfShowHumidity = false;
+                (widget.elements || []).forEach(element => {
+                    const prefix = 'rf.' + previousSlot + '.';
+                    if (previousSlot && element.source?.startsWith(prefix)) {
+                        element.source = 'rf.' + sensor.value + '.' + element.source.substring(prefix.length);
+                    }
+                });
                 renderDraft();
             };
         }
@@ -689,6 +701,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         if (humidity) {
             const selected = (apiState?.rfSensorWidget?.sensors || [])
                 .find(item => item.slotId === widget.rfSensorSlotId);
+            humidity.closest('.field').hidden = (widget.elements || []).length > 0;
             humidity.disabled = selected?.hasHumidity === false;
             humidity.checked = widget.rfShowHumidity !== false && !humidity.disabled;
             humidity.onchange = () => {
@@ -698,6 +711,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         }
 
         if (lastSeen) {
+            lastSeen.closest('.field').hidden = (widget.elements || []).length > 0;
             lastSeen.checked = widget.rfShowLastSeen !== false;
             lastSeen.onchange = () => {
                 widget.rfShowLastSeen = lastSeen.checked;
@@ -924,11 +938,11 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         renderCustomEditor();
 
         const customInvalid = draft.some(widget =>
-            widget.type === 'custom' && customWidgetHasErrors(widget));
+            isElementWidget(widget) && customWidgetHasErrors(widget));
         const save = document.getElementById('layoutSaveButton');
         if (save) save.disabled = invalid.size > 0 || customInvalid || !draft.some(w => w.visible);
         if (invalid.size > 0) editorMessage('Widgety se překrývají. Uložení je zablokované.', 'error');
-        else if (customInvalid) editorMessage('Vlastní widget obsahuje neplatný prvek.', 'error');
+        else if (customInvalid) editorMessage('Widget obsahuje neplatný vnitřní prvek.', 'error');
     }
 
     function beginInteraction(event, id) {
@@ -938,7 +952,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         event.stopPropagation();
         selectedId = id;
         const selectedWidget = byId(id);
-        if (selectedWidget?.type === 'custom' &&
+        if (isElementWidget(selectedWidget) &&
             !selectedWidget.elements?.some(element => element.id === selectedElementId)) {
             selectedElementId = selectedWidget.elements?.[0]?.id || '';
         }
@@ -1012,6 +1026,16 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
     function sourceInfo(source) {
         return (apiState?.customWidget?.dataSources || []).find(item => item.id === source) || {};
+    }
+
+    function elementSources(widget, type) {
+        let sources = (apiState?.customWidget?.dataSources || [])
+            .filter(source => type !== 'sparkline' || source.history);
+        if (widget?.type === 'rf-sensor') {
+            const prefix = 'rf.' + (widget.rfSensorSlotId || '') + '.';
+            sources = sources.filter(source => source.id.startsWith(prefix));
+        }
+        return sources;
     }
 
     function normalizeFontSizeValue(value) {
@@ -1154,7 +1178,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
     function elementInvalidIds(widget) {
         const ids = new Set();
-        if (!widget || widget.type !== 'custom') return ids;
+        if (!widget || !isElementWidget(widget)) return ids;
         const elements = widget.elements || [];
         for (let i = 0; i < elements.length; i++) {
             const a = elements[i];
@@ -1195,8 +1219,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     }
 
     function customWidgetHasErrors(widget) {
-        if (!widget || widget.type !== 'custom') return false;
+        if (!widget || !isElementWidget(widget)) return false;
         const elements = widget.elements || [];
+        if (widget.type === 'rf-sensor' && elements.length === 0) return false;
         if (!elements.length || elements.length > Number(apiState?.customWidget?.maxElements || 8)) return true;
         return elementInvalidIds(widget).size > 0;
     }
@@ -1252,8 +1277,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             element.graphStyle = 'line';
             element.showLabel = true;
         } else {
-            const sources = (apiState?.customWidget?.dataSources || [])
-                .filter(source => newType !== 'sparkline' || source.history);
+            const sources = elementSources(byId(selectedId), newType);
             const currentSource = sources.find(source => source.id === element.source);
             const source = currentSource || sources[0] || {};
             element.source = source.id || '';
@@ -1280,8 +1304,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             return;
         }
 
-        const sources = (apiState?.customWidget?.dataSources || [])
-            .filter(source => element.type !== 'sparkline' || source.history);
+        const sources = elementSources(widget, element.type);
         const sourceOptions = sources.map(source =>
             `<option value="${escapeHtml(source.id)}" ${source.id === element.source ? 'selected' : ''}>${escapeHtml(source.label)} (${escapeHtml(source.id)})</option>`
         ).join('');
@@ -1575,7 +1598,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const panel = document.getElementById('customEditorPanel');
         if (!panel) return;
         const widget = byId(selectedId);
-        if (!widget || widget.type !== 'custom') {
+        if (!widget || !isElementWidget(widget)) {
             panel.hidden = true;
             return;
         }
@@ -1590,6 +1613,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const dimensions = document.getElementById('customWidgetDimensions');
         if (dimensions) dimensions.textContent = widget.width + ' × ' + widget.height + ' px';
 
+        document.querySelectorAll('[data-add-element]').forEach(button => {
+            button.hidden = widget.type === 'rf-sensor' && button.dataset.addElement === 'sparkline';
+        });
         renderCustomElements(widget);
     }
 
@@ -1608,8 +1634,12 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
     function addCustomElement(type) {
         const widget = byId(selectedId);
-        if (!widget || widget.type !== 'custom') {
-            editorMessage('Nejdřív vyber vlastní widget.', 'error');
+        if (!widget || !isElementWidget(widget)) {
+            editorMessage('Nejdřív vyber widget s editovatelným obsahem.', 'error');
+            return;
+        }
+        if (widget.type === 'rf-sensor' && type === 'sparkline') {
+            editorMessage('RF čidlo zatím nemá historii pro graf.', 'error');
             return;
         }
         if ((widget.elements || []).length >= Number(apiState?.customWidget?.maxElements || 8)) {
@@ -1626,8 +1656,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const position = findElementPosition(widget, width, height) || {x: 8, y: 40};
 
         const elementId = uniqueElementId(widget, type);
-        const sources = (apiState?.customWidget?.dataSources || [])
-            .filter(source => type !== 'sparkline' || source.history);
+        const sources = elementSources(widget, type);
         const source = sources[0] || {};
         const element = {
             id: elementId,
@@ -1774,14 +1803,54 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             title: sensor.name || 'VENKU',
             rfSensorSlotId: sensor.slotId,
             rfShowHumidity: sensor.hasHumidity !== false,
-            rfShowLastSeen: true
+            rfShowLastSeen: true,
+            elements: [
+                {
+                    id: 'temperature',
+                    type: 'kpi',
+                    source: 'rf.' + sensor.slotId + '.temperatureC',
+                    label: '',
+                    unit: '°C',
+                    text: '',
+                    x: 10,
+                    y: 48,
+                    width: 135,
+                    height: 38,
+                    decimals: 1,
+                    min: 0,
+                    max: 100,
+                    fontSize: '28',
+                    align: 'left',
+                    showLabel: false,
+                    graphStyle: 'line'
+                },
+                ...(sensor.hasHumidity === false ? [] : [{
+                    id: 'humidity',
+                    type: 'kpi',
+                    source: 'rf.' + sensor.slotId + '.humidityPercent',
+                    label: 'Vlhkost',
+                    unit: '%',
+                    text: '',
+                    x: 10,
+                    y: 96,
+                    width: 135,
+                    height: 48,
+                    decimals: 0,
+                    min: 0,
+                    max: 100,
+                    fontSize: '18',
+                    align: 'left',
+                    showLabel: true,
+                    graphStyle: 'line'
+                }])
+            ]
         });
         normalizeWidget(widget);
         draft.push(widget);
         selectedId = widget.id;
-        selectedElementId = '';
+        selectedElementId = 'temperature';
         renderDraft();
-        editorMessage('RF karta přidána. Vyber čidlo a název v nastavení karty.');
+        editorMessage('RF karta přidána. Obsah můžeš přesouvat a měnit ve WYSIWYG editoru.');
     }
 
     function addCustomWidget() {
@@ -1863,7 +1932,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             editorMessage('Nejdřív odstraň překryvy widgetů.', 'error');
             return;
         }
-        if (draft.some(widget => widget.type === 'custom' && customWidgetHasErrors(widget))) {
+        if (draft.some(widget => isElementWidget(widget) && customWidgetHasErrors(widget))) {
             editorMessage('Nejdřív oprav prvky uvnitř vlastních widgetů.', 'error');
             return;
         }
@@ -2037,8 +2106,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 <div class="custom-editor-head">
                     <div class="custom-editor-head-left">
                         <div>
-                            <div class="card-title">Obsah vlastního widgetu</div>
-                            <div class="field-help">Prvky mají relativní souřadnice uvnitř vybrané karty a používají stejnou mřížku/magnetismus.</div>
+                            <div class="card-title">Obsah widgetu</div>
+                            <div class="field-help">Prvky mají relativní souřadnice uvnitř vybrané karty. Tažením je přesouvej, rohy mění velikost; font a zarovnání nastavíš vpravo.</div>
                         </div>
                         <div class="field">
                             <label for="customWidgetTitleInput">Název karty</label>
@@ -2086,14 +2155,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             gridStep = Number(gridSelect.value) || 5;
             updateGrid();
             const widget = byId(selectedId);
-            if (widget?.type === 'custom') renderCustomElements(widget);
+            if (isElementWidget(widget)) renderCustomElements(widget);
         });
 
         document.getElementById('layoutSnapToggle').addEventListener('change', event => {
             snapEnabled = event.target.checked;
             updateGrid();
             const widget = byId(selectedId);
-            if (widget?.type === 'custom') renderCustomElements(widget);
+            if (isElementWidget(widget)) renderCustomElements(widget);
         });
         document.getElementById('layoutAddRfButton').addEventListener('click', addRfSensorWidget);
         document.getElementById('layoutAddCustomButton').addEventListener('click', addCustomWidget);
@@ -2102,7 +2171,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         });
         document.getElementById('customWidgetTitleInput').addEventListener('change', event => {
             const widget = byId(selectedId);
-            if (!widget || widget.type !== 'custom') return;
+            if (!widget || !isElementWidget(widget)) return;
             widget.title = event.target.value.trim();
             renderDraft();
         });
@@ -2136,7 +2205,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         stageObserver = new ResizeObserver(() => {
             updateGrid();
             const widget = byId(selectedId);
-            if (widget?.type === 'custom') renderCustomElements(widget);
+            if (isElementWidget(widget)) renderCustomElements(widget);
         });
         stageObserver.observe(stage);
         stageObserver.observe(customStage);
