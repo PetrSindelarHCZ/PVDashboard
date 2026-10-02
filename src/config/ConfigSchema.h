@@ -62,6 +62,10 @@ struct HomeLayoutWidgetConfig {
     // Custom title is also used by RF sensor cards.
     String title = "";
 
+    // WidgetIcons::Icon stored as a byte to avoid another String in static DRAM.
+    // 0 = Auto keeps backward-compatible per-widget defaults.
+    uint8_t icon = 0;
+
     // Used by type == "rf-sensor". RF slots are generated as sensor1..sensor16.
     // Store only the stable numeric suffix to avoid one Arduino String object
     // per Home widget in static DRAM.
