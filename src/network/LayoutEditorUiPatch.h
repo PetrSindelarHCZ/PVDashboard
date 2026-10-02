@@ -1201,18 +1201,17 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             const graph = (element.graphStyle || 'line') === 'bars'
                 ? `<div style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:flex-end">
                      <svg viewBox="0 0 100 42" preserveAspectRatio="none" style="flex:1;min-height:0">
-                       <line x1="5" y1="4" x2="5" y2="34" stroke-width="1"/>
                        <line x1="2" y1="19" x2="8" y2="19" stroke-width="1"/>
-                       <rect class="bar" x="12" y="10" width="5" height="9"/>
-                       <rect class="bar" x="20" y="19" width="5" height="7"/>
-                       <rect class="bar" x="28" y="13" width="5" height="6"/>
-                       <rect class="bar" x="36" y="19" width="5" height="10"/>
-                       <rect class="bar" x="44" y="7" width="5" height="12"/>
-                       <rect class="bar" x="52" y="19" width="5" height="4"/>
-                       <rect class="bar" x="60" y="15" width="5" height="4"/>
-                       <rect class="bar" x="68" y="19" width="5" height="8"/>
-                       <rect class="bar" x="76" y="12" width="5" height="7"/>
-                       <rect class="bar" x="84" y="19" width="5" height="5"/>
+                       <rect class="bar" x="12" y="10" width="5" height="24"/>
+                       <rect class="bar" x="20" y="22" width="5" height="12"/>
+                       <rect class="bar" x="28" y="15" width="5" height="19"/>
+                       <rect class="bar" x="36" y="25" width="5" height="9"/>
+                       <rect class="bar" x="44" y="7" width="5" height="27"/>
+                       <rect class="bar" x="52" y="19" width="5" height="15"/>
+                       <rect class="bar" x="60" y="16" width="5" height="18"/>
+                       <rect class="bar" x="68" y="24" width="5" height="10"/>
+                       <rect class="bar" x="76" y="13" width="5" height="21"/>
+                       <rect class="bar" x="84" y="20" width="5" height="14"/>
                        <line x1="8" y1="35" x2="98" y2="35" stroke-width="1"/>
                      </svg>
                      <div style="display:flex;justify-content:space-between;font-size:8px;line-height:9px;padding-left:7%;padding-right:2%">
