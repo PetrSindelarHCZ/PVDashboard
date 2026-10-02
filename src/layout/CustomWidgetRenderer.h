@@ -718,10 +718,9 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
         const int16_t centerY = plotTop + plotH / 2;
         const int16_t halfH = max<int16_t>(1, plotH / 2 - 1);
 
-        // Minimal axes only: short vertical axis with a center mark, and the
-        // time axis three pixels below the bars.
+        // No vertical axis line: only a short center tick indicating the
+        // current-value level. The bottom line is the zero/base of all bars.
         const int16_t yAxisX = x + leftAxisWidth - 2;
-        display.drawLine(yAxisX, plotTop, yAxisX, plotBottom, textColor);
         display.drawLine(yAxisX - 2, centerY, yAxisX + 3, centerY, textColor);
         display.drawLine(left, axisY, left + plotW - 1, axisY, textColor);
         display.drawLine(left, axisY, left, axisY + 2, textColor);
@@ -783,14 +782,17 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
             }
 
             const float delta = value - currentValue;
-            float magnitude = fabsf(delta) / maxAbsDelta;
-            if (magnitude > 1.0f) magnitude = 1.0f;
+            float relative = delta / maxAbsDelta;
+            if (relative < -1.0f) relative = -1.0f;
+            if (relative > 1.0f) relative = 1.0f;
 
-            int16_t barH =
+            // Current value maps to the center of the scale. Bars themselves
+            // always grow from the bottom zero/base line up to that level.
+            int16_t topY = centerY -
                 static_cast<int16_t>(
-                    magnitude * static_cast<float>(halfH) + 0.5f);
-            if (barH < 1 && fabsf(delta) > 0.001f) barH = 1;
-            if (barH > halfH) barH = halfH;
+                    relative * static_cast<float>(halfH));
+            if (topY < plotTop) topY = plotTop;
+            if (topY > plotBottom) topY = plotBottom;
 
             const uint8_t slot =
                 static_cast<uint8_t>(firstSlot + i);
@@ -803,27 +805,11 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
             int16_t barW = slotRight - slotLeft - 1;
             if (barW < 1) barW = 1;
 
-            if (barH > 0) {
-                if (delta > 0.0f) {
-                    display.fillRect(
-                        slotLeft, centerY - barH,
-                        barW, barH, textColor);
-                } else if (delta < 0.0f) {
-                    display.fillRect(
-                        slotLeft, centerY + 1,
-                        barW, barH, textColor);
-                } else {
-                    // Exact current/reference value: tiny center marker keeps
-                    // the slot visible without implying positive/negative.
-                    display.drawLine(
-                        slotLeft, centerY,
-                        slotLeft + barW - 1, centerY, textColor);
-                }
-            } else {
-                display.drawLine(
-                    slotLeft, centerY,
-                    slotLeft + barW - 1, centerY, textColor);
-            }
+            int16_t barH = plotBottom - topY + 1;
+            if (barH < 1) barH = 1;
+            display.fillRect(
+                slotLeft, topY,
+                barW, barH, textColor);
         }
         return;
     }
