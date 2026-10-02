@@ -300,6 +300,9 @@ inline bool validateCustomWidget(const HomeLayoutWidgetConfig& widget, String* e
         if (!(element.graphStyle == "line" || element.graphStyle == "bars")) {
             return fail("Unknown custom graph style");
         }
+        if (sensorGraphPeriodIndex(element.graphPeriodHours) < 0) {
+            return fail("Graph period must be 1,2,4,6,12,24,48 or 72 hours");
+        }
         if (element.type != "sparkline" && element.graphStyle != "line") {
             return fail("Graph style is valid only for sparkline elements");
         }
@@ -459,6 +462,7 @@ inline void serializeElement(JsonObject item, const CustomWidgetElementConfig& e
     item["align"] = element.align;
     item["showLabel"] = element.showLabel;
     item["graphStyle"] = element.graphStyle;
+    item["graphPeriodHours"] = element.graphPeriodHours;
 }
 
 inline void serializeStorageElement(JsonObject item, const CustomWidgetElementConfig& element) {
@@ -480,6 +484,8 @@ inline void serializeStorageElement(JsonObject item, const CustomWidgetElementCo
     if (element.align != "left") item["align"] = element.align;
     if (!element.showLabel) item["showLabel"] = false;
     if (element.graphStyle != "line") item["graphStyle"] = element.graphStyle;
+    if (element.graphPeriodHours != 12)
+        item["graphPeriodHours"] = element.graphPeriodHours;
 }
 
 inline String serializeStorageJson(const HomeLayoutConfig& config) {
@@ -603,6 +609,7 @@ inline bool parseElement(JsonObject item, CustomWidgetElementConfig& element) {
     element.align = String(item["align"] | "left");
     element.showLabel = item["showLabel"] | true;
     element.graphStyle = String(item["graphStyle"] | "line");
+    element.graphPeriodHours = item["graphPeriodHours"] | 12;
     return true;
 }
 
