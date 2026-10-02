@@ -135,7 +135,17 @@ String homeLayoutResponseJson(
         item["showFrame"] = widget.showFrame;
         item["background"] = widget.background;
         item["inverseText"] = widget.inverseText;
-        if (widget.type == "rf-sensor") {
+        if (widget.type == "indoor" || widget.type == "pool-summary") {
+            item["title"] = widget.title;
+            if (widget.type == "pool-summary")
+                item["rfSensorSlotId"] = HomeLayout::rfSlotId(widget.rfSensorSlot);
+            if (!widget.elements.empty()) {
+                JsonArray elements = item["elements"].to<JsonArray>();
+                for (uint8_t e = 0; e < widget.elements.size() && e < MaxCustomWidgetElements; ++e) {
+                    HomeLayout::serializeElement(elements.add<JsonObject>(), widget.elements[e]);
+                }
+            }
+        } else if (widget.type == "rf-sensor") {
             item["title"] = widget.title;
             item["rfSensorSlotId"] = HomeLayout::rfSlotId(widget.rfSensorSlot);
             item["rfShowHumidity"] = widget.rfShowHumidity;
@@ -209,7 +219,17 @@ String homeLayoutResponseJson(
         item["showFrame"] = widget.showFrame;
         item["background"] = widget.background;
         item["inverseText"] = widget.inverseText;
-        if (widget.type == "rf-sensor") {
+        if (widget.type == "indoor" || widget.type == "pool-summary") {
+            item["title"] = widget.title;
+            if (widget.type == "pool-summary")
+                item["rfSensorSlotId"] = HomeLayout::rfSlotId(widget.rfSensorSlot);
+            if (!widget.elements.empty()) {
+                JsonArray elements = item["elements"].to<JsonArray>();
+                for (uint8_t e = 0; e < widget.elements.size() && e < MaxCustomWidgetElements; ++e) {
+                    HomeLayout::serializeElement(elements.add<JsonObject>(), widget.elements[e]);
+                }
+            }
+        } else if (widget.type == "rf-sensor") {
             item["title"] = widget.title;
             item["rfSensorSlotId"] = HomeLayout::rfSlotId(widget.rfSensorSlot);
             item["rfShowHumidity"] = widget.rfShowHumidity;
@@ -315,9 +335,9 @@ String homeLayoutResponseJson(
     addSource("weather.outdoorHumidityPercent", "Venkovní vlhkost", "%", 0, false);
     addSource("weather.surfacePressureHpa", "Tlak", "hPa", 0, false);
     addSource("weather.windSpeedKmh", "Vítr", "km/h", 1, false);
-    addSource("inside.temperatureC", "BME280 teplota", "°C", 1, false);
-    addSource("inside.humidityPercent", "BME280 vlhkost", "%", 0, false);
-    addSource("inside.pressureHpa", "BME280 tlak", "hPa", 1, false);
+    addSource("inside.temperatureC", "BME280 teplota", "°C", 1, true);
+    addSource("inside.humidityPercent", "BME280 vlhkost", "%", 0, true);
+    addSource("inside.pressureHpa", "BME280 tlak", "hPa", 1, true);
     addSource("inside.livingRoomTempC", "Obývák (BME280)", "°C", 1, false);
     addSource("inside.bedroomTempC", "Ložnice", "°C", 1, false);
     addSource("inside.poolTempC", "Bazén uvnitř modelu", "°C", 1, false);
