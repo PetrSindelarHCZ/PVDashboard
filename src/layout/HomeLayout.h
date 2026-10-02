@@ -461,6 +461,75 @@ inline void serializeElement(JsonObject item, const CustomWidgetElementConfig& e
     item["graphStyle"] = element.graphStyle;
 }
 
+inline void serializeStorageElement(JsonObject item, const CustomWidgetElementConfig& element) {
+    item["id"] = element.id;
+    item["type"] = element.type;
+    if (!element.source.isEmpty()) item["source"] = element.source;
+    if (!element.label.isEmpty()) item["label"] = element.label;
+    if (!element.unit.isEmpty()) item["unit"] = element.unit;
+    if (!element.text.isEmpty()) item["text"] = element.text;
+    item["x"] = element.x;
+    item["y"] = element.y;
+    item["width"] = element.width;
+    item["height"] = element.height;
+
+    if (element.decimals != 1) item["decimals"] = element.decimals;
+    if (element.minValue != 0.0f) item["min"] = element.minValue;
+    if (element.maxValue != 100.0f) item["max"] = element.maxValue;
+    if (element.fontSize != "auto") item["fontSize"] = element.fontSize;
+    if (element.align != "left") item["align"] = element.align;
+    if (!element.showLabel) item["showLabel"] = false;
+    if (element.graphStyle != "line") item["graphStyle"] = element.graphStyle;
+}
+
+inline String serializeStorageJson(const HomeLayoutConfig& config) {
+    JsonDocument doc;
+    doc["customized"] = config.customized;
+
+    if (config.customized) {
+        JsonArray widgets = doc["widgets"].to<JsonArray>();
+        for (uint8_t i = 0; i < config.widgetCount && i < MaxHomeLayoutWidgets; ++i) {
+            const HomeLayoutWidgetConfig& widget = config.widgets[i];
+            JsonObject item = widgets.add<JsonObject>();
+            item["id"] = widget.id;
+            item["type"] = widget.type;
+            item["x"] = widget.x;
+            item["y"] = widget.y;
+            item["width"] = widget.width;
+            item["height"] = widget.height;
+
+            if (!widget.visible) item["visible"] = false;
+            if (!widget.showFrame) item["showFrame"] = false;
+            if (widget.background != "white") item["background"] = widget.background;
+            if (widget.inverseText) item["inverseText"] = true;
+            if (!widget.title.isEmpty()) item["title"] = widget.title;
+
+            if (widget.type == "pool-summary" || widget.type == "rf-sensor") {
+                const String slotId = rfSlotId(widget.rfSensorSlot);
+                if (!slotId.isEmpty()) item["rfSensorSlotId"] = slotId;
+            }
+            if (widget.type == "rf-sensor") {
+                if (!widget.rfShowHumidity) item["rfShowHumidity"] = false;
+                if (!widget.rfShowLastSeen) item["rfShowLastSeen"] = false;
+            }
+
+            if (!widget.elements.empty()) {
+                JsonArray elements = item["elements"].to<JsonArray>();
+                for (uint8_t e = 0;
+                     e < widget.elements.size() && e < MaxCustomWidgetElements;
+                     ++e) {
+                    serializeStorageElement(
+                        elements.add<JsonObject>(), widget.elements[e]);
+                }
+            }
+        }
+    }
+
+    String json;
+    ::serializeJson(doc, json);
+    return json;
+}
+
 inline String serializeJson(const HomeLayoutConfig& config) {
     JsonDocument doc;
     doc["customized"] = config.customized;
