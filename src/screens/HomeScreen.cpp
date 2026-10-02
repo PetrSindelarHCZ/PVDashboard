@@ -2,6 +2,7 @@
 #include "ScreenStyle.h"
 #include "../layout/HomeLayout.h"
 #include "../layout/CustomWidgetRenderer.h"
+#include "../display/assets/WidgetIcons.h"
 #include "../display/EInkGraph.h"
 
 namespace {
@@ -20,6 +21,25 @@ void drawHomeCardBackground(IDisplay& display, const LayoutWidget& widget,
                                 title, showFrame, blackBackground, inverseText,
                                 hasHeaderIcon ? 50 : 12,
                                 hasHeaderIcon ? 50 : 10);
+}
+
+WidgetIcons::Icon resolvedWidgetIcon(
+    const HomeLayoutWidgetConfig* style,
+    const char* widgetType) {
+    const uint8_t configured =
+        style != nullptr
+            ? style->icon
+            : static_cast<uint8_t>(WidgetIcons::Icon::Auto);
+    return WidgetIcons::resolved(configured, String(widgetType));
+}
+
+void drawWidgetHeaderIcon(
+    IDisplay& d,
+    const LayoutWidget& widget,
+    WidgetIcons::Icon icon,
+    uint16_t color = 0) {
+    if (icon == WidgetIcons::Icon::None) return;
+    WidgetIcons::draw(d, icon, widget.x + 8, widget.y + 2, color);
 }
 
 void drawCardIcon(IDisplay& d, int16_t centerX, int16_t centerY,
@@ -168,8 +188,11 @@ void drawWeatherCard(IDisplay& display, const DataModel& dm, const LayoutWidget&
     const int16_t h = widget.height;
 
     const uint16_t color = cardTextColor(style);
-    drawHomeCardBackground(display, widget, style, "PŘEDPOVĚĎ", true);
-    drawCardHeaderIcon(display, widget, SidebarIcons::Icon::Weather, color);
+    const WidgetIcons::Icon icon = resolvedWidgetIcon(style, "weather");
+    drawHomeCardBackground(
+        display, widget, style, "PŘEDPOVĚĎ",
+        icon != WidgetIcons::Icon::None);
+    drawWidgetHeaderIcon(display, widget, icon, color);
 
     if (h < 250) {
         if (dm.weather.status.available) {
@@ -345,8 +368,11 @@ void drawIndoorCard(IDisplay& display, const DataModel& dm, const LayoutWidget& 
     const uint16_t color = cardTextColor(style);
     const String title =
         style != nullptr && !style->title.isEmpty() ? style->title : String("UVNITŘ");
-    drawHomeCardBackground(display, widget, style, title.c_str(), true);
-    drawCardHeaderIcon(display, widget, SidebarIcons::Icon::Home, color);
+    const WidgetIcons::Icon icon = resolvedWidgetIcon(style, "indoor");
+    drawHomeCardBackground(
+        display, widget, style, title.c_str(),
+        icon != WidgetIcons::Icon::None);
+    drawWidgetHeaderIcon(display, widget, icon, color);
 
     if (style != nullptr && !style->elements.empty()) {
         CustomWidgetRenderer::drawElements(display, dm, *style, color);
@@ -464,8 +490,11 @@ void drawFveSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidg
     const int16_t x = widget.x;
     const int16_t y = widget.y;
     const uint16_t color = cardTextColor(style);
-    drawHomeCardBackground(display, widget, style, "FVE / GOODWE", true);
-    drawCardHeaderIcon(display, widget, SidebarIcons::Icon::Solar, color);
+    const WidgetIcons::Icon icon = resolvedWidgetIcon(style, "fve-summary");
+    drawHomeCardBackground(
+        display, widget, style, "FVE / GOODWE",
+        icon != WidgetIcons::Icon::None);
+    drawWidgetHeaderIcon(display, widget, icon, color);
 
     ScreenStyle::useMetric(display, color);
     display.setCursor(x + 18, y + 91);
@@ -503,8 +532,11 @@ void drawAZRouterSummaryCard(IDisplay& display, const DataModel& dm, const Layou
     const int16_t x = widget.x;
     const int16_t y = widget.y;
     const uint16_t color = cardTextColor(style);
-    drawHomeCardBackground(display, widget, style, "AZROUTER", true);
-    drawCardHeaderIcon(display, widget, SidebarIcons::Icon::AZRouter, color);
+    const WidgetIcons::Icon icon = resolvedWidgetIcon(style, "azrouter-summary");
+    drawHomeCardBackground(
+        display, widget, style, "AZROUTER",
+        icon != WidgetIcons::Icon::None);
+    drawWidgetHeaderIcon(display, widget, icon, color);
 
     ScreenStyle::useMetric(display, color);
     display.setCursor(x + 18, y + 91);
@@ -559,8 +591,11 @@ void drawRfSensorCard(IDisplay& display, const DataModel& dm, const LayoutWidget
     const uint16_t color = cardTextColor(style);
     const String title =
         style != nullptr && !style->title.isEmpty() ? style->title : String("VENKU");
-    drawHomeCardBackground(display, widget, style, title.c_str(), true);
-    drawRfHeaderIcon(display, widget, color);
+    const WidgetIcons::Icon icon = resolvedWidgetIcon(style, "rf-sensor");
+    drawHomeCardBackground(
+        display, widget, style, title.c_str(),
+        icon != WidgetIcons::Icon::None);
+    drawWidgetHeaderIcon(display, widget, icon, color);
 
     if (style != nullptr && !style->elements.empty()) {
         CustomWidgetRenderer::drawElements(display, dm, *style, color);
@@ -613,8 +648,11 @@ void drawPoolSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWid
     const uint16_t color = cardTextColor(style);
     const String title =
         style != nullptr && !style->title.isEmpty() ? style->title : String("BAZÉN");
-    drawHomeCardBackground(display, widget, style, title.c_str(), true);
-    drawCardHeaderIcon(display, widget, SidebarIcons::Icon::Pool, color);
+    const WidgetIcons::Icon icon = resolvedWidgetIcon(style, "pool-summary");
+    drawHomeCardBackground(
+        display, widget, style, title.c_str(),
+        icon != WidgetIcons::Icon::None);
+    drawWidgetHeaderIcon(display, widget, icon, color);
 
     if (style != nullptr && !style->elements.empty()) {
         CustomWidgetRenderer::drawElements(display, dm, *style, color);
@@ -648,8 +686,12 @@ void drawConsumptionSummaryCard(IDisplay& display, const DataModel& dm, const La
     const int16_t y = widget.y;
     const int16_t w = widget.width;
     const uint16_t color = cardTextColor(style);
-    drawHomeCardBackground(display, widget, style, "SPOTŘEBA DOMU", true);
-    drawCardHeaderIcon(display, widget, SidebarIcons::Icon::Home, color);
+    const WidgetIcons::Icon icon =
+        resolvedWidgetIcon(style, "consumption-summary");
+    drawHomeCardBackground(
+        display, widget, style, "SPOTŘEBA DOMU",
+        icon != WidgetIcons::Icon::None);
+    drawWidgetHeaderIcon(display, widget, icon, color);
 
     ScreenStyle::useMetric(display, color);
     display.setCursor(x + 15, y + 90);
