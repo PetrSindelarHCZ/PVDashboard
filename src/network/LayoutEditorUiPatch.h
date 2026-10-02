@@ -668,6 +668,60 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const sensor = document.getElementById('rfCardSensor');
         const humidity = document.getElementById('rfCardHumidity');
         const lastSeen = document.getElementById('rfCardLastSeen');
+        const advanced = document.getElementById('rfCardAdvanced');
+        const advancedField = document.getElementById('rfAdvancedField');
+
+        if (advancedField) advancedField.hidden = (widget.elements || []).length > 0;
+        if (advanced) {
+            advanced.onclick = () => {
+                const selected = (apiState?.rfSensorWidget?.sensors || [])
+                    .find(item => item.slotId === widget.rfSensorSlotId);
+                const slot = widget.rfSensorSlotId || '';
+                widget.elements = [{
+                    id: 'temperature',
+                    type: 'kpi',
+                    source: 'rf.' + slot + '.temperatureC',
+                    label: '',
+                    unit: '°C',
+                    text: '',
+                    x: 10,
+                    y: 48,
+                    width: Math.max(70, widget.width - 20),
+                    height: 38,
+                    decimals: 1,
+                    min: 0,
+                    max: 100,
+                    fontSize: '28',
+                    align: 'left',
+                    showLabel: false,
+                    graphStyle: 'line'
+                }];
+                if (selected?.hasHumidity !== false && widget.rfShowHumidity !== false) {
+                    widget.elements.push({
+                        id: 'humidity',
+                        type: 'kpi',
+                        source: 'rf.' + slot + '.humidityPercent',
+                        label: 'Vlhkost',
+                        unit: '%',
+                        text: '',
+                        x: 10,
+                        y: 96,
+                        width: Math.max(70, widget.width - 20),
+                        height: 48,
+                        decimals: 0,
+                        min: 0,
+                        max: 100,
+                        fontSize: '18',
+                        align: 'left',
+                        showLabel: true,
+                        graphStyle: 'line'
+                    });
+                }
+                selectedElementId = 'temperature';
+                renderDraft();
+                editorMessage('RF karta převedena na volné rozložení. Prvky můžeš přesouvat a měnit.', 'ok');
+            };
+        }
 
         if (title) {
             title.value = widget.title || '';
@@ -2098,6 +2152,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <div class="field">
                         <label>Zobrazit poslední příjem</label>
                         <label class="toggle"><input id="rfCardLastSeen" type="checkbox"><span class="slider"></span></label>
+                    </div>
+                    <div class="field full" id="rfAdvancedField">
+                        <button class="btn btn-secondary" type="button" id="rfCardAdvanced" style="width:auto">Převést na volné rozložení</button>
                     </div>
                 </div>
             </div>
