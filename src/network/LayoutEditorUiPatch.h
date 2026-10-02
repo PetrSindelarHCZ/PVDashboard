@@ -723,7 +723,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                         fontSize: '18',
                         align: 'left',
                         showLabel: true,
-                        graphStyle: 'line'
+                        graphStyle: 'line',
+                        graphPeriodHours: 12
                     });
                 }
                 selectedElementId = 'temperature';
@@ -1279,9 +1280,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             const fontSizes = apiState?.customWidget?.fontSizes || ['auto', ...Array.from({length:58}, (_, i) => String(i + 7))];
             const alignments = apiState?.customWidget?.alignments || ['left','center','right'];
             const graphStyles = apiState?.customWidget?.graphStyles || ['line','bars'];
+            const graphPeriods = (apiState?.customWidget?.graphPeriods || [
+                {hours:1},{hours:2},{hours:4},{hours:6},
+                {hours:12},{hours:24},{hours:48},{hours:72}
+            ]).map(item => Number(item.hours));
             if (!fontSizes.includes(normalizeFontSizeValue(a.fontSize))) ids.add(a.id);
             if (!alignments.includes(a.align || 'left')) ids.add(a.id);
             if (!graphStyles.includes(a.graphStyle || 'line')) ids.add(a.id);
+            if (!graphPeriods.includes(Number(a.graphPeriodHours || 12))) ids.add(a.id);
             if (a.type !== 'sparkline' && (a.graphStyle || 'line') !== 'line') ids.add(a.id);
 
             if (a.type === 'text') {
