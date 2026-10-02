@@ -2,6 +2,7 @@
 
 #include <ArduinoJson.h>
 #include <new>
+#include <math.h>
 
 namespace {
 constexpr uint32_t SensorOfflineAfterMs = 5UL * 60UL * 1000UL;
