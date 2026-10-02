@@ -106,7 +106,10 @@ inline bool knownDataSource(const String& source) {
 
 inline bool knownSparklineSource(const String& source) {
     if (source == "solar.productionPowerW" ||
-        source == "solar.houseConsumptionW") return true;
+        source == "solar.houseConsumptionW" ||
+        source == "inside.temperatureC" ||
+        source == "inside.humidityPercent" ||
+        source == "inside.pressureHpa") return true;
 
     if (source.startsWith("rf.sensor")) {
         const int metricSeparator = source.indexOf('.', 3);
@@ -373,6 +376,33 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
         if (widget.type == "custom") {
             String customError;
             if (!validateCustomWidget(widget, &customError)) return fail(customError);
+        } else if (widget.type == "indoor") {
+            if (widget.title.length() > 40)
+                return fail("Indoor widget title is too long");
+            if (!widget.elements.empty()) {
+                String elementError;
+                if (!validateCustomWidget(widget, &elementError)) return fail(elementError);
+                for (const CustomWidgetElementConfig& element : widget.elements) {
+                    if (element.type != "text" && !element.source.startsWith("inside.")) {
+                        return fail("Indoor widget element must use BME280 data");
+                    }
+                }
+            }
+        } else if (widget.type == "pool-summary") {
+            if (widget.title.length() > 40)
+                return fail("Pool widget title is too long");
+            if (!widget.elements.empty()) {
+                if (widget.rfSensorSlot == 0 || widget.rfSensorSlot > MaxRfSensors)
+                    return fail("Pool widget requires a valid RF sensor slot");
+                String elementError;
+                if (!validateCustomWidget(widget, &elementError)) return fail(elementError);
+                const String rfPrefix = "rf." + rfSlotId(widget.rfSensorSlot) + ".";
+                for (const CustomWidgetElementConfig& element : widget.elements) {
+                    if (element.type != "text" && !element.source.startsWith(rfPrefix)) {
+                        return fail("Pool widget element must use its selected RF sensor");
+                    }
+                }
+            }
         } else if (widget.type == "rf-sensor") {
             if (widget.rfSensorSlot == 0 || widget.rfSensorSlot > MaxRfSensors)
                 return fail("RF sensor widget requires a valid sensor slot");
@@ -449,7 +479,17 @@ inline String serializeJson(const HomeLayoutConfig& config) {
         item["background"] = widget.background;
         item["inverseText"] = widget.inverseText;
 
-        if (widget.type == "rf-sensor") {
+        if (widget.type == "indoor" || widget.type == "pool-summary") {
+            item["title"] = widget.title;
+            if (widget.type == "pool-summary")
+                item["rfSensorSlotId"] = rfSlotId(widget.rfSensorSlot);
+            if (!widget.elements.empty()) {
+                JsonArray elements = item["elements"].to<JsonArray>();
+                for (uint8_t e = 0; e < widget.elements.size() && e < MaxCustomWidgetElements; ++e) {
+                    serializeElement(elements.add<JsonObject>(), widget.elements[e]);
+                }
+            }
+        } else if (widget.type == "rf-sensor") {
             item["title"] = widget.title;
             item["rfSensorSlotId"] = rfSlotId(widget.rfSensorSlot);
             item["rfShowHumidity"] = widget.rfShowHumidity;
@@ -534,7 +574,23 @@ inline bool parseJson(const String& json, HomeLayoutConfig& config, String* erro
         widget.background = String(item["background"] | "white");
         widget.inverseText = item["inverseText"] | false;
 
-        if (widget.type == "rf-sensor") {
+        if (widget.type == "indoor" || widget.type == "pool-summary") {
+            widget.title = String(item["title"] | (widget.type == "indoor" ? "UVNITŘ" : "BAZÉN"));
+            if (widget.type == "pool-summary")
+                widget.rfSensorSlot = rfSlotNumber(String(item["rfSensorSlotId"] | ""));
+            JsonArray elements = item["elements"].as<JsonArray>();
+            if (!elements.isNull()) {
+                if (elements.size() > MaxCustomWidgetElements) {
+                    if (error != nullptr) *error = "Too many sensor widget elements";
+                    return false;
+                }
+                for (JsonObject elementItem : elements) {
+                    CustomWidgetElementConfig element;
+                    parseElement(elementItem, element);
+                    widget.elements.push_back(element);
+                }
+            }
+        } else if (widget.type == "rf-sensor") {
             widget.title = String(item["title"] | "VENKU");
             widget.rfSensorSlot = rfSlotNumber(String(item["rfSensorSlotId"] | ""));
             widget.rfShowHumidity = item["rfShowHumidity"] | true;
