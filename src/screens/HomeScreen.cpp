@@ -18,7 +18,8 @@ void drawHomeCardBackground(IDisplay& display, const LayoutWidget& widget,
     const bool inverseText = style != nullptr && style->inverseText;
     ScreenStyle::drawStyledCard(display, widget.x, widget.y, widget.width, widget.height,
                                 title, showFrame, blackBackground, inverseText,
-                                hasHeaderIcon ? 42 : 12);
+                                hasHeaderIcon ? 42 : 12,
+                                hasHeaderIcon ? 42 : 10);
 }
 
 void drawCardIcon(IDisplay& d, int16_t centerX, int16_t centerY,
