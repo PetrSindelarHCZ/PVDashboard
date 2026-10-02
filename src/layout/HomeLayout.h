@@ -689,8 +689,61 @@ inline bool buildDefaultWidget(const DataModel& dm, const String& id,
     if (id == "weather-card") return set("weather-card", "weather", 75, 63, 225, 215);
     if (id == "fve-summary") return set("fve-summary", "fve-summary", 315, 63, 225, 215);
     if (id == "azrouter-summary") return set("azrouter-summary", "azrouter-summary", 555, 63, 230, 215);
-    if (id == "indoor-card") return set("indoor-card", "indoor", 75, 293, 155, 172);
-    if (id == "pool-summary") return set("pool-summary", "pool-summary", 405, 293, 155, 172);
+    if (id == "indoor-card") {
+        if (!set("indoor-card", "indoor", 75, 293, 155, 172)) return false;
+        result.title = "UVNITŘ";
+
+        CustomWidgetElementConfig temperature;
+        temperature.id = "temperature";
+        temperature.type = "kpi";
+        temperature.source = "inside.temperatureC";
+        temperature.unit = "°C";
+        temperature.x = 10;
+        temperature.y = 48;
+        temperature.width = 135;
+        temperature.height = 38;
+        temperature.decimals = 1;
+        temperature.fontSize = "28";
+        temperature.align = "left";
+        temperature.showLabel = false;
+        result.elements.push_back(temperature);
+
+        CustomWidgetElementConfig humidity;
+        humidity.id = "humidity";
+        humidity.type = "kpi";
+        humidity.source = "inside.humidityPercent";
+        humidity.unit = "%";
+        humidity.x = 10;
+        humidity.y = 96;
+        humidity.width = 62;
+        humidity.height = 28;
+        humidity.decimals = 0;
+        humidity.fontSize = "18";
+        humidity.align = "left";
+        humidity.showLabel = false;
+        result.elements.push_back(humidity);
+
+        CustomWidgetElementConfig pressure;
+        pressure.id = "pressure";
+        pressure.type = "kpi";
+        pressure.source = "inside.pressureHpa";
+        pressure.unit = "hPa";
+        pressure.x = 10;
+        pressure.y = 128;
+        pressure.width = 135;
+        pressure.height = 28;
+        pressure.decimals = 0;
+        pressure.fontSize = "16";
+        pressure.align = "left";
+        pressure.showLabel = false;
+        result.elements.push_back(pressure);
+        return true;
+    }
+    if (id == "pool-summary") {
+        if (!set("pool-summary", "pool-summary", 405, 293, 155, 172)) return false;
+        result.title = "BAZÉN";
+        return true;
+    }
     if (id == "consumption-summary") return set("consumption-summary", "consumption-summary", 570, 293, 215, 172);
 
     if (id == "rf-card-1") {
