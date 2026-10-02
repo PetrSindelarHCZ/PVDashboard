@@ -86,6 +86,24 @@ inline bool valid(uint8_t value) {
     return value < static_cast<uint8_t>(Icon::Count);
 }
 
+inline Icon defaultForWidgetType(const String& type) {
+    if (type == "weather") return Icon::Weather;
+    if (type == "fve-summary" || type == "energy") return Icon::Solar;
+    if (type == "azrouter-summary") return Icon::Power;
+    if (type == "indoor") return Icon::Home;
+    if (type == "rf-sensor") return Icon::Outdoor;
+    if (type == "pool-summary") return Icon::Pool;
+    if (type == "consumption-summary") return Icon::Home;
+    if (type == "custom") return Icon::Sensor;
+    return Icon::Sensor;
+}
+
+inline Icon resolved(uint8_t configured, const String& type) {
+    if (!valid(configured)) return defaultForWidgetType(type);
+    const Icon icon = static_cast<Icon>(configured);
+    return icon == Icon::Auto ? defaultForWidgetType(type) : icon;
+}
+
 inline void drawHouse(IDisplay& d, int16_t x, int16_t y, uint16_t c) {
     d.drawLine(x + 3, y + 14, x + 16, y + 4, c);
     d.drawLine(x + 16, y + 4, x + 29, y + 14, c);
