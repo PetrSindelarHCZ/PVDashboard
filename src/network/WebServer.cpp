@@ -295,6 +295,14 @@ String homeLayoutResponseJson(
     graphStyles.add("line");
     graphStyles.add("bars");
 
+    JsonArray graphPeriods = custom["graphPeriods"].to<JsonArray>();
+    for (uint8_t i = 0; i < SensorGraphPeriodCount; ++i) {
+        JsonObject period = graphPeriods.add<JsonObject>();
+        const uint8_t hours = SensorGraphPeriodHours[i];
+        period["hours"] = hours;
+        period["bucketSeconds"] = sensorGraphBucketSeconds(hours);
+    }
+
     JsonArray sources = custom["dataSources"].to<JsonArray>();
     auto addSource = [&sources](const String& id, const String& label, const String& unit,
                                 uint8_t decimals, bool history) {
