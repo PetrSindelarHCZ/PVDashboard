@@ -186,9 +186,29 @@ struct RfSensorData {
     uint32_t lastUpdateMs = 0;
 };
 
+constexpr uint8_t RfHistorySampleCount = 24;
+constexpr uint32_t RfHistoryIntervalMs = 5UL * 60UL * 1000UL;
+
+struct RfHistorySample {
+    int16_t temperatureCenti = 0;
+    uint8_t humidityPercent = 0;
+    uint8_t flags = 0; // bit0 temperature, bit1 humidity
+};
+
+struct RfSensorHistory {
+    RfHistorySample samples[RfHistorySampleCount];
+    uint8_t count = 0;
+    uint8_t next = 0;
+    uint32_t lastSampleMs = 0;
+};
+
 struct RfSensorsData {
     uint8_t sensorCount = 0;
     RfSensorData sensors[MaxRfSensors];
+
+    // Allocated by RfSensorManager on the heap to avoid growing static DRAM.
+    // Indexed by stable slot number: sensor1 -> 0 ... sensor16 -> 15.
+    RfSensorHistory* history = nullptr;
 };
 
 struct SystemData {
