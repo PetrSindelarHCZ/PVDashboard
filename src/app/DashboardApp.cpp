@@ -1,6 +1,7 @@
 #include "DashboardApp.h"
 #include <math.h>
 #include <new>
+#include <time.h>
 #include "../diagnostics/Performance.h"
 #include "../integrations/cc1101/Cc1101Diagnostics.h"
 #include "../integrations/cc1101/Cc1101RawReceiver.h"
@@ -1790,31 +1791,94 @@ void DashboardApp::loop() {
                     Serial.println("[BME280] Historie nelze alokovat: nedostatek heap pameti.");
                 }
             }
+
             if (_insideHistory != nullptr) {
                 _dataModel.inside.history = _insideHistory;
-                const uint32_t sampleNow = millis();
-                if (_insideHistory->count == 0 ||
-                    static_cast<uint32_t>(sampleNow - _insideHistory->lastSampleMs) >=
-                        InsideHistoryIntervalMs) {
-                    InsideHistorySample sample;
-                    sample.temperatureCenti = static_cast<int16_t>(
-                        lroundf(_dataModel.inside.temperatureC * 100.0f));
-                    int humidity = _dataModel.inside.humidityPercent;
-                    if (humidity < 0) humidity = 0;
-                    if (humidity > 100) humidity = 100;
-                    sample.humidityPercent = static_cast<uint8_t>(humidity);
-                    float pressure = _dataModel.inside.pressureHpa * 10.0f;
-                    if (pressure < 0.0f) pressure = 0.0f;
-                    if (pressure > 65535.0f) pressure = 65535.0f;
-                    sample.pressureDeciHpa =
-                        static_cast<uint16_t>(lroundf(pressure));
 
-                    _insideHistory->samples[_insideHistory->next] = sample;
-                    _insideHistory->next = static_cast<uint8_t>(
-                        (_insideHistory->next + 1) % InsideHistorySampleCount);
-                    if (_insideHistory->count < InsideHistorySampleCount)
-                        ++_insideHistory->count;
-                    _insideHistory->lastSampleMs = sampleNow;
+                InsideHistorySample sample;
+                sample.temperatureCenti = static_cast<int16_t>(
+                    lroundf(_dataModel.inside.temperatureC * 100.0f));
+                int humidity = _dataModel.inside.humidityPercent;
+                if (humidity < 0) humidity = 0;
+                if (humidity > 100) humidity = 100;
+                sample.humidityPercent = static_cast<uint8_t>(humidity);
+                float pressure = _dataModel.inside.pressureHpa * 10.0f;
+                if (pressure < 0.0f) pressure = 0.0f;
+                if (pressure > 65535.0f) pressure = 65535.0f;
+                sample.pressureDeciHpa =
+                    static_cast<uint16_t>(lroundf(pressure));
+                sample.flags = 0x07;
+
+                const time_t epoch = time(nullptr);
+                const bool wallClock = epoch > 1700000000;
+                const uint32_t timeSeconds =
+                    wallClock
+                        ? static_cast<uint32_t>(epoch)
+                        : millis() / 1000UL;
+
+                for (uint8_t periodIndex = 0;
+                     periodIndex < SensorGraphPeriodCount;
+                     ++periodIndex) {
+
+                    const uint8_t hours =
+                        SensorGraphPeriodHours[periodIndex];
+                    const uint32_t bucketSeconds =
+                        sensorGraphBucketSeconds(hours);
+                    if (bucketSeconds == 0) continue;
+
+                    const uint32_t bucket =
+                        timeSeconds / bucketSeconds;
+                    InsideHistorySeries& series =
+                        _insideHistory->series[periodIndex];
+
+                    auto appendSample =
+                        [&series](const InsideHistorySample& value) {
+                            series.samples[series.next] = value;
+                            series.next = static_cast<uint8_t>(
+                                (series.next + 1) %
+                                SensorGraphSampleCount);
+                            if (series.count < SensorGraphSampleCount)
+                                ++series.count;
+                        };
+
+                    if (series.count == 0 ||
+                        series.wallClock != wallClock) {
+                        series = InsideHistorySeries{};
+                        series.wallClock = wallClock;
+                        series.lastBucket = bucket;
+                        appendSample(sample);
+                        continue;
+                    }
+
+                    if (bucket == series.lastBucket) {
+                        const uint8_t latest =
+                            static_cast<uint8_t>(
+                                (series.next +
+                                 SensorGraphSampleCount - 1) %
+                                SensorGraphSampleCount);
+                        series.samples[latest] = sample;
+                        continue;
+                    }
+
+                    if (bucket < series.lastBucket ||
+                        bucket - series.lastBucket >=
+                            SensorGraphSampleCount) {
+                        series = InsideHistorySeries{};
+                        series.wallClock = wallClock;
+                        series.lastBucket = bucket;
+                        appendSample(sample);
+                        continue;
+                    }
+
+                    const uint32_t gap =
+                        bucket - series.lastBucket;
+                    for (uint32_t step = 1;
+                         step < gap;
+                         ++step) {
+                        appendSample(InsideHistorySample{});
+                    }
+                    appendSample(sample);
+                    series.lastBucket = bucket;
                 }
             }
         }
