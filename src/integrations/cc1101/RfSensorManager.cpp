@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include <new>
 #include <math.h>
+#include <time.h>
 
 namespace {
 constexpr uint32_t SensorOfflineAfterMs = 5UL * 60UL * 1000UL;
@@ -48,12 +49,6 @@ void RfSensorManager::sampleHistory(
     const int stableIndex = slotIndex(_config->sensors[configuredIndex].slotId);
     if (stableIndex < 0) return;
 
-    RfSensorHistory& history = _history[stableIndex];
-    if (history.count > 0 &&
-        !elapsedAtLeast(now, history.lastSampleMs, RfHistoryIntervalMs)) {
-        return;
-    }
-
     RfHistorySample sample;
     if (observation.hasTemperature) {
         sample.temperatureCenti =
@@ -69,10 +64,63 @@ void RfSensorManager::sampleHistory(
     }
     if (sample.flags == 0) return;
 
-    history.samples[history.next] = sample;
-    history.next = static_cast<uint8_t>((history.next + 1) % RfHistorySampleCount);
-    if (history.count < RfHistorySampleCount) ++history.count;
-    history.lastSampleMs = now;
+    const time_t epoch = time(nullptr);
+    const bool wallClock = epoch > 1700000000;
+    const uint32_t timeSeconds =
+        wallClock ? static_cast<uint32_t>(epoch) : now / 1000UL;
+
+    RfSensorHistory& history = _history[stableIndex];
+    for (uint8_t periodIndex = 0;
+         periodIndex < SensorGraphPeriodCount;
+         ++periodIndex) {
+
+        const uint8_t hours = SensorGraphPeriodHours[periodIndex];
+        const uint32_t bucketSeconds = sensorGraphBucketSeconds(hours);
+        if (bucketSeconds == 0) continue;
+
+        const uint32_t bucket = timeSeconds / bucketSeconds;
+        RfHistorySeries& series = history.series[periodIndex];
+
+        auto appendSample = [&series](const RfHistorySample& value) {
+            series.samples[series.next] = value;
+            series.next = static_cast<uint8_t>(
+                (series.next + 1) % SensorGraphSampleCount);
+            if (series.count < SensorGraphSampleCount) ++series.count;
+        };
+
+        if (series.count == 0 || series.wallClock != wallClock) {
+            series = RfHistorySeries{};
+            series.wallClock = wallClock;
+            series.lastBucket = bucket;
+            appendSample(sample);
+            continue;
+        }
+
+        if (bucket == series.lastBucket) {
+            const uint8_t latest =
+                static_cast<uint8_t>(
+                    (series.next + SensorGraphSampleCount - 1) %
+                    SensorGraphSampleCount);
+            series.samples[latest] = sample;
+            continue;
+        }
+
+        if (bucket < series.lastBucket ||
+            bucket - series.lastBucket >= SensorGraphSampleCount) {
+            series = RfHistorySeries{};
+            series.wallClock = wallClock;
+            series.lastBucket = bucket;
+            appendSample(sample);
+            continue;
+        }
+
+        const uint32_t gap = bucket - series.lastBucket;
+        for (uint32_t step = 1; step < gap; ++step) {
+            appendSample(RfHistorySample{});
+        }
+        appendSample(sample);
+        series.lastBucket = bucket;
+    }
 }
 
 String RfSensorManager::normalizedName(String name) {
