@@ -317,6 +317,10 @@ inline void drawStyledCard(IDisplay& d, int16_t x, int16_t y, int16_t w, int16_t
     useCardTitle(d, textColor);
     d.setCursor(x + titleInset, y + 27);
     d.print(title);
+    // Slight overprint gives the 18 px title the stronger visual weight
+    // of the previous smaller font without changing header geometry.
+    d.setCursor(x + titleInset + 1, y + 27);
+    d.print(title);
     d.drawLine(x + dividerInset, y + 34, x + w - 10, y + 34, textColor);
 }
 
