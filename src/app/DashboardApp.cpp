@@ -1,5 +1,6 @@
 #include "DashboardApp.h"
 #include <math.h>
+#include <new>
 #include "../diagnostics/Performance.h"
 #include "../integrations/cc1101/Cc1101Diagnostics.h"
 #include "../integrations/cc1101/Cc1101RawReceiver.h"
@@ -1771,6 +1772,44 @@ void DashboardApp::loop() {
 
         const bool success = _bme280Sensor.update(_dataModel.inside);
         _lastBme280Sync = millis();
+
+        if (success) {
+            if (_insideHistory == nullptr) {
+                _insideHistory = new (std::nothrow) InsideHistory();
+                if (_insideHistory != nullptr) {
+                    _dataModel.inside.history = _insideHistory;
+                } else {
+                    Serial.println("[BME280] Historie nelze alokovat: nedostatek heap pameti.");
+                }
+            }
+            if (_insideHistory != nullptr) {
+                _dataModel.inside.history = _insideHistory;
+                const uint32_t sampleNow = millis();
+                if (_insideHistory->count == 0 ||
+                    static_cast<uint32_t>(sampleNow - _insideHistory->lastSampleMs) >=
+                        InsideHistoryIntervalMs) {
+                    InsideHistorySample sample;
+                    sample.temperatureCenti = static_cast<int16_t>(
+                        lroundf(_dataModel.inside.temperatureC * 100.0f));
+                    int humidity = _dataModel.inside.humidityPercent;
+                    if (humidity < 0) humidity = 0;
+                    if (humidity > 100) humidity = 100;
+                    sample.humidityPercent = static_cast<uint8_t>(humidity);
+                    float pressure = _dataModel.inside.pressureHpa * 10.0f;
+                    if (pressure < 0.0f) pressure = 0.0f;
+                    if (pressure > 65535.0f) pressure = 65535.0f;
+                    sample.pressureDeciHpa =
+                        static_cast<uint16_t>(lroundf(pressure));
+
+                    _insideHistory->samples[_insideHistory->next] = sample;
+                    _insideHistory->next = static_cast<uint8_t>(
+                        (_insideHistory->next + 1) % InsideHistorySampleCount);
+                    if (_insideHistory->count < InsideHistorySampleCount)
+                        ++_insideHistory->count;
+                    _insideHistory->lastSampleMs = sampleNow;
+                }
+            }
+        }
 
         const bool availabilityChanged =
             wasAvailable != _dataModel.inside.status.available;
