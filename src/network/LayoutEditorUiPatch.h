@@ -1369,7 +1369,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             element.decimals = Number(source.decimals ?? element.decimals ?? 1);
             element.text = '';
             element.showLabel = element.showLabel !== false;
-            element.graphStyle = newType === 'sparkline' ? (element.graphStyle || 'line') : 'line';
+            element.graphStyle = newType === 'sparkline' ? 'bars' : 'line';
             if (newType === 'progress' && !(Number(element.max) > Number(element.min))) {
                 element.min = 0;
                 element.max = source.unit === '%' ? 100 : 100;
@@ -1754,7 +1754,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             fontSize: type === 'trend' ? '28' : 'auto',
             align: 'left',
             showLabel: true,
-            graphStyle: 'line'
+            graphStyle: type === 'sparkline' ? 'bars' : 'line'
         };
         widget.elements = widget.elements || [];
         widget.elements.push(element);
