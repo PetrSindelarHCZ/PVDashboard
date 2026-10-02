@@ -411,11 +411,127 @@ inline void drawProgress(IDisplay& display, const DataModel& dm, int16_t x, int1
     if (fillWidth > 0) display.fillRect(x + 2, barY + 2, fillWidth, barH - 4, textColor);
 }
 
-inline bool historyValue(const SolarHistorySample& sample, const String& source, float& value) {
-    if (source == "solar.productionPowerW") value = sample.productionPowerW;
-    else if (source == "solar.houseConsumptionW") value = sample.houseConsumptionW;
-    else return false;
+inline bool rfHistorySource(const String& source, int& stableIndex, String& metric) {
+    if (!source.startsWith("rf.sensor")) return false;
+    const int metricSeparator = source.indexOf('.', 3);
+    if (metricSeparator <= 3) return false;
+
+    const String slotId = source.substring(3, metricSeparator);
+    if (!slotId.startsWith("sensor")) return false;
+    const int slot = slotId.substring(6).toInt();
+    if (slot < 1 || slot > MaxRfSensors || slotId != "sensor" + String(slot)) return false;
+
+    metric = source.substring(metricSeparator + 1);
+    if (metric != "temperatureC" && metric != "humidityPercent") return false;
+    stableIndex = slot - 1;
     return true;
+}
+
+inline uint8_t historyCount(const DataModel& dm, const String& source) {
+    if (source == "solar.productionPowerW" || source == "solar.houseConsumptionW")
+        return dm.solar.historyCount;
+
+    int stableIndex = -1;
+    String metric;
+    if (!rfHistorySource(source, stableIndex, metric) ||
+        dm.rfSensors.history == nullptr) {
+        return 0;
+    }
+    return dm.rfSensors.history[stableIndex].count;
+}
+
+inline bool historyValueAt(const DataModel& dm, const String& source,
+                           uint8_t chronologicalIndex, float& value) {
+    if (source == "solar.productionPowerW" || source == "solar.houseConsumptionW") {
+        if (chronologicalIndex >= dm.solar.historyCount) return false;
+        const SolarHistorySample& sample = dm.solar.history[chronologicalIndex];
+        if (source == "solar.productionPowerW") value = sample.productionPowerW;
+        else value = sample.houseConsumptionW;
+        return true;
+    }
+
+    int stableIndex = -1;
+    String metric;
+    if (!rfHistorySource(source, stableIndex, metric) ||
+        dm.rfSensors.history == nullptr) {
+        return false;
+    }
+
+    const RfSensorHistory& history = dm.rfSensors.history[stableIndex];
+    if (chronologicalIndex >= history.count) return false;
+
+    const uint8_t oldest =
+        static_cast<uint8_t>((history.next + RfHistorySampleCount - history.count) %
+                             RfHistorySampleCount);
+    const uint8_t physical =
+        static_cast<uint8_t>((oldest + chronologicalIndex) % RfHistorySampleCount);
+    const RfHistorySample& sample = history.samples[physical];
+
+    if (metric == "temperatureC") {
+        if ((sample.flags & 0x01) == 0) return false;
+        value = sample.temperatureCenti / 100.0f;
+        return true;
+    }
+    if ((sample.flags & 0x02) == 0) return false;
+    value = sample.humidityPercent;
+    return true;
+}
+
+inline void drawTrend(IDisplay& display, const DataModel& dm, int16_t x, int16_t y,
+                      const CustomWidgetElementConfig& element, uint16_t textColor) {
+    const uint8_t count = historyCount(dm, element.source);
+    int direction = 0;
+    if (count >= 2) {
+        float previous = 0.0f;
+        float current = 0.0f;
+        if (historyValueAt(dm, element.source, count - 2, previous) &&
+            historyValueAt(dm, element.source, count - 1, current)) {
+            const float threshold =
+                element.source.endsWith(".humidityPercent") ? 1.0f : 0.15f;
+            const float delta = current - previous;
+            if (delta > threshold) direction = 1;
+            else if (delta < -threshold) direction = -1;
+        }
+    }
+
+    int16_t top = y;
+    int16_t availableH = element.height;
+    if (element.showLabel && !element.label.isEmpty()) {
+        ScreenStyle::useBody(display, textColor);
+        const String label = fitText(display, element.label, element.width);
+        const int16_t labelX = alignedX(display, x, element.width, label, element.align);
+        display.setCursor(labelX, y + 15);
+        display.print(label);
+        top += 20;
+        availableH -= 20;
+    }
+    if (availableH < 8) return;
+
+    int16_t size = min<int16_t>(element.width, availableH);
+    const uint8_t requested = requestedFontPx(element, true);
+    if (requested > 0 && requested < size) size = requested;
+    if (size < 10) size = 10;
+
+    int16_t left = x;
+    if (element.align == "center") left = x + (element.width - size) / 2;
+    else if (element.align == "right") left = x + element.width - size;
+    const int16_t cx = left + size / 2;
+    const int16_t cy = top + availableH / 2;
+    const int16_t half = max<int16_t>(4, size / 3);
+
+    if (direction > 0) {
+        display.drawLine(cx, cy + half, cx, cy - half, textColor);
+        display.drawLine(cx, cy - half, cx - half / 2, cy - half / 2, textColor);
+        display.drawLine(cx, cy - half, cx + half / 2, cy - half / 2, textColor);
+    } else if (direction < 0) {
+        display.drawLine(cx, cy - half, cx, cy + half, textColor);
+        display.drawLine(cx, cy + half, cx - half / 2, cy + half / 2, textColor);
+        display.drawLine(cx, cy + half, cx + half / 2, cy + half / 2, textColor);
+    } else {
+        display.drawLine(cx - half, cy, cx + half, cy, textColor);
+        display.drawLine(cx + half, cy, cx + half / 2, cy - half / 2, textColor);
+        display.drawLine(cx + half, cy, cx + half / 2, cy + half / 2, textColor);
+    }
 }
 
 inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int16_t y,
@@ -434,14 +550,30 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
     if (graphH < 20) graphH = 20;
     display.drawRect(x, graphY, element.width, graphH, textColor);
 
-    const uint8_t count = dm.solar.historyCount;
+    const uint8_t count = historyCount(dm, element.source);
     if (count < 2) return;
 
-    float maxValue = 1.0f;
+    float minValue = 0.0f;
+    float maxValue = 0.0f;
+    bool firstValue = true;
     for (uint8_t i = 0; i < count; ++i) {
         float value = 0.0f;
-        if (!historyValue(dm.solar.history[i], element.source, value)) return;
-        if (value > maxValue) maxValue = value;
+        if (!historyValueAt(dm, element.source, i, value)) continue;
+        if (firstValue) {
+            minValue = maxValue = value;
+            firstValue = false;
+        } else {
+            if (value < minValue) minValue = value;
+            if (value > maxValue) maxValue = value;
+        }
+    }
+    if (firstValue) return;
+
+    const bool rfSource = element.source.startsWith("rf.");
+    if (!rfSource && minValue > 0.0f) minValue = 0.0f;
+    if (maxValue - minValue < 0.01f) {
+        minValue -= 0.5f;
+        maxValue += 0.5f;
     }
 
     const int16_t left = x + 2;
@@ -456,8 +588,8 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
         if (barWidth < 1) barWidth = 1;
         for (uint8_t i = 0; i < count; ++i) {
             float value = 0.0f;
-            if (!historyValue(dm.solar.history[i], element.source, value)) return;
-            float normalized = value / maxValue;
+            if (!historyValueAt(dm, element.source, i, value)) continue;
+            float normalized = (value - minValue) / (maxValue - minValue);
             if (normalized < 0.0f) normalized = 0.0f;
             if (normalized > 1.0f) normalized = 1.0f;
             const int16_t barH = static_cast<int16_t>(normalized * (plotH - 1));
@@ -476,9 +608,9 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
 
     for (uint8_t i = 0; i < count; ++i) {
         float value = 0.0f;
-        if (!historyValue(dm.solar.history[i], element.source, value)) return;
+        if (!historyValueAt(dm, element.source, i, value)) continue;
         const int16_t px = left + static_cast<int16_t>((static_cast<uint32_t>(i) * (plotW - 1)) / (count - 1));
-        float normalized = value / maxValue;
+        float normalized = (value - minValue) / (maxValue - minValue);
         if (normalized < 0.0f) normalized = 0.0f;
         if (normalized > 1.0f) normalized = 1.0f;
         const int16_t py = top + plotH - 1 - static_cast<int16_t>(normalized * (plotH - 1));
@@ -501,6 +633,7 @@ inline void drawElements(IDisplay& display, const DataModel& dm,
         else if (element.type == "kpi") drawKpi(display, dm, x, y, element, textColor);
         else if (element.type == "progress") drawProgress(display, dm, x, y, element, textColor);
         else if (element.type == "sparkline") drawSparkline(display, dm, x, y, element, textColor);
+        else if (element.type == "trend") drawTrend(display, dm, x, y, element, textColor);
     }
 }
 
