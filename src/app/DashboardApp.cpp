@@ -33,6 +33,90 @@ uint8_t nextFailureStreak(uint8_t current) {
     return current < MaximumBackoffShift ? current + 1 : MaximumBackoffShift;
 }
 
+void sampleInsideHistory(InsideData& data, InsideHistory*& history) {
+    if (history == nullptr) {
+        history = new (std::nothrow) InsideHistory();
+        if (history == nullptr) {
+            Serial.println(
+                "[BME280] Historie nelze alokovat: nedostatek heap pameti.");
+            return;
+        }
+    }
+    data.history = history;
+
+    InsideHistorySample sample;
+    sample.temperatureCenti =
+        static_cast<int16_t>(lroundf(data.temperatureC * 100.0f));
+    int humidity = data.humidityPercent;
+    if (humidity < 0) humidity = 0;
+    if (humidity > 100) humidity = 100;
+    sample.humidityPercent = static_cast<uint8_t>(humidity);
+
+    float pressure = data.pressureHpa * 10.0f;
+    if (pressure < 0.0f) pressure = 0.0f;
+    if (pressure > 65535.0f) pressure = 65535.0f;
+    sample.pressureDeciHpa = static_cast<uint16_t>(lroundf(pressure));
+    sample.flags = 0x07;
+
+    const time_t epoch = time(nullptr);
+    const bool wallClock = epoch > 1700000000;
+    const uint32_t timeSeconds =
+        wallClock ? static_cast<uint32_t>(epoch) : millis() / 1000UL;
+
+    for (uint8_t periodIndex = 0;
+         periodIndex < SensorGraphPeriodCount;
+         ++periodIndex) {
+
+        const uint8_t hours = SensorGraphPeriodHours[periodIndex];
+        const uint32_t bucketSeconds = sensorGraphBucketSeconds(hours);
+        if (bucketSeconds == 0) continue;
+
+        const uint32_t bucket = timeSeconds / bucketSeconds;
+        InsideHistorySeries& series = history->series[periodIndex];
+
+        auto appendSample =
+            [&series](const InsideHistorySample& value) {
+                series.samples[series.next] = value;
+                series.next = static_cast<uint8_t>(
+                    (series.next + 1) % SensorGraphSampleCount);
+                if (series.count < SensorGraphSampleCount) ++series.count;
+            };
+
+        if (series.count == 0 || series.wallClock != wallClock) {
+            series = InsideHistorySeries{};
+            series.wallClock = wallClock;
+            series.lastBucket = bucket;
+            appendSample(sample);
+            continue;
+        }
+
+        if (bucket == series.lastBucket) {
+            const uint8_t latest =
+                static_cast<uint8_t>(
+                    (series.next + SensorGraphSampleCount - 1) %
+                    SensorGraphSampleCount);
+            series.samples[latest] = sample;
+            continue;
+        }
+
+        if (bucket < series.lastBucket ||
+            bucket - series.lastBucket >= SensorGraphSampleCount) {
+            series = InsideHistorySeries{};
+            series.wallClock = wallClock;
+            series.lastBucket = bucket;
+            appendSample(sample);
+            continue;
+        }
+
+        const uint32_t gap = bucket - series.lastBucket;
+        for (uint32_t step = 1; step < gap; ++step) {
+            appendSample(InsideHistorySample{});
+        }
+        appendSample(sample);
+        series.lastBucket = bucket;
+    }
+}
+
 bool applyWifiAddressing(const WifiConfig& wifi) {
     if (wifi.dhcp) {
         // Při přechodu ze statické adresy nejdřív ukončíme aktivní STA spojení.
@@ -444,7 +528,9 @@ void DashboardApp::setup() {
 
     // Local environmental sensor is independent of Wi-Fi. The 4-pin BME280
     // shares the preferred I2C bus on SDA GPIO21 / SCL GPIO22.
-    _bme280Sensor.update(_dataModel.inside);
+    if (_bme280Sensor.update(_dataModel.inside)) {
+        sampleInsideHistory(_dataModel.inside, _insideHistory);
+    }
     _lastBme280Sync = millis();
     _lastBme280DisplayRefresh = _lastBme280Sync;
 
@@ -1783,104 +1869,7 @@ void DashboardApp::loop() {
         _lastBme280Sync = millis();
 
         if (success) {
-            if (_insideHistory == nullptr) {
-                _insideHistory = new (std::nothrow) InsideHistory();
-                if (_insideHistory != nullptr) {
-                    _dataModel.inside.history = _insideHistory;
-                } else {
-                    Serial.println("[BME280] Historie nelze alokovat: nedostatek heap pameti.");
-                }
-            }
-
-            if (_insideHistory != nullptr) {
-                _dataModel.inside.history = _insideHistory;
-
-                InsideHistorySample sample;
-                sample.temperatureCenti = static_cast<int16_t>(
-                    lroundf(_dataModel.inside.temperatureC * 100.0f));
-                int humidity = _dataModel.inside.humidityPercent;
-                if (humidity < 0) humidity = 0;
-                if (humidity > 100) humidity = 100;
-                sample.humidityPercent = static_cast<uint8_t>(humidity);
-                float pressure = _dataModel.inside.pressureHpa * 10.0f;
-                if (pressure < 0.0f) pressure = 0.0f;
-                if (pressure > 65535.0f) pressure = 65535.0f;
-                sample.pressureDeciHpa =
-                    static_cast<uint16_t>(lroundf(pressure));
-                sample.flags = 0x07;
-
-                const time_t epoch = time(nullptr);
-                const bool wallClock = epoch > 1700000000;
-                const uint32_t timeSeconds =
-                    wallClock
-                        ? static_cast<uint32_t>(epoch)
-                        : millis() / 1000UL;
-
-                for (uint8_t periodIndex = 0;
-                     periodIndex < SensorGraphPeriodCount;
-                     ++periodIndex) {
-
-                    const uint8_t hours =
-                        SensorGraphPeriodHours[periodIndex];
-                    const uint32_t bucketSeconds =
-                        sensorGraphBucketSeconds(hours);
-                    if (bucketSeconds == 0) continue;
-
-                    const uint32_t bucket =
-                        timeSeconds / bucketSeconds;
-                    InsideHistorySeries& series =
-                        _insideHistory->series[periodIndex];
-
-                    auto appendSample =
-                        [&series](const InsideHistorySample& value) {
-                            series.samples[series.next] = value;
-                            series.next = static_cast<uint8_t>(
-                                (series.next + 1) %
-                                SensorGraphSampleCount);
-                            if (series.count < SensorGraphSampleCount)
-                                ++series.count;
-                        };
-
-                    if (series.count == 0 ||
-                        series.wallClock != wallClock) {
-                        series = InsideHistorySeries{};
-                        series.wallClock = wallClock;
-                        series.lastBucket = bucket;
-                        appendSample(sample);
-                        continue;
-                    }
-
-                    if (bucket == series.lastBucket) {
-                        const uint8_t latest =
-                            static_cast<uint8_t>(
-                                (series.next +
-                                 SensorGraphSampleCount - 1) %
-                                SensorGraphSampleCount);
-                        series.samples[latest] = sample;
-                        continue;
-                    }
-
-                    if (bucket < series.lastBucket ||
-                        bucket - series.lastBucket >=
-                            SensorGraphSampleCount) {
-                        series = InsideHistorySeries{};
-                        series.wallClock = wallClock;
-                        series.lastBucket = bucket;
-                        appendSample(sample);
-                        continue;
-                    }
-
-                    const uint32_t gap =
-                        bucket - series.lastBucket;
-                    for (uint32_t step = 1;
-                         step < gap;
-                         ++step) {
-                        appendSample(InsideHistorySample{});
-                    }
-                    appendSample(sample);
-                    series.lastBucket = bucket;
-                }
-            }
+            sampleInsideHistory(_dataModel.inside, _insideHistory);
         }
 
         const bool availabilityChanged =
