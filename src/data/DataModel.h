@@ -130,12 +130,31 @@ struct WeatherData {
     uint32_t lastUpdateMs = 0;
 };
 
+constexpr uint8_t InsideHistorySampleCount = 24;
+constexpr uint32_t InsideHistoryIntervalMs = 5UL * 60UL * 1000UL;
+
+struct InsideHistorySample {
+    int16_t temperatureCenti = 0;
+    uint8_t humidityPercent = 0;
+    uint16_t pressureDeciHpa = 0;
+};
+
+struct InsideHistory {
+    InsideHistorySample samples[InsideHistorySampleCount];
+    uint8_t count = 0;
+    uint8_t next = 0;
+    uint32_t lastSampleMs = 0;
+};
+
 struct InsideData {
     DataSourceStatus status;
     float temperatureC = 0.0f;
     int humidityPercent = 0;
     float pressureHpa = 0.0f;
     uint32_t lastUpdateMs = 0;
+
+    // Heap-backed history keeps trend/graph support out of static DRAM.
+    InsideHistory* history = nullptr;
 
     // Existing UI-compatible fields. livingRoomTempC is populated from BME280;
     // the remaining values stay as placeholders until their real sensors exist.
