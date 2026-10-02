@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include "../config/ConfigSchema.h"
 #include "../data/DataModel.h"
+#include "../display/assets/WidgetIcons.h"
 #include "ScreenLayout.h"
 
 namespace HomeLayout {
@@ -364,6 +365,9 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
         if (!(widget.background == "white" || widget.background == "black")) {
             return fail("Unknown Home widget background");
         }
+        if (!WidgetIcons::valid(widget.icon)) {
+            return fail("Unknown Home widget icon");
+        }
 
         if (widget.width < minWidth(widget.type) ||
             widget.height < minHeight(widget.type)) {
@@ -508,6 +512,8 @@ inline String serializeStorageJson(const HomeLayoutConfig& config) {
             if (!widget.showFrame) item["showFrame"] = false;
             if (widget.background != "white") item["background"] = widget.background;
             if (widget.inverseText) item["inverseText"] = true;
+            if (widget.icon != static_cast<uint8_t>(WidgetIcons::Icon::Auto))
+                item["icon"] = WidgetIcons::key(static_cast<WidgetIcons::Icon>(widget.icon));
             if (!widget.title.isEmpty()) item["title"] = widget.title;
 
             if (widget.type == "pool-summary" || widget.type == "rf-sensor") {
@@ -553,6 +559,8 @@ inline String serializeJson(const HomeLayoutConfig& config) {
         item["showFrame"] = widget.showFrame;
         item["background"] = widget.background;
         item["inverseText"] = widget.inverseText;
+        item["icon"] =
+            WidgetIcons::key(static_cast<WidgetIcons::Icon>(widget.icon));
 
         if (widget.type == "indoor" || widget.type == "pool-summary") {
             item["title"] = widget.title;
@@ -649,6 +657,8 @@ inline bool parseJson(const String& json, HomeLayoutConfig& config, String* erro
         widget.showFrame = item["showFrame"] | true;
         widget.background = String(item["background"] | "white");
         widget.inverseText = item["inverseText"] | false;
+        widget.icon = static_cast<uint8_t>(
+            WidgetIcons::fromKey(String(item["icon"] | "auto")));
 
         if (widget.type == "indoor" || widget.type == "pool-summary") {
             widget.title = String(item["title"] | (widget.type == "indoor" ? "UVNITŘ" : "BAZÉN"));
