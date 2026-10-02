@@ -131,7 +131,8 @@ struct WeatherData {
 };
 
 constexpr uint8_t InsideHistorySampleCount = 24;
-constexpr uint32_t InsideHistoryIntervalMs = 5UL * 60UL * 1000UL;
+// 24 half-hour samples = 12 hours shown by the compact sensor graph.
+constexpr uint32_t InsideHistoryIntervalMs = 30UL * 60UL * 1000UL;
 
 struct InsideHistorySample {
     int16_t temperatureCenti = 0;
@@ -206,7 +207,8 @@ struct RfSensorData {
 };
 
 constexpr uint8_t RfHistorySampleCount = 24;
-constexpr uint32_t RfHistoryIntervalMs = 5UL * 60UL * 1000UL;
+// 24 half-hour samples = 12 hours shown by the compact sensor graph.
+constexpr uint32_t RfHistoryIntervalMs = 30UL * 60UL * 1000UL;
 
 struct RfHistorySample {
     int16_t temperatureCenti = 0;
