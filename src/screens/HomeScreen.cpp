@@ -31,6 +31,49 @@ void drawCardIcon(IDisplay& d, int16_t centerX, int16_t centerY,
                  color);
 }
 
+void drawCardHeaderIcon(IDisplay& d, const LayoutWidget& widget,
+                        SidebarIcons::Icon iconId, uint16_t color = 0) {
+    const SidebarIcons::Bitmap icon = SidebarIcons::get(iconId);
+    if (icon.data == nullptr || icon.width != 40 || icon.height != 40) return;
+
+    constexpr int16_t target = 20;
+    const int16_t left = widget.x + widget.width - 12 - target;
+    const int16_t top = widget.y + 7;
+    constexpr int16_t sourceRowBytes = 5;
+
+    for (int16_t ty = 0; ty < target; ++ty) {
+        for (int16_t tx = 0; tx < target; ++tx) {
+            bool set = false;
+            const int16_t sx0 = tx * 2;
+            const int16_t sy0 = ty * 2;
+            for (int16_t dy = 0; dy < 2 && !set; ++dy) {
+                for (int16_t dx = 0; dx < 2; ++dx) {
+                    const int16_t sx = sx0 + dx;
+                    const int16_t sy = sy0 + dy;
+                    const uint8_t value =
+                        pgm_read_byte(icon.data + sy * sourceRowBytes + sx / 8);
+                    if (value & (0x80 >> (sx & 7))) {
+                        set = true;
+                        break;
+                    }
+                }
+            }
+            if (set) d.drawPixel(left + tx, top + ty, color);
+        }
+    }
+}
+
+void drawRfHeaderIcon(IDisplay& d, const LayoutWidget& widget, uint16_t color = 0) {
+    const int16_t x = widget.x + widget.width - 31;
+    const int16_t y = widget.y + 8;
+    d.drawLine(x + 8, y + 7, x + 8, y + 18, color);
+    d.fillCircle(x + 8, y + 19, 1, color);
+    d.drawLine(x + 5, y + 8, x + 2, y + 5, color);
+    d.drawLine(x + 11, y + 8, x + 14, y + 5, color);
+    d.drawLine(x + 3, y + 11, x, y + 8, color);
+    d.drawLine(x + 13, y + 11, x + 16, y + 8, color);
+}
+
 void drawHouseSymbol(IDisplay& d, int16_t x, int16_t y, uint16_t color = 0) {
     d.drawLine(x + 2, y + 12, x + 15, y + 2, color);
     d.drawLine(x + 15, y + 2, x + 28, y + 12, color);
@@ -120,6 +163,7 @@ void drawWeatherCard(IDisplay& display, const DataModel& dm, const LayoutWidget&
 
     const uint16_t color = cardTextColor(style);
     drawHomeCardBackground(display, widget, style, "PŘEDPOVĚĎ");
+    drawCardHeaderIcon(display, widget, SidebarIcons::Icon::Weather, color);
 
     if (h < 250) {
         if (dm.weather.status.available) {
@@ -294,6 +338,7 @@ void drawIndoorCard(IDisplay& display, const DataModel& dm, const LayoutWidget& 
 
     const uint16_t color = cardTextColor(style);
     drawHomeCardBackground(display, widget, style, "UVNITŘ");
+    drawCardHeaderIcon(display, widget, SidebarIcons::Icon::Home, color);
 
     auto drawBmeTemperature = [&](int16_t valueX, int16_t valueY) {
         ScreenStyle::useValue(display, color);
@@ -323,9 +368,8 @@ void drawIndoorCard(IDisplay& display, const DataModel& dm, const LayoutWidget& 
     };
 
     if (h < 220) {
-        drawCardIcon(display, x + 34, y + 77, SidebarIcons::Icon::Home, color);
         ScreenStyle::useMetric(display, color);
-        display.setCursor(x + 62, y + 90);
+        display.setCursor(x + 15, y + 90);
         if (dm.inside.status.available)
             display.printf("%.1f °C", dm.inside.temperatureC);
         else
@@ -408,11 +452,10 @@ void drawFveSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidg
     const int16_t y = widget.y;
     const uint16_t color = cardTextColor(style);
     drawHomeCardBackground(display, widget, style, "FVE / GOODWE");
-
-    drawCardIcon(display, x + 38, y + 78, SidebarIcons::Icon::Solar, color);
+    drawCardHeaderIcon(display, widget, SidebarIcons::Icon::Solar, color);
 
     ScreenStyle::useMetric(display, color);
-    display.setCursor(x + 72, y + 91);
+    display.setCursor(x + 18, y + 91);
     if (dm.solar.status.available)
         display.printf("%.1f kW", dm.solar.productionPowerW / 1000.0f);
     else
@@ -448,11 +491,10 @@ void drawAZRouterSummaryCard(IDisplay& display, const DataModel& dm, const Layou
     const int16_t y = widget.y;
     const uint16_t color = cardTextColor(style);
     drawHomeCardBackground(display, widget, style, "AZROUTER");
-
-    drawCardIcon(display, x + 38, y + 78, SidebarIcons::Icon::AZRouter, color);
+    drawCardHeaderIcon(display, widget, SidebarIcons::Icon::AZRouter, color);
 
     ScreenStyle::useMetric(display, color);
-    display.setCursor(x + 72, y + 91);
+    display.setCursor(x + 18, y + 91);
     if (dm.azrouter.status.available && dm.azrouter.hasRoutedPower)
         display.printf("%.0f W", dm.azrouter.routedPowerW);
     else
@@ -510,16 +552,10 @@ void drawRfSensorCard(IDisplay& display, const DataModel& dm, const LayoutWidget
     const bool showHumidity = style == nullptr || style->rfShowHumidity;
     const bool showLastSeen = style == nullptr || style->rfShowLastSeen;
 
-    // Radio/sensor motif: antenna mast with two signal arcs.
-    display.drawLine(x + 27, y + 54, x + 27, y + 82, color);
-    display.fillCircle(x + 27, y + 84, 2, color);
-    display.drawLine(x + 21, y + 60, x + 17, y + 56, color);
-    display.drawLine(x + 33, y + 60, x + 37, y + 56, color);
-    display.drawLine(x + 18, y + 65, x + 12, y + 59, color);
-    display.drawLine(x + 36, y + 65, x + 42, y + 59, color);
+    drawRfHeaderIcon(display, widget, color);
 
     ScreenStyle::useMetric(display, color);
-    display.setCursor(x + 55, y + 91);
+    display.setCursor(x + 15, y + 91);
     if (sensor != nullptr && sensor->available && sensor->hasTemperature)
         display.printf("%.1f °C", sensor->temperatureC);
     else
@@ -559,11 +595,10 @@ void drawPoolSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWid
     const int16_t y = widget.y;
     const uint16_t color = cardTextColor(style);
     drawHomeCardBackground(display, widget, style, "BAZÉN");
-
-    drawCardIcon(display, x + 34, y + 78, SidebarIcons::Icon::Pool, color);
+    drawCardHeaderIcon(display, widget, SidebarIcons::Icon::Pool, color);
 
     ScreenStyle::useMetric(display, color);
-    display.setCursor(x + 62, y + 91);
+    display.setCursor(x + 15, y + 91);
     if (dm.pool.status.available)
         display.printf("%.1f °C", dm.pool.waterTempC);
     else
@@ -590,11 +625,10 @@ void drawConsumptionSummaryCard(IDisplay& display, const DataModel& dm, const La
     const int16_t w = widget.width;
     const uint16_t color = cardTextColor(style);
     drawHomeCardBackground(display, widget, style, "SPOTŘEBA DOMU");
-
-    drawCardIcon(display, x + 34, y + 77, SidebarIcons::Icon::Home, color);
+    drawCardHeaderIcon(display, widget, SidebarIcons::Icon::Home, color);
 
     ScreenStyle::useMetric(display, color);
-    display.setCursor(x + 62, y + 90);
+    display.setCursor(x + 15, y + 90);
     if (dm.solar.status.available)
         display.printf("%.1f kW", dm.solar.houseConsumptionW / 1000.0f);
     else
