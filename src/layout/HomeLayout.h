@@ -105,13 +105,25 @@ inline bool knownDataSource(const String& source) {
 }
 
 inline bool knownSparklineSource(const String& source) {
-    return source == "solar.productionPowerW" ||
-           source == "solar.houseConsumptionW";
+    if (source == "solar.productionPowerW" ||
+        source == "solar.houseConsumptionW") return true;
+
+    if (source.startsWith("rf.sensor")) {
+        const int metricSeparator = source.indexOf('.', 3);
+        if (metricSeparator > 3) {
+            const String slotId = source.substring(3, metricSeparator);
+            const String metric = source.substring(metricSeparator + 1);
+            return rfSlotNumber(slotId) > 0 &&
+                   (metric == "temperatureC" || metric == "humidityPercent");
+        }
+    }
+    return false;
 }
 
 inline bool knownElementType(const String& type) {
     return type == "text" || type == "kpi" ||
-           type == "progress" || type == "sparkline";
+           type == "progress" || type == "sparkline" ||
+           type == "trend";
 }
 
 inline int16_t elementMinWidth(const String& type) {
@@ -119,6 +131,7 @@ inline int16_t elementMinWidth(const String& type) {
     if (type == "kpi") return 70;
     if (type == "progress") return 90;
     if (type == "sparkline") return 120;
+    if (type == "trend") return 24;
     return 0;
 }
 
@@ -127,6 +140,7 @@ inline int16_t elementMinHeight(const String& type) {
     if (type == "kpi") return 25;
     if (type == "progress") return 35;
     if (type == "sparkline") return 60;
+    if (type == "trend") return 24;
     return 0;
 }
 
@@ -304,8 +318,9 @@ inline bool validateCustomWidget(const HomeLayoutWidgetConfig& widget, String* e
             if (element.text.isEmpty()) return fail("Text element requires text");
         } else {
             if (!knownDataSource(element.source)) return fail("Unknown custom data source");
-            if (element.type == "sparkline" && !knownSparklineSource(element.source)) {
-                return fail("Sparkline source has no history");
+            if ((element.type == "sparkline" || element.type == "trend") &&
+                !knownSparklineSource(element.source)) {
+                return fail("Trend element source has no history");
             }
             if (element.type == "progress" && !(element.maxValue > element.minValue)) {
                 return fail("Progress range is invalid");
