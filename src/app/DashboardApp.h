@@ -74,6 +74,7 @@ private:
     AZRouterClient _azrouterClient;
     WeatherWorker _weatherWorker;
     Bme280Sensor _bme280Sensor;
+    InsideHistory* _insideHistory = nullptr;
     Max17048Sensor _max17048Sensor;
 
     // Serializuje pametove narocne operace: e-paper render/preview a weather TLS.
