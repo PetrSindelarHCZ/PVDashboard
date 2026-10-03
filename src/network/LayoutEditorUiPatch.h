@@ -290,19 +290,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     fill: currentColor;
     stroke: none;
 }
-.custom-element-label {
+.custom-element-label { display: none; }
+
+.custom-widget-rendered-preview {
     position: absolute;
-    left: 3px;
-    bottom: 3px;
-    right: 3px;
-    font-size: .64rem;
-    line-height: 1.2;
-    padding: 2px 4px;
-    background: rgba(255,255,255,.9);
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
     pointer-events: none;
+    image-rendering: pixelated;
+    max-width: none;
+    max-height: none;
 }
 .custom-element-handle {
     position: absolute;
@@ -429,6 +424,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     let stageObserver = null;
     let selectedElementId = '';
     let elementInteraction = null;
+    let customPreviewTimer = null;
+    let customPreviewSequence = 0;
 
     const clone = value => JSON.parse(JSON.stringify(value));
     const escapeHtml = value => String(value ?? '')
@@ -1308,6 +1305,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             }
             const fontSizes = apiState?.customWidget?.fontSizes || ['auto', ...Array.from({length:58}, (_, i) => String(i + 7))];
             const alignments = apiState?.customWidget?.alignments || ['left','center','right'];
+            const verticalAlignments = apiState?.customWidget?.verticalAlignments || ['top','center','bottom'];
             const graphStyles = apiState?.customWidget?.graphStyles || ['line','bars'];
             const graphPeriods = (apiState?.customWidget?.graphPeriods || [
                 {hours:1},{hours:2},{hours:4},{hours:6},
@@ -1315,6 +1313,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             ]).map(item => Number(item.hours));
             if (!fontSizes.includes(normalizeFontSizeValue(a.fontSize))) ids.add(a.id);
             if (!alignments.includes(a.align || 'left')) ids.add(a.id);
+            if (!verticalAlignments.includes(a.verticalAlign || 'top')) ids.add(a.id);
             if (!graphStyles.includes(a.graphStyle || 'line')) ids.add(a.id);
             if (!graphPeriods.includes(Number(a.graphPeriodHours || 12))) ids.add(a.id);
             if (a.type !== 'sparkline' && (a.graphStyle || 'line') !== 'line') ids.add(a.id);
@@ -1413,6 +1412,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 element.label = '';
                 element.showLabel = false;
                 element.align = 'center';
+                element.verticalAlign = 'center';
             }
             if (newType === 'progress' && !(Number(element.max) > Number(element.min))) {
                 element.min = 0;
@@ -1453,6 +1453,11 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             .map(value => {
                 const names = {left:'Vlevo', center:'Na střed', right:'Vpravo'};
                 return `<option value="${value}" ${value === (element.align || 'left') ? 'selected' : ''}>${names[value] || value}</option>`;
+            }).join('');
+        const verticalAlignOptions = (apiState?.customWidget?.verticalAlignments || ['top','center','bottom'])
+            .map(value => {
+                const names = {top:'Nahoru', center:'Na střed', bottom:'Dolů'};
+                return `<option value="${value}" ${value === (element.verticalAlign || 'top') ? 'selected' : ''}>${names[value] || value}</option>`;
             }).join('');
         const graphStyleOptions = (apiState?.customWidget?.graphStyles || ['line','bars'])
             .map(value => {
@@ -1525,8 +1530,12 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             ` : ''}
             ${element.type === 'trend' ? '' : `
             <div class="field">
-                <label>Zarovnání</label>
+                <label>Vodorovně</label>
                 <select id="customFieldAlign">${alignOptions}</select>
+            </div>
+            <div class="field">
+                <label>Svisle</label>
+                <select id="customFieldVerticalAlign">${verticalAlignOptions}</select>
             </div>
             `}
             ${element.type !== 'text' ? `
@@ -1579,6 +1588,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             const max = document.getElementById('customFieldMax');
             const fontSize = document.getElementById('customFieldFontSize');
             const align = document.getElementById('customFieldAlign');
+            const verticalAlign = document.getElementById('customFieldVerticalAlign');
             const showLabel = document.getElementById('customFieldShowLabel');
             const graphStyle = document.getElementById('customFieldGraphStyle');
             const graphPeriod = document.getElementById('customFieldGraphPeriod');
@@ -1606,6 +1616,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             if (max) current.max = Number(max.value);
             current.fontSize = fontSize ? normalizeFontSizeValue(fontSize.value) : normalizeFontSizeValue(current.fontSize);
             current.align = align ? align.value : (current.align || 'left');
+            current.verticalAlign = verticalAlign
+                ? verticalAlign.value
+                : (current.verticalAlign || 'top');
             current.showLabel = showLabel ? showLabel.checked : (current.showLabel !== false);
             current.graphStyle = graphStyle ? graphStyle.value : (current.graphStyle || 'line');
             current.graphPeriodHours = graphPeriod
@@ -1674,12 +1687,12 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             ? '2px solid ' + (blackBackground ? '#fff' : '#111')
             : '1px dashed #9ca3af';
         if (title) {
-            title.textContent = widget.title || widget.id;
+            title.textContent = '';
             title.style.color = foreground;
         }
         header.style.height = (40 / widget.height * 100) + '%';
         header.style.background = 'transparent';
-        header.style.borderBottomColor = foreground;
+        header.style.borderBottomColor = 'transparent';
 
         grid.style.filter = blackBackground ? 'invert(1)' : 'none';
         grid.style.left = '0';
@@ -1704,6 +1717,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             title.style.lineHeight = titlePx + 'px';
         }
 
+        updateRenderedWidgetPreview(widget);
+
         const invalid = elementInvalidIds(widget);
         layer.innerHTML = '';
         (widget.elements || []).forEach((element, elementIndex) => {
@@ -1713,10 +1728,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 (invalid.has(element.id) ? ' invalid' : '');
             box.dataset.elementId = element.id;
             box.style.zIndex = String(10 + elementIndex);
+            box.title =
+                'Vrstva ' + (elementIndex + 1) + '/' + widget.elements.length +
+                ' · ' + customElementLabel(element) +
+                ' · x=' + element.x + ', y=' + element.y +
+                ' · ' + element.width + '×' + element.height + ' px';
             elementCssRect(box, widget, element);
             box.innerHTML = `
-                ${elementPreviewHtml(element, previewScale)}
-                <div class="custom-element-label">vrstva ${elementIndex + 1}/${widget.elements.length} · ${escapeHtml(customElementLabel(element))}</div>
+                <div class="custom-element-label"></div>
                 <span class="custom-element-handle nw" data-element-handle="nw"></span>
                 <span class="custom-element-handle ne" data-element-handle="ne"></span>
                 <span class="custom-element-handle sw" data-element-handle="sw"></span>
@@ -1835,6 +1854,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             max: 100,
             fontSize: type === 'trend' ? '28' : 'auto',
             align: type === 'trend' ? 'center' : 'left',
+            verticalAlign: type === 'trend' ? 'center' : 'top',
             showLabel: type === 'trend' ? false : true,
             graphStyle: type === 'sparkline' ? 'bars' : 'line',
             graphPeriodHours: 12
@@ -1924,6 +1944,54 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         renderDraft();
     }
 
+    function previewPayload() {
+        return {
+            customized: true,
+            widgets: draft.map(widget => ({
+                ...widget,
+                elements: (widget.elements || []).map(element => ({
+                    ...element,
+                    verticalAlign:
+                        element.verticalAlign === 'center' ? 1 :
+                        element.verticalAlign === 'bottom' ? 2 : 0
+                }))
+            }))
+        };
+    }
+
+    function updateRenderedWidgetPreview(widget) {
+        if (!widget) return;
+        clearTimeout(customPreviewTimer);
+        const sequence = ++customPreviewSequence;
+
+        customPreviewTimer = setTimeout(async () => {
+            try {
+                const response = await fetch('/api/layout/home/preview', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(previewPayload())
+                });
+                if (!response.ok || sequence !== customPreviewSequence) return;
+
+                const image = document.getElementById('customWidgetRenderedPreview');
+                if (!image) return;
+
+                image.onload = () => {
+                    const stage = document.getElementById('customWidgetStage');
+                    if (!stage || sequence !== customPreviewSequence) return;
+                    image.style.width = (800 / widget.width * 100) + '%';
+                    image.style.height = (480 / widget.height * 100) + '%';
+                    image.style.left = (-widget.x / widget.width * 100) + '%';
+                    image.style.top = (-widget.y / widget.height * 100) + '%';
+                    image.hidden = false;
+                };
+                image.src = '/api/display.bmp?editor=' + sequence + '&t=' + Date.now();
+            } catch (_) {
+                // Browser fallback remains usable even when preview rendering is busy.
+            }
+        }, 180);
+    }
+
     function draftFromApi(state) {
         const widgets = state.customized && state.widgets?.length
             ? clone(state.widgets)
@@ -1931,7 +1999,16 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 const template = (state.defaultWidgets || []).find(item => item.id === widget.id);
                 return ensureWidgetStyle({...clone(template || widget), visible: true});
             });
-        widgets.forEach(ensureWidgetStyle);
+        widgets.forEach(widget => {
+            (widget.elements || []).forEach(element => {
+                const raw = element.verticalAlign;
+                element.verticalAlign =
+                    raw === 1 ? 'center' :
+                    raw === 2 ? 'bottom' :
+                    (raw === 'center' || raw === 'bottom' ? raw : 'top');
+            });
+            ensureWidgetStyle(widget);
+        });
         return widgets;
     }
 
@@ -2120,7 +2197,18 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             const response = await fetch('/api/layout/home', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(payload),
+                body: JSON.stringify({
+                    ...payload,
+                    widgets: (payload.widgets || []).map(widget => ({
+                        ...widget,
+                        elements: (widget.elements || []).map(element => ({
+                            ...element,
+                            verticalAlign:
+                                element.verticalAlign === 'center' ? 1 :
+                                element.verticalAlign === 'bottom' ? 2 : 0
+                        }))
+                    }))
+                }),
                 signal: controller.signal
             });
             const state = await response.json();
@@ -2328,6 +2416,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
                 <div class="custom-widget-stage-wrap">
                     <div class="custom-widget-stage" id="customWidgetStage">
+                        <img class="custom-widget-rendered-preview" id="customWidgetRenderedPreview" alt="">
                         <div class="custom-widget-header-zone" id="customWidgetHeaderZone">
                             <div class="custom-widget-header-title" id="customWidgetHeaderTitle"></div>
                         </div>
