@@ -584,29 +584,15 @@ inline void drawTrend(IDisplay& display, const DataModel& dm, int16_t x, int16_t
         else if (delta < -threshold) direction = -1;
     }
 
-    int16_t top = y;
-    int16_t availableH = element.height;
-    if (element.showLabel && !element.label.isEmpty()) {
-        ScreenStyle::useBody(display, textColor);
-        const String label = fitText(display, element.label, element.width);
-        const int16_t labelX = alignedX(display, x, element.width, label, element.align);
-        display.setCursor(labelX, y + 15);
-        display.print(label);
-        top += 20;
-        availableH -= 20;
-    }
-    if (availableH < 8) return;
+    // Trend has no caption. The arrow always occupies the whole element
+    // and is centered in both axes regardless of the generic text alignment.
+    const int16_t size =
+        max<int16_t>(10, min<int16_t>(
+            min<int16_t>(element.width, element.height),
+            requestedFontPx(element, true)));
 
-    int16_t size = min<int16_t>(element.width, availableH);
-    const uint8_t requested = requestedFontPx(element, true);
-    if (requested > 0 && requested < size) size = requested;
-    if (size < 10) size = 10;
-
-    int16_t left = x;
-    if (element.align == "center") left = x + (element.width - size) / 2;
-    else if (element.align == "right") left = x + element.width - size;
-    const int16_t cx = left + size / 2;
-    const int16_t cy = top + availableH / 2;
+    const int16_t cx = x + element.width / 2;
+    const int16_t cy = y + element.height / 2;
     const int16_t half = max<int16_t>(4, size / 3);
 
     const int16_t shaftHalf = max<int16_t>(1, size / 12);
