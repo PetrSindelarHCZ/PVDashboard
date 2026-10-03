@@ -2097,25 +2097,46 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const button = document.getElementById('layoutSaveButton');
         if (button) button.disabled = true;
         editorMessage('Ukládám layout…');
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+
         try {
             const response = await fetch('/api/layout/home', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(payload)
+                body: JSON.stringify(payload),
+                signal: controller.signal
             });
             const state = await response.json();
-            if (!response.ok) throw new Error(state.message || ('HTTP ' + response.status));
+            if (!response.ok)
+                throw new Error(state.message || ('HTTP ' + response.status));
+
             apiState = state;
             draft = draftFromApi(state);
-            selectedId = draft.find(w => w.id === selectedId)?.id || draft.find(w => w.visible)?.id || '';
+            selectedId =
+                draft.find(w => w.id === selectedId)?.id ||
+                draft.find(w => w.visible)?.id ||
+                '';
             renderDraft();
-            editorMessage('Layout uložen. Firmware překresluje Home.', 'ok');
+            editorMessage(
+                'Layout uložen. Firmware překresluje Home.',
+                'ok');
+
             if (typeof loadDisplayPreview === 'function') {
                 setTimeout(() => loadDisplayPreview(true), 1200);
             }
         } catch (error) {
-            editorMessage('Uložení selhalo: ' + error.message, 'error');
+            const message = error?.name === 'AbortError'
+                ? 'server neodpověděl do 15 s'
+                : error.message;
+            editorMessage(
+                'Uložení selhalo: ' + message,
+                'error');
             renderDraft();
+        } finally {
+            clearTimeout(timeout);
+            if (button) button.disabled = false;
         }
     }
 
