@@ -211,10 +211,59 @@ bool loadRfSensors(
     return parseRfSensors(String(buffer.get()), rfSensors, error);
 }
 
+bool isLegacyPredefinedHomeLayout(const HomeLayoutConfig& layout) {
+    if (!layout.customized || layout.widgetCount == 0) return false;
+
+    bool hasWeather = false;
+    bool hasEnergy = false;
+    bool hasIndoor = false;
+
+    for (uint8_t i = 0; i < layout.widgetCount && i < MaxHomeLayoutWidgets; ++i) {
+        const HomeLayoutWidgetConfig& widget = layout.widgets[i];
+
+        // Preserve any genuinely custom Home composition.
+        if (widget.type == "custom" || widget.id.startsWith("custom-")) return false;
+
+        if (widget.id == "weather-card" && widget.type == "weather") {
+            hasWeather = true;
+            continue;
+        }
+        if (widget.id == "energy-card" && widget.type == "energy") {
+            hasEnergy = true;
+            continue;
+        }
+        if (widget.id == "indoor-card" && widget.type == "indoor") {
+            hasIndoor = true;
+            continue;
+        }
+
+        // Unknown/predefined future widget: do not migrate automatically.
+        return false;
+    }
+
+    // Old automatic/editor Home was made only from these predefined cards.
+    // Not all three had to be present when a source was disabled.
+    return hasWeather || hasEnergy || hasIndoor;
+}
+
 bool saveHomeLayout(Preferences& preferences, const HomeLayoutConfig& layout) {
-    const String json = HomeLayout::serializeJson(layout);
-    const size_t written = preferences.putBytes("layout_blob", json.c_str(), json.length());
-    if (written != json.length()) return false;
+    const String json = HomeLayout::serializeStorageJson(layout);
+    const size_t expected = json.length();
+    const size_t written =
+        preferences.putBytes("layout_blob", json.c_str(), expected);
+
+    if (written != expected) {
+        Serial.printf(
+            "[CONFIG] Home layout zapis do NVS selhal: %u/%u B.\n",
+            static_cast<unsigned>(written),
+            static_cast<unsigned>(expected));
+        return false;
+    }
+
+    Serial.printf(
+        "[CONFIG] Home layout NVS blob: %u B.\n",
+        static_cast<unsigned>(expected));
+
     if (preferences.isKey("layout_home")) preferences.remove("layout_home");
     return true;
 }
@@ -319,7 +368,19 @@ bool ConfigManager::begin() {
         HomeLayoutConfig layout;
         String layoutError;
         if (loadHomeLayout(preferences, layout, layoutError)) {
-            _config.display.homeLayout = layout;
+            if (isLegacyPredefinedHomeLayout(layout)) {
+                HomeLayoutConfig modernDefault;
+                modernDefault.customized = false;
+                modernDefault.widgetCount = 0;
+                _config.display.homeLayout = modernDefault;
+                if (saveHomeLayout(preferences, modernDefault)) {
+                    Serial.println("[CONFIG] Stary preddefinovany Home layout migrovan na novy vychozi prehled.");
+                } else {
+                    Serial.println("[CONFIG] VAROVANI: Novy vychozi Home layout se nepodarilo ulozit do NVS.");
+                }
+            } else {
+                _config.display.homeLayout = layout;
+            }
         } else {
             Serial.printf("[CONFIG] Ignoruji neplatny Home layout v NVS: %s\n", layoutError.c_str());
             if (preferences.isKey("layout_blob")) preferences.remove("layout_blob");

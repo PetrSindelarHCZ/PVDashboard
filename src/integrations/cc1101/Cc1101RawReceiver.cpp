@@ -1692,181 +1692,6 @@ bool tryPrintHyundaiR50(const int32_t* data, uint16_t count) {
 }
 
 
-
-
-
-struct UnknownShortPwmFingerprint {
-    bool used = false;
-    uint16_t shortAvgUs = 0;
-    uint16_t longAvgUs = 0;
-    uint32_t firstSeenMs = 0;
-    uint32_t lastBurstMs = 0;
-    uint32_t lastTransmissionMs = 0;
-    uint32_t hits = 0;
-    uint16_t burstRepeats = 0;
-};
-
-constexpr uint8_t UnknownShortPwmFingerprintCapacity = 6;
-UnknownShortPwmFingerprint unknownShortPwmFingerprints[
-    UnknownShortPwmFingerprintCapacity];
-
-UnknownShortPwmFingerprint& unknownShortPwmEntryFor(
-    uint16_t shortAvgUs,
-    uint16_t longAvgUs) {
-    UnknownShortPwmFingerprint* freeEntry = nullptr;
-    UnknownShortPwmFingerprint* oldestEntry =
-        &unknownShortPwmFingerprints[0];
-
-    for (auto& entry : unknownShortPwmFingerprints) {
-        if (entry.used &&
-            abs(static_cast<int>(entry.shortAvgUs) -
-                static_cast<int>(shortAvgUs)) <= 60 &&
-            abs(static_cast<int>(entry.longAvgUs) -
-                static_cast<int>(longAvgUs)) <= 80) {
-            return entry;
-        }
-        if (!entry.used && freeEntry == nullptr) {
-            freeEntry = &entry;
-        }
-        if (!entry.used || entry.lastBurstMs < oldestEntry->lastBurstMs) {
-            oldestEntry = &entry;
-        }
-    }
-
-    UnknownShortPwmFingerprint& selected =
-        freeEntry != nullptr ? *freeEntry : *oldestEntry;
-    selected = UnknownShortPwmFingerprint{};
-    selected.used = true;
-    selected.shortAvgUs = shortAvgUs;
-    selected.longAvgUs = longAvgUs;
-    selected.firstSeenMs = millis();
-    return selected;
-}
-
-bool tryPrintUnknownShortPwm(const int32_t* data, uint16_t count) {
-    // Discovery-only fingerprint for unidentified short-PWM traffic.
-    //
-    // A recurring unknown source observed in the field uses two dominant
-    // pulse widths around 0.3-0.45 ms and 0.5-0.6 ms and repeats roughly
-    // every 50 seconds. This does not fit the 0.5 ms + 1/2 ms PPM family
-    // used by NEXUS/Hyundai R50, so keep it in a separate diagnostic bucket.
-    //
-    // Deliberately do not decode bits here. First establish that multiple
-    // captures belong to the same RF source and measure its transmission
-    // period. Known protocol decoders run before this function.
-    constexpr uint32_t AcceptedMinUs = 250;
-    constexpr uint32_t AcceptedMaxUs = 750;
-    constexpr uint32_t ClusterSplitUs = 475;
-    constexpr uint16_t MinimumAcceptedPulses = 32;
-    constexpr uint8_t MinimumCoveragePercent = 65;
-    constexpr uint8_t MinimumClusterPercent = 15;
-    constexpr uint32_t SameTransmissionWindowMs = 2000;
-
-    uint32_t shortTotal = 0;
-    uint32_t longTotal = 0;
-    uint16_t shortCount = 0;
-    uint16_t longCount = 0;
-
-    for (uint16_t i = 0; i < count; ++i) {
-        const uint32_t us = static_cast<uint32_t>(
-            data[i] >= 0 ? data[i] : -data[i]);
-        if (us < AcceptedMinUs || us > AcceptedMaxUs) continue;
-
-        if (us < ClusterSplitUs) {
-            shortTotal += us;
-            ++shortCount;
-        } else {
-            longTotal += us;
-            ++longCount;
-        }
-    }
-
-    const uint16_t acceptedCount =
-        static_cast<uint16_t>(shortCount + longCount);
-    if (acceptedCount < MinimumAcceptedPulses || count == 0) return false;
-
-    const uint32_t coveragePercent =
-        static_cast<uint32_t>(acceptedCount) * 100UL / count;
-    if (coveragePercent < MinimumCoveragePercent) return false;
-
-    const uint32_t shortPercent =
-        static_cast<uint32_t>(shortCount) * 100UL / acceptedCount;
-    const uint32_t longPercent =
-        static_cast<uint32_t>(longCount) * 100UL / acceptedCount;
-    if (shortPercent < MinimumClusterPercent ||
-        longPercent < MinimumClusterPercent) {
-        return false;
-    }
-
-    const uint16_t shortAvgUs =
-        static_cast<uint16_t>(shortTotal / shortCount);
-    const uint16_t longAvgUs =
-        static_cast<uint16_t>(longTotal / longCount);
-
-    // Reject captures where the two clusters collapsed into essentially one.
-    if (longAvgUs <= shortAvgUs + 100) return false;
-
-    UnknownShortPwmFingerprint& entry =
-        unknownShortPwmEntryFor(shortAvgUs, longAvgUs);
-
-    const uint32_t nowMs = millis();
-    const bool sameTransmission =
-        entry.lastBurstMs != 0 &&
-        static_cast<uint32_t>(nowMs - entry.lastBurstMs) <=
-            SameTransmissionWindowMs;
-
-    uint32_t intervalMs = 0;
-    if (!sameTransmission) {
-        if (entry.lastTransmissionMs != 0) {
-            intervalMs =
-                static_cast<uint32_t>(nowMs - entry.lastTransmissionMs);
-        }
-        entry.lastTransmissionMs = nowMs;
-        entry.burstRepeats = 1;
-    } else if (entry.burstRepeats != 0xFFFF) {
-        ++entry.burstRepeats;
-    }
-
-    entry.lastBurstMs = nowMs;
-    ++entry.hits;
-
-    // Slowly adapt the stored fingerprint to timing drift without allowing a
-    // single noisy burst to move the family too far.
-    entry.shortAvgUs = static_cast<uint16_t>(
-        (static_cast<uint32_t>(entry.shortAvgUs) * 3UL + shortAvgUs) / 4UL);
-    entry.longAvgUs = static_cast<uint16_t>(
-        (static_cast<uint32_t>(entry.longAvgUs) * 3UL + longAvgUs) / 4UL);
-
-    const uint8_t fpId = static_cast<uint8_t>(
-        &entry - &unknownShortPwmFingerprints[0] + 1);
-
-    Serial.printf(
-        "[CC1101][UNKNOWN-SHORTPWM] fp=%02u pulses=%u accepted=%u (%lu%%) "
-        "short~%u us (%u) long~%u us (%u) hits=%lu repeats=%u",
-        static_cast<unsigned>(fpId),
-        static_cast<unsigned>(count),
-        static_cast<unsigned>(acceptedCount),
-        static_cast<unsigned long>(coveragePercent),
-        static_cast<unsigned>(shortAvgUs),
-        static_cast<unsigned>(shortCount),
-        static_cast<unsigned>(longAvgUs),
-        static_cast<unsigned>(longCount),
-        static_cast<unsigned long>(entry.hits),
-        static_cast<unsigned>(entry.burstRepeats));
-
-    if (intervalMs > SameTransmissionWindowMs) {
-        Serial.printf(
-            " interval=%.1f s",
-            static_cast<double>(intervalMs) / 1000.0);
-    }
-    Serial.println();
-
-    // Discovery mode must preserve the raw burst. Returning false allows the
-    // normal fallback printer to emit the complete H/L timing after this
-    // fingerprint summary, which is needed to reverse-engineer the payload.
-    return false;
-}
-
 bool tryPrintOneTwoMsCandidate(const int32_t* data, uint16_t count) {
     // Discovery-only decoder for clean ~0.5 ms HIGH + 1/2 ms LOW PPM traffic.
     // Known protocol decoders run before this function, so output here is
@@ -2175,9 +2000,6 @@ bool begin() {
     for (auto& sensor : ft017ThSensors) {
         sensor = Ft017ThSensorEntry{};
     }
-    for (auto& fingerprint : unknownShortPwmFingerprints) {
-        fingerprint = UnknownShortPwmFingerprint{};
-    }
     pulseCount = 0;
     lastEdgeUs = 0;
     lastActivityUs = 0;
@@ -2279,7 +2101,6 @@ void loop() {
         !tryPrintPwm67(snapshot, snapshotCount) &&
         !tryPrintPwm67Candidate(snapshot, snapshotCount) &&
         !tryPrintHyundaiR50(snapshot, snapshotCount) &&
-        !tryPrintUnknownShortPwm(snapshot, snapshotCount) &&
         !tryPrintOneTwoMsCandidate(snapshot, snapshotCount)) {
         printBurst(
             snapshot,

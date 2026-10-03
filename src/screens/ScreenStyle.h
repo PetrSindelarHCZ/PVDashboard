@@ -24,6 +24,7 @@ constexpr int16_t CardRadius = 6;
 
 inline void useTitle(IDisplay& d, uint16_t color = 0) { d.setTextColor(color); d.setUnicodeFont(DisplayFonts::title()); }
 inline void useSectionTitle(IDisplay& d, uint16_t color = 0) { d.setTextColor(color); d.setUnicodeFont(DisplayFonts::sectionTitle()); }
+inline void useCardTitle(IDisplay& d, uint16_t color = 0) { d.setTextColor(color); d.setUnicodeFont(DisplayFonts::cardTitle()); }
 inline void useMetric(IDisplay& d, uint16_t color = 0) { d.setTextColor(color); d.setUnicodeFont(DisplayFonts::metric()); }
 inline void useValue(IDisplay& d, uint16_t color = 0) { d.setTextColor(color); d.setUnicodeFont(DisplayFonts::value()); }
 inline void useBody(IDisplay& d, uint16_t color = 0) { d.setTextColor(color); d.setUnicodeFont(DisplayFonts::body()); }
@@ -304,7 +305,8 @@ inline void drawChrome(IDisplay& d, const DataModel& dm) {
 
 inline void drawStyledCard(IDisplay& d, int16_t x, int16_t y, int16_t w, int16_t h,
                            const char* title, bool showFrame = true,
-                           bool blackBackground = false, bool inverseText = false) {
+                           bool blackBackground = false, bool inverseText = false,
+                           int16_t titleInset = 12, int16_t dividerInset = 10) {
     const uint16_t backgroundColor = blackBackground ? 0 : 1;
     const uint16_t textColor = inverseText ? 1 : 0;
     const uint16_t frameColor = blackBackground ? 1 : 0;
@@ -312,10 +314,14 @@ inline void drawStyledCard(IDisplay& d, int16_t x, int16_t y, int16_t w, int16_t
     d.fillRoundRect(x, y, w, h, CardRadius, backgroundColor);
     if (showFrame) d.drawRoundRect(x, y, w, h, CardRadius, frameColor);
 
-    useSectionTitle(d, textColor);
-    d.setCursor(x + 12, y + 27);
+    useCardTitle(d, textColor);
+    d.setCursor(x + titleInset, y + 27);
     d.print(title);
-    d.drawLine(x + 10, y + 34, x + w - 10, y + 34, textColor);
+    // Slight overprint gives the 18 px title the stronger visual weight
+    // of the previous smaller font without changing header geometry.
+    d.setCursor(x + titleInset + 1, y + 27);
+    d.print(title);
+    d.drawLine(x + dividerInset, y + 34, x + w - 10, y + 34, textColor);
 }
 
 inline void drawCard(IDisplay& d, int16_t x, int16_t y, int16_t w, int16_t h, const char* title) {

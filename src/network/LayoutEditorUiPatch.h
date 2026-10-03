@@ -290,19 +290,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     fill: currentColor;
     stroke: none;
 }
-.custom-element-label {
+.custom-element-label { display: none; }
+
+.custom-widget-rendered-preview {
     position: absolute;
-    left: 3px;
-    bottom: 3px;
-    right: 3px;
-    font-size: .64rem;
-    line-height: 1.2;
-    padding: 2px 4px;
-    background: rgba(255,255,255,.9);
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
     pointer-events: none;
+    image-rendering: pixelated;
+    max-width: none;
+    max-height: none;
 }
 .custom-element-handle {
     position: absolute;
@@ -410,9 +405,13 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     const DISPLAY_W = 800;
     const DISPLAY_H = 480;
     const labels = {
-        'weather-card': 'Počasí',
+        'weather-card': 'Předpověď',
         'energy-card': 'Energie',
-        'indoor-card': 'Uvnitř'
+        'fve-summary': 'FVE / GoodWe',
+        'azrouter-summary': 'AZRouter',
+        'indoor-card': 'Uvnitř',
+        'pool-summary': 'Bazén',
+        'consumption-summary': 'Spotřeba domu'
     };
 
     let installed = false;
@@ -425,6 +424,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     let stageObserver = null;
     let selectedElementId = '';
     let elementInteraction = null;
+    let customPreviewTimer = null;
+    let customPreviewSequence = 0;
 
     const clone = value => JSON.parse(JSON.stringify(value));
     const escapeHtml = value => String(value ?? '')
@@ -436,20 +437,39 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     const byId = id => draft.find(w => w.id === id);
     const supportedById = id => (apiState?.supportedWidgets || []).find(w => w.id === id);
     const defaultWidgetById = id => (apiState?.defaultWidgets || []).find(w => w.id === id);
+    const isElementWidget = widget => ['custom','rf-sensor','indoor','pool-summary'].includes(widget?.type);
 
     function ensureWidgetStyle(widget) {
         if (!widget) return widget;
         if (typeof widget.showFrame !== 'boolean') widget.showFrame = true;
         if (!widget.background) widget.background = 'white';
         if (typeof widget.inverseText !== 'boolean') widget.inverseText = false;
+        if (!widget.icon) widget.icon = 'auto';
+        if (isElementWidget(widget) && !Array.isArray(widget.elements)) widget.elements = [];
+        if (!Number(widget.historyPeriodHours)) {
+            const legacy = (widget.elements || []).find(element =>
+                ['sparkline','trend','minmax'].includes(element.type) &&
+                Number(element.graphPeriodHours));
+            widget.historyPeriodHours = Number(legacy?.graphPeriodHours || 12);
+        }
         return widget;
     }
 
     function widgetMinimum(widget) {
-        if (widget?.type === 'custom') {
-            let minW = Number(apiState?.customWidget?.minWidth || 160);
-            let minH = Number(apiState?.customWidget?.minHeight || 120);
-            (widget.elements || []).forEach((element, elementIndex) => {
+        if (widget?.type === 'rf-sensor') {
+            let minW = Number(apiState?.rfSensorWidget?.minWidth || 150);
+            let minH = Number(apiState?.rfSensorWidget?.minHeight || 140);
+            (widget.elements || []).forEach(element => {
+                minW = Math.max(minW, Number(element.x || 0) + Number(element.width || 0) + 8);
+                minH = Math.max(minH, Number(element.y || 0) + Number(element.height || 0) + 8);
+            });
+            return {minWidth: minW, minHeight: minH};
+        }
+        if (widget?.type === 'custom' || widget?.type === 'indoor' || widget?.type === 'pool-summary') {
+            const supported = supportedById(widget?.id);
+            let minW = Number(widget.type === 'custom' ? (apiState?.customWidget?.minWidth || 160) : (supported?.minWidth || 150));
+            let minH = Number(widget.type === 'custom' ? (apiState?.customWidget?.minHeight || 120) : (supported?.minHeight || 140));
+            (widget.elements || []).forEach(element => {
                 minW = Math.max(minW, Number(element.x || 0) + Number(element.width || 0) + 8);
                 minH = Math.max(minH, Number(element.y || 0) + Number(element.height || 0) + 8);
             });
@@ -464,7 +484,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
     function widgetLabel(widget) {
         if (!widget) return '';
-        if (widget.type === 'custom') return widget.title || widget.id;
+        if (isElementWidget(widget))
+            return widget.title || labels[widget.id] || widget.id;
         return labels[widget.id] || widget.id;
     }
 
@@ -611,10 +632,21 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const frame = document.getElementById('cardShowFrame');
         const background = document.getElementById('cardBackground');
         const inverse = document.getElementById('cardInverseText');
+        const icon = document.getElementById('cardIcon');
         const reset = document.getElementById('cardResetSelected');
         if (frame) frame.checked = widget.showFrame !== false;
         if (background) background.value = widget.background || 'white';
         if (inverse) inverse.checked = widget.inverseText === true;
+        if (icon) {
+            const choices = apiState?.cardAppearance?.icons || [
+                {id:'auto',label:'Automatická'},
+                {id:'none',label:'Bez ikony'}
+            ];
+            icon.innerHTML = choices.map(item =>
+                '<option value="' + escapeHtml(item.id) + '">' +
+                escapeHtml(item.label || item.id) + '</option>').join('');
+            icon.value = widget.icon || 'auto';
+        }
 
         if (reset) {
             reset.hidden = widget.type === 'custom';
@@ -636,6 +668,145 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             widget.inverseText = inverse.checked;
             renderDraft();
         };
+        if (icon) icon.onchange = () => {
+            widget.icon = icon.value || 'auto';
+            renderDraft();
+        };
+    }
+
+    function renderRfCardEditor() {
+        const panel = document.getElementById('rfCardEditor');
+        if (!panel) return;
+        const widget = byId(selectedId);
+        if (!widget || (widget.type !== 'rf-sensor' && widget.type !== 'pool-summary')) {
+            panel.hidden = true;
+            return;
+        }
+        panel.hidden = false;
+        const editorTitle = document.getElementById('rfCardEditorTitle');
+        if (editorTitle) editorTitle.textContent =
+            widget.type === 'pool-summary' ? 'Bazénové RF čidlo' : 'RF čidlo';
+
+        const title = document.getElementById('rfCardTitle');
+        const sensor = document.getElementById('rfCardSensor');
+        const humidity = document.getElementById('rfCardHumidity');
+        const lastSeen = document.getElementById('rfCardLastSeen');
+        const advanced = document.getElementById('rfCardAdvanced');
+        const advancedField = document.getElementById('rfAdvancedField');
+
+        if (advancedField) advancedField.hidden = (widget.elements || []).length > 0;
+        if (advanced) {
+            advanced.textContent = widget.type === 'pool-summary'
+                ? 'Převést bazén na volné rozložení'
+                : 'Převést na volné rozložení';
+            advanced.onclick = () => {
+                const selected = (apiState?.rfSensorWidget?.sensors || [])
+                    .find(item => item.slotId === widget.rfSensorSlotId);
+                const slot = widget.rfSensorSlotId || '';
+                widget.elements = [{
+                    id: 'temperature',
+                    type: 'kpi',
+                    source: 'rf.' + slot + '.temperatureC',
+                    label: '',
+                    unit: '°C',
+                    text: '',
+                    x: 10,
+                    y: 48,
+                    width: Math.max(70, widget.width - 20),
+                    height: 38,
+                    decimals: 1,
+                    min: 0,
+                    max: 100,
+                    fontSize: '28',
+                    align: 'left',
+                    showLabel: false,
+                    graphStyle: 'line',
+                    graphPeriodHours: 12
+                }];
+                if (selected?.hasHumidity !== false &&
+                    (widget.type === 'pool-summary' || widget.rfShowHumidity !== false)) {
+                    widget.elements.push({
+                        id: 'humidity',
+                        type: 'kpi',
+                        source: 'rf.' + slot + '.humidityPercent',
+                        label: 'Vlhkost',
+                        unit: '%',
+                        text: '',
+                        x: 10,
+                        y: 96,
+                        width: Math.max(70, widget.width - 20),
+                        height: 48,
+                        decimals: 0,
+                        min: 0,
+                        max: 100,
+                        fontSize: '18',
+                        align: 'left',
+                        showLabel: true,
+                        graphStyle: 'line',
+                        graphPeriodHours: 12
+                    });
+                }
+                selectedElementId = 'temperature';
+                renderDraft();
+                editorMessage((widget.type === 'pool-summary' ? 'Bazénová' : 'RF') + ' karta převedena na volné rozložení. Prvky můžeš přesouvat a měnit.', 'ok');
+            };
+        }
+
+        if (title) {
+            title.value = widget.title || '';
+            title.onchange = () => {
+                widget.title = title.value.trim() ||
+                    (widget.type === 'pool-summary' ? 'BAZÉN' : 'RF ČIDLO');
+                renderDraft();
+            };
+        }
+
+        if (sensor) {
+            const choices = apiState?.rfSensorWidget?.sensors || [];
+            sensor.innerHTML = choices.map(item =>
+                '<option value="' + escapeHtml(item.slotId) + '">' +
+                escapeHtml(item.name || item.slotId) + '</option>').join('');
+            if (!widget.rfSensorSlotId && widget.type === 'pool-summary' && choices.length) {
+                widget.rfSensorSlotId = choices[0].slotId;
+            }
+            sensor.value = widget.rfSensorSlotId || '';
+            sensor.onchange = () => {
+                const previousSlot = widget.rfSensorSlotId || '';
+                widget.rfSensorSlotId = sensor.value;
+                const selected = choices.find(item => item.slotId === sensor.value);
+                if (selected && selected.hasHumidity === false) widget.rfShowHumidity = false;
+                (widget.elements || []).forEach(element => {
+                    const prefix = 'rf.' + previousSlot + '.';
+                    if (previousSlot && element.source?.startsWith(prefix)) {
+                        element.source = 'rf.' + sensor.value + '.' + element.source.substring(prefix.length);
+                    }
+                });
+                renderDraft();
+            };
+        }
+
+        if (humidity) {
+            const selected = (apiState?.rfSensorWidget?.sensors || [])
+                .find(item => item.slotId === widget.rfSensorSlotId);
+            humidity.closest('.field').hidden =
+                widget.type === 'pool-summary' || (widget.elements || []).length > 0;
+            humidity.disabled = selected?.hasHumidity === false;
+            humidity.checked = widget.rfShowHumidity !== false && !humidity.disabled;
+            humidity.onchange = () => {
+                widget.rfShowHumidity = humidity.checked;
+                renderDraft();
+            };
+        }
+
+        if (lastSeen) {
+            lastSeen.closest('.field').hidden =
+                widget.type === 'pool-summary' || (widget.elements || []).length > 0;
+            lastSeen.checked = widget.rfShowLastSeen !== false;
+            lastSeen.onchange = () => {
+                widget.rfShowLastSeen = lastSeen.checked;
+                renderDraft();
+            };
+        }
     }
 
     function renderWidgetList() {
@@ -660,6 +831,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     </label>
                     <button class="btn btn-secondary" type="button" data-layout-edit="${supported.id}" style="width:auto;min-height:0;padding:6px 9px">Upravit</button>
                     <button class="btn btn-secondary" type="button" data-layout-reset-one="${supported.id}" style="width:auto;min-height:0;padding:6px 9px">Výchozí</button>
+                    <button class="btn btn-secondary" type="button" data-layout-delete="${supported.id}" style="width:auto;min-height:0;padding:6px 9px">Smazat</button>
                 </div>
             `;
             list.appendChild(row);
@@ -669,13 +841,15 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             input.addEventListener('change', () => {
                 let widget = byId(input.dataset.layoutVisible);
                 if (!widget) {
-                    const source = (apiState.effectiveWidgets || []).find(w => w.id === input.dataset.layoutVisible);
+                    const source =
+                        (apiState.effectiveWidgets || []).find(w => w.id === input.dataset.layoutVisible) ||
+                        defaultWidgetById(input.dataset.layoutVisible);
                     if (!source) {
                         input.checked = false;
-                        editorMessage('Widget není v aktuální automatické šabloně dostupný.', 'error');
+                        editorMessage('Pro tuto kartu není dostupná výchozí šablona.', 'error');
                         return;
                     }
-                    widget = {...clone(source), visible: true};
+                    widget = ensureWidgetStyle({...clone(source), visible: true});
                     draft.push(widget);
                 }
                 widget.visible = input.checked;
@@ -689,6 +863,70 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         });
         list.querySelectorAll('[data-layout-reset-one]').forEach(button => {
             button.addEventListener('click', () => resetPredefinedWidget(button.dataset.layoutResetOne));
+        });
+
+        list.querySelectorAll('[data-layout-delete]').forEach(button => {
+            button.addEventListener('click', () => {
+                const id = button.dataset.layoutDelete;
+                if (!byId(id)) return;
+                draft = draft.filter(widget => widget.id !== id);
+                if (selectedId === id) {
+                    selectedId = draft.find(widget => widget.visible)?.id || '';
+                    selectedElementId = '';
+                }
+                renderDraft();
+                editorMessage('Karta odstraněna z návrhu. Změnu potvrď tlačítkem Uložit.');
+            });
+        });
+
+        draft.filter(widget => widget.type === 'rf-sensor').forEach(widget => {
+            const minimum = widgetMinimum(widget);
+            const sensor = (apiState?.rfSensorWidget?.sensors || [])
+                .find(item => item.slotId === widget.rfSensorSlotId);
+            const row = document.createElement('div');
+            row.className = 'layout-widget-row';
+            row.innerHTML = `
+                <div class="layout-widget-row-main">
+                    <div class="layout-widget-row-title">${escapeHtml(widgetLabel(widget))}</div>
+                    <div class="layout-widget-row-meta">RF čidlo · ${escapeHtml(sensor?.name || widget.rfSensorSlotId || 'bez vazby')} · min. ${minimum.minWidth} × ${minimum.minHeight} px</div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                    <label class="toggle">
+                        <input type="checkbox" data-rf-visible="${widget.id}" ${widget.visible ? 'checked' : ''}>
+                        <span class="slider"></span>
+                    </label>
+                    <button class="btn btn-secondary" type="button" data-rf-edit="${widget.id}" style="width:auto;min-height:0;padding:6px 9px">Upravit</button>
+                    <button class="btn btn-secondary" type="button" data-rf-delete="${widget.id}" style="width:auto;min-height:0;padding:6px 9px">Smazat</button>
+                </div>
+            `;
+            list.appendChild(row);
+        });
+
+        list.querySelectorAll('[data-rf-visible]').forEach(input => {
+            input.addEventListener('change', () => {
+                const widget = byId(input.dataset.rfVisible);
+                if (!widget) return;
+                widget.visible = input.checked;
+                if (widget.visible) selectedId = widget.id;
+                renderDraft();
+            });
+        });
+        list.querySelectorAll('[data-rf-edit]').forEach(button => {
+            button.addEventListener('click', () => {
+                selectedId = button.dataset.rfEdit;
+                selectedElementId = '';
+                renderDraft();
+                document.getElementById('rfCardEditor')?.scrollIntoView({behavior:'smooth', block:'nearest'});
+            });
+        });
+        list.querySelectorAll('[data-rf-delete]').forEach(button => {
+            button.addEventListener('click', () => {
+                const id = button.dataset.rfDelete;
+                draft = draft.filter(widget => widget.id !== id);
+                if (selectedId === id) selectedId = draft.find(widget => widget.visible)?.id || '';
+                renderDraft();
+                editorMessage('RF karta odstraněna z návrhu. Změnu potvrď tlačítkem Uložit.');
+            });
         });
 
         draft.filter(widget => widget.type === 'custom').forEach(widget => {
@@ -785,14 +1023,15 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         renderWidgetList();
         updateGrid();
         renderCardStyleEditor();
+        renderRfCardEditor();
         renderCustomEditor();
 
         const customInvalid = draft.some(widget =>
-            widget.type === 'custom' && customWidgetHasErrors(widget));
+            isElementWidget(widget) && customWidgetHasErrors(widget));
         const save = document.getElementById('layoutSaveButton');
         if (save) save.disabled = invalid.size > 0 || customInvalid || !draft.some(w => w.visible);
         if (invalid.size > 0) editorMessage('Widgety se překrývají. Uložení je zablokované.', 'error');
-        else if (customInvalid) editorMessage('Vlastní widget obsahuje neplatný prvek.', 'error');
+        else if (customInvalid) editorMessage('Widget obsahuje neplatný vnitřní prvek.', 'error');
     }
 
     function beginInteraction(event, id) {
@@ -802,7 +1041,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         event.stopPropagation();
         selectedId = id;
         const selectedWidget = byId(id);
-        if (selectedWidget?.type === 'custom' &&
+        if (isElementWidget(selectedWidget) &&
             !selectedWidget.elements?.some(element => element.id === selectedElementId)) {
             selectedElementId = selectedWidget.elements?.[0]?.id || '';
         }
@@ -878,6 +1117,24 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         return (apiState?.customWidget?.dataSources || []).find(item => item.id === source) || {};
     }
 
+    function elementSources(widget, type) {
+        let sources = (apiState?.customWidget?.dataSources || [])
+            .filter(source => (type !== 'sparkline' && type !== 'trend' && type !== 'minmax') || source.history);
+
+        if (widget?.type === 'rf-sensor' || widget?.type === 'pool-summary') {
+            const prefix = 'rf.' + (widget.rfSensorSlotId || '') + '.';
+            sources = sources.filter(source => source.id.startsWith(prefix));
+        } else if (widget?.type === 'indoor') {
+            const allowed = new Set([
+                'inside.temperatureC',
+                'inside.humidityPercent',
+                'inside.pressureHpa'
+            ]);
+            sources = sources.filter(source => allowed.has(source.id));
+        }
+        return sources;
+    }
+
     function normalizeFontSizeValue(value) {
         const legacy = {small:'16', normal:'18', large:'22'};
         const normalized = legacy[value] || String(value || 'auto');
@@ -907,6 +1164,13 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 ? baseHeight
                 : Math.max(baseHeight, requestedFontPx(element, true));
             return valueHeight + (hasLabel ? 20 : 0);
+        }
+
+        if (element.type === 'minmax') {
+            const rowHeight = fontValue === 'auto'
+                ? 18
+                : Math.max(18, requestedFontPx(element, false));
+            return rowHeight * 2 + 4;
         }
 
         return baseHeight;
@@ -948,16 +1212,36 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 <div class="preview-progress"><span></span></div>
             </div>`;
         }
+        if (element.type === 'trend') {
+            return `<div class="${classes}" style="display:flex;align-items:center;justify-content:center">
+                <div class="preview-value" style="${fontStyle};font-weight:900">➜</div>
+            </div>`;
+        }
         if (element.type === 'sparkline') {
+            const periodHours = Number(element.graphPeriodHours || 12);
+            const periodLabel = periodHours < 24
+                ? '-' + periodHours + ' h'
+                : '-' + (periodHours / 24) + ' d';
             const graph = (element.graphStyle || 'line') === 'bars'
-                ? `<svg viewBox="0 0 100 35" preserveAspectRatio="none">
-                     <rect class="bar" x="5" y="20" width="9" height="13"/>
-                     <rect class="bar" x="20" y="12" width="9" height="21"/>
-                     <rect class="bar" x="35" y="18" width="9" height="15"/>
-                     <rect class="bar" x="50" y="6" width="9" height="27"/>
-                     <rect class="bar" x="65" y="14" width="9" height="19"/>
-                     <rect class="bar" x="80" y="9" width="9" height="24"/>
-                   </svg>`
+                ? `<div style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:flex-end">
+                     <svg viewBox="0 0 100 42" preserveAspectRatio="none" style="flex:1;min-height:0">
+                       <line x1="2" y1="19" x2="8" y2="19" stroke-width="1"/>
+                       <rect class="bar" x="12" y="10" width="5" height="24"/>
+                       <rect class="bar" x="20" y="22" width="5" height="12"/>
+                       <rect class="bar" x="28" y="15" width="5" height="19"/>
+                       <rect class="bar" x="36" y="25" width="5" height="9"/>
+                       <rect class="bar" x="44" y="7" width="5" height="27"/>
+                       <rect class="bar" x="52" y="19" width="5" height="15"/>
+                       <rect class="bar" x="60" y="16" width="5" height="18"/>
+                       <rect class="bar" x="68" y="24" width="5" height="10"/>
+                       <rect class="bar" x="76" y="13" width="5" height="21"/>
+                       <rect class="bar" x="84" y="20" width="5" height="14"/>
+                       <line x1="8" y1="35" x2="98" y2="35" stroke-width="1"/>
+                     </svg>
+                     <div style="display:flex;justify-content:space-between;font-size:8px;line-height:9px;padding-left:7%;padding-right:2%">
+                       <span>${periodLabel}</span><span>teď</span>
+                     </div>
+                   </div>`
                 : `<svg viewBox="0 0 100 35" preserveAspectRatio="none">
                      <polyline points="2,29 18,20 34,24 50,9 66,17 82,5 98,12" stroke-width="2"/>
                    </svg>`;
@@ -1018,7 +1302,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
     function elementInvalidIds(widget) {
         const ids = new Set();
-        if (!widget || widget.type !== 'custom') return ids;
+        if (!widget || !isElementWidget(widget)) return ids;
         const elements = widget.elements || [];
         for (let i = 0; i < elements.length; i++) {
             const a = elements[i];
@@ -1027,17 +1311,24 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             if (!a.id || !a.type ||
                 a.width < Number(typeInfo.minWidth || 1) ||
                 a.height < requiredHeight ||
-                a.x < 8 || a.y < 40 ||
-                a.x + a.width > widget.width - 8 ||
-                a.y + a.height > widget.height - 8) {
+                a.x < 0 || a.y < 0 ||
+                a.x + a.width > widget.width ||
+                a.y + a.height > widget.height) {
                 ids.add(a.id);
             }
             const fontSizes = apiState?.customWidget?.fontSizes || ['auto', ...Array.from({length:58}, (_, i) => String(i + 7))];
             const alignments = apiState?.customWidget?.alignments || ['left','center','right'];
+            const verticalAlignments = apiState?.customWidget?.verticalAlignments || ['top','center','bottom'];
             const graphStyles = apiState?.customWidget?.graphStyles || ['line','bars'];
+            const graphPeriods = (apiState?.customWidget?.graphPeriods || [
+                {hours:1},{hours:2},{hours:4},{hours:6},
+                {hours:12},{hours:24},{hours:48},{hours:72}
+            ]).map(item => Number(item.hours));
             if (!fontSizes.includes(normalizeFontSizeValue(a.fontSize))) ids.add(a.id);
             if (!alignments.includes(a.align || 'left')) ids.add(a.id);
+            if (!verticalAlignments.includes(a.verticalAlign || 'top')) ids.add(a.id);
             if (!graphStyles.includes(a.graphStyle || 'line')) ids.add(a.id);
+            if (!graphPeriods.includes(Number(a.graphPeriodHours || 12))) ids.add(a.id);
             if (a.type !== 'sparkline' && (a.graphStyle || 'line') !== 'line') ids.add(a.id);
 
             if (a.type === 'text') {
@@ -1045,7 +1336,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             } else {
                 const source = sourceInfo(a.source);
                 if (!source.id) ids.add(a.id);
-                if (a.type === 'sparkline' && !source.history) ids.add(a.id);
+                if ((a.type === 'sparkline' || a.type === 'trend' || a.type === 'minmax') && !source.history) ids.add(a.id);
                 if (a.type === 'progress' && !(Number(a.max) > Number(a.min))) ids.add(a.id);
             }
             for (let j = i + 1; j < elements.length; j++) {
@@ -1059,8 +1350,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     }
 
     function customWidgetHasErrors(widget) {
-        if (!widget || widget.type !== 'custom') return false;
+        if (!widget || !isElementWidget(widget)) return false;
         const elements = widget.elements || [];
+        if ((widget.type === 'rf-sensor' || widget.type === 'indoor' || widget.type === 'pool-summary') && elements.length === 0) return false;
         if (!elements.length || elements.length > Number(apiState?.customWidget?.maxElements || 8)) return true;
         return elementInvalidIds(widget).size > 0;
     }
@@ -1086,10 +1378,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const minH = requiredElementHeight(element);
         element.width = Math.max(minW, Number(element.width || minW));
         element.height = Math.max(minH, Number(element.height || minH));
-        element.x = Math.max(8, Math.min(Number(element.x || 8), widget.width - 8 - element.width));
-        element.y = Math.max(40, Math.min(Number(element.y || 40), widget.height - 8 - element.height));
-        element.width = Math.min(element.width, widget.width - 8 - element.x);
-        element.height = Math.min(element.height, widget.height - 8 - element.y);
+        element.x = Math.max(0, Math.min(Number(element.x ?? 0), widget.width - element.width));
+        element.y = Math.max(0, Math.min(Number(element.y ?? 0), widget.height - element.height));
+        element.width = Math.min(element.width, widget.width - element.x);
+        element.height = Math.min(element.height, widget.height - element.y);
     }
 
     function elementCssRect(box, widget, element) {
@@ -1116,8 +1408,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             element.graphStyle = 'line';
             element.showLabel = true;
         } else {
-            const sources = (apiState?.customWidget?.dataSources || [])
-                .filter(source => newType !== 'sparkline' || source.history);
+            const sources = elementSources(byId(selectedId), newType);
             const currentSource = sources.find(source => source.id === element.source);
             const source = currentSource || sources[0] || {};
             element.source = source.id || '';
@@ -1126,7 +1417,16 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             element.decimals = Number(source.decimals ?? element.decimals ?? 1);
             element.text = '';
             element.showLabel = element.showLabel !== false;
-            element.graphStyle = newType === 'sparkline' ? (element.graphStyle || 'line') : 'line';
+            element.graphStyle = newType === 'sparkline' ? 'bars' : 'line';
+            if (newType === 'trend') {
+                element.label = '';
+                element.showLabel = false;
+                element.align = 'center';
+                element.verticalAlign = 'center';
+            }
+            if (newType === 'minmax') {
+                element.showLabel = false;
+            }
             if (newType === 'progress' && !(Number(element.max) > Number(element.min))) {
                 element.min = 0;
                 element.max = source.unit === '%' ? 100 : 100;
@@ -1140,19 +1440,26 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         if (!form) return;
         const element = (widget.elements || []).find(item => item.id === selectedElementId);
         if (!element) {
-            form.innerHTML = '<div class="field-help">Vyber prvek ve vlastní kartě.</div>';
+            form.innerHTML = '<div class="field-help">Vyber prvek uvnitř karty.</div>';
             return;
         }
 
-        const sources = (apiState?.customWidget?.dataSources || [])
-            .filter(source => element.type !== 'sparkline' || source.history);
+        const sources = elementSources(widget, element.type);
         const sourceOptions = sources.map(source =>
             `<option value="${escapeHtml(source.id)}" ${source.id === element.source ? 'selected' : ''}>${escapeHtml(source.label)} (${escapeHtml(source.id)})</option>`
         ).join('');
         const selectedFontSize = normalizeFontSizeValue(element.fontSize);
+        const autoFont = apiState?.customWidget?.autoFont || {};
+        const automaticFontPx = element.type === 'kpi'
+            ? Number(autoFont.valuePx || 0)
+            : Number(autoFont.textPx || 0);
         const fontOptions = (apiState?.customWidget?.fontSizes || ['auto', ...Array.from({length:58}, (_, i) => String(i + 7))])
             .map(value => {
-                const label = value === 'auto' ? 'Automatická' : value + ' px';
+                const label = value === 'auto'
+                    ? (automaticFontPx > 0
+                        ? 'Automatická (' + automaticFontPx + ' px)'
+                        : 'Automatická')
+                    : value + ' px';
                 return `<option value="${value}" ${value === selectedFontSize ? 'selected' : ''}>${label}</option>`;
             }).join('');
         const alignOptions = (apiState?.customWidget?.alignments || ['left','center','right'])
@@ -1160,18 +1467,39 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 const names = {left:'Vlevo', center:'Na střed', right:'Vpravo'};
                 return `<option value="${value}" ${value === (element.align || 'left') ? 'selected' : ''}>${names[value] || value}</option>`;
             }).join('');
+        const verticalAlignOptions = (apiState?.customWidget?.verticalAlignments || ['top','center','bottom'])
+            .map(value => {
+                const names = {top:'Nahoru', center:'Na střed', bottom:'Dolů'};
+                return `<option value="${value}" ${value === (element.verticalAlign || 'top') ? 'selected' : ''}>${names[value] || value}</option>`;
+            }).join('');
         const graphStyleOptions = (apiState?.customWidget?.graphStyles || ['line','bars'])
             .map(value => {
                 const names = {line:'Čára', bars:'Sloupce'};
                 return `<option value="${value}" ${value === (element.graphStyle || 'line') ? 'selected' : ''}>${names[value] || value}</option>`;
             }).join('');
+        const graphPeriodOptions = (apiState?.customWidget?.graphPeriods || [
+            {hours:1,bucketSeconds:150},{hours:2,bucketSeconds:300},
+            {hours:4,bucketSeconds:600},{hours:6,bucketSeconds:900},
+            {hours:12,bucketSeconds:1800},{hours:24,bucketSeconds:3600},
+            {hours:48,bucketSeconds:7200},{hours:72,bucketSeconds:10800}
+        ]).map(item => {
+            const hours = Number(item.hours);
+            const bucketSeconds = Number(item.bucketSeconds);
+            const periodLabel = hours < 24 ? hours + ' h' : (hours / 24) + ' d';
+            const intervalLabel = bucketSeconds < 3600
+                ? (bucketSeconds % 60 === 0
+                    ? (bucketSeconds / 60) + ' min'
+                    : (bucketSeconds / 60).toLocaleString('cs-CZ', {maximumFractionDigits:1}) + ' min')
+                : (bucketSeconds / 3600) + ' h';
+            return `<option value="${hours}" ${hours === Number(element.graphPeriodHours || 12) ? 'selected' : ''}>${periodLabel} · ${intervalLabel}/sloupec</option>`;
+        }).join('');
 
         form.innerHTML = `
             <div class="field full">
                 <label>Typ prvku</label>
                 <select id="customFieldType">
                     ${(apiState?.customWidget?.elementTypes || []).map(item => {
-                        const names = {text:'Text', kpi:'KPI', progress:'Progress', sparkline:'Graf'};
+                        const names = {text:'Text', kpi:'KPI', progress:'Progress', sparkline:'Graf', trend:'Trend', minmax:'Min/Max'};
                         return `<option value="${escapeHtml(item.type)}" ${item.type === element.type ? 'selected' : ''}>${names[item.type] || item.type}</option>`;
                     }).join('')}
                 </select>
@@ -1186,10 +1514,12 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <label>Datový zdroj</label>
                     <select id="customFieldSource">${sourceOptions}</select>
                 </div>
+                ${(element.type === 'trend' || element.type === 'minmax') ? '' : `
                 <div class="field full">
                     <label>Popisek</label>
                     <input id="customFieldLabel" maxlength="40" value="${escapeHtml(element.label || '')}">
                 </div>
+                `}
                 <div class="field">
                     <label>Jednotka</label>
                     <input id="customFieldUnit" maxlength="16" value="${escapeHtml(element.unit || '')}">
@@ -1205,17 +1535,23 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <div class="field"><label>Maximum</label><input id="customFieldMax" type="number" step="any" value="${Number(element.max ?? 100)}"></div>
                 ` : ''}
             `}
-            ${(element.type === 'text' || element.type === 'kpi') ? `
+            ${(element.type === 'text' || element.type === 'kpi' || element.type === 'trend' || element.type === 'minmax') ? `
                 <div class="field">
                     <label>Velikost písma</label>
                     <select id="customFieldFontSize">${fontOptions}</select>
                 </div>
             ` : ''}
+            ${element.type === 'trend' ? '' : `
             <div class="field">
-                <label>Zarovnání</label>
+                <label>Vodorovně</label>
                 <select id="customFieldAlign">${alignOptions}</select>
             </div>
-            ${element.type !== 'text' ? `
+            <div class="field">
+                <label>Svisle</label>
+                <select id="customFieldVerticalAlign">${verticalAlignOptions}</select>
+            </div>
+            `}
+            ${(element.type !== 'text' && element.type !== 'minmax') ? `
                 <div class="field full">
                     <label class="toggle" style="display:flex;gap:8px;align-items:center">
                         <input id="customFieldShowLabel" type="checkbox" ${element.showLabel !== false ? 'checked' : ''}>
@@ -1230,6 +1566,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <select id="customFieldGraphStyle">${graphStyleOptions}</select>
                 </div>
             ` : ''}
+
             <div class="field"><label>X</label><input id="customFieldX" type="number" value="${element.x}"></div>
             <div class="field"><label>Y</label><input id="customFieldY" type="number" value="${element.y}"></div>
             <div class="field"><label>Šířka</label><input id="customFieldW" type="number" value="${element.width}"></div>
@@ -1259,6 +1596,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             const max = document.getElementById('customFieldMax');
             const fontSize = document.getElementById('customFieldFontSize');
             const align = document.getElementById('customFieldAlign');
+            const verticalAlign = document.getElementById('customFieldVerticalAlign');
             const showLabel = document.getElementById('customFieldShowLabel');
             const graphStyle = document.getElementById('customFieldGraphStyle');
             if (text) current.text = text.value;
@@ -1285,6 +1623,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             if (max) current.max = Number(max.value);
             current.fontSize = fontSize ? normalizeFontSizeValue(fontSize.value) : normalizeFontSizeValue(current.fontSize);
             current.align = align ? align.value : (current.align || 'left');
+            current.verticalAlign = verticalAlign
+                ? verticalAlign.value
+                : (current.verticalAlign || 'top');
             current.showLabel = showLabel ? showLabel.checked : (current.showLabel !== false);
             current.graphStyle = graphStyle ? graphStyle.value : (current.graphStyle || 'line');
             current.x = Number(document.getElementById('customFieldX')?.value ?? current.x);
@@ -1350,18 +1691,18 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             ? '2px solid ' + (blackBackground ? '#fff' : '#111')
             : '1px dashed #9ca3af';
         if (title) {
-            title.textContent = widget.title || widget.id;
+            title.textContent = '';
             title.style.color = foreground;
         }
         header.style.height = (40 / widget.height * 100) + '%';
         header.style.background = 'transparent';
-        header.style.borderBottomColor = foreground;
+        header.style.borderBottomColor = 'transparent';
 
         grid.style.filter = blackBackground ? 'invert(1)' : 'none';
-        grid.style.left = (8 / widget.width * 100) + '%';
-        grid.style.top = (40 / widget.height * 100) + '%';
-        grid.style.width = ((widget.width - 16) / widget.width * 100) + '%';
-        grid.style.height = ((widget.height - 48) / widget.height * 100) + '%';
+        grid.style.left = '0';
+        grid.style.top = '0';
+        grid.style.width = '100%';
+        grid.style.height = '100%';
         const rect = stage.getBoundingClientRect();
         const previewScale = Math.min(
             rect.width / Math.max(1, widget.width),
@@ -1380,6 +1721,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             title.style.lineHeight = titlePx + 'px';
         }
 
+        updateRenderedWidgetPreview(widget);
+
         const invalid = elementInvalidIds(widget);
         layer.innerHTML = '';
         (widget.elements || []).forEach((element, elementIndex) => {
@@ -1389,10 +1732,17 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 (invalid.has(element.id) ? ' invalid' : '');
             box.dataset.elementId = element.id;
             box.style.zIndex = String(10 + elementIndex);
+            box.title =
+                'Vrstva ' + (elementIndex + 1) + '/' + widget.elements.length +
+                ' · ' + customElementLabel(element) +
+                ' · x=' + element.x + ', y=' + element.y +
+                ' · ' + element.width + '×' + element.height + ' px' +
+                (['sparkline','trend','minmax'].includes(element.type)
+                    ? ' · období ' + Number(widget.historyPeriodHours || 12) + ' h'
+                    : '');
             elementCssRect(box, widget, element);
             box.innerHTML = `
-                ${elementPreviewHtml(element, previewScale)}
-                <div class="custom-element-label">vrstva ${elementIndex + 1}/${widget.elements.length} · ${escapeHtml(customElementLabel(element))}</div>
+                <div class="custom-element-label"></div>
                 <span class="custom-element-handle nw" data-element-handle="nw"></span>
                 <span class="custom-element-handle ne" data-element-handle="ne"></span>
                 <span class="custom-element-handle sw" data-element-handle="sw"></span>
@@ -1439,7 +1789,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const panel = document.getElementById('customEditorPanel');
         if (!panel) return;
         const widget = byId(selectedId);
-        if (!widget || widget.type !== 'custom') {
+        if (!widget || !isElementWidget(widget)) {
             panel.hidden = true;
             return;
         }
@@ -1454,13 +1804,32 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const dimensions = document.getElementById('customWidgetDimensions');
         if (dimensions) dimensions.textContent = widget.width + ' × ' + widget.height + ' px';
 
+        const historyPeriod = document.getElementById('customWidgetHistoryPeriod');
+        if (historyPeriod) {
+            const periods = apiState?.customWidget?.graphPeriods || [
+                {hours:1,bucketSeconds:150},{hours:2,bucketSeconds:300},
+                {hours:4,bucketSeconds:600},{hours:6,bucketSeconds:900},
+                {hours:12,bucketSeconds:1800},{hours:24,bucketSeconds:3600},
+                {hours:48,bucketSeconds:7200},{hours:72,bucketSeconds:10800}
+            ];
+            historyPeriod.innerHTML = periods.map(item => {
+                const hours = Number(item.hours);
+                const periodLabel = hours < 24 ? hours + ' h' : (hours / 24) + ' d';
+                return '<option value="' + hours + '">' + periodLabel + '</option>';
+            }).join('');
+            historyPeriod.value = String(Number(widget.historyPeriodHours || 12));
+        }
+
+        document.querySelectorAll('[data-add-element]').forEach(button => {
+            button.hidden = false;
+        });
         renderCustomElements(widget);
     }
 
     function findElementPosition(widget, width, height) {
         const step = gridStep || 5;
-        for (let y = 40; y + height <= widget.height - 8; y += step) {
-            for (let x = 8; x + width <= widget.width - 8; x += step) {
+        for (let y = 0; y + height <= widget.height; y += step) {
+            for (let x = 0; x + width <= widget.width; x += step) {
                 const probe = {x, y, width, height};
                 if (!(widget.elements || []).some(element => elementOverlap(probe, element))) {
                     return {x, y};
@@ -1472,8 +1841,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
     function addCustomElement(type) {
         const widget = byId(selectedId);
-        if (!widget || widget.type !== 'custom') {
-            editorMessage('Nejdřív vyber vlastní widget.', 'error');
+        if (!widget || !isElementWidget(widget)) {
+            editorMessage('Nejdřív vyber widget s editovatelným obsahem.', 'error');
             return;
         }
         if ((widget.elements || []).length >= Number(apiState?.customWidget?.maxElements || 8)) {
@@ -1482,16 +1851,15 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         }
 
         const typeInfo = elementTypeInfo(type);
-        let width = Math.max(Number(typeInfo.minWidth || 40), type === 'sparkline' ? 220 : type === 'progress' ? 180 : 140);
-        let height = Math.max(Number(typeInfo.minHeight || 20), type === 'sparkline' ? 100 : type === 'kpi' ? 60 : type === 'progress' ? 50 : 30);
-        width = Math.min(width, widget.width - 16);
-        height = Math.min(height, widget.height - 48);
+        let width = Math.max(Number(typeInfo.minWidth || 40), type === 'sparkline' ? 220 : type === 'progress' ? 180 : type === 'trend' ? 40 : type === 'minmax' ? 130 : 140);
+        let height = Math.max(Number(typeInfo.minHeight || 20), type === 'sparkline' ? 100 : type === 'kpi' ? 60 : type === 'progress' ? 50 : type === 'trend' ? 40 : type === 'minmax' ? 48 : 30);
+        width = Math.min(width, widget.width);
+        height = Math.min(height, widget.height);
 
-        const position = findElementPosition(widget, width, height) || {x: 8, y: 40};
+        const position = findElementPosition(widget, width, height) || {x: 0, y: 0};
 
         const elementId = uniqueElementId(widget, type);
-        const sources = (apiState?.customWidget?.dataSources || [])
-            .filter(source => type !== 'sparkline' || source.history);
+        const sources = elementSources(widget, type);
         const source = sources[0] || {};
         const element = {
             id: elementId,
@@ -1507,10 +1875,11 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             decimals: Number(source.decimals ?? 1),
             min: 0,
             max: 100,
-            fontSize: 'auto',
-            align: 'left',
-            showLabel: true,
-            graphStyle: 'line'
+            fontSize: type === 'trend' ? '28' : 'auto',
+            align: type === 'trend' ? 'center' : 'left',
+            verticalAlign: type === 'trend' ? 'center' : 'top',
+            showLabel: (type === 'trend' || type === 'minmax') ? false : true,
+            graphStyle: type === 'sparkline' ? 'bars' : 'line'
         };
         widget.elements = widget.elements || [];
         widget.elements.push(element);
@@ -1553,18 +1922,18 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const original = elementInteraction.original;
 
         if (elementInteraction.mode === 'move') {
-            element.x = snapElementPosition(original.x + dx, 8);
-            element.y = snapElementPosition(original.y + dy, 40);
+            element.x = snapElementPosition(original.x + dx, 0);
+            element.y = snapElementPosition(original.y + dy, 0);
         } else {
             let left = original.x;
             let top = original.y;
             let right = original.x + original.width;
             let bottom = original.y + original.height;
             const handle = elementInteraction.handle;
-            if (handle.includes('w')) left = snapElementPosition(original.x + dx, 8);
-            if (handle.includes('e')) right = snapElementPosition(original.x + original.width + dx, 8);
-            if (handle.includes('n')) top = snapElementPosition(original.y + dy, 40);
-            if (handle.includes('s')) bottom = snapElementPosition(original.y + original.height + dy, 40);
+            if (handle.includes('w')) left = snapElementPosition(original.x + dx, 0);
+            if (handle.includes('e')) right = snapElementPosition(original.x + original.width + dx, 0);
+            if (handle.includes('n')) top = snapElementPosition(original.y + dy, 0);
+            if (handle.includes('s')) bottom = snapElementPosition(original.y + original.height + dy, 0);
 
             const typeInfo = elementTypeInfo(element.type);
             const minW = Number(typeInfo.minWidth || 20);
@@ -1597,12 +1966,155 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         renderDraft();
     }
 
+    function previewPayload() {
+        return {
+            customized: true,
+            widgets: draft.map(widget => ({
+                ...widget,
+                elements: (widget.elements || []).map(element => ({
+                    ...element,
+                    verticalAlign:
+                        element.verticalAlign === 'center' ? 1 :
+                        element.verticalAlign === 'bottom' ? 2 : 0
+                }))
+            }))
+        };
+    }
+
+    function updateRenderedWidgetPreview(widget) {
+        if (!widget) return;
+        clearTimeout(customPreviewTimer);
+        const sequence = ++customPreviewSequence;
+
+        customPreviewTimer = setTimeout(async () => {
+            try {
+                const response = await fetch('/api/layout/home/preview', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(previewPayload())
+                });
+                if (!response.ok || sequence !== customPreviewSequence) return;
+
+                const image = document.getElementById('customWidgetRenderedPreview');
+                if (!image) return;
+
+                image.onload = () => {
+                    const stage = document.getElementById('customWidgetStage');
+                    if (!stage || sequence !== customPreviewSequence) return;
+                    image.style.width = (800 / widget.width * 100) + '%';
+                    image.style.height = (480 / widget.height * 100) + '%';
+                    image.style.left = (-widget.x / widget.width * 100) + '%';
+                    image.style.top = (-widget.y / widget.height * 100) + '%';
+                    image.hidden = false;
+                };
+                image.src = '/api/display.bmp?editor=' + sequence + '&t=' + Date.now();
+            } catch (_) {
+                // Browser fallback remains usable even when preview rendering is busy.
+            }
+        }, 180);
+    }
+
     function draftFromApi(state) {
         const widgets = state.customized && state.widgets?.length
             ? clone(state.widgets)
-            : clone(state.effectiveWidgets || []).map(widget => ({...widget, visible: true}));
-        widgets.forEach(ensureWidgetStyle);
+            : (state.effectiveWidgets || []).map(widget => {
+                const template = (state.defaultWidgets || []).find(item => item.id === widget.id);
+                return ensureWidgetStyle({...clone(template || widget), visible: true});
+            });
+        widgets.forEach(widget => {
+            (widget.elements || []).forEach(element => {
+                const raw = element.verticalAlign;
+                element.verticalAlign =
+                    raw === 1 ? 'center' :
+                    raw === 2 ? 'bottom' :
+                    (raw === 'center' || raw === 'bottom' ? raw : 'top');
+            });
+            ensureWidgetStyle(widget);
+        });
         return widgets;
+    }
+
+    function addRfSensorWidget() {
+        const rf = apiState?.rfSensorWidget;
+        const sensors = rf?.sensors || [];
+        if (!rf || sensors.length === 0) {
+            editorMessage('Nejdřív je potřeba uložit alespoň jedno RF čidlo s teplotou.', 'error');
+            return;
+        }
+        const maxWidgets = Number(apiState?.maxWidgets || 7);
+        if (draft.length >= maxWidgets) {
+            editorMessage('Home už má maximální počet ' + maxWidgets + ' widgetů.', 'error');
+            return;
+        }
+
+        let sequence = 1;
+        while (byId('rf-card-' + sequence)) sequence++;
+        const sensor = sensors[0];
+        const widget = ensureWidgetStyle({
+            id: 'rf-card-' + sequence,
+            type: 'rf-sensor',
+            visible: true,
+            x: 240,
+            y: 293,
+            width: 155,
+            height: 172,
+            showFrame: true,
+            background: 'white',
+            inverseText: false,
+            icon: 'auto',
+            title: sensor.name || 'VENKU',
+            rfSensorSlotId: sensor.slotId,
+            rfShowHumidity: sensor.hasHumidity !== false,
+            rfShowLastSeen: true,
+            elements: [
+                {
+                    id: 'temperature',
+                    type: 'kpi',
+                    source: 'rf.' + sensor.slotId + '.temperatureC',
+                    label: '',
+                    unit: '°C',
+                    text: '',
+                    x: 10,
+                    y: 48,
+                    width: 135,
+                    height: 38,
+                    decimals: 1,
+                    min: 0,
+                    max: 100,
+                    fontSize: '28',
+                    align: 'left',
+                    showLabel: false,
+                    graphStyle: 'line',
+                    graphPeriodHours: 12
+                },
+                ...(sensor.hasHumidity === false ? [] : [{
+                    id: 'humidity',
+                    type: 'kpi',
+                    source: 'rf.' + sensor.slotId + '.humidityPercent',
+                    label: 'Vlhkost',
+                    unit: '%',
+                    text: '',
+                    x: 10,
+                    y: 96,
+                    width: 135,
+                    height: 48,
+                    decimals: 0,
+                    min: 0,
+                    max: 100,
+                    fontSize: '18',
+                    align: 'left',
+                    showLabel: true,
+                    graphStyle: 'line',
+                    graphPeriodHours: 12
+                }])
+            ]
+        });
+        normalizeWidget(widget);
+        draft.push(widget);
+        selectedId = widget.id;
+        selectedElementId = 'temperature';
+        renderDraft();
+        editorMessage('RF karta přidána. Obsah můžeš přesouvat a měnit ve WYSIWYG editoru.');
     }
 
     function addCustomWidget() {
@@ -1610,8 +2122,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             editorMessage('Firmware nepodporuje vlastní widgety.', 'error');
             return;
         }
-        if (draft.length >= 6) {
-            editorMessage('Home už má maximální počet 6 widgetů.', 'error');
+        const maxWidgets = Number(apiState?.maxWidgets || 7);
+        if (draft.length >= maxWidgets) {
+            editorMessage('Home už má maximální počet ' + maxWidgets + ' widgetů.', 'error');
             return;
         }
 
@@ -1630,6 +2143,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             showFrame: true,
             background: 'white',
             inverseText: false,
+            icon: 'auto',
             title: 'Vlastní ' + sequence,
             elements: [{
                 id: 'text-1',
@@ -1648,7 +2162,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 fontSize: 'auto',
                 align: 'left',
                 showLabel: true,
-                graphStyle: 'line'
+                graphStyle: 'line',
+                graphPeriodHours: 12
             }]
         };
         normalizeWidget(widget);
@@ -1683,7 +2198,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             editorMessage('Nejdřív odstraň překryvy widgetů.', 'error');
             return;
         }
-        if (draft.some(widget => widget.type === 'custom' && customWidgetHasErrors(widget))) {
+        if (draft.some(widget => isElementWidget(widget) && customWidgetHasErrors(widget))) {
             editorMessage('Nejdřív oprav prvky uvnitř vlastních widgetů.', 'error');
             return;
         }
@@ -1696,25 +2211,57 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const button = document.getElementById('layoutSaveButton');
         if (button) button.disabled = true;
         editorMessage('Ukládám layout…');
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+
         try {
             const response = await fetch('/api/layout/home', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(payload)
+                body: JSON.stringify({
+                    ...payload,
+                    widgets: (payload.widgets || []).map(widget => ({
+                        ...widget,
+                        elements: (widget.elements || []).map(element => ({
+                            ...element,
+                            verticalAlign:
+                                element.verticalAlign === 'center' ? 1 :
+                                element.verticalAlign === 'bottom' ? 2 : 0
+                        }))
+                    }))
+                }),
+                signal: controller.signal
             });
             const state = await response.json();
-            if (!response.ok) throw new Error(state.message || ('HTTP ' + response.status));
+            if (!response.ok)
+                throw new Error(state.message || ('HTTP ' + response.status));
+
             apiState = state;
             draft = draftFromApi(state);
-            selectedId = draft.find(w => w.id === selectedId)?.id || draft.find(w => w.visible)?.id || '';
+            selectedId =
+                draft.find(w => w.id === selectedId)?.id ||
+                draft.find(w => w.visible)?.id ||
+                '';
             renderDraft();
-            editorMessage('Layout uložen. Firmware překresluje Home.', 'ok');
+            editorMessage(
+                'Layout uložen. Firmware překresluje Home.',
+                'ok');
+
             if (typeof loadDisplayPreview === 'function') {
                 setTimeout(() => loadDisplayPreview(true), 1200);
             }
         } catch (error) {
-            editorMessage('Uložení selhalo: ' + error.message, 'error');
+            const message = error?.name === 'AbortError'
+                ? 'server neodpověděl do 15 s'
+                : error.message;
+            editorMessage(
+                'Uložení selhalo: ' + message,
+                'error');
             renderDraft();
+        } finally {
+            clearTimeout(timeout);
+            if (button) button.disabled = false;
         }
     }
 
@@ -1764,16 +2311,21 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <div class="field">
                         <label for="layoutGridStep">Mřížka</label>
                         <select id="layoutGridStep">
+                            <option value="1">1 px</option>
+                            <option value="2">2 px</option>
                             <option value="5" selected>5 px</option>
                             <option value="10">10 px</option>
+                            <option value="15">15 px</option>
                             <option value="20">20 px</option>
                             <option value="25">25 px</option>
+                            <option value="50">50 px</option>
                         </select>
                     </div>
                     <div class="field">
                         <label>Magnetismus</label>
                         <label class="toggle"><input id="layoutSnapToggle" type="checkbox" checked><span class="slider"></span></label>
                     </div>
+                    <button class="btn btn-secondary" type="button" id="layoutAddRfButton">＋ RF čidlo</button>
                     <button class="btn btn-secondary" type="button" id="layoutAddCustomButton">＋ Přidat vlastní</button>
                     <button class="btn btn-secondary" type="button" id="layoutShowHomeButton">⌂ Zobrazit Home</button>
                     <button class="btn btn-secondary" type="button" id="layoutReloadButton">↻ Znovu načíst</button>
@@ -1824,7 +2376,37 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                         <label class="toggle"><input id="cardInverseText" type="checkbox"><span class="slider"></span></label>
                     </div>
                     <div class="field">
+                        <label for="cardIcon">Ikona</label>
+                        <select id="cardIcon"></select>
+                    </div>
+                    <div class="field">
                         <button class="btn btn-secondary" type="button" id="cardResetSelected" style="width:auto">Obnovit tento panel</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-style-panel" id="rfCardEditor" hidden>
+                <div class="card-title" id="rfCardEditorTitle">RF čidlo</div>
+                <div class="field-help" style="margin-bottom:10px">Karta je navázaná na stabilní slot uloženého 433 MHz čidla.</div>
+                <div class="card-style-grid">
+                    <div class="field">
+                        <label for="rfCardTitle">Název karty</label>
+                        <input id="rfCardTitle" maxlength="40">
+                    </div>
+                    <div class="field">
+                        <label for="rfCardSensor">Čidlo</label>
+                        <select id="rfCardSensor"></select>
+                    </div>
+                    <div class="field">
+                        <label>Zobrazit vlhkost</label>
+                        <label class="toggle"><input id="rfCardHumidity" type="checkbox"><span class="slider"></span></label>
+                    </div>
+                    <div class="field">
+                        <label>Zobrazit poslední příjem</label>
+                        <label class="toggle"><input id="rfCardLastSeen" type="checkbox"><span class="slider"></span></label>
+                    </div>
+                    <div class="field full" id="rfAdvancedField">
+                        <button class="btn btn-secondary" type="button" id="rfCardAdvanced" style="width:auto">Převést na volné rozložení</button>
                     </div>
                 </div>
             </div>
@@ -1833,12 +2415,16 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 <div class="custom-editor-head">
                     <div class="custom-editor-head-left">
                         <div>
-                            <div class="card-title">Obsah vlastního widgetu</div>
-                            <div class="field-help">Prvky mají relativní souřadnice uvnitř vybrané karty a používají stejnou mřížku/magnetismus.</div>
+                            <div class="card-title">Obsah widgetu</div>
+                            <div class="field-help">Prvky mohou být umístěné po celé ploše karty včetně záhlaví a až k jejím okrajům. Tažením je přesouvej, rohy mění velikost; font a zarovnání nastavíš vpravo.</div>
                         </div>
                         <div class="field">
                             <label for="customWidgetTitleInput">Název karty</label>
                             <input id="customWidgetTitleInput" maxlength="40">
+                        </div>
+                        <div class="field">
+                            <label for="customWidgetHistoryPeriod">Období historie</label>
+                            <select id="customWidgetHistoryPeriod"></select>
                         </div>
                         <div class="status-item" style="min-width:120px">
                             <div class="status-label">Velikost karty</div>
@@ -1850,11 +2436,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                         <button class="btn btn-secondary" type="button" data-add-element="kpi">＋ KPI</button>
                         <button class="btn btn-secondary" type="button" data-add-element="progress">＋ Progress</button>
                         <button class="btn btn-secondary" type="button" data-add-element="sparkline">＋ Graf</button>
+                        <button class="btn btn-secondary" type="button" data-add-element="trend">＋ Trend</button>
+                        <button class="btn btn-secondary" type="button" data-add-element="minmax">＋ Min/Max</button>
                     </div>
                 </div>
 
                 <div class="custom-widget-stage-wrap">
                     <div class="custom-widget-stage" id="customWidgetStage">
+                        <img class="custom-widget-rendered-preview" id="customWidgetRenderedPreview" alt="">
                         <div class="custom-widget-header-zone" id="customWidgetHeaderZone">
                             <div class="custom-widget-header-title" id="customWidgetHeaderTitle"></div>
                         </div>
@@ -1882,23 +2471,30 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             gridStep = Number(gridSelect.value) || 5;
             updateGrid();
             const widget = byId(selectedId);
-            if (widget?.type === 'custom') renderCustomElements(widget);
+            if (isElementWidget(widget)) renderCustomElements(widget);
         });
 
         document.getElementById('layoutSnapToggle').addEventListener('change', event => {
             snapEnabled = event.target.checked;
             updateGrid();
             const widget = byId(selectedId);
-            if (widget?.type === 'custom') renderCustomElements(widget);
+            if (isElementWidget(widget)) renderCustomElements(widget);
         });
+        document.getElementById('layoutAddRfButton').addEventListener('click', addRfSensorWidget);
         document.getElementById('layoutAddCustomButton').addEventListener('click', addCustomWidget);
         document.querySelectorAll('[data-add-element]').forEach(button => {
             button.addEventListener('click', () => addCustomElement(button.dataset.addElement));
         });
         document.getElementById('customWidgetTitleInput').addEventListener('change', event => {
             const widget = byId(selectedId);
-            if (!widget || widget.type !== 'custom') return;
+            if (!widget || !isElementWidget(widget)) return;
             widget.title = event.target.value.trim();
+            renderDraft();
+        });
+        document.getElementById('customWidgetHistoryPeriod').addEventListener('change', event => {
+            const widget = byId(selectedId);
+            if (!widget || !isElementWidget(widget)) return;
+            widget.historyPeriodHours = Number(event.target.value || 12);
             renderDraft();
         });
         document.getElementById('layoutShowHomeButton').addEventListener('click', async () => {
@@ -1931,7 +2527,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         stageObserver = new ResizeObserver(() => {
             updateGrid();
             const widget = byId(selectedId);
-            if (widget?.type === 'custom') renderCustomElements(widget);
+            if (isElementWidget(widget)) renderCustomElements(widget);
         });
         stageObserver.observe(stage);
         stageObserver.observe(customStage);

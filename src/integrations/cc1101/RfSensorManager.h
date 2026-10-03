@@ -39,6 +39,7 @@ private:
     DataModel& _dataModel;
     const RfSensorsConfig* _config = nullptr;
     DiscoveredSensor* _discovered = nullptr;
+    RfSensorHistory** _history = nullptr;
     uint32_t _scanStartedMs = 0;
     uint32_t _scanDurationMs = 0;
 
@@ -51,4 +52,8 @@ private:
     int discoveredIndexFor(const String& bindingKey) const;
     int freeDiscoveredIndex() const;
     String nextSlotId(const RfSensorsConfig& config) const;
+    static int slotIndex(const String& slotId);
+    bool ensureHistoryTable();
+    RfSensorHistory* ensureHistory(uint8_t stableIndex);
+    void sampleHistory(uint8_t configuredIndex, const RfSensorObservation& observation, uint32_t now);
 };

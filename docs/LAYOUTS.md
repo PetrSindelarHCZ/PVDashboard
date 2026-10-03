@@ -48,8 +48,16 @@ Firmware validuje alespoň:
 
 Home layout je uložen v `AppConfig.display.homeLayout` a v NVS jako blob
 `layout_blob`. Starší string `layout_home` se při načtení automaticky migruje.
-Pokud `customized=false`, renderer používá původní automatickou šablonu podle
-dostupnosti Počasí a FVE.
+Pokud `customized=false`, renderer používá moderní výchozí přehled se
+samostatnými kartami **PŘEDPOVĚĎ**, **FVE / GOODWE**, **AZROUTER**, **UVNITŘ**,
+**BAZÉN** a **STAV SYSTÉMU**. Karty zdrojů se zobrazují podle aktivace
+příslušných modulů. Karta předpovědi je záměrně označena jako online
+předpověď a uvádí poskytovatele dat, aby nebyla zaměnitelná s fyzickým
+venkovním čidlem.
+
+Vlastní editor nadále nabízí původní předdefinované typy Weather / Energy /
+Indoor i vlastní widgety. Uložené layouty s `customized=true` nejsou změnou
+výchozí Home obrazovky přepsány.
 
 REST rozhraní (D2):
 
@@ -237,7 +245,7 @@ inverze. Skutečný fyzický render po uložení zůstává autoritativní.
 
 ## Aktuální limity a chování
 
-- maximálně 6 Home widgetů,
+- maximálně 7 Home widgetů,
 - maximálně 8 elementů v jednom custom widgetu,
 - minimální rozměry se liší podle typu widgetu a elementu,
 - vlastní widget musí mít alespoň jeden element,
@@ -249,3 +257,21 @@ inverze. Skutečný fyzický render po uložení zůstává autoritativní.
   region zaměřený hlavně na datový obsah,
 - katalog datových zdrojů vrací firmware přes `GET /api/layout/home`; WebUI
   si nemá držet vlastní pevnou kopii podporovaných zdrojů.
+
+
+## RF sensor karta
+
+Home podporuje předdefinovaný typ `rf-sensor`. Karta je navázaná na stabilní
+`slotId` uloženého 433 MHz čidla, nikoli na aktuální radio-side ID. Tím zůstává
+vazba platná i po re-assignu čidla.
+
+Konfigurace karty obsahuje:
+
+- `title` — vlastní název, např. VENKU / SKLENÍK / MRAZÁK,
+- `rfSensorSlotId` — stabilní slot uloženého RF čidla,
+- `rfShowHumidity` — zobrazení vlhkosti, pokud ji čidlo poskytuje,
+- `rfShowLastSeen` — zobrazení stáří posledního přijatého vzorku.
+
+Editor Home umožňuje karty přesouvat, měnit jejich velikost a vzhled, skrývat je
+nebo je úplně odebrat. Odebranou předdefinovanou kartu lze znovu přidat přes její
+výchozí šablonu; nové RF karty se přidávají tlačítkem **RF čidlo**.

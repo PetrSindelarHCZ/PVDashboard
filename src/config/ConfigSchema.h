@@ -21,7 +21,7 @@ struct WifiConfig {
     String dns2 = "";
 };
 
-constexpr uint8_t MaxHomeLayoutWidgets = 6;
+constexpr uint8_t MaxHomeLayoutWidgets = 7;
 constexpr uint8_t MaxCustomWidgetElements = 8;
 
 struct CustomWidgetElementConfig {
@@ -40,8 +40,10 @@ struct CustomWidgetElementConfig {
     float maxValue = 100.0f;
     String fontSize = "auto";   // auto | 7..64 (pixel height)
     String align = "left";      // left | center | right
+    uint8_t verticalAlign = 0;  // 0 = top, 1 = center, 2 = bottom
     bool showLabel = true;
     String graphStyle = "line"; // line | bars (sparkline only)
+    uint8_t graphPeriodHours = 12; // 1,2,4,6,12,24,48,72
 };
 
 struct HomeLayoutWidgetConfig {
@@ -58,8 +60,21 @@ struct HomeLayoutWidgetConfig {
     String background = "white"; // white | black
     bool inverseText = false;
 
-    // Used only by type == "custom". Predefined widgets keep these empty.
+    // Custom title is also used by RF sensor cards.
     String title = "";
+
+    // WidgetIcons::Icon stored as a byte to avoid another String in static DRAM.
+    // 0 = Auto keeps backward-compatible per-widget defaults.
+    uint8_t icon = 0;
+
+    // Used by type == "rf-sensor". RF slots are generated as sensor1..sensor16.
+    // Store only the stable numeric suffix to avoid one Arduino String object
+    // per Home widget in static DRAM.
+    uint8_t rfSensorSlot = 0;
+    bool rfShowHumidity = true;
+    bool rfShowLastSeen = true;
+
+    // Used only by type == "custom".
     std::vector<CustomWidgetElementConfig> elements;
 };
 

@@ -130,12 +130,52 @@ struct WeatherData {
     uint32_t lastUpdateMs = 0;
 };
 
+constexpr uint8_t SensorGraphSampleCount = 24;
+constexpr uint8_t SensorGraphPeriodCount = 8;
+constexpr uint8_t SensorGraphPeriodHours[SensorGraphPeriodCount] = {
+    1, 2, 4, 6, 12, 24, 48, 72
+};
+
+inline int8_t sensorGraphPeriodIndex(uint8_t hours) {
+    for (uint8_t i = 0; i < SensorGraphPeriodCount; ++i) {
+        if (SensorGraphPeriodHours[i] == hours) return static_cast<int8_t>(i);
+    }
+    return -1;
+}
+
+inline uint32_t sensorGraphBucketSeconds(uint8_t hours) {
+    // 24 fixed slots per graph. 1 h => 150 s, 12 h => 1800 s, 72 h => 10800 s.
+    return (static_cast<uint32_t>(hours) * 3600UL) / SensorGraphSampleCount;
+}
+
+struct InsideHistorySample {
+    int16_t temperatureCenti = 0;
+    uint8_t humidityPercent = 0;
+    uint16_t pressureDeciHpa = 0;
+    uint8_t flags = 0; // bit0 temperature, bit1 humidity, bit2 pressure
+};
+
+struct InsideHistorySeries {
+    InsideHistorySample samples[SensorGraphSampleCount];
+    uint8_t count = 0;
+    uint8_t next = 0;
+    uint32_t lastBucket = 0;
+    bool wallClock = false;
+};
+
+struct InsideHistory {
+    InsideHistorySeries series[SensorGraphPeriodCount];
+};
+
 struct InsideData {
     DataSourceStatus status;
     float temperatureC = 0.0f;
     int humidityPercent = 0;
     float pressureHpa = 0.0f;
     uint32_t lastUpdateMs = 0;
+
+    // Heap-backed history keeps trend/graph support out of static DRAM.
+    InsideHistory* history = nullptr;
 
     // Existing UI-compatible fields. livingRoomTempC is populated from BME280;
     // the remaining values stay as placeholders until their real sensors exist.
@@ -186,9 +226,31 @@ struct RfSensorData {
     uint32_t lastUpdateMs = 0;
 };
 
+struct RfHistorySample {
+    int16_t temperatureCenti = 0;
+    uint8_t humidityPercent = 0;
+    uint8_t flags = 0; // bit0 temperature, bit1 humidity
+};
+
+struct RfHistorySeries {
+    RfHistorySample samples[SensorGraphSampleCount];
+    uint8_t count = 0;
+    uint8_t next = 0;
+    uint32_t lastBucket = 0;
+    bool wallClock = false;
+};
+
+struct RfSensorHistory {
+    RfHistorySeries series[SensorGraphPeriodCount];
+};
+
 struct RfSensorsData {
     uint8_t sensorCount = 0;
     RfSensorData sensors[MaxRfSensors];
+
+    // Heap-owned table of MaxRfSensors pointers. Individual histories are
+    // allocated lazily per stable slot on the first valid RF packet.
+    RfSensorHistory** history = nullptr;
 };
 
 struct SystemData {

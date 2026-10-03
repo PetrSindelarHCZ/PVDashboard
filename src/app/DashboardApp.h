@@ -68,12 +68,17 @@ private:
     WifiManager _wifiManager;
     WifiSignalLevel _wifiSignalLevel;
     TimeService _timeService;
-    DashboardWebServer _webServer;
+
+    // Keep the fairly large WebServer object out of global .bss. The global
+    // DashboardApp instance must stay small enough for Arduino to allocate
+    // loopTask (16 KiB stack) before setup() starts.
+    DashboardWebServer* _webServer = nullptr;
 
     GoodWeClient _goodweClient;
     AZRouterClient _azrouterClient;
     WeatherWorker _weatherWorker;
     Bme280Sensor _bme280Sensor;
+    InsideHistory* _insideHistory = nullptr;
     Max17048Sensor _max17048Sensor;
 
     // Serializuje pametove narocne operace: e-paper render/preview a weather TLS.

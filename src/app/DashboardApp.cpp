@@ -1,5 +1,7 @@
 #include "DashboardApp.h"
 #include <math.h>
+#include <new>
+#include <time.h>
 #include "../diagnostics/Performance.h"
 #include "../integrations/cc1101/Cc1101Diagnostics.h"
 #include "../integrations/cc1101/Cc1101RawReceiver.h"
@@ -29,6 +31,90 @@ uint32_t pollDelayMs(uint32_t intervalSeconds, uint8_t failureStreak) {
 
 uint8_t nextFailureStreak(uint8_t current) {
     return current < MaximumBackoffShift ? current + 1 : MaximumBackoffShift;
+}
+
+void sampleInsideHistory(InsideData& data, InsideHistory*& history) {
+    if (history == nullptr) {
+        history = new (std::nothrow) InsideHistory();
+        if (history == nullptr) {
+            Serial.println(
+                "[BME280] Historie nelze alokovat: nedostatek heap pameti.");
+            return;
+        }
+    }
+    data.history = history;
+
+    InsideHistorySample sample;
+    sample.temperatureCenti =
+        static_cast<int16_t>(lroundf(data.temperatureC * 100.0f));
+    int humidity = data.humidityPercent;
+    if (humidity < 0) humidity = 0;
+    if (humidity > 100) humidity = 100;
+    sample.humidityPercent = static_cast<uint8_t>(humidity);
+
+    float pressure = data.pressureHpa * 10.0f;
+    if (pressure < 0.0f) pressure = 0.0f;
+    if (pressure > 65535.0f) pressure = 65535.0f;
+    sample.pressureDeciHpa = static_cast<uint16_t>(lroundf(pressure));
+    sample.flags = 0x07;
+
+    const time_t epoch = time(nullptr);
+    const bool wallClock = epoch > 1700000000;
+    const uint32_t timeSeconds =
+        wallClock ? static_cast<uint32_t>(epoch) : millis() / 1000UL;
+
+    for (uint8_t periodIndex = 0;
+         periodIndex < SensorGraphPeriodCount;
+         ++periodIndex) {
+
+        const uint8_t hours = SensorGraphPeriodHours[periodIndex];
+        const uint32_t bucketSeconds = sensorGraphBucketSeconds(hours);
+        if (bucketSeconds == 0) continue;
+
+        const uint32_t bucket = timeSeconds / bucketSeconds;
+        InsideHistorySeries& series = history->series[periodIndex];
+
+        auto appendSample =
+            [&series](const InsideHistorySample& value) {
+                series.samples[series.next] = value;
+                series.next = static_cast<uint8_t>(
+                    (series.next + 1) % SensorGraphSampleCount);
+                if (series.count < SensorGraphSampleCount) ++series.count;
+            };
+
+        if (series.count == 0 || series.wallClock != wallClock) {
+            series = InsideHistorySeries{};
+            series.wallClock = wallClock;
+            series.lastBucket = bucket;
+            appendSample(sample);
+            continue;
+        }
+
+        if (bucket == series.lastBucket) {
+            const uint8_t latest =
+                static_cast<uint8_t>(
+                    (series.next + SensorGraphSampleCount - 1) %
+                    SensorGraphSampleCount);
+            series.samples[latest] = sample;
+            continue;
+        }
+
+        if (bucket < series.lastBucket ||
+            bucket - series.lastBucket >= SensorGraphSampleCount) {
+            series = InsideHistorySeries{};
+            series.wallClock = wallClock;
+            series.lastBucket = bucket;
+            appendSample(sample);
+            continue;
+        }
+
+        const uint32_t gap = bucket - series.lastBucket;
+        for (uint32_t step = 1; step < gap; ++step) {
+            appendSample(InsideHistorySample{});
+        }
+        appendSample(sample);
+        series.lastBucket = bucket;
+    }
 }
 
 bool applyWifiAddressing(const WifiConfig& wifi) {
@@ -208,11 +294,9 @@ enum class HomeDataGroup : uint8_t {
     Rf
 };
 
-bool customWidgetUsesGroup(
+bool widgetUsesGroup(
     const HomeLayoutWidgetConfig& widget,
     HomeDataGroup group) {
-
-    if (widget.type != "custom") return false;
 
     for (const auto& element : widget.elements) {
         const String& source = element.source;
@@ -258,15 +342,38 @@ DisplayRegion homeDataRegion(
             case LayoutWidgetType::HomeEnergyCard:
                 matches = group == HomeDataGroup::Energy;
                 break;
-            case LayoutWidgetType::HomeIndoorCard:
-                matches = group == HomeDataGroup::Indoor;
+            case LayoutWidgetType::HomeIndoorCard: {
+                const HomeLayoutWidgetConfig* configured =
+                    HomeLayout::findWidget(config, widget.id);
+                matches = configured != nullptr && !configured->elements.empty()
+                    ? widgetUsesGroup(*configured, group)
+                    : group == HomeDataGroup::Indoor;
+                break;
+            }
+            case LayoutWidgetType::HomeFveCard:
+            case LayoutWidgetType::HomeAZRouterCard:
+                matches = group == HomeDataGroup::Energy;
+                break;
+            case LayoutWidgetType::HomePoolCard: {
+                const HomeLayoutWidgetConfig* configured =
+                    HomeLayout::findWidget(config, widget.id);
+                matches = configured != nullptr && !configured->elements.empty()
+                    ? widgetUsesGroup(*configured, group)
+                    : group == HomeDataGroup::Indoor;
+                break;
+            }
+            case LayoutWidgetType::HomeConsumptionCard:
+                matches = group == HomeDataGroup::Energy;
+                break;
+            case LayoutWidgetType::HomeRfSensorCard:
+                matches = group == HomeDataGroup::Rf;
                 break;
             case LayoutWidgetType::HomeCustomCard: {
                 const HomeLayoutWidgetConfig* configured =
                     HomeLayout::findWidget(config, widget.id);
                 matches =
                     configured != nullptr &&
-                    customWidgetUsesGroup(*configured, group);
+                    widgetUsesGroup(*configured, group);
                 break;
             }
         }
@@ -354,8 +461,7 @@ DashboardApp::DashboardApp()
       _displayPreview(),
       _displayManager(_epaperDisplay, &_displayPreview),
       _displayWorker(_displayManager),
-      _navigationController(_screenManager, _dataModel),
-      _webServer(80, _dataModel, _screenManager, _configManager.get()) {
+      _navigationController(_screenManager, _dataModel) {
 }
 
 void DashboardApp::setup() {
@@ -374,6 +480,15 @@ void DashboardApp::setup() {
     Cc1101RawReceiver::begin();
 
     _configManager.begin();
+
+    _webServer = new (std::nothrow) DashboardWebServer(
+        80, _dataModel, _screenManager, _configManager.get());
+    if (_webServer == nullptr) {
+        Serial.println(
+            "[APP] CHYBA: WebServer nelze alokovat na heapu. "
+            "Pokracuji bez WebUI.");
+    }
+
     _rfSensorManager.applyConfig(_configManager.get().rfSensors);
     Cc1101RawReceiver::onSensorObservation(
         [this](const RfSensorObservation& observation) {
@@ -410,7 +525,8 @@ void DashboardApp::setup() {
     if (_networkClientGate == nullptr) {
         Serial.println("[APP] VAROVANI: network-client gate se nepodarilo vytvorit.");
     } else {
-        _webServer.setNetworkClientGate(_networkClientGate);
+        if (_webServer != nullptr)
+            _webServer->setNetworkClientGate(_networkClientGate);
         _weatherWorker.setNetworkClientGate(_networkClientGate);
         Serial.println("[APP] Network-client gate pripraven pro Web/TLS.");
     }
@@ -421,7 +537,9 @@ void DashboardApp::setup() {
 
     // Local environmental sensor is independent of Wi-Fi. The 4-pin BME280
     // shares the preferred I2C bus on SDA GPIO21 / SCL GPIO22.
-    _bme280Sensor.update(_dataModel.inside);
+    if (_bme280Sensor.update(_dataModel.inside)) {
+        sampleInsideHistory(_dataModel.inside, _insideHistory);
+    }
     _lastBme280Sync = millis();
     _lastBme280DisplayRefresh = _lastBme280Sync;
 
@@ -546,364 +664,366 @@ void DashboardApp::setup() {
         requestNavigationDisplayRefresh(fullRefresh, 50UL, nullptr, true);
     });
 
-    _webServer.onScreenChange([this](const String& screenId) { onScreenSwitchRequested(screenId); });
-    _webServer.onRefresh([this](bool full) { onRefreshRequested(full); });
-    _webServer.onDisplayStatus([this]() { return _displayWorker.getStatus(); });
-    _webServer.setDisplayPreview(&_displayPreview);
-    _webServer.setNavigationController(&_navigationController);
-    _webServer.onNavigationAction(
-        [this](NavigationAction action) {
-            return handleNavigationAction(action, true);
+    if (_webServer != nullptr) {
+        _webServer->onScreenChange([this](const String& screenId) { onScreenSwitchRequested(screenId); });
+        _webServer->onRefresh([this](bool full) { onRefreshRequested(full); });
+        _webServer->onDisplayStatus([this]() { return _displayWorker.getStatus(); });
+        _webServer->setDisplayPreview(&_displayPreview);
+        _webServer->setNavigationController(&_navigationController);
+        _webServer->onNavigationAction(
+            [this](NavigationAction action) {
+                return handleNavigationAction(action, true);
+            });
+        _webServer->onControlAction(
+            [this](ControlAction action) {
+                return handleControlAction(action, true);
+            });
+    
+        _webServer->onSystemConfig([this](const SystemConfig& system) {
+            const String previousHostname = _configManager.get().system.hostname;
+            _configManager.setSystem(system);
+            _timeService.begin(system.timezone, system.ntpServer);
+            _dataModel.system.ntpSynced = false;
+            _dataModel.system.timeStr = "";
+            _dataModel.system.dateStr = "";
+            _dataModel.system.dayOfWeekStr = "";
+            if (previousHostname != system.hostname) {
+                const auto& current = _configManager.get();
+                applyWifiAddressing(current.wifi);
+                if (!current.wifi.ssid.isEmpty() && _configManager.isWifiAutoConnectEnabled(current.wifi.ssid))
+                    _wifiManager.begin(current.wifi.ssid, current.wifi.password, system.hostname);
+                else _wifiManager.begin("", "", system.hostname);
+            }
+            requestAutomaticDisplayRefresh();
+            Serial.println("[CONFIG] System ulozen a aplikovan za behu.");
         });
-    _webServer.onControlAction(
-        [this](ControlAction action) {
-            return handleControlAction(action, true);
-        });
-
-    _webServer.onSystemConfig([this](const SystemConfig& system) {
-        const String previousHostname = _configManager.get().system.hostname;
-        _configManager.setSystem(system);
-        _timeService.begin(system.timezone, system.ntpServer);
-        _dataModel.system.ntpSynced = false;
-        _dataModel.system.timeStr = "";
-        _dataModel.system.dateStr = "";
-        _dataModel.system.dayOfWeekStr = "";
-        if (previousHostname != system.hostname) {
+    
+        _webServer->onWifiConfig([this](const String& ssid, const String& password) {
             const auto& current = _configManager.get();
+            _pendingWifiSave = true;
+            _pendingWifiSsid = ssid;
+            _pendingWifiPassword = password;
             applyWifiAddressing(current.wifi);
-            if (!current.wifi.ssid.isEmpty() && _configManager.isWifiAutoConnectEnabled(current.wifi.ssid))
-                _wifiManager.begin(current.wifi.ssid, current.wifi.password, system.hostname);
-            else _wifiManager.begin("", "", system.hostname);
-        }
-        requestAutomaticDisplayRefresh();
-        Serial.println("[CONFIG] System ulozen a aplikovan za behu.");
-    });
-
-    _webServer.onWifiConfig([this](const String& ssid, const String& password) {
-        const auto& current = _configManager.get();
-        _pendingWifiSave = true;
-        _pendingWifiSsid = ssid;
-        _pendingWifiPassword = password;
-        applyWifiAddressing(current.wifi);
-        Serial.printf("[WIFI] Rucne zkousim sit '%s'; ulozim ji az po uspesnem pripojeni.\n", ssid.c_str());
-        _wifiManager.begin(ssid, password, current.system.hostname);
-    });
-
-    _webServer.onWifiNetworkConfig([this](const WifiConfig& wifi) {
-        _pendingWifiSave = false;
-        _pendingWifiSsid = "";
-        _pendingWifiPassword = "";
-        _configManager.setWifiNetworkConfig(wifi);
-        const auto& current = _configManager.get();
-        applyWifiAddressing(current.wifi);
-        Serial.printf("[CONFIG] IP rezim ulozen: %s. Obnovuji Wi-Fi pripojeni.\n", current.wifi.dhcp ? "DHCP" : "STATIC");
-        if (!current.wifi.ssid.isEmpty() && _configManager.isWifiAutoConnectEnabled(current.wifi.ssid))
-            _wifiManager.begin(current.wifi.ssid, current.wifi.password, current.system.hostname);
-        else _wifiManager.begin("", "", current.system.hostname);
-    });
-
-    _webServer.onWifiScan([this]() { return _wifiManager.scanNetworksJson(); });
-    _webServer.onWifiKnownNetworks([this]() { return _configManager.getKnownWifiNetworksJson(); });
-
-    _webServer.onWifiConnectKnown([this](const String& ssid) {
-        String password;
-        if (!_configManager.getKnownWifiPassword(ssid, password)) return false;
-        const auto& current = _configManager.get();
-        _pendingWifiSave = true;
-        _pendingWifiSsid = ssid;
-        _pendingWifiPassword = password;
-        applyWifiAddressing(current.wifi);
-        Serial.printf("[WIFI] Rucne zkousim znamou sit '%s'; auto-connect povolim az po uspesnem pripojeni.\n", ssid.c_str());
-        _wifiManager.begin(ssid, password, current.system.hostname);
-        return true;
-    });
-
-    _webServer.onWifiDisconnect([this]() {
-        _pendingWifiSave = false;
-        _pendingWifiSsid = "";
-        _pendingWifiPassword = "";
-        const String activeSsid = _configManager.get().wifi.ssid;
-        if (!activeSsid.isEmpty() && activeSsid != "VASE_WIFI") {
-            if (_configManager.setWifiAutoConnectEnabled(activeSsid, false))
-                Serial.printf("[WIFI] Sit '%s' byla rucne odpojena a zustane vyradena z auto-connectu do rucniho Pripojit.\n", activeSsid.c_str());
-        }
-        _wifiManager.disconnectToConfigAccessPoint();
-        requestAutomaticDisplayRefresh();
-    });
-
-    _webServer.onWifiForget([this](const String& ssid) {
-        if (_pendingWifiSave && _pendingWifiSsid == ssid) {
+            Serial.printf("[WIFI] Rucne zkousim sit '%s'; ulozim ji az po uspesnem pripojeni.\n", ssid.c_str());
+            _wifiManager.begin(ssid, password, current.system.hostname);
+        });
+    
+        _webServer->onWifiNetworkConfig([this](const WifiConfig& wifi) {
             _pendingWifiSave = false;
             _pendingWifiSsid = "";
             _pendingWifiPassword = "";
-        }
-        const bool wasActive = _configManager.get().wifi.ssid == ssid;
-        if (!_configManager.forgetWifi(ssid)) return false;
-        if (wasActive) { _wifiManager.disconnectToConfigAccessPoint(); requestAutomaticDisplayRefresh(); }
-        Serial.printf("[WIFI] Sit '%s' byla zapomenuta.\n", ssid.c_str());
-        return true;
-    });
-
-    _webServer.onSourceConfig([this](const GoodWeConfig& goodwe, const AZRouterConfig& azrouter) {
-        const bool visibilityChanged =
-            _configManager.get().goodwe.enabled != goodwe.enabled ||
-            _configManager.get().azrouter.enabled != azrouter.enabled;
-
-        _configManager.setSources(goodwe, azrouter);
-        _dataModel.solar.enabled = goodwe.enabled;
-        _dataModel.azrouter.enabled = azrouter.enabled;
-
-        if (goodwe.enabled) {
-            _goodweClient.begin(goodwe.host, goodwe.port);
-        } else {
-            _dataModel.solar.status.recordError("Disabled");
-            _dataModel.solar.historyCount = 0;
-        }
-
-        if (azrouter.enabled) {
-            _azrouterClient.begin(
-                azrouter.host,
-                azrouter.port,
-                azrouter.authEnabled ? azrouter.username : String(),
-                azrouter.authEnabled ? azrouter.password : String());
-        } else {
-            _dataModel.azrouter.authenticated = false;
-            _dataModel.azrouter.authMode = "disabled";
-            _dataModel.azrouter.status.recordError("Disabled");
-        }
-
-        setSolarScreenEnabled(goodwe.enabled);
-        setAZRouterScreenEnabled(azrouter.enabled);
-        _navigationController.syncToActiveScreen(false);
-
-        _goodweFailureStreak = 0;
-        _azrouterFailureStreak = 0;
-        _lastGoodweSync = millis() - goodwe.pollIntervalSeconds * 1000UL;
-        _lastAzrouterSync = millis() - azrouter.pollIntervalSeconds * 1000UL;
-        _dataModel.updateSystemMetrics();
-
-        if (visibilityChanged) requestDisplayRefresh(true, 100);
-        else requestAutomaticDisplayRefresh();
-
-        Serial.println("[CONFIG] Datove zdroje ulozeny a aplikovany za behu.");
-    });
-
-    _webServer.onPoolConfig([this](const PoolConfig& pool) {
-        const bool enabledChanged = _configManager.get().pool.enabled != pool.enabled;
-        _configManager.setPool(pool);
-        _dataModel.pool.enabled = pool.enabled;
-        setPoolScreenEnabled(pool.enabled);
-        _navigationController.syncToActiveScreen(false);
-        if (enabledChanged) requestDisplayRefresh(true, 100);
-        else requestAutomaticDisplayRefresh();
-        Serial.println("[CONFIG] Bazen ulozen a aplikovan za behu.");
-    });
-
-    _webServer.onHomeLayoutConfig([this](const HomeLayoutConfig& layout) {
-        if (!_configManager.setHomeLayout(layout)) return false;
-        _navigationController.syncToActiveScreen(false);
-        requestDisplayRefresh(true, 100);
-        Serial.println("[CONFIG] Home layout ulozen a aplikovan za behu.");
-        return true;
-    });
-
-    _webServer.onWeatherConfig([this](const WeatherConfig& weather) {
-        const WeatherConfig previous = _configManager.get().weather;
-        const bool enabledChanged = previous.enabled != weather.enabled;
-        const bool providerChanged = previous.provider != weather.provider;
-        const bool locationChanged =
-            fabs(previous.latitude - weather.latitude) > 0.00001 ||
-            fabs(previous.longitude - weather.longitude) > 0.00001;
-
-        _configManager.setWeather(weather);
-        const WeatherConfig& applied = _configManager.get().weather;
-        if (!_weatherWorker.reconfigure(applied)) {
-            Serial.println("[CONFIG] Nepodarilo se aplikovat konfiguraci pocasi za behu.");
-        }
-
-        const WeatherLocation* activeLocation = applied.activeLocation();
-        const int activeIndex =
-            activeLocation != nullptr
-                ? weatherLocationIndexById(applied, activeLocation->id)
-                : -1;
-
-        _weatherDisplayLocationIndex =
-            activeIndex >= 0 ? static_cast<uint8_t>(activeIndex) : 0;
-        _weatherDisplayLocationId =
-            activeLocation != nullptr ? activeLocation->id : "";
-
-        if (providerChanged || locationChanged) {
-            // Starou predpoved nesmime po prepnuti zdroje/lokality vydavat za
-            // data nove konfigurace. Cekame na prvni platnou odpoved workeru.
-            WeatherData pending;
-            pending.enabled = applied.enabled;
-            pending.provider = weatherProviderLabel(applied.provider);
-            pending.locationId = _weatherDisplayLocationId;
-            pending.locationName =
-                activeLocation != nullptr ? activeLocation->name : "";
-            pending.locationIndex = _weatherDisplayLocationIndex;
-            pending.locationCount =
-                min<uint8_t>(applied.locationCount, MaxWeatherLocations);
-            pending.status.available = false;
-            pending.status.lastAttemptMs = millis();
-            pending.status.lastError = "Aktualizuji pocasi";
-            _dataModel.weather = pending;
-        } else {
-            selectWeatherDisplayLocation(
-                _weatherDisplayLocationIndex,
-                false);
-        }
-
-        if (!applied.enabled) {
-            _dataModel.weather.status.recordError("Weather disabled");
-        }
-
-        setWeatherScreensEnabled(applied.enabled);
-        _navigationController.syncToActiveScreen(false);
-        if (enabledChanged) requestDisplayRefresh(true, 100);
-        else requestAutomaticDisplayRefresh();
-        Serial.println("[CONFIG] Pocasi ulozeno a aplikovano za behu.");
-    });
-
-    _webServer.onRfSensorManagement(
-        [this]() {
-            return _rfSensorManager.statusJson();
-        },
-        [this](uint32_t durationMs) {
-            _rfSensorManager.startScan(durationMs);
-            Serial.printf(
-                "[RF-SENSORS] Scan spusten na %lu s.\n",
-                static_cast<unsigned long>(durationMs / 1000UL));
-        },
-        [this](const String& bindingKey, const String& name, String& error) {
-            RfSensorsConfig updated;
-            if (!_rfSensorManager.addDiscoveredSensor(
-                    bindingKey, name, updated, error)) {
-                return false;
-            }
-            if (!_configManager.setRfSensors(updated)) {
-                error = "Konfiguraci čidla se nepodařilo uložit.";
-                return false;
-            }
-            _rfSensorManager.applyConfig(_configManager.get().rfSensors);
-            requestAutomaticDisplayRefresh();
-            return true;
-        },
-        [this](const String& slotId, const String& name, String& error) {
-            const RfSensorsConfig previousRf = _configManager.get().rfSensors;
-            const RfSensorConfig* previousSensor =
-                rfSensorBySlot(previousRf, slotId);
-            if (previousSensor == nullptr) {
-                error = "Uložené čidlo nebylo nalezeno.";
-                return false;
-            }
-
-            const String oldTemperatureLabel =
-                rfSensorMetricLabel(*previousSensor, false);
-            const String oldHumidityLabel =
-                rfSensorMetricLabel(*previousSensor, true);
-
-            RfSensorsConfig updated;
-            if (!_rfSensorManager.renameSensor(
-                    slotId, name, updated, error)) {
-                return false;
-            }
-
-            const RfSensorConfig* updatedSensor =
-                rfSensorBySlot(updated, slotId);
-            if (updatedSensor == nullptr) {
-                error = "Aktualizované čidlo nebylo nalezeno.";
-                return false;
-            }
-
-            if (!_configManager.setRfSensors(updated)) {
-                error = "Nový název čidla se nepodařilo uložit.";
-                return false;
-            }
-            _rfSensorManager.applyConfig(_configManager.get().rfSensors);
-
-            // KPI label follows the sensor name only while it still carries
-            // the automatically generated label. User-edited labels remain
-            // untouched.
-            HomeLayoutConfig layout =
-                _configManager.get().display.homeLayout;
-            bool layoutChanged = false;
-            const String temperatureSource =
-                "rf." + slotId + ".temperatureC";
-            const String humiditySource =
-                "rf." + slotId + ".humidityPercent";
-            const String newTemperatureLabel =
-                rfSensorMetricLabel(*updatedSensor, false);
-            const String newHumidityLabel =
-                rfSensorMetricLabel(*updatedSensor, true);
-
-            for (uint8_t w = 0;
-                 w < layout.widgetCount && w < MaxHomeLayoutWidgets;
-                 ++w) {
-                HomeLayoutWidgetConfig& widget = layout.widgets[w];
-                if (widget.type != "custom") continue;
-
-                for (auto& element : widget.elements) {
-                    if (element.type != "kpi") continue;
-
-                    if (element.source == temperatureSource &&
-                        element.label == oldTemperatureLabel) {
-                        element.label = newTemperatureLabel;
-                        layoutChanged = true;
-                    } else if (element.source == humiditySource &&
-                               element.label == oldHumidityLabel) {
-                        element.label = newHumidityLabel;
-                        layoutChanged = true;
-                    }
-                }
-            }
-
-            if (layoutChanged && !_configManager.setHomeLayout(layout)) {
-                Serial.println(
-                    "[RF-SENSORS] Varovani: jmeno cidla ulozeno, "
-                    "ale automaticky KPI popisek se nepodarilo aktualizovat.");
-            }
-
-            requestAutomaticDisplayRefresh();
-            return true;
-        },
-        [this](const String& slotId, const String& bindingKey, String& error) {
-            RfSensorsConfig updated;
-            if (!_rfSensorManager.rebindSensor(
-                    slotId, bindingKey, updated, error)) {
-                return false;
-            }
-            if (!_configManager.setRfSensors(updated)) {
-                error = "Nové přiřazení čidla se nepodařilo uložit.";
-                return false;
-            }
-            _rfSensorManager.applyConfig(_configManager.get().rfSensors);
-            requestAutomaticDisplayRefresh();
-            Serial.printf(
-                "[RF-SENSORS] %s znovu prirazeno na %s.\n",
-                slotId.c_str(),
-                bindingKey.c_str());
-            return true;
-        },
-        [this](const String& slotId, String& error) {
-            RfSensorsConfig updated;
-            if (!_rfSensorManager.removeSensor(slotId, updated, error)) {
-                return false;
-            }
-            if (!_configManager.setRfSensors(updated)) {
-                error = "Čidlo se nepodařilo odebrat z konfigurace.";
-                return false;
-            }
-            _rfSensorManager.applyConfig(_configManager.get().rfSensors);
-            requestAutomaticDisplayRefresh();
+            _configManager.setWifiNetworkConfig(wifi);
+            const auto& current = _configManager.get();
+            applyWifiAddressing(current.wifi);
+            Serial.printf("[CONFIG] IP rezim ulozen: %s. Obnovuji Wi-Fi pripojeni.\n", current.wifi.dhcp ? "DHCP" : "STATIC");
+            if (!current.wifi.ssid.isEmpty() && _configManager.isWifiAutoConnectEnabled(current.wifi.ssid))
+                _wifiManager.begin(current.wifi.ssid, current.wifi.password, current.system.hostname);
+            else _wifiManager.begin("", "", current.system.hostname);
+        });
+    
+        _webServer->onWifiScan([this]() { return _wifiManager.scanNetworksJson(); });
+        _webServer->onWifiKnownNetworks([this]() { return _configManager.getKnownWifiNetworksJson(); });
+    
+        _webServer->onWifiConnectKnown([this](const String& ssid) {
+            String password;
+            if (!_configManager.getKnownWifiPassword(ssid, password)) return false;
+            const auto& current = _configManager.get();
+            _pendingWifiSave = true;
+            _pendingWifiSsid = ssid;
+            _pendingWifiPassword = password;
+            applyWifiAddressing(current.wifi);
+            Serial.printf("[WIFI] Rucne zkousim znamou sit '%s'; auto-connect povolim az po uspesnem pripojeni.\n", ssid.c_str());
+            _wifiManager.begin(ssid, password, current.system.hostname);
             return true;
         });
-
-    _webServer.onFactoryReset([this]() { return _configManager.resetToFactoryDefaults(); });
-    _webServer.onConfigImport([this](const AppConfig& config) { return _configManager.setUserConfiguration(config); });
-
-    _webServer.enableTimezoneUiExtension();
-    _webServer.begin();
+    
+        _webServer->onWifiDisconnect([this]() {
+            _pendingWifiSave = false;
+            _pendingWifiSsid = "";
+            _pendingWifiPassword = "";
+            const String activeSsid = _configManager.get().wifi.ssid;
+            if (!activeSsid.isEmpty() && activeSsid != "VASE_WIFI") {
+                if (_configManager.setWifiAutoConnectEnabled(activeSsid, false))
+                    Serial.printf("[WIFI] Sit '%s' byla rucne odpojena a zustane vyradena z auto-connectu do rucniho Pripojit.\n", activeSsid.c_str());
+            }
+            _wifiManager.disconnectToConfigAccessPoint();
+            requestAutomaticDisplayRefresh();
+        });
+    
+        _webServer->onWifiForget([this](const String& ssid) {
+            if (_pendingWifiSave && _pendingWifiSsid == ssid) {
+                _pendingWifiSave = false;
+                _pendingWifiSsid = "";
+                _pendingWifiPassword = "";
+            }
+            const bool wasActive = _configManager.get().wifi.ssid == ssid;
+            if (!_configManager.forgetWifi(ssid)) return false;
+            if (wasActive) { _wifiManager.disconnectToConfigAccessPoint(); requestAutomaticDisplayRefresh(); }
+            Serial.printf("[WIFI] Sit '%s' byla zapomenuta.\n", ssid.c_str());
+            return true;
+        });
+    
+        _webServer->onSourceConfig([this](const GoodWeConfig& goodwe, const AZRouterConfig& azrouter) {
+            const bool visibilityChanged =
+                _configManager.get().goodwe.enabled != goodwe.enabled ||
+                _configManager.get().azrouter.enabled != azrouter.enabled;
+    
+            _configManager.setSources(goodwe, azrouter);
+            _dataModel.solar.enabled = goodwe.enabled;
+            _dataModel.azrouter.enabled = azrouter.enabled;
+    
+            if (goodwe.enabled) {
+                _goodweClient.begin(goodwe.host, goodwe.port);
+            } else {
+                _dataModel.solar.status.recordError("Disabled");
+                _dataModel.solar.historyCount = 0;
+            }
+    
+            if (azrouter.enabled) {
+                _azrouterClient.begin(
+                    azrouter.host,
+                    azrouter.port,
+                    azrouter.authEnabled ? azrouter.username : String(),
+                    azrouter.authEnabled ? azrouter.password : String());
+            } else {
+                _dataModel.azrouter.authenticated = false;
+                _dataModel.azrouter.authMode = "disabled";
+                _dataModel.azrouter.status.recordError("Disabled");
+            }
+    
+            setSolarScreenEnabled(goodwe.enabled);
+            setAZRouterScreenEnabled(azrouter.enabled);
+            _navigationController.syncToActiveScreen(false);
+    
+            _goodweFailureStreak = 0;
+            _azrouterFailureStreak = 0;
+            _lastGoodweSync = millis() - goodwe.pollIntervalSeconds * 1000UL;
+            _lastAzrouterSync = millis() - azrouter.pollIntervalSeconds * 1000UL;
+            _dataModel.updateSystemMetrics();
+    
+            if (visibilityChanged) requestDisplayRefresh(true, 100);
+            else requestAutomaticDisplayRefresh();
+    
+            Serial.println("[CONFIG] Datove zdroje ulozeny a aplikovany za behu.");
+        });
+    
+        _webServer->onPoolConfig([this](const PoolConfig& pool) {
+            const bool enabledChanged = _configManager.get().pool.enabled != pool.enabled;
+            _configManager.setPool(pool);
+            _dataModel.pool.enabled = pool.enabled;
+            setPoolScreenEnabled(pool.enabled);
+            _navigationController.syncToActiveScreen(false);
+            if (enabledChanged) requestDisplayRefresh(true, 100);
+            else requestAutomaticDisplayRefresh();
+            Serial.println("[CONFIG] Bazen ulozen a aplikovan za behu.");
+        });
+    
+        _webServer->onHomeLayoutConfig([this](const HomeLayoutConfig& layout) {
+            if (!_configManager.setHomeLayout(layout)) return false;
+            _navigationController.syncToActiveScreen(false);
+            requestDisplayRefresh(true, 100);
+            Serial.println("[CONFIG] Home layout ulozen a aplikovan za behu.");
+            return true;
+        });
+    
+        _webServer->onWeatherConfig([this](const WeatherConfig& weather) {
+            const WeatherConfig previous = _configManager.get().weather;
+            const bool enabledChanged = previous.enabled != weather.enabled;
+            const bool providerChanged = previous.provider != weather.provider;
+            const bool locationChanged =
+                fabs(previous.latitude - weather.latitude) > 0.00001 ||
+                fabs(previous.longitude - weather.longitude) > 0.00001;
+    
+            _configManager.setWeather(weather);
+            const WeatherConfig& applied = _configManager.get().weather;
+            if (!_weatherWorker.reconfigure(applied)) {
+                Serial.println("[CONFIG] Nepodarilo se aplikovat konfiguraci pocasi za behu.");
+            }
+    
+            const WeatherLocation* activeLocation = applied.activeLocation();
+            const int activeIndex =
+                activeLocation != nullptr
+                    ? weatherLocationIndexById(applied, activeLocation->id)
+                    : -1;
+    
+            _weatherDisplayLocationIndex =
+                activeIndex >= 0 ? static_cast<uint8_t>(activeIndex) : 0;
+            _weatherDisplayLocationId =
+                activeLocation != nullptr ? activeLocation->id : "";
+    
+            if (providerChanged || locationChanged) {
+                // Starou predpoved nesmime po prepnuti zdroje/lokality vydavat za
+                // data nove konfigurace. Cekame na prvni platnou odpoved workeru.
+                WeatherData pending;
+                pending.enabled = applied.enabled;
+                pending.provider = weatherProviderLabel(applied.provider);
+                pending.locationId = _weatherDisplayLocationId;
+                pending.locationName =
+                    activeLocation != nullptr ? activeLocation->name : "";
+                pending.locationIndex = _weatherDisplayLocationIndex;
+                pending.locationCount =
+                    min<uint8_t>(applied.locationCount, MaxWeatherLocations);
+                pending.status.available = false;
+                pending.status.lastAttemptMs = millis();
+                pending.status.lastError = "Aktualizuji pocasi";
+                _dataModel.weather = pending;
+            } else {
+                selectWeatherDisplayLocation(
+                    _weatherDisplayLocationIndex,
+                    false);
+            }
+    
+            if (!applied.enabled) {
+                _dataModel.weather.status.recordError("Weather disabled");
+            }
+    
+            setWeatherScreensEnabled(applied.enabled);
+            _navigationController.syncToActiveScreen(false);
+            if (enabledChanged) requestDisplayRefresh(true, 100);
+            else requestAutomaticDisplayRefresh();
+            Serial.println("[CONFIG] Pocasi ulozeno a aplikovano za behu.");
+        });
+    
+        _webServer->onRfSensorManagement(
+            [this]() {
+                return _rfSensorManager.statusJson();
+            },
+            [this](uint32_t durationMs) {
+                _rfSensorManager.startScan(durationMs);
+                Serial.printf(
+                    "[RF-SENSORS] Scan spusten na %lu s.\n",
+                    static_cast<unsigned long>(durationMs / 1000UL));
+            },
+            [this](const String& bindingKey, const String& name, String& error) {
+                RfSensorsConfig updated;
+                if (!_rfSensorManager.addDiscoveredSensor(
+                        bindingKey, name, updated, error)) {
+                    return false;
+                }
+                if (!_configManager.setRfSensors(updated)) {
+                    error = "Konfiguraci čidla se nepodařilo uložit.";
+                    return false;
+                }
+                _rfSensorManager.applyConfig(_configManager.get().rfSensors);
+                requestAutomaticDisplayRefresh();
+                return true;
+            },
+            [this](const String& slotId, const String& name, String& error) {
+                const RfSensorsConfig previousRf = _configManager.get().rfSensors;
+                const RfSensorConfig* previousSensor =
+                    rfSensorBySlot(previousRf, slotId);
+                if (previousSensor == nullptr) {
+                    error = "Uložené čidlo nebylo nalezeno.";
+                    return false;
+                }
+    
+                const String oldTemperatureLabel =
+                    rfSensorMetricLabel(*previousSensor, false);
+                const String oldHumidityLabel =
+                    rfSensorMetricLabel(*previousSensor, true);
+    
+                RfSensorsConfig updated;
+                if (!_rfSensorManager.renameSensor(
+                        slotId, name, updated, error)) {
+                    return false;
+                }
+    
+                const RfSensorConfig* updatedSensor =
+                    rfSensorBySlot(updated, slotId);
+                if (updatedSensor == nullptr) {
+                    error = "Aktualizované čidlo nebylo nalezeno.";
+                    return false;
+                }
+    
+                if (!_configManager.setRfSensors(updated)) {
+                    error = "Nový název čidla se nepodařilo uložit.";
+                    return false;
+                }
+                _rfSensorManager.applyConfig(_configManager.get().rfSensors);
+    
+                // KPI label follows the sensor name only while it still carries
+                // the automatically generated label. User-edited labels remain
+                // untouched.
+                HomeLayoutConfig layout =
+                    _configManager.get().display.homeLayout;
+                bool layoutChanged = false;
+                const String temperatureSource =
+                    "rf." + slotId + ".temperatureC";
+                const String humiditySource =
+                    "rf." + slotId + ".humidityPercent";
+                const String newTemperatureLabel =
+                    rfSensorMetricLabel(*updatedSensor, false);
+                const String newHumidityLabel =
+                    rfSensorMetricLabel(*updatedSensor, true);
+    
+                for (uint8_t w = 0;
+                     w < layout.widgetCount && w < MaxHomeLayoutWidgets;
+                     ++w) {
+                    HomeLayoutWidgetConfig& widget = layout.widgets[w];
+                    if (widget.type != "custom") continue;
+    
+                    for (auto& element : widget.elements) {
+                        if (element.type != "kpi") continue;
+    
+                        if (element.source == temperatureSource &&
+                            element.label == oldTemperatureLabel) {
+                            element.label = newTemperatureLabel;
+                            layoutChanged = true;
+                        } else if (element.source == humiditySource &&
+                                   element.label == oldHumidityLabel) {
+                            element.label = newHumidityLabel;
+                            layoutChanged = true;
+                        }
+                    }
+                }
+    
+                if (layoutChanged && !_configManager.setHomeLayout(layout)) {
+                    Serial.println(
+                        "[RF-SENSORS] Varovani: jmeno cidla ulozeno, "
+                        "ale automaticky KPI popisek se nepodarilo aktualizovat.");
+                }
+    
+                requestAutomaticDisplayRefresh();
+                return true;
+            },
+            [this](const String& slotId, const String& bindingKey, String& error) {
+                RfSensorsConfig updated;
+                if (!_rfSensorManager.rebindSensor(
+                        slotId, bindingKey, updated, error)) {
+                    return false;
+                }
+                if (!_configManager.setRfSensors(updated)) {
+                    error = "Nové přiřazení čidla se nepodařilo uložit.";
+                    return false;
+                }
+                _rfSensorManager.applyConfig(_configManager.get().rfSensors);
+                requestAutomaticDisplayRefresh();
+                Serial.printf(
+                    "[RF-SENSORS] %s znovu prirazeno na %s.\n",
+                    slotId.c_str(),
+                    bindingKey.c_str());
+                return true;
+            },
+            [this](const String& slotId, String& error) {
+                RfSensorsConfig updated;
+                if (!_rfSensorManager.removeSensor(slotId, updated, error)) {
+                    return false;
+                }
+                if (!_configManager.setRfSensors(updated)) {
+                    error = "Čidlo se nepodařilo odebrat z konfigurace.";
+                    return false;
+                }
+                _rfSensorManager.applyConfig(_configManager.get().rfSensors);
+                requestAutomaticDisplayRefresh();
+                return true;
+            });
+    
+        _webServer->onFactoryReset([this]() { return _configManager.resetToFactoryDefaults(); });
+        _webServer->onConfigImport([this](const AppConfig& config) { return _configManager.setUserConfiguration(config); });
+    
+        _webServer->enableTimezoneUiExtension();
+        _webServer->begin();
+    }
 
     if (cfg.goodwe.enabled) _goodweClient.begin(cfg.goodwe.host, cfg.goodwe.port);
     if (cfg.azrouter.enabled) {
@@ -1520,7 +1640,8 @@ void DashboardApp::loop() {
     Performance::Scope loopTiming(Performance::Loop);
     _wifiManager.loop();
     _timeService.loop();
-    _webServer.loop();
+    if (_webServer != nullptr)
+        _webServer->loop();
 
     const DisplayTaskStatus displayStatus = _displayWorker.getStatus();
     const bool displayElectricallyActive =
@@ -1758,6 +1879,10 @@ void DashboardApp::loop() {
 
         const bool success = _bme280Sensor.update(_dataModel.inside);
         _lastBme280Sync = millis();
+
+        if (success) {
+            sampleInsideHistory(_dataModel.inside, _insideHistory);
+        }
 
         const bool availabilityChanged =
             wasAvailable != _dataModel.inside.status.available;

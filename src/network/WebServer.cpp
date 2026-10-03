@@ -1,4 +1,5 @@
 #include "WebServer.h"
+#include "../layout/CustomWidgetRenderer.h"
 #include "TimezoneUiPatch.h"
 #include "NtpUiPatch.h"
 #include "LiveSettingsUiPatch.h"
@@ -10,6 +11,7 @@
 #include "NavigationUiPatch.h"
 #include "LayoutEditorUiPatch.h"
 #include "../display/DisplayPreview.h"
+#include "../screens/HomeScreen.h"
 #include "../navigation/NavigationController.h"
 #include "TimeService.h"
 #include "NetworkDiagnostics.h"
@@ -135,7 +137,30 @@ String homeLayoutResponseJson(
         item["showFrame"] = widget.showFrame;
         item["background"] = widget.background;
         item["inverseText"] = widget.inverseText;
-        if (widget.type == "custom") {
+        item["icon"] =
+            WidgetIcons::key(static_cast<WidgetIcons::Icon>(widget.icon));
+        if (widget.type == "indoor" || widget.type == "pool-summary") {
+            item["title"] = widget.title;
+            if (widget.type == "pool-summary")
+                item["rfSensorSlotId"] = HomeLayout::rfSlotId(widget.rfSensorSlot);
+            if (!widget.elements.empty()) {
+                JsonArray elements = item["elements"].to<JsonArray>();
+                for (uint8_t e = 0; e < widget.elements.size() && e < MaxCustomWidgetElements; ++e) {
+                    HomeLayout::serializeElement(elements.add<JsonObject>(), widget.elements[e]);
+                }
+            }
+        } else if (widget.type == "rf-sensor") {
+            item["title"] = widget.title;
+            item["rfSensorSlotId"] = HomeLayout::rfSlotId(widget.rfSensorSlot);
+            item["rfShowHumidity"] = widget.rfShowHumidity;
+            item["rfShowLastSeen"] = widget.rfShowLastSeen;
+            if (!widget.elements.empty()) {
+                JsonArray elements = item["elements"].to<JsonArray>();
+                for (uint8_t e = 0; e < widget.elements.size() && e < MaxCustomWidgetElements; ++e) {
+                    HomeLayout::serializeElement(elements.add<JsonObject>(), widget.elements[e]);
+                }
+            }
+        } else if (widget.type == "custom") {
             item["title"] = widget.title;
             JsonArray elements = item["elements"].to<JsonArray>();
             for (uint8_t e = 0; e < widget.elements.size() && e < MaxCustomWidgetElements; ++e) {
@@ -160,10 +185,18 @@ String homeLayoutResponseJson(
         item["height"] = widget.height;
     }
 
+    doc["maxWidgets"] = MaxHomeLayoutWidgets;
+
     JsonArray supported = doc["supportedWidgets"].to<JsonArray>();
-    const char* ids[] = {"weather-card", "energy-card", "indoor-card"};
-    const char* types[] = {"weather", "energy", "indoor"};
-    for (uint8_t i = 0; i < 3; ++i) {
+    const char* ids[] = {
+        "weather-card", "fve-summary", "azrouter-summary",
+        "indoor-card", "pool-summary", "consumption-summary"
+    };
+    const char* types[] = {
+        "weather", "fve-summary", "azrouter-summary",
+        "indoor", "pool-summary", "consumption-summary"
+    };
+    for (uint8_t i = 0; i < 6; ++i) {
         JsonObject item = supported.add<JsonObject>();
         item["id"] = ids[i];
         item["type"] = types[i];
@@ -172,7 +205,10 @@ String homeLayoutResponseJson(
     }
 
     JsonArray defaultWidgets = doc["defaultWidgets"].to<JsonArray>();
-    const char* defaultIds[] = {"weather-card", "energy-card", "indoor-card"};
+    const char* defaultIds[] = {
+        "weather-card", "fve-summary", "azrouter-summary",
+        "indoor-card", "rf-card-1", "pool-summary", "consumption-summary"
+    };
     for (const char* id : defaultIds) {
         HomeLayoutWidgetConfig widget;
         if (!HomeLayout::buildDefaultWidget(dataModel, id, widget)) continue;
@@ -187,12 +223,62 @@ String homeLayoutResponseJson(
         item["showFrame"] = widget.showFrame;
         item["background"] = widget.background;
         item["inverseText"] = widget.inverseText;
+        item["icon"] =
+            WidgetIcons::key(static_cast<WidgetIcons::Icon>(widget.icon));
+        if (widget.type == "indoor" || widget.type == "pool-summary") {
+            item["title"] = widget.title;
+            if (widget.type == "pool-summary")
+                item["rfSensorSlotId"] = HomeLayout::rfSlotId(widget.rfSensorSlot);
+            if (!widget.elements.empty()) {
+                JsonArray elements = item["elements"].to<JsonArray>();
+                for (uint8_t e = 0; e < widget.elements.size() && e < MaxCustomWidgetElements; ++e) {
+                    HomeLayout::serializeElement(elements.add<JsonObject>(), widget.elements[e]);
+                }
+            }
+        } else if (widget.type == "rf-sensor") {
+            item["title"] = widget.title;
+            item["rfSensorSlotId"] = HomeLayout::rfSlotId(widget.rfSensorSlot);
+            item["rfShowHumidity"] = widget.rfShowHumidity;
+            item["rfShowLastSeen"] = widget.rfShowLastSeen;
+            if (!widget.elements.empty()) {
+                JsonArray elements = item["elements"].to<JsonArray>();
+                for (uint8_t e = 0; e < widget.elements.size() && e < MaxCustomWidgetElements; ++e) {
+                    HomeLayout::serializeElement(elements.add<JsonObject>(), widget.elements[e]);
+                }
+            }
+        }
+    }
+
+    JsonObject rfWidget = doc["rfSensorWidget"].to<JsonObject>();
+    rfWidget["type"] = "rf-sensor";
+    rfWidget["idPrefix"] = "rf-card-";
+    rfWidget["minWidth"] = HomeLayout::minWidth("rf-sensor");
+    rfWidget["minHeight"] = HomeLayout::minHeight("rf-sensor");
+
+    JsonArray rfChoices = rfWidget["sensors"].to<JsonArray>();
+    for (uint8_t i = 0; i < rfSensors.sensorCount && i < MaxRfSensors; ++i) {
+        const RfSensorConfig& sensor = rfSensors.sensors[i];
+        if (sensor.slotId.isEmpty() || !sensor.hasTemperature) continue;
+        JsonObject choice = rfChoices.add<JsonObject>();
+        choice["slotId"] = sensor.slotId;
+        choice["name"] = sensor.name.isEmpty() ? sensor.slotId : sensor.name;
+        choice["hasHumidity"] = sensor.hasHumidity;
     }
 
     JsonObject appearance = doc["cardAppearance"].to<JsonObject>();
     JsonArray backgrounds = appearance["backgrounds"].to<JsonArray>();
     backgrounds.add("white");
     backgrounds.add("black");
+
+    JsonArray icons = appearance["icons"].to<JsonArray>();
+    for (uint8_t i = 0;
+         i < static_cast<uint8_t>(WidgetIcons::Icon::Count);
+         ++i) {
+        const WidgetIcons::Icon icon = static_cast<WidgetIcons::Icon>(i);
+        JsonObject choice = icons.add<JsonObject>();
+        choice["id"] = WidgetIcons::key(icon);
+        choice["label"] = WidgetIcons::label(icon);
+    }
 
     JsonObject custom = doc["customWidget"].to<JsonObject>();
     custom["type"] = "custom";
@@ -202,7 +288,7 @@ String homeLayoutResponseJson(
     custom["maxElements"] = MaxCustomWidgetElements;
 
     JsonArray elementTypes = custom["elementTypes"].to<JsonArray>();
-    const char* customTypes[] = {"text", "kpi", "progress", "sparkline"};
+    const char* customTypes[] = {"text", "kpi", "progress", "sparkline", "trend", "minmax"};
     for (const char* type : customTypes) {
         JsonObject item = elementTypes.add<JsonObject>();
         item["type"] = type;
@@ -216,14 +302,35 @@ String homeLayoutResponseJson(
         fontSizes.add(String(px));
     }
 
+    // Auto uses native U8g2 fonts, not the scaled-text path. Expose their
+    // measured pixel heights so WebUI can show the actual rendered size.
+    JsonObject autoFont = custom["autoFont"].to<JsonObject>();
+    autoFont["textPx"] = CustomWidgetRenderer::sourceFontHeight(
+        DisplayFonts::body());
+    autoFont["valuePx"] = CustomWidgetRenderer::sourceFontHeight(
+        DisplayFonts::value());
+
     JsonArray alignments = custom["alignments"].to<JsonArray>();
     alignments.add("left");
     alignments.add("center");
     alignments.add("right");
 
+    JsonArray verticalAlignments = custom["verticalAlignments"].to<JsonArray>();
+    verticalAlignments.add("top");
+    verticalAlignments.add("center");
+    verticalAlignments.add("bottom");
+
     JsonArray graphStyles = custom["graphStyles"].to<JsonArray>();
     graphStyles.add("line");
     graphStyles.add("bars");
+
+    JsonArray graphPeriods = custom["graphPeriods"].to<JsonArray>();
+    for (uint8_t i = 0; i < SensorGraphPeriodCount; ++i) {
+        JsonObject period = graphPeriods.add<JsonObject>();
+        const uint8_t hours = SensorGraphPeriodHours[i];
+        period["hours"] = hours;
+        period["bucketSeconds"] = sensorGraphBucketSeconds(hours);
+    }
 
     JsonArray sources = custom["dataSources"].to<JsonArray>();
     auto addSource = [&sources](const String& id, const String& label, const String& unit,
@@ -265,9 +372,9 @@ String homeLayoutResponseJson(
     addSource("weather.outdoorHumidityPercent", "Venkovní vlhkost", "%", 0, false);
     addSource("weather.surfacePressureHpa", "Tlak", "hPa", 0, false);
     addSource("weather.windSpeedKmh", "Vítr", "km/h", 1, false);
-    addSource("inside.temperatureC", "BME280 teplota", "°C", 1, false);
-    addSource("inside.humidityPercent", "BME280 vlhkost", "%", 0, false);
-    addSource("inside.pressureHpa", "BME280 tlak", "hPa", 1, false);
+    addSource("inside.temperatureC", "BME280 teplota", "°C", 1, true);
+    addSource("inside.humidityPercent", "BME280 vlhkost", "%", 0, true);
+    addSource("inside.pressureHpa", "BME280 tlak", "hPa", 1, true);
     addSource("inside.livingRoomTempC", "Obývák (BME280)", "°C", 1, false);
     addSource("inside.bedroomTempC", "Ložnice", "°C", 1, false);
     addSource("inside.poolTempC", "Bazén uvnitř modelu", "°C", 1, false);
@@ -308,7 +415,7 @@ String homeLayoutResponseJson(
                 baseLabel + " – teplota",
                 "°C",
                 1,
-                false);
+                true);
         }
         if (sensor.hasHumidity) {
             addSource(
@@ -316,7 +423,7 @@ String homeLayoutResponseJson(
                 baseLabel + " – vlhkost",
                 "%",
                 0,
-                false);
+                true);
         }
     }
 
@@ -338,11 +445,80 @@ void DashboardWebServer::onHomeLayoutConfig(HomeLayoutConfigCallback callback) {
     });
 
     _server.on("/api/layout/home", HTTP_POST, [this]() {
+        const uint32_t started = millis();
+        Serial.printf(
+            "[WEB][HOME-LAYOUT] POST start, payload=%u B, heap=%u.\n",
+            _server.hasArg("plain")
+                ? static_cast<unsigned>(_server.arg("plain").length())
+                : 0U,
+            static_cast<unsigned>(ESP.getFreeHeap()));
+
         if (!_homeLayoutConfigCallback || !_server.hasArg("plain")) {
             _server.send(
                 503,
                 "application/json",
                 "{\"status\":\"error\",\"message\":\"Home layout configuration unavailable\"}");
+            return;
+        }
+
+        HomeLayoutConfig layout;
+        String error;
+        if (!HomeLayout::parseJson(_server.arg("plain"), layout, &error)) {
+            Serial.printf(
+                "[WEB][HOME-LAYOUT] parse FAIL: %s.\n",
+                error.c_str());
+            JsonDocument doc;
+            doc["status"] = "error";
+            doc["message"] = error;
+            String response;
+            serializeJson(doc, response);
+            _server.send(400, "application/json", response);
+            return;
+        }
+
+        Serial.printf(
+            "[WEB][HOME-LAYOUT] parse OK, widgets=%u.\n",
+            static_cast<unsigned>(layout.widgetCount));
+
+        if (!_homeLayoutConfigCallback(layout)) {
+            Serial.println("[WEB][HOME-LAYOUT] save callback FAIL.");
+            _server.send(
+                500,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"Failed to save Home layout\"}");
+            return;
+        }
+
+        Serial.printf(
+            "[WEB][HOME-LAYOUT] save callback OK after %lu ms, building response.\n",
+            static_cast<unsigned long>(millis() - started));
+
+        const String response =
+            homeLayoutResponseJson(
+                _config.display.homeLayout,
+                _config.rfSensors,
+                _dataModel);
+
+        Serial.printf(
+            "[WEB][HOME-LAYOUT] response=%u B, heap=%u, sending after %lu ms.\n",
+            static_cast<unsigned>(response.length()),
+            static_cast<unsigned>(ESP.getFreeHeap()),
+            static_cast<unsigned long>(millis() - started));
+
+        _server.sendHeader("Cache-Control", "no-store");
+        _server.send(200, "application/json", response);
+
+        Serial.printf(
+            "[WEB][HOME-LAYOUT] POST complete in %lu ms.\n",
+            static_cast<unsigned long>(millis() - started));
+    });
+
+    _server.on("/api/layout/home/preview", HTTP_POST, [this]() {
+        if (_displayPreview == nullptr || !_server.hasArg("plain")) {
+            _server.send(
+                503,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"Home layout preview unavailable\"}");
             return;
         }
 
@@ -358,19 +534,19 @@ void DashboardWebServer::onHomeLayoutConfig(HomeLayoutConfigCallback callback) {
             return;
         }
 
-        if (!_homeLayoutConfigCallback(layout)) {
+        HomeScreen previewScreen;
+        previewScreen.setLayoutConfig(&layout);
+        _displayPreview->capture(previewScreen, _dataModel, false);
+        if (!_displayPreview->ready()) {
             _server.send(
-                500,
+                503,
                 "application/json",
-                "{\"status\":\"error\",\"message\":\"Failed to save Home layout\"}");
+                "{\"status\":\"error\",\"message\":\"Home preview render failed\"}");
             return;
         }
 
         _server.sendHeader("Cache-Control", "no-store");
-        _server.send(
-            200,
-            "application/json",
-            homeLayoutResponseJson(_config.display.homeLayout, _config.rfSensors, _dataModel));
+        _server.send(200, "application/json", "{\"status\":\"ok\"}");
     });
 
     _server.on("/api/layout/home/reset", HTTP_POST, [this]() {

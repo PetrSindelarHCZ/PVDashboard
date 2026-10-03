@@ -2,6 +2,8 @@
 
 #include <ArduinoJson.h>
 #include <new>
+#include <math.h>
+#include <time.h>
 
 namespace {
 constexpr uint32_t SensorOfflineAfterMs = 5UL * 60UL * 1000UL;
@@ -13,6 +15,143 @@ bool elapsedAtLeast(uint32_t now, uint32_t started, uint32_t duration) {
 
 RfSensorManager::RfSensorManager(DataModel& dataModel)
     : _dataModel(dataModel) {
+}
+
+int RfSensorManager::slotIndex(const String& slotId) {
+    if (!slotId.startsWith("sensor")) return -1;
+    const int value = slotId.substring(6).toInt();
+    if (value < 1 || value > MaxRfSensors) return -1;
+    if (slotId != "sensor" + String(value)) return -1;
+    return value - 1;
+}
+
+bool RfSensorManager::ensureHistoryTable() {
+    if (_history != nullptr) return true;
+
+    _history = new (std::nothrow) RfSensorHistory*[MaxRfSensors]();
+    if (_history == nullptr) {
+        Serial.println(
+            "[RF-SENSORS] Tabulku historii nelze alokovat: "
+            "nedostatek heap pameti.");
+        return false;
+    }
+
+    _dataModel.rfSensors.history = _history;
+    return true;
+}
+
+RfSensorHistory* RfSensorManager::ensureHistory(uint8_t stableIndex) {
+    if (stableIndex >= MaxRfSensors || !ensureHistoryTable()) return nullptr;
+
+    if (_history[stableIndex] == nullptr) {
+        _history[stableIndex] = new (std::nothrow) RfSensorHistory();
+        if (_history[stableIndex] == nullptr) {
+            Serial.printf(
+                "[RF-SENSORS] Historie slotu %u nelze alokovat: "
+                "nedostatek heap pameti.\n",
+                static_cast<unsigned>(stableIndex + 1));
+            return nullptr;
+        }
+        Serial.printf(
+            "[RF-SENSORS] Historie slotu %u alokovana (%u B).\n",
+            static_cast<unsigned>(stableIndex + 1),
+            static_cast<unsigned>(sizeof(RfSensorHistory)));
+    }
+
+    _dataModel.rfSensors.history = _history;
+    return _history[stableIndex];
+}
+
+void RfSensorManager::sampleHistory(
+    uint8_t configuredIndex,
+    const RfSensorObservation& observation,
+    uint32_t now) {
+
+    if (_config == nullptr ||
+        configuredIndex >= _config->sensorCount ||
+        configuredIndex >= MaxRfSensors) {
+        return;
+    }
+
+    const int stableIndex = slotIndex(_config->sensors[configuredIndex].slotId);
+    if (stableIndex < 0) return;
+
+    RfSensorHistory* historyPtr =
+        ensureHistory(static_cast<uint8_t>(stableIndex));
+    if (historyPtr == nullptr) return;
+
+    RfHistorySample sample;
+    if (observation.hasTemperature) {
+        sample.temperatureCenti =
+            static_cast<int16_t>(lroundf(observation.temperatureC * 100.0f));
+        sample.flags |= 0x01;
+    }
+    if (observation.hasHumidity) {
+        int humidity = observation.humidityPercent;
+        if (humidity < 0) humidity = 0;
+        if (humidity > 100) humidity = 100;
+        sample.humidityPercent = static_cast<uint8_t>(humidity);
+        sample.flags |= 0x02;
+    }
+    if (sample.flags == 0) return;
+
+    const time_t epoch = time(nullptr);
+    const bool wallClock = epoch > 1700000000;
+    const uint32_t timeSeconds =
+        wallClock ? static_cast<uint32_t>(epoch) : now / 1000UL;
+
+    RfSensorHistory& history = *historyPtr;
+    for (uint8_t periodIndex = 0;
+         periodIndex < SensorGraphPeriodCount;
+         ++periodIndex) {
+
+        const uint8_t hours = SensorGraphPeriodHours[periodIndex];
+        const uint32_t bucketSeconds = sensorGraphBucketSeconds(hours);
+        if (bucketSeconds == 0) continue;
+
+        const uint32_t bucket = timeSeconds / bucketSeconds;
+        RfHistorySeries& series = history.series[periodIndex];
+
+        auto appendSample = [&series](const RfHistorySample& value) {
+            series.samples[series.next] = value;
+            series.next = static_cast<uint8_t>(
+                (series.next + 1) % SensorGraphSampleCount);
+            if (series.count < SensorGraphSampleCount) ++series.count;
+        };
+
+        if (series.count == 0 || series.wallClock != wallClock) {
+            series = RfHistorySeries{};
+            series.wallClock = wallClock;
+            series.lastBucket = bucket;
+            appendSample(sample);
+            continue;
+        }
+
+        if (bucket == series.lastBucket) {
+            const uint8_t latest =
+                static_cast<uint8_t>(
+                    (series.next + SensorGraphSampleCount - 1) %
+                    SensorGraphSampleCount);
+            series.samples[latest] = sample;
+            continue;
+        }
+
+        if (bucket < series.lastBucket ||
+            bucket - series.lastBucket >= SensorGraphSampleCount) {
+            series = RfHistorySeries{};
+            series.wallClock = wallClock;
+            series.lastBucket = bucket;
+            appendSample(sample);
+            continue;
+        }
+
+        const uint32_t gap = bucket - series.lastBucket;
+        for (uint32_t step = 1; step < gap; ++step) {
+            appendSample(RfHistorySample{});
+        }
+        appendSample(sample);
+        series.lastBucket = bucket;
+    }
 }
 
 String RfSensorManager::normalizedName(String name) {
@@ -54,6 +193,9 @@ bool RfSensorManager::sameBinding(
 }
 
 void RfSensorManager::applyConfig(const RfSensorsConfig& config) {
+    ensureHistoryTable();
+    _dataModel.rfSensors.history = _history;
+
     RfSensorData previous[MaxRfSensors];
     const uint8_t previousCount = _dataModel.rfSensors.sensorCount;
     for (uint8_t i = 0; i < previousCount && i < MaxRfSensors; ++i) {
@@ -163,6 +305,8 @@ bool RfSensorManager::observe(const RfSensorObservation& observation) {
         target.hasBattery = true;
         target.batteryOk = observation.batteryOk;
     }
+
+    sampleHistory(static_cast<uint8_t>(configuredIndex), observation, now);
     return true;
 }
 

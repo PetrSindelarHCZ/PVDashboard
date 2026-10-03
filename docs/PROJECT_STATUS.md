@@ -48,6 +48,14 @@
 - [x] krátký SET je zatím rezervovaný pro budoucí kontextovou/settings akci,
 - [x] pinout byl ověřen podle skutečného fyzického zapojení.
 
+### Home obrazovka
+
+- [x] moderní šestikaretní výchozí přehled pro rychlé čtení na e-paperu,
+- [x] online počasí je označeno **PŘEDPOVĚĎ** a uvádí zdroj dat,
+- [x] GoodWe a AZRouter mají na Home samostatné souhrnné karty,
+- [x] vlastní uložené Home layouty zůstávají beze změny kompatibilní,
+- [x] editor si zachovává šablony Weather / Energy / Indoor.
+
 ### Dynamická viditelnost modulů
 
 - [x] počasí, bazén, GoodWe a AZRouter lze zapínat/vypínat bez ztráty konfigurace,
