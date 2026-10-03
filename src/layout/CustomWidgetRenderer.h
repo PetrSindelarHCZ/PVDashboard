@@ -454,6 +454,7 @@ inline uint8_t historyCount(const DataModel& dm, const String& source,
     String metric;
     if (!rfHistorySource(source, stableIndex, metric) ||
         stableIndex < 0 || stableIndex >= MaxRfSensors ||
+        dm.rfSensors.history == nullptr ||
         dm.rfSensors.history[stableIndex] == nullptr) {
         return 0;
     }
@@ -515,6 +516,7 @@ inline bool historyValueAt(const DataModel& dm, const String& source,
     String metric;
     if (!rfHistorySource(source, stableIndex, metric) ||
         stableIndex < 0 || stableIndex >= MaxRfSensors ||
+        dm.rfSensors.history == nullptr ||
         dm.rfSensors.history[stableIndex] == nullptr) {
         return false;
     }
