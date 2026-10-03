@@ -35,7 +35,6 @@ public:
     using PoolConfigCallback = std::function<void(const PoolConfig& pool)>;
     using WeatherConfigCallback = std::function<void(const WeatherConfig& weather)>;
     using HomeLayoutConfigCallback = std::function<bool(const HomeLayoutConfig& layout)>;
-    using HomeLayoutPreviewCallback = std::function<bool(const HomeLayoutConfig& layout)>;
     using FactoryResetCallback = std::function<bool()>;
     using ConfigImportCallback = std::function<bool(const AppConfig& config)>;
     using RfSensorStatusCallback = std::function<String()>;
@@ -325,7 +324,6 @@ public:
     void onPoolConfig(PoolConfigCallback callback);
     void onWeatherConfig(WeatherConfigCallback callback);
     void onHomeLayoutConfig(HomeLayoutConfigCallback callback);
-    void onHomeLayoutPreview(HomeLayoutPreviewCallback callback) { _homeLayoutPreviewCallback = callback; }
     void onFactoryReset(FactoryResetCallback callback);
     void onConfigImport(ConfigImportCallback callback);
     void onRfSensorManagement(
@@ -362,7 +360,6 @@ private:
     PoolConfigCallback _poolConfigCallback;
     WeatherConfigCallback _weatherConfigCallback;
     HomeLayoutConfigCallback _homeLayoutConfigCallback;
-    HomeLayoutPreviewCallback _homeLayoutPreviewCallback;
     FactoryResetCallback _factoryResetCallback;
     ConfigImportCallback _configImportCallback;
     RfSensorStatusCallback _rfSensorStatusCallback;
