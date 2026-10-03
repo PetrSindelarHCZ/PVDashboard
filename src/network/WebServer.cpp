@@ -314,6 +314,11 @@ String homeLayoutResponseJson(
     alignments.add("center");
     alignments.add("right");
 
+    JsonArray verticalAlignments = custom["verticalAlignments"].to<JsonArray>();
+    verticalAlignments.add("top");
+    verticalAlignments.add("center");
+    verticalAlignments.add("bottom");
+
     JsonArray graphStyles = custom["graphStyles"].to<JsonArray>();
     graphStyles.add("line");
     graphStyles.add("bars");
@@ -505,6 +510,39 @@ void DashboardWebServer::onHomeLayoutConfig(HomeLayoutConfigCallback callback) {
         Serial.printf(
             "[WEB][HOME-LAYOUT] POST complete in %lu ms.\n",
             static_cast<unsigned long>(millis() - started));
+    });
+
+    _server.on("/api/layout/home/preview", HTTP_POST, [this]() {
+        if (!_homeLayoutPreviewCallback || !_server.hasArg("plain")) {
+            _server.send(
+                503,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"Home layout preview unavailable\"}");
+            return;
+        }
+
+        HomeLayoutConfig layout;
+        String error;
+        if (!HomeLayout::parseJson(_server.arg("plain"), layout, &error)) {
+            JsonDocument doc;
+            doc["status"] = "error";
+            doc["message"] = error;
+            String response;
+            serializeJson(doc, response);
+            _server.send(400, "application/json", response);
+            return;
+        }
+
+        if (!_homeLayoutPreviewCallback(layout)) {
+            _server.send(
+                503,
+                "application/json",
+                "{\"status\":\"error\",\"message\":\"Home preview render failed\"}");
+            return;
+        }
+
+        _server.sendHeader("Cache-Control", "no-store");
+        _server.send(200, "application/json", "{\"status\":\"ok\"}");
     });
 
     _server.on("/api/layout/home/reset", HTTP_POST, [this]() {
