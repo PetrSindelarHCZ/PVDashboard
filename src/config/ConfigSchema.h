@@ -74,6 +74,10 @@ struct HomeLayoutWidgetConfig {
     bool rfShowHumidity = true;
     bool rfShowLastSeen = true;
 
+    // Shared history interval for every historical element in this widget
+    // (graph, trend and Min/Max). Stored as one byte to keep DRAM impact low.
+    uint8_t historyPeriodHours = 12; // 1,2,4,6,12,24,48,72
+
     // Used only by type == "custom".
     std::vector<CustomWidgetElementConfig> elements;
 };
