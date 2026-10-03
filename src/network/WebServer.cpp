@@ -1,4 +1,5 @@
 #include "WebServer.h"
+#include "../layout/CustomWidgetRenderer.h"
 #include "TimezoneUiPatch.h"
 #include "NtpUiPatch.h"
 #include "LiveSettingsUiPatch.h"
@@ -299,6 +300,14 @@ String homeLayoutResponseJson(
     for (uint8_t px = 7; px <= 64; ++px) {
         fontSizes.add(String(px));
     }
+
+    // Auto uses native U8g2 fonts, not the scaled-text path. Expose their
+    // measured pixel heights so WebUI can show the actual rendered size.
+    JsonObject autoFont = custom["autoFont"].to<JsonObject>();
+    autoFont["textPx"] = CustomWidgetRenderer::sourceFontHeight(
+        DisplayFonts::body());
+    autoFont["valuePx"] = CustomWidgetRenderer::sourceFontHeight(
+        DisplayFonts::value());
 
     JsonArray alignments = custom["alignments"].to<JsonArray>();
     alignments.add("left");
