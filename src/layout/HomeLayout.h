@@ -298,6 +298,9 @@ inline bool validateCustomWidget(const HomeLayoutWidgetConfig& widget, String* e
         if (!(element.align == "left" || element.align == "center" || element.align == "right")) {
             return fail("Unknown custom alignment");
         }
+        if (element.verticalAlign > 2) {
+            return fail("Unknown custom vertical alignment");
+        }
         if (!(element.graphStyle == "line" || element.graphStyle == "bars")) {
             return fail("Unknown custom graph style");
         }
@@ -465,6 +468,7 @@ inline void serializeElement(JsonObject item, const CustomWidgetElementConfig& e
     item["max"] = element.maxValue;
     item["fontSize"] = element.fontSize;
     item["align"] = element.align;
+    item["verticalAlign"] = element.verticalAlign;
     item["showLabel"] = element.showLabel;
     item["graphStyle"] = element.graphStyle;
     item["graphPeriodHours"] = element.graphPeriodHours;
@@ -487,6 +491,7 @@ inline void serializeStorageElement(JsonObject item, const CustomWidgetElementCo
     if (element.maxValue != 100.0f) item["max"] = element.maxValue;
     if (element.fontSize != "auto") item["fontSize"] = element.fontSize;
     if (element.align != "left") item["align"] = element.align;
+    if (element.verticalAlign != 0) item["verticalAlign"] = element.verticalAlign;
     if (!element.showLabel) item["showLabel"] = false;
     if (element.graphStyle != "line") item["graphStyle"] = element.graphStyle;
     if (element.graphPeriodHours != 12)
@@ -616,6 +621,7 @@ inline bool parseElement(JsonObject item, CustomWidgetElementConfig& element) {
     else if (element.fontSize == "normal") element.fontSize = "18";
     else if (element.fontSize == "large") element.fontSize = "22";
     element.align = String(item["align"] | "left");
+    element.verticalAlign = item["verticalAlign"] | 0;
     element.showLabel = item["showLabel"] | true;
     element.graphStyle = String(item["graphStyle"] | "line");
     element.graphPeriodHours = item["graphPeriodHours"] | 12;
