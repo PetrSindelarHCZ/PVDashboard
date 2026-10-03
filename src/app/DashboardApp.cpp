@@ -816,29 +816,6 @@ void DashboardApp::setup() {
         return true;
     });
 
-    _webServer.onHomeLayoutPreview([this](const HomeLayoutConfig& layout) {
-        bool gateTaken = false;
-        if (_memoryHeavyGate != nullptr) {
-            gateTaken =
-                xSemaphoreTake(
-                    _memoryHeavyGate,
-                    pdMS_TO_TICKS(1500)) == pdTRUE;
-            if (!gateTaken) return false;
-        }
-
-        const HomeLayoutConfig* savedLayout =
-            &_configManager.get().display.homeLayout;
-
-        _homeScreen.setLayoutConfig(&layout);
-        _displayPreview.capture(_homeScreen, _dataModel, false);
-        _homeScreen.setLayoutConfig(savedLayout);
-
-        if (gateTaken)
-            xSemaphoreGive(_memoryHeavyGate);
-
-        return _displayPreview.ready();
-    });
-
     _webServer.onWeatherConfig([this](const WeatherConfig& weather) {
         const WeatherConfig previous = _configManager.get().weather;
         const bool enabledChanged = previous.enabled != weather.enabled;
