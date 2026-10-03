@@ -999,8 +999,18 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
 
 inline void drawElements(IDisplay& display, const DataModel& dm,
                          const HomeLayoutWidgetConfig& widget, uint16_t textColor) {
+    uint8_t sharedHistoryPeriod = 12;
+    for (const CustomWidgetElementConfig& candidate : widget.elements) {
+        if ((candidate.type == "sparkline" ||
+             candidate.type == "trend" ||
+             candidate.type == "minmax") &&
+            sensorGraphPeriodIndex(candidate.graphPeriodHours) >= 0) {
+            sharedHistoryPeriod = candidate.graphPeriodHours;
+            break;
+        }
+    }
     const uint8_t historyPeriodHours =
-        normalizedGraphPeriodHours(HomeLayout::historyPeriodHours(widget));
+        normalizedGraphPeriodHours(sharedHistoryPeriod);
 
     // elements[] is the Z-order: first is bottom, last is top.
     for (uint8_t i = 0; i < widget.elements.size() && i < MaxCustomWidgetElements; ++i) {
