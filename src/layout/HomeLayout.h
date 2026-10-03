@@ -314,10 +314,11 @@ inline bool validateCustomWidget(const HomeLayoutWidgetConfig& widget, String* e
             return fail("Custom element is smaller than its supported minimum");
         }
 
-        // The first 38 px are reserved for the card title/chrome.
-        if (element.x < 8 || element.y < 40 ||
-            element.x + element.width > widget.width - 8 ||
-            element.y + element.height > widget.height - 8) {
+        // Elements may use the complete widget surface, including the
+        // header/chrome area and the physical edges of the card.
+        if (element.x < 0 || element.y < 0 ||
+            element.x + element.width > widget.width ||
+            element.y + element.height > widget.height) {
             return fail("Custom element is outside its widget");
         }
 
