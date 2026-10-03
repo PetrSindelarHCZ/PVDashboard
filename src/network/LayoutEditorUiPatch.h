@@ -1418,9 +1418,6 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             element.text = '';
             element.showLabel = element.showLabel !== false;
             element.graphStyle = newType === 'sparkline' ? 'bars' : 'line';
-            if (newType === 'sparkline' || newType === 'trend' || newType === 'minmax') {
-                element.graphPeriodHours = Number(element.graphPeriodHours || 12);
-            }
             if (newType === 'trend') {
                 element.label = '';
                 element.showLabel = false;
@@ -1882,8 +1879,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             align: type === 'trend' ? 'center' : 'left',
             verticalAlign: type === 'trend' ? 'center' : 'top',
             showLabel: (type === 'trend' || type === 'minmax') ? false : true,
-            graphStyle: type === 'sparkline' ? 'bars' : 'line',
-            graphPeriodHours: 12
+            graphStyle: type === 'sparkline' ? 'bars' : 'line'
         };
         widget.elements = widget.elements || [];
         widget.elements.push(element);
