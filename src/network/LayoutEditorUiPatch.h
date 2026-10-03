@@ -446,6 +446,12 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         if (typeof widget.inverseText !== 'boolean') widget.inverseText = false;
         if (!widget.icon) widget.icon = 'auto';
         if (isElementWidget(widget) && !Array.isArray(widget.elements)) widget.elements = [];
+        if (!Number(widget.historyPeriodHours)) {
+            const legacy = (widget.elements || []).find(element =>
+                ['sparkline','trend','minmax'].includes(element.type) &&
+                Number(element.graphPeriodHours));
+            widget.historyPeriodHours = Number(legacy?.graphPeriodHours || 12);
+        }
         return widget;
     }
 
@@ -1563,12 +1569,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <select id="customFieldGraphStyle">${graphStyleOptions}</select>
                 </div>
             ` : ''}
-            ${(element.type === 'sparkline' || element.type === 'trend' || element.type === 'minmax') ? `
-                <div class="field full">
-                    <label>Časové období</label>
-                    <select id="customFieldGraphPeriod">${graphPeriodOptions}</select>
-                </div>
-            ` : ''}
+
             <div class="field"><label>X</label><input id="customFieldX" type="number" value="${element.x}"></div>
             <div class="field"><label>Y</label><input id="customFieldY" type="number" value="${element.y}"></div>
             <div class="field"><label>Šířka</label><input id="customFieldW" type="number" value="${element.width}"></div>
@@ -1601,7 +1602,6 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             const verticalAlign = document.getElementById('customFieldVerticalAlign');
             const showLabel = document.getElementById('customFieldShowLabel');
             const graphStyle = document.getElementById('customFieldGraphStyle');
-            const graphPeriod = document.getElementById('customFieldGraphPeriod');
             if (text) current.text = text.value;
             if (source) {
                 const previousSource = current.source;
@@ -1631,9 +1631,6 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 : (current.verticalAlign || 'top');
             current.showLabel = showLabel ? showLabel.checked : (current.showLabel !== false);
             current.graphStyle = graphStyle ? graphStyle.value : (current.graphStyle || 'line');
-            current.graphPeriodHours = graphPeriod
-                ? Number(graphPeriod.value)
-                : Number(current.graphPeriodHours || 12);
             current.x = Number(document.getElementById('customFieldX')?.value ?? current.x);
             current.y = Number(document.getElementById('customFieldY')?.value ?? current.y);
             current.width = Number(document.getElementById('customFieldW')?.value ?? current.width);
@@ -1742,7 +1739,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 'Vrstva ' + (elementIndex + 1) + '/' + widget.elements.length +
                 ' · ' + customElementLabel(element) +
                 ' · x=' + element.x + ', y=' + element.y +
-                ' · ' + element.width + '×' + element.height + ' px';
+                ' · ' + element.width + '×' + element.height + ' px' +
+                (['sparkline','trend','minmax'].includes(element.type)
+                    ? ' · období ' + Number(widget.historyPeriodHours || 12) + ' h'
+                    : '');
             elementCssRect(box, widget, element);
             box.innerHTML = `
                 <div class="custom-element-label"></div>
@@ -1806,6 +1806,22 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         if (titleInput && document.activeElement !== titleInput) titleInput.value = widget.title || '';
         const dimensions = document.getElementById('customWidgetDimensions');
         if (dimensions) dimensions.textContent = widget.width + ' × ' + widget.height + ' px';
+
+        const historyPeriod = document.getElementById('customWidgetHistoryPeriod');
+        if (historyPeriod) {
+            const periods = apiState?.customWidget?.graphPeriods || [
+                {hours:1,bucketSeconds:150},{hours:2,bucketSeconds:300},
+                {hours:4,bucketSeconds:600},{hours:6,bucketSeconds:900},
+                {hours:12,bucketSeconds:1800},{hours:24,bucketSeconds:3600},
+                {hours:48,bucketSeconds:7200},{hours:72,bucketSeconds:10800}
+            ];
+            historyPeriod.innerHTML = periods.map(item => {
+                const hours = Number(item.hours);
+                const periodLabel = hours < 24 ? hours + ' h' : (hours / 24) + ' d';
+                return '<option value="' + hours + '">' + periodLabel + '</option>';
+            }).join('');
+            historyPeriod.value = String(Number(widget.historyPeriodHours || 12));
+        }
 
         document.querySelectorAll('[data-add-element]').forEach(button => {
             button.hidden = false;
@@ -2410,6 +2426,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                             <label for="customWidgetTitleInput">Název karty</label>
                             <input id="customWidgetTitleInput" maxlength="40">
                         </div>
+                        <div class="field">
+                            <label for="customWidgetHistoryPeriod">Období historie</label>
+                            <select id="customWidgetHistoryPeriod"></select>
+                        </div>
                         <div class="status-item" style="min-width:120px">
                             <div class="status-label">Velikost karty</div>
                             <div class="status-value" id="customWidgetDimensions">—</div>
@@ -2473,6 +2493,12 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             const widget = byId(selectedId);
             if (!widget || !isElementWidget(widget)) return;
             widget.title = event.target.value.trim();
+            renderDraft();
+        });
+        document.getElementById('customWidgetHistoryPeriod').addEventListener('change', event => {
+            const widget = byId(selectedId);
+            if (!widget || !isElementWidget(widget)) return;
+            widget.historyPeriodHours = Number(event.target.value || 12);
             renderDraft();
         });
         document.getElementById('layoutShowHomeButton').addEventListener('click', async () => {
