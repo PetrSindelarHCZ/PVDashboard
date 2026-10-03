@@ -453,10 +453,11 @@ inline uint8_t historyCount(const DataModel& dm, const String& source,
     int stableIndex = -1;
     String metric;
     if (!rfHistorySource(source, stableIndex, metric) ||
-        dm.rfSensors.history == nullptr) {
+        stableIndex < 0 || stableIndex >= MaxRfSensors ||
+        dm.rfSensors.history[stableIndex] == nullptr) {
         return 0;
     }
-    return dm.rfSensors.history[stableIndex].series[periodIndex].count;
+    return dm.rfSensors.history[stableIndex]->series[periodIndex].count;
 }
 
 inline bool historyValueAt(const DataModel& dm, const String& source,
@@ -513,12 +514,13 @@ inline bool historyValueAt(const DataModel& dm, const String& source,
     int stableIndex = -1;
     String metric;
     if (!rfHistorySource(source, stableIndex, metric) ||
-        dm.rfSensors.history == nullptr) {
+        stableIndex < 0 || stableIndex >= MaxRfSensors ||
+        dm.rfSensors.history[stableIndex] == nullptr) {
         return false;
     }
 
     const RfHistorySeries& series =
-        dm.rfSensors.history[stableIndex].series[periodIndex];
+        dm.rfSensors.history[stableIndex]->series[periodIndex];
     if (chronologicalIndex >= series.count) return false;
 
     const uint8_t oldest =
