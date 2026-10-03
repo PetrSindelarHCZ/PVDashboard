@@ -40,6 +40,7 @@ struct CustomWidgetElementConfig {
     float maxValue = 100.0f;
     String fontSize = "auto";   // auto | 7..64 (pixel height)
     String align = "left";      // left | center | right
+    uint8_t verticalAlign = 0;  // 0 = top, 1 = center, 2 = bottom
     bool showLabel = true;
     String graphStyle = "line"; // line | bars (sparkline only)
     uint8_t graphPeriodHours = 12; // 1,2,4,6,12,24,48,72
