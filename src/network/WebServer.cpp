@@ -287,7 +287,7 @@ String homeLayoutResponseJson(
     custom["maxElements"] = MaxCustomWidgetElements;
 
     JsonArray elementTypes = custom["elementTypes"].to<JsonArray>();
-    const char* customTypes[] = {"text", "kpi", "progress", "sparkline", "trend"};
+    const char* customTypes[] = {"text", "kpi", "progress", "sparkline", "trend", "minmax"};
     for (const char* type : customTypes) {
         JsonObject item = elementTypes.add<JsonObject>();
         item["type"] = type;
