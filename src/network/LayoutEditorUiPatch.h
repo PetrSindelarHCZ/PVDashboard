@@ -1203,9 +1203,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             </div>`;
         }
         if (element.type === 'trend') {
-            const trendLabel = explicitLabel || '';
-            return `<div class="${classes}">
-                ${element.showLabel !== false && trendLabel ? `<div class="preview-label" style="${labelStyle}">${trendLabel}</div>` : ''}
+            return `<div class="${classes}" style="display:flex;align-items:center;justify-content:center">
                 <div class="preview-value" style="${fontStyle};font-weight:900">➜</div>
             </div>`;
         }
@@ -1303,9 +1301,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             if (!a.id || !a.type ||
                 a.width < Number(typeInfo.minWidth || 1) ||
                 a.height < requiredHeight ||
-                a.x < 8 || a.y < 40 ||
-                a.x + a.width > widget.width - 8 ||
-                a.y + a.height > widget.height - 8) {
+                a.x < 0 || a.y < 0 ||
+                a.x + a.width > widget.width ||
+                a.y + a.height > widget.height) {
                 ids.add(a.id);
             }
             const fontSizes = apiState?.customWidget?.fontSizes || ['auto', ...Array.from({length:58}, (_, i) => String(i + 7))];
@@ -1368,10 +1366,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const minH = requiredElementHeight(element);
         element.width = Math.max(minW, Number(element.width || minW));
         element.height = Math.max(minH, Number(element.height || minH));
-        element.x = Math.max(8, Math.min(Number(element.x || 8), widget.width - 8 - element.width));
-        element.y = Math.max(40, Math.min(Number(element.y || 40), widget.height - 8 - element.height));
-        element.width = Math.min(element.width, widget.width - 8 - element.x);
-        element.height = Math.min(element.height, widget.height - 8 - element.y);
+        element.x = Math.max(0, Math.min(Number(element.x ?? 0), widget.width - element.width));
+        element.y = Math.max(0, Math.min(Number(element.y ?? 0), widget.height - element.height));
+        element.width = Math.min(element.width, widget.width - element.x);
+        element.height = Math.min(element.height, widget.height - element.y);
     }
 
     function elementCssRect(box, widget, element) {
@@ -1410,6 +1408,11 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             element.graphStyle = newType === 'sparkline' ? 'bars' : 'line';
             if (newType === 'sparkline' || newType === 'trend') {
                 element.graphPeriodHours = Number(element.graphPeriodHours || 12);
+            }
+            if (newType === 'trend') {
+                element.label = '';
+                element.showLabel = false;
+                element.align = 'center';
             }
             if (newType === 'progress' && !(Number(element.max) > Number(element.min))) {
                 element.min = 0;
@@ -1493,10 +1496,12 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <label>Datový zdroj</label>
                     <select id="customFieldSource">${sourceOptions}</select>
                 </div>
+                ${element.type === 'trend' ? '' : `
                 <div class="field full">
                     <label>Popisek</label>
                     <input id="customFieldLabel" maxlength="40" value="${escapeHtml(element.label || '')}">
                 </div>
+                `}
                 <div class="field">
                     <label>Jednotka</label>
                     <input id="customFieldUnit" maxlength="16" value="${escapeHtml(element.unit || '')}">
@@ -1518,10 +1523,12 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <select id="customFieldFontSize">${fontOptions}</select>
                 </div>
             ` : ''}
+            ${element.type === 'trend' ? '' : `
             <div class="field">
                 <label>Zarovnání</label>
                 <select id="customFieldAlign">${alignOptions}</select>
             </div>
+            `}
             ${element.type !== 'text' ? `
                 <div class="field full">
                     <label class="toggle" style="display:flex;gap:8px;align-items:center">
@@ -1675,10 +1682,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         header.style.borderBottomColor = foreground;
 
         grid.style.filter = blackBackground ? 'invert(1)' : 'none';
-        grid.style.left = (8 / widget.width * 100) + '%';
-        grid.style.top = (40 / widget.height * 100) + '%';
-        grid.style.width = ((widget.width - 16) / widget.width * 100) + '%';
-        grid.style.height = ((widget.height - 48) / widget.height * 100) + '%';
+        grid.style.left = '0';
+        grid.style.top = '0';
+        grid.style.width = '100%';
+        grid.style.height = '100%';
         const rect = stage.getBoundingClientRect();
         const previewScale = Math.min(
             rect.width / Math.max(1, widget.width),
@@ -1827,8 +1834,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             min: 0,
             max: 100,
             fontSize: type === 'trend' ? '28' : 'auto',
-            align: 'left',
-            showLabel: true,
+            align: type === 'trend' ? 'center' : 'left',
+            showLabel: type === 'trend' ? false : true,
             graphStyle: type === 'sparkline' ? 'bars' : 'line',
             graphPeriodHours: 12
         };
@@ -1873,18 +1880,18 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const original = elementInteraction.original;
 
         if (elementInteraction.mode === 'move') {
-            element.x = snapElementPosition(original.x + dx, 8);
-            element.y = snapElementPosition(original.y + dy, 40);
+            element.x = snapElementPosition(original.x + dx, 0);
+            element.y = snapElementPosition(original.y + dy, 0);
         } else {
             let left = original.x;
             let top = original.y;
             let right = original.x + original.width;
             let bottom = original.y + original.height;
             const handle = elementInteraction.handle;
-            if (handle.includes('w')) left = snapElementPosition(original.x + dx, 8);
-            if (handle.includes('e')) right = snapElementPosition(original.x + original.width + dx, 8);
-            if (handle.includes('n')) top = snapElementPosition(original.y + dy, 40);
-            if (handle.includes('s')) bottom = snapElementPosition(original.y + original.height + dy, 40);
+            if (handle.includes('w')) left = snapElementPosition(original.x + dx, 0);
+            if (handle.includes('e')) right = snapElementPosition(original.x + original.width + dx, 0);
+            if (handle.includes('n')) top = snapElementPosition(original.y + dy, 0);
+            if (handle.includes('s')) bottom = snapElementPosition(original.y + original.height + dy, 0);
 
             const typeInfo = elementTypeInfo(element.type);
             const minW = Number(typeInfo.minWidth || 20);
@@ -2295,7 +2302,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <div class="custom-editor-head-left">
                         <div>
                             <div class="card-title">Obsah widgetu</div>
-                            <div class="field-help">Prvky mají relativní souřadnice uvnitř vybrané karty. Tažením je přesouvej, rohy mění velikost; font a zarovnání nastavíš vpravo.</div>
+                            <div class="field-help">Prvky mohou být umístěné po celé ploše karty včetně záhlaví a až k jejím okrajům. Tažením je přesouvej, rohy mění velikost; font a zarovnání nastavíš vpravo.</div>
                         </div>
                         <div class="field">
                             <label for="customWidgetTitleInput">Název karty</label>
