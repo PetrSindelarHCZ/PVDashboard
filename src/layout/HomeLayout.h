@@ -381,6 +381,9 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
         if (!WidgetIcons::valid(widget.icon)) {
             return fail("Unknown Home widget icon");
         }
+        if (sensorGraphPeriodIndex(widget.historyPeriodHours) < 0) {
+            return fail("Widget history period must be 1,2,4,6,12,24,48 or 72 hours");
+        }
 
         if (widget.width < minWidth(widget.type) ||
             widget.height < minHeight(widget.type)) {
@@ -530,6 +533,8 @@ inline String serializeStorageJson(const HomeLayoutConfig& config) {
             if (widget.icon != static_cast<uint8_t>(WidgetIcons::Icon::Auto))
                 item["icon"] = WidgetIcons::key(static_cast<WidgetIcons::Icon>(widget.icon));
             if (!widget.title.isEmpty()) item["title"] = widget.title;
+            if (widget.historyPeriodHours != 12)
+                item["historyPeriodHours"] = widget.historyPeriodHours;
 
             if (widget.type == "pool-summary" || widget.type == "rf-sensor") {
                 const String slotId = rfSlotId(widget.rfSensorSlot);
@@ -576,6 +581,7 @@ inline String serializeJson(const HomeLayoutConfig& config) {
         item["inverseText"] = widget.inverseText;
         item["icon"] =
             WidgetIcons::key(static_cast<WidgetIcons::Icon>(widget.icon));
+        item["historyPeriodHours"] = widget.historyPeriodHours;
 
         if (widget.type == "indoor" || widget.type == "pool-summary") {
             item["title"] = widget.title;
@@ -675,6 +681,7 @@ inline bool parseJson(const String& json, HomeLayoutConfig& config, String* erro
         widget.inverseText = item["inverseText"] | false;
         widget.icon = static_cast<uint8_t>(
             WidgetIcons::fromKey(String(item["icon"] | "auto")));
+        widget.historyPeriodHours = item["historyPeriodHours"] | 0;
 
         if (widget.type == "indoor" || widget.type == "pool-summary") {
             widget.title = String(item["title"] | (widget.type == "indoor" ? "UVNITŘ" : "BAZÉN"));
@@ -721,6 +728,20 @@ inline bool parseJson(const String& json, HomeLayoutConfig& config, String* erro
                     CustomWidgetElementConfig element;
                     parseElement(elementItem, element);
                     widget.elements.push_back(element);
+                }
+            }
+        }
+
+        // Backward compatibility: old layouts stored the interval per element.
+        // On first load promote the first historical element period to widget level.
+        if (widget.historyPeriodHours == 0) {
+            widget.historyPeriodHours = 12;
+            for (const CustomWidgetElementConfig& element : widget.elements) {
+                if ((element.type == "sparkline" || element.type == "trend" ||
+                     element.type == "minmax") &&
+                    sensorGraphPeriodIndex(element.graphPeriodHours) >= 0) {
+                    widget.historyPeriodHours = element.graphPeriodHours;
+                    break;
                 }
             }
         }
