@@ -2201,10 +2201,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <div class="field">
                         <label for="layoutGridStep">Mřížka</label>
                         <select id="layoutGridStep">
+                            <option value="1">1 px</option>
+                            <option value="2">2 px</option>
                             <option value="5" selected>5 px</option>
                             <option value="10">10 px</option>
+                            <option value="15">15 px</option>
                             <option value="20">20 px</option>
                             <option value="25">25 px</option>
+                            <option value="50">50 px</option>
                         </select>
                     </div>
                     <div class="field">
