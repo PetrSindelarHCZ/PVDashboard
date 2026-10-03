@@ -25,8 +25,23 @@ int RfSensorManager::slotIndex(const String& slotId) {
     return value - 1;
 }
 
+bool RfSensorManager::ensureHistoryTable() {
+    if (_history != nullptr) return true;
+
+    _history = new (std::nothrow) RfSensorHistory*[MaxRfSensors]();
+    if (_history == nullptr) {
+        Serial.println(
+            "[RF-SENSORS] Tabulku historii nelze alokovat: "
+            "nedostatek heap pameti.");
+        return false;
+    }
+
+    _dataModel.rfSensors.history = _history;
+    return true;
+}
+
 RfSensorHistory* RfSensorManager::ensureHistory(uint8_t stableIndex) {
-    if (stableIndex >= MaxRfSensors) return nullptr;
+    if (stableIndex >= MaxRfSensors || !ensureHistoryTable()) return nullptr;
 
     if (_history[stableIndex] == nullptr) {
         _history[stableIndex] = new (std::nothrow) RfSensorHistory();
@@ -43,7 +58,7 @@ RfSensorHistory* RfSensorManager::ensureHistory(uint8_t stableIndex) {
             static_cast<unsigned>(sizeof(RfSensorHistory)));
     }
 
-    _dataModel.rfSensors.history[stableIndex] = _history[stableIndex];
+    _dataModel.rfSensors.history = _history;
     return _history[stableIndex];
 }
 
@@ -178,8 +193,8 @@ bool RfSensorManager::sameBinding(
 }
 
 void RfSensorManager::applyConfig(const RfSensorsConfig& config) {
-    for (uint8_t i = 0; i < MaxRfSensors; ++i)
-        _dataModel.rfSensors.history[i] = _history[i];
+    ensureHistoryTable();
+    _dataModel.rfSensors.history = _history;
 
     RfSensorData previous[MaxRfSensors];
     const uint8_t previousCount = _dataModel.rfSensors.sensorCount;
