@@ -73,8 +73,6 @@ struct Ft017ThSensorEntry {
     uint16_t candidateId = 0;
     uint16_t unknownA = 0;
     uint8_t unknownB = 0;
-    uint16_t temperatureRaw12 = 0;
-    uint16_t humidityRaw12 = 0;
     float temperatureC = 0.0f;
     float humidityPercent = 0.0f;
     uint32_t packetCount = 0;
@@ -1397,15 +1395,10 @@ bool tryPrintFt017Th(const char* decoded, uint16_t frameBits) {
     const bool hadPrevious = sensor.packetCount > 0;
     const uint16_t previousUnknownA = sensor.unknownA;
     const uint8_t previousUnknownB = sensor.unknownB;
-    const uint16_t previousTemperatureRaw12 = sensor.temperatureRaw12;
-    const uint16_t previousHumidityRaw12 = sensor.humidityRaw12;
-
     sensor.used = true;
     sensor.candidateId = candidateId;
     sensor.unknownA = unknownA;
     sensor.unknownB = unknownB;
-    sensor.temperatureRaw12 = temperatureRaw12;
-    sensor.humidityRaw12 = humidityRaw12;
     sensor.temperatureC = temperatureC;
     sensor.humidityPercent = humidityPercent;
     ++sensor.packetCount;
@@ -1427,14 +1420,11 @@ bool tryPrintFt017Th(const char* decoded, uint16_t frameBits) {
     if (hadPrevious) {
         const uint16_t deltaA = previousUnknownA ^ unknownA;
         const uint8_t deltaB = previousUnknownB ^ unknownB;
-        const bool payloadChanged =
-            previousTemperatureRaw12 != temperatureRaw12 ||
-            previousHumidityRaw12 != humidityRaw12;
         Serial.printf(
             "[CC1101][FT017TH][DELTA] id=0x%03X "
             "unkA 0x%04X->0x%04X xor=0x%04X | "
             "unkB 0x%02X->0x%02X xor=0x%02X | "
-            "rawT %u->%u rawH %u->%u payloadChanged=%s\n",
+            "rawT=%u rawH=%u\n",
             static_cast<unsigned>(candidateId),
             static_cast<unsigned>(previousUnknownA),
             static_cast<unsigned>(unknownA),
@@ -1442,11 +1432,8 @@ bool tryPrintFt017Th(const char* decoded, uint16_t frameBits) {
             static_cast<unsigned>(previousUnknownB),
             static_cast<unsigned>(unknownB),
             static_cast<unsigned>(deltaB),
-            static_cast<unsigned>(previousTemperatureRaw12),
             static_cast<unsigned>(temperatureRaw12),
-            static_cast<unsigned>(previousHumidityRaw12),
-            static_cast<unsigned>(humidityRaw12),
-            payloadChanged ? "yes" : "no");
+            static_cast<unsigned>(humidityRaw12));
     }
 
     RfSensorObservation observation;
