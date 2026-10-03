@@ -585,6 +585,75 @@ inline bool historyValueAt(const DataModel& dm, const String& source,
     return true;
 }
 
+inline void drawMinMax(IDisplay& display, const DataModel& dm, int16_t x, int16_t y,
+                       const CustomWidgetElementConfig& element, uint16_t textColor) {
+    const uint8_t periodHours =
+        normalizedGraphPeriodHours(element.graphPeriodHours);
+    const uint8_t count =
+        historyCount(dm, element.source, periodHours);
+
+    float minValue = 0.0f;
+    float maxValue = 0.0f;
+    bool haveValue = false;
+
+    for (uint8_t i = 0; i < count; ++i) {
+        float value = 0.0f;
+        if (!historyValueAt(dm, element.source, periodHours, i, value))
+            continue;
+        if (!haveValue) {
+            minValue = maxValue = value;
+            haveValue = true;
+        } else {
+            if (value < minValue) minValue = value;
+            if (value > maxValue) maxValue = value;
+        }
+    }
+
+    const int16_t rowHeight =
+        elementFontHeight(element, false);
+    const int16_t gap = 4;
+    const int16_t blockHeight = rowHeight * 2 + gap;
+    const int16_t top =
+        y + verticalOffset(element, blockHeight);
+
+    String minText = haveValue
+        ? String("Min ") + formatValue(minValue, element.decimals, element.unit)
+        : String("Min --");
+    String maxText = haveValue
+        ? String("Max ") + formatValue(maxValue, element.decimals, element.unit)
+        : String("Max --");
+
+    auto drawRow = [&](const String& input, int16_t rowY) {
+        if (element.fontSize != "auto") {
+            const uint8_t fontPx = requestedFontPx(element, false);
+            const String text =
+                fitScaledText(input, element.width, fontPx, false);
+            const int16_t textWidth =
+                scaledTextWidth(text, fontPx, false);
+            const int16_t textX =
+                alignedScaledX(x, element.width, textWidth, element.align);
+            if (drawScaledUnicodeText(
+                    display, textX, rowY, text, fontPx, false,
+                    textColor, element.height - (rowY - y))) {
+                return;
+            }
+        }
+
+        useElementFont(display, element, false, textColor);
+        const String text =
+            fitText(display, input, element.width);
+        const int16_t textX =
+            alignedX(display, x, element.width, text, element.align);
+        display.setCursor(
+            textX,
+            rowY + baselineOffset(element, false));
+        display.print(text);
+    };
+
+    drawRow(minText, top);
+    drawRow(maxText, top + rowHeight + gap);
+}
+
 inline void drawTrend(IDisplay& display, const DataModel& dm, int16_t x, int16_t y,
                       const CustomWidgetElementConfig& element, uint16_t textColor) {
     const uint8_t periodHours =
@@ -916,6 +985,7 @@ inline void drawElements(IDisplay& display, const DataModel& dm,
         else if (element.type == "progress") drawProgress(display, dm, x, y, element, textColor);
         else if (element.type == "sparkline") drawSparkline(display, dm, x, y, element, textColor);
         else if (element.type == "trend") drawTrend(display, dm, x, y, element, textColor);
+        else if (element.type == "minmax") drawMinMax(display, dm, x, y, element, textColor);
     }
 }
 
