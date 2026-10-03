@@ -130,6 +130,22 @@ inline bool knownElementType(const String& type) {
            type == "trend" || type == "minmax";
 }
 
+inline bool usesHistoryPeriod(const CustomWidgetElementConfig& element) {
+    return element.type == "sparkline" ||
+           element.type == "trend" ||
+           element.type == "minmax";
+}
+
+inline uint8_t historyPeriodHours(const HomeLayoutWidgetConfig& widget) {
+    for (const CustomWidgetElementConfig& element : widget.elements) {
+        if (usesHistoryPeriod(element) &&
+            sensorGraphPeriodIndex(element.graphPeriodHours) >= 0) {
+            return element.graphPeriodHours;
+        }
+    }
+    return 12;
+}
+
 inline int16_t elementMinWidth(const String& type) {
     if (type == "text") return 40;
     if (type == "kpi") return 70;
@@ -333,6 +349,13 @@ inline bool validateCustomWidget(const HomeLayoutWidgetConfig& widget, String* e
             return fail("Custom element is outside its widget");
         }
 
+        if (usesHistoryPeriod(element)) {
+            const uint8_t sharedPeriod = historyPeriodHours(widget);
+            if (element.graphPeriodHours != sharedPeriod) {
+                return fail("Historical elements in one widget must use the same period");
+            }
+        }
+
         if (element.type == "text") {
             if (element.text.isEmpty()) return fail("Text element requires text");
         } else {
@@ -380,9 +403,6 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
         }
         if (!WidgetIcons::valid(widget.icon)) {
             return fail("Unknown Home widget icon");
-        }
-        if (sensorGraphPeriodIndex(widget.historyPeriodHours) < 0) {
-            return fail("Widget history period must be 1,2,4,6,12,24,48 or 72 hours");
         }
 
         if (widget.width < minWidth(widget.type) ||
@@ -530,8 +550,9 @@ inline String serializeStorageJson(const HomeLayoutConfig& config) {
             if (widget.icon != static_cast<uint8_t>(WidgetIcons::Icon::Auto))
                 item["icon"] = WidgetIcons::key(static_cast<WidgetIcons::Icon>(widget.icon));
             if (!widget.title.isEmpty()) item["title"] = widget.title;
-            if (widget.historyPeriodHours != 12)
-                item["historyPeriodHours"] = widget.historyPeriodHours;
+            const uint8_t sharedHistoryPeriod = historyPeriodHours(widget);
+            if (sharedHistoryPeriod != 12)
+                item["historyPeriodHours"] = sharedHistoryPeriod;
 
             if (widget.type == "pool-summary" || widget.type == "rf-sensor") {
                 const String slotId = rfSlotId(widget.rfSensorSlot);
@@ -578,7 +599,7 @@ inline String serializeJson(const HomeLayoutConfig& config) {
         item["inverseText"] = widget.inverseText;
         item["icon"] =
             WidgetIcons::key(static_cast<WidgetIcons::Icon>(widget.icon));
-        item["historyPeriodHours"] = widget.historyPeriodHours;
+        item["historyPeriodHours"] = historyPeriodHours(widget);
 
         if (widget.type == "indoor" || widget.type == "pool-summary") {
             item["title"] = widget.title;
@@ -678,7 +699,7 @@ inline bool parseJson(const String& json, HomeLayoutConfig& config, String* erro
         widget.inverseText = item["inverseText"] | false;
         widget.icon = static_cast<uint8_t>(
             WidgetIcons::fromKey(String(item["icon"] | "auto")));
-        widget.historyPeriodHours = item["historyPeriodHours"] | 0;
+        uint8_t sharedHistoryPeriod = item["historyPeriodHours"] | 0;
 
         if (widget.type == "indoor" || widget.type == "pool-summary") {
             widget.title = String(item["title"] | (widget.type == "indoor" ? "UVNITŘ" : "BAZÉN"));
@@ -729,18 +750,23 @@ inline bool parseJson(const String& json, HomeLayoutConfig& config, String* erro
             }
         }
 
-        // Backward compatibility: old layouts stored the interval per element.
-        // On first load promote the first historical element period to widget level.
-        if (widget.historyPeriodHours == 0) {
-            widget.historyPeriodHours = 12;
+        // Shared widget history period is kept in the already heap-backed
+        // element configuration so HomeLayoutWidgetConfig does not grow in static DRAM.
+        // New layouts carry historyPeriodHours at widget level; old layouts are
+        // migrated from the first historical element.
+        if (sensorGraphPeriodIndex(sharedHistoryPeriod) < 0) {
+            sharedHistoryPeriod = 12;
             for (const CustomWidgetElementConfig& element : widget.elements) {
-                if ((element.type == "sparkline" || element.type == "trend" ||
-                     element.type == "minmax") &&
+                if (usesHistoryPeriod(element) &&
                     sensorGraphPeriodIndex(element.graphPeriodHours) >= 0) {
-                    widget.historyPeriodHours = element.graphPeriodHours;
+                    sharedHistoryPeriod = element.graphPeriodHours;
                     break;
                 }
             }
+        }
+        for (CustomWidgetElementConfig& element : widget.elements) {
+            if (usesHistoryPeriod(element))
+                element.graphPeriodHours = sharedHistoryPeriod;
         }
     }
 
