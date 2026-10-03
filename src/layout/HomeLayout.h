@@ -483,7 +483,6 @@ inline void serializeElement(JsonObject item, const CustomWidgetElementConfig& e
     item["verticalAlign"] = element.verticalAlign;
     item["showLabel"] = element.showLabel;
     item["graphStyle"] = element.graphStyle;
-    item["graphPeriodHours"] = element.graphPeriodHours;
 }
 
 inline void serializeStorageElement(JsonObject item, const CustomWidgetElementConfig& element) {
@@ -506,8 +505,6 @@ inline void serializeStorageElement(JsonObject item, const CustomWidgetElementCo
     if (element.verticalAlign != 0) item["verticalAlign"] = element.verticalAlign;
     if (!element.showLabel) item["showLabel"] = false;
     if (element.graphStyle != "line") item["graphStyle"] = element.graphStyle;
-    if (element.graphPeriodHours != 12)
-        item["graphPeriodHours"] = element.graphPeriodHours;
 }
 
 inline String serializeStorageJson(const HomeLayoutConfig& config) {
