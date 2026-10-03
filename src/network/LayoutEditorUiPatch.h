@@ -1433,9 +1433,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             `<option value="${escapeHtml(source.id)}" ${source.id === element.source ? 'selected' : ''}>${escapeHtml(source.label)} (${escapeHtml(source.id)})</option>`
         ).join('');
         const selectedFontSize = normalizeFontSizeValue(element.fontSize);
+        const automaticFontPx = requestedFontPx(
+            element,
+            element.type === 'kpi');
         const fontOptions = (apiState?.customWidget?.fontSizes || ['auto', ...Array.from({length:58}, (_, i) => String(i + 7))])
             .map(value => {
-                const label = value === 'auto' ? 'Automatická' : value + ' px';
+                const label = value === 'auto'
+                    ? 'Automatická (' + automaticFontPx + ' px)'
+                    : value + ' px';
                 return `<option value="${value}" ${value === selectedFontSize ? 'selected' : ''}>${label}</option>`;
             }).join('');
         const alignOptions = (apiState?.customWidget?.alignments || ['left','center','right'])
