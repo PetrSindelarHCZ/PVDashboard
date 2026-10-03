@@ -328,14 +328,45 @@ inline void useElementFont(IDisplay& display, const CustomWidgetElementConfig& e
     display.setUnicodeFont(fontFor(element, valueFont));
 }
 
+inline int16_t verticalOffset(
+    const CustomWidgetElementConfig& element,
+    int16_t contentHeight) {
+
+    const int16_t freeHeight =
+        element.height > contentHeight
+            ? element.height - contentHeight
+            : 0;
+
+    if (element.verticalAlign == 1) return freeHeight / 2;
+    if (element.verticalAlign == 2) return freeHeight;
+    return 0;
+}
+
+inline int16_t elementFontHeight(
+    const CustomWidgetElementConfig& element,
+    bool valueFont) {
+
+    if (element.fontSize != "auto")
+        return requestedFontPx(element, valueFont);
+
+    return sourceFontHeight(fontFor(element, valueFont));
+}
+
 inline void drawText(IDisplay& display, int16_t x, int16_t y,
                      const CustomWidgetElementConfig& element, uint16_t textColor) {
+    const int16_t contentHeight =
+        elementFontHeight(element, false);
+    const int16_t top =
+        y + verticalOffset(element, contentHeight);
+
     if (element.fontSize != "auto") {
         const uint8_t fontPx = requestedFontPx(element, false);
         const String text = fitScaledText(element.text, element.width, fontPx, false);
         const int16_t textWidth = scaledTextWidth(text, fontPx, false);
         const int16_t textX = alignedScaledX(x, element.width, textWidth, element.align);
-        if (drawScaledUnicodeText(display, textX, y, text, fontPx, false, textColor, element.height)) {
+        if (drawScaledUnicodeText(
+                display, textX, top, text, fontPx, false,
+                textColor, element.height - (top - y))) {
             return;
         }
     }
@@ -343,18 +374,27 @@ inline void drawText(IDisplay& display, int16_t x, int16_t y,
     useElementFont(display, element, false, textColor);
     const String text = fitText(display, element.text, element.width);
     const int16_t textX = alignedX(display, x, element.width, text, element.align);
-    display.setCursor(textX, y + baselineOffset(element, false));
+    display.setCursor(textX, top + baselineOffset(element, false));
     display.print(text);
 }
 
 inline void drawKpi(IDisplay& display, const DataModel& dm, int16_t x, int16_t y,
                     const CustomWidgetElementConfig& element, uint16_t textColor) {
-    int16_t valueY = y;
-    if (element.showLabel && !element.label.isEmpty()) {
+    const bool hasLabel =
+        element.showLabel && !element.label.isEmpty();
+    const int16_t valueHeight =
+        elementFontHeight(element, true);
+    const int16_t blockHeight =
+        valueHeight + (hasLabel ? 20 : 0);
+    const int16_t blockTop =
+        y + verticalOffset(element, blockHeight);
+
+    int16_t valueY = blockTop;
+    if (hasLabel) {
         ScreenStyle::useBody(display, textColor);
         const String label = fitText(display, element.label, element.width);
         const int16_t labelX = alignedX(display, x, element.width, label, element.align);
-        display.setCursor(labelX, y + 16);
+        display.setCursor(labelX, blockTop + 16);
         display.print(label);
         valueY += 20;
     }
@@ -369,7 +409,8 @@ inline void drawKpi(IDisplay& display, const DataModel& dm, int16_t x, int16_t y
         valueText = fitScaledText(valueText, element.width, fontPx, true);
         const int16_t valueWidth = scaledTextWidth(valueText, fontPx, true);
         const int16_t valueX = alignedScaledX(x, element.width, valueWidth, element.align);
-        const int16_t availableHeight = element.height - (valueY - y);
+        const int16_t availableHeight =
+            element.height - (valueY - y);
         if (drawScaledUnicodeText(display, valueX, valueY, valueText, fontPx, true,
                                   textColor, availableHeight)) {
             return;
