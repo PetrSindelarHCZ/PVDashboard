@@ -25,14 +25,26 @@ int RfSensorManager::slotIndex(const String& slotId) {
     return value - 1;
 }
 
-void RfSensorManager::ensureHistory() {
-    if (_history != nullptr) return;
-    _history = new (std::nothrow) RfSensorHistory[MaxRfSensors];
-    if (_history == nullptr) {
-        Serial.println("[RF-SENSORS] Historie nelze alokovat: nedostatek heap pameti.");
-        return;
+RfSensorHistory* RfSensorManager::ensureHistory(uint8_t stableIndex) {
+    if (stableIndex >= MaxRfSensors) return nullptr;
+
+    if (_history[stableIndex] == nullptr) {
+        _history[stableIndex] = new (std::nothrow) RfSensorHistory();
+        if (_history[stableIndex] == nullptr) {
+            Serial.printf(
+                "[RF-SENSORS] Historie slotu %u nelze alokovat: "
+                "nedostatek heap pameti.\n",
+                static_cast<unsigned>(stableIndex + 1));
+            return nullptr;
+        }
+        Serial.printf(
+            "[RF-SENSORS] Historie slotu %u alokovana (%u B).\n",
+            static_cast<unsigned>(stableIndex + 1),
+            static_cast<unsigned>(sizeof(RfSensorHistory)));
     }
-    _dataModel.rfSensors.history = _history;
+
+    _dataModel.rfSensors.history[stableIndex] = _history[stableIndex];
+    return _history[stableIndex];
 }
 
 void RfSensorManager::sampleHistory(
@@ -40,14 +52,18 @@ void RfSensorManager::sampleHistory(
     const RfSensorObservation& observation,
     uint32_t now) {
 
-    ensureHistory();
-    if (_history == nullptr || _config == nullptr ||
-        configuredIndex >= _config->sensorCount || configuredIndex >= MaxRfSensors) {
+    if (_config == nullptr ||
+        configuredIndex >= _config->sensorCount ||
+        configuredIndex >= MaxRfSensors) {
         return;
     }
 
     const int stableIndex = slotIndex(_config->sensors[configuredIndex].slotId);
     if (stableIndex < 0) return;
+
+    RfSensorHistory* historyPtr =
+        ensureHistory(static_cast<uint8_t>(stableIndex));
+    if (historyPtr == nullptr) return;
 
     RfHistorySample sample;
     if (observation.hasTemperature) {
@@ -69,7 +85,7 @@ void RfSensorManager::sampleHistory(
     const uint32_t timeSeconds =
         wallClock ? static_cast<uint32_t>(epoch) : now / 1000UL;
 
-    RfSensorHistory& history = _history[stableIndex];
+    RfSensorHistory& history = *historyPtr;
     for (uint8_t periodIndex = 0;
          periodIndex < SensorGraphPeriodCount;
          ++periodIndex) {
@@ -162,8 +178,8 @@ bool RfSensorManager::sameBinding(
 }
 
 void RfSensorManager::applyConfig(const RfSensorsConfig& config) {
-    ensureHistory();
-    if (_history != nullptr) _dataModel.rfSensors.history = _history;
+    for (uint8_t i = 0; i < MaxRfSensors; ++i)
+        _dataModel.rfSensors.history[i] = _history[i];
 
     RfSensorData previous[MaxRfSensors];
     const uint8_t previousCount = _dataModel.rfSensors.sensorCount;
