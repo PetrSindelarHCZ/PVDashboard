@@ -805,7 +805,8 @@ inline String graphPeriodLabel(uint8_t periodHours) {
 }
 
 inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int16_t y,
-                          const CustomWidgetElementConfig& element, uint16_t textColor) {
+                          const CustomWidgetElementConfig& element, uint8_t sharedPeriodHours,
+                          uint16_t textColor) {
     int16_t graphY = y + 2;
     if (element.showLabel && !element.label.isEmpty()) {
         ScreenStyle::useBody(display, textColor);
@@ -820,7 +821,7 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
     if (graphH < 20) graphH = 20;
 
     const uint8_t periodHours =
-        normalizedGraphPeriodHours(element.graphPeriodHours);
+        normalizedGraphPeriodHours(sharedPeriodHours);
     const uint8_t count =
         historyCount(dm, element.source, periodHours);
 
