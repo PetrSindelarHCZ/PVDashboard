@@ -11,6 +11,7 @@
 #include "NavigationUiPatch.h"
 #include "LayoutEditorUiPatch.h"
 #include "../display/DisplayPreview.h"
+#include "../screens/HomeScreen.h"
 #include "../navigation/NavigationController.h"
 #include "TimeService.h"
 #include "NetworkDiagnostics.h"
@@ -513,7 +514,7 @@ void DashboardWebServer::onHomeLayoutConfig(HomeLayoutConfigCallback callback) {
     });
 
     _server.on("/api/layout/home/preview", HTTP_POST, [this]() {
-        if (!_homeLayoutPreviewCallback || !_server.hasArg("plain")) {
+        if (_displayPreview == nullptr || !_server.hasArg("plain")) {
             _server.send(
                 503,
                 "application/json",
@@ -533,7 +534,10 @@ void DashboardWebServer::onHomeLayoutConfig(HomeLayoutConfigCallback callback) {
             return;
         }
 
-        if (!_homeLayoutPreviewCallback(layout)) {
+        HomeScreen previewScreen;
+        previewScreen.setLayoutConfig(&layout);
+        _displayPreview->capture(previewScreen, _dataModel, false);
+        if (!_displayPreview->ready()) {
             _server.send(
                 503,
                 "application/json",
