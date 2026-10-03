@@ -1,4 +1,5 @@
 #include "DisplayWorker.h"
+#include <esp_heap_caps.h>
 
 const char* displayTaskStateName(DisplayTaskState state) {
     switch (state) {
@@ -34,6 +35,13 @@ bool DisplayWorker::begin() {
     }
 
     _status.state = DisplayTaskState::Initializing;
+    Serial.printf(
+        "[DISPLAY-WORKER] Pred taskem: stack=%u, free=%u, maxBlock=%u.\n",
+        static_cast<unsigned>(TaskStackWords),
+        static_cast<unsigned>(ESP.getFreeHeap()),
+        static_cast<unsigned>(
+            heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+
     const BaseType_t result = xTaskCreatePinnedToCore(
         taskEntry,
         "displayTask",
@@ -43,7 +51,13 @@ bool DisplayWorker::begin() {
         &_task,
         ARDUINO_RUNNING_CORE);
     if (result != pdPASS) {
-        Serial.println("[DISPLAY-WORKER] Nelze vytvorit task.");
+        Serial.printf(
+            "[DISPLAY-WORKER] Nelze vytvorit task: result=%ld, free=%u, "
+            "maxBlock=%u.\n",
+            static_cast<long>(result),
+            static_cast<unsigned>(ESP.getFreeHeap()),
+            static_cast<unsigned>(
+                heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
         vSemaphoreDelete(_mutex);
         _mutex = nullptr;
         _task = nullptr;
