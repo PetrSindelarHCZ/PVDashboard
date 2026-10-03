@@ -1113,7 +1113,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
     function elementSources(widget, type) {
         let sources = (apiState?.customWidget?.dataSources || [])
-            .filter(source => (type !== 'sparkline' && type !== 'trend') || source.history);
+            .filter(source => (type !== 'sparkline' && type !== 'trend' && type !== 'minmax') || source.history);
 
         if (widget?.type === 'rf-sensor' || widget?.type === 'pool-summary') {
             const prefix = 'rf.' + (widget.rfSensorSlotId || '') + '.';
@@ -1158,6 +1158,13 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 ? baseHeight
                 : Math.max(baseHeight, requestedFontPx(element, true));
             return valueHeight + (hasLabel ? 20 : 0);
+        }
+
+        if (element.type === 'minmax') {
+            const rowHeight = fontValue === 'auto'
+                ? 18
+                : Math.max(18, requestedFontPx(element, false));
+            return rowHeight * 2 + 4;
         }
 
         return baseHeight;
@@ -1323,7 +1330,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             } else {
                 const source = sourceInfo(a.source);
                 if (!source.id) ids.add(a.id);
-                if ((a.type === 'sparkline' || a.type === 'trend') && !source.history) ids.add(a.id);
+                if ((a.type === 'sparkline' || a.type === 'trend' || a.type === 'minmax') && !source.history) ids.add(a.id);
                 if (a.type === 'progress' && !(Number(a.max) > Number(a.min))) ids.add(a.id);
             }
             for (let j = i + 1; j < elements.length; j++) {
@@ -1405,7 +1412,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             element.text = '';
             element.showLabel = element.showLabel !== false;
             element.graphStyle = newType === 'sparkline' ? 'bars' : 'line';
-            if (newType === 'sparkline' || newType === 'trend') {
+            if (newType === 'sparkline' || newType === 'trend' || newType === 'minmax') {
                 element.graphPeriodHours = Number(element.graphPeriodHours || 12);
             }
             if (newType === 'trend') {
@@ -1413,6 +1420,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 element.showLabel = false;
                 element.align = 'center';
                 element.verticalAlign = 'center';
+            }
+            if (newType === 'minmax') {
+                element.showLabel = false;
             }
             if (newType === 'progress' && !(Number(element.max) > Number(element.min))) {
                 element.min = 0;
@@ -1486,7 +1496,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 <label>Typ prvku</label>
                 <select id="customFieldType">
                     ${(apiState?.customWidget?.elementTypes || []).map(item => {
-                        const names = {text:'Text', kpi:'KPI', progress:'Progress', sparkline:'Graf', trend:'Trend'};
+                        const names = {text:'Text', kpi:'KPI', progress:'Progress', sparkline:'Graf', trend:'Trend', minmax:'Min/Max'};
                         return `<option value="${escapeHtml(item.type)}" ${item.type === element.type ? 'selected' : ''}>${names[item.type] || item.type}</option>`;
                     }).join('')}
                 </select>
@@ -1501,7 +1511,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <label>Datový zdroj</label>
                     <select id="customFieldSource">${sourceOptions}</select>
                 </div>
-                ${element.type === 'trend' ? '' : `
+                ${(element.type === 'trend' || element.type === 'minmax') ? '' : `
                 <div class="field full">
                     <label>Popisek</label>
                     <input id="customFieldLabel" maxlength="40" value="${escapeHtml(element.label || '')}">
@@ -1522,7 +1532,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <div class="field"><label>Maximum</label><input id="customFieldMax" type="number" step="any" value="${Number(element.max ?? 100)}"></div>
                 ` : ''}
             `}
-            ${(element.type === 'text' || element.type === 'kpi' || element.type === 'trend') ? `
+            ${(element.type === 'text' || element.type === 'kpi' || element.type === 'trend' || element.type === 'minmax') ? `
                 <div class="field">
                     <label>Velikost písma</label>
                     <select id="customFieldFontSize">${fontOptions}</select>
@@ -1538,7 +1548,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 <select id="customFieldVerticalAlign">${verticalAlignOptions}</select>
             </div>
             `}
-            ${element.type !== 'text' ? `
+            ${(element.type !== 'text' && element.type !== 'minmax') ? `
                 <div class="field full">
                     <label class="toggle" style="display:flex;gap:8px;align-items:center">
                         <input id="customFieldShowLabel" type="checkbox" ${element.showLabel !== false ? 'checked' : ''}>
@@ -1553,7 +1563,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <select id="customFieldGraphStyle">${graphStyleOptions}</select>
                 </div>
             ` : ''}
-            ${(element.type === 'sparkline' || element.type === 'trend') ? `
+            ${(element.type === 'sparkline' || element.type === 'trend' || element.type === 'minmax') ? `
                 <div class="field full">
                     <label>Časové období</label>
                     <select id="customFieldGraphPeriod">${graphPeriodOptions}</select>
@@ -1828,8 +1838,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         }
 
         const typeInfo = elementTypeInfo(type);
-        let width = Math.max(Number(typeInfo.minWidth || 40), type === 'sparkline' ? 220 : type === 'progress' ? 180 : type === 'trend' ? 40 : 140);
-        let height = Math.max(Number(typeInfo.minHeight || 20), type === 'sparkline' ? 100 : type === 'kpi' ? 60 : type === 'progress' ? 50 : type === 'trend' ? 40 : 30);
+        let width = Math.max(Number(typeInfo.minWidth || 40), type === 'sparkline' ? 220 : type === 'progress' ? 180 : type === 'trend' ? 40 : type === 'minmax' ? 130 : 140);
+        let height = Math.max(Number(typeInfo.minHeight || 20), type === 'sparkline' ? 100 : type === 'kpi' ? 60 : type === 'progress' ? 50 : type === 'trend' ? 40 : type === 'minmax' ? 48 : 30);
         width = Math.min(width, widget.width);
         height = Math.min(height, widget.height);
 
@@ -1855,7 +1865,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             fontSize: type === 'trend' ? '28' : 'auto',
             align: type === 'trend' ? 'center' : 'left',
             verticalAlign: type === 'trend' ? 'center' : 'top',
-            showLabel: type === 'trend' ? false : true,
+            showLabel: (type === 'trend' || type === 'minmax') ? false : true,
             graphStyle: type === 'sparkline' ? 'bars' : 'line',
             graphPeriodHours: 12
         };
@@ -2411,6 +2421,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                         <button class="btn btn-secondary" type="button" data-add-element="progress">＋ Progress</button>
                         <button class="btn btn-secondary" type="button" data-add-element="sparkline">＋ Graf</button>
                         <button class="btn btn-secondary" type="button" data-add-element="trend">＋ Trend</button>
+                        <button class="btn btn-secondary" type="button" data-add-element="minmax">＋ Min/Max</button>
                     </div>
                 </div>
 
