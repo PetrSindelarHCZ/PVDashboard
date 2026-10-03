@@ -430,6 +430,14 @@ void DashboardWebServer::onHomeLayoutConfig(HomeLayoutConfigCallback callback) {
     });
 
     _server.on("/api/layout/home", HTTP_POST, [this]() {
+        const uint32_t started = millis();
+        Serial.printf(
+            "[WEB][HOME-LAYOUT] POST start, payload=%u B, heap=%u.\n",
+            _server.hasArg("plain")
+                ? static_cast<unsigned>(_server.arg("plain").length())
+                : 0U,
+            static_cast<unsigned>(ESP.getFreeHeap()));
+
         if (!_homeLayoutConfigCallback || !_server.hasArg("plain")) {
             _server.send(
                 503,
@@ -441,6 +449,9 @@ void DashboardWebServer::onHomeLayoutConfig(HomeLayoutConfigCallback callback) {
         HomeLayoutConfig layout;
         String error;
         if (!HomeLayout::parseJson(_server.arg("plain"), layout, &error)) {
+            Serial.printf(
+                "[WEB][HOME-LAYOUT] parse FAIL: %s.\n",
+                error.c_str());
             JsonDocument doc;
             doc["status"] = "error";
             doc["message"] = error;
@@ -450,7 +461,12 @@ void DashboardWebServer::onHomeLayoutConfig(HomeLayoutConfigCallback callback) {
             return;
         }
 
+        Serial.printf(
+            "[WEB][HOME-LAYOUT] parse OK, widgets=%u.\n",
+            static_cast<unsigned>(layout.widgetCount));
+
         if (!_homeLayoutConfigCallback(layout)) {
+            Serial.println("[WEB][HOME-LAYOUT] save callback FAIL.");
             _server.send(
                 500,
                 "application/json",
@@ -458,11 +474,28 @@ void DashboardWebServer::onHomeLayoutConfig(HomeLayoutConfigCallback callback) {
             return;
         }
 
+        Serial.printf(
+            "[WEB][HOME-LAYOUT] save callback OK after %lu ms, building response.\n",
+            static_cast<unsigned long>(millis() - started));
+
+        const String response =
+            homeLayoutResponseJson(
+                _config.display.homeLayout,
+                _config.rfSensors,
+                _dataModel);
+
+        Serial.printf(
+            "[WEB][HOME-LAYOUT] response=%u B, heap=%u, sending after %lu ms.\n",
+            static_cast<unsigned>(response.length()),
+            static_cast<unsigned>(ESP.getFreeHeap()),
+            static_cast<unsigned long>(millis() - started));
+
         _server.sendHeader("Cache-Control", "no-store");
-        _server.send(
-            200,
-            "application/json",
-            homeLayoutResponseJson(_config.display.homeLayout, _config.rfSensors, _dataModel));
+        _server.send(200, "application/json", response);
+
+        Serial.printf(
+            "[WEB][HOME-LAYOUT] POST complete in %lu ms.\n",
+            static_cast<unsigned long>(millis() - started));
     });
 
     _server.on("/api/layout/home/reset", HTTP_POST, [this]() {
