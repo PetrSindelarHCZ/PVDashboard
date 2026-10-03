@@ -248,10 +248,9 @@ struct RfSensorsData {
     uint8_t sensorCount = 0;
     RfSensorData sensors[MaxRfSensors];
 
-    // Each stable RF slot allocates history lazily on its first valid packet.
-    // Keeping only pointers here avoids reserving all 16 multi-period histories
-    // before the display worker has created its FreeRTOS stack.
-    RfSensorHistory* history[MaxRfSensors] = {};
+    // Heap-owned table of MaxRfSensors pointers. Individual histories are
+    // allocated lazily per stable slot on the first valid RF packet.
+    RfSensorHistory** history = nullptr;
 };
 
 struct SystemData {
