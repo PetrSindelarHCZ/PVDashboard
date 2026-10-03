@@ -1000,7 +1000,7 @@ inline void drawSparkline(IDisplay& display, const DataModel& dm, int16_t x, int
 inline void drawElements(IDisplay& display, const DataModel& dm,
                          const HomeLayoutWidgetConfig& widget, uint16_t textColor) {
     const uint8_t historyPeriodHours =
-        normalizedGraphPeriodHours(widget.historyPeriodHours);
+        normalizedGraphPeriodHours(HomeLayout::historyPeriodHours(widget));
 
     // elements[] is the Z-order: first is bottom, last is top.
     for (uint8_t i = 0; i < widget.elements.size() && i < MaxCustomWidgetElements; ++i) {
