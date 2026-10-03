@@ -127,7 +127,7 @@ inline bool knownSparklineSource(const String& source) {
 inline bool knownElementType(const String& type) {
     return type == "text" || type == "kpi" ||
            type == "progress" || type == "sparkline" ||
-           type == "trend";
+           type == "trend" || type == "minmax";
 }
 
 inline int16_t elementMinWidth(const String& type) {
@@ -136,6 +136,7 @@ inline int16_t elementMinWidth(const String& type) {
     if (type == "progress") return 90;
     if (type == "sparkline") return 120;
     if (type == "trend") return 24;
+    if (type == "minmax") return 90;
     return 0;
 }
 
@@ -145,6 +146,7 @@ inline int16_t elementMinHeight(const String& type) {
     if (type == "progress") return 35;
     if (type == "sparkline") return 60;
     if (type == "trend") return 24;
+    if (type == "minmax") return 40;
     return 0;
 }
 
@@ -267,6 +269,12 @@ inline int16_t requiredElementHeight(const CustomWidgetElementConfig& element) {
         return static_cast<int16_t>(valueHeight + (hasLabel ? 20 : 0));
     }
 
+    if (element.type == "minmax") {
+        const int16_t rowHeight =
+            fontPx == 0 ? 18 : (fontPx > 18 ? fontPx : 18);
+        return static_cast<int16_t>(rowHeight * 2 + 4);
+    }
+
     return baseHeight;
 }
 
@@ -329,7 +337,8 @@ inline bool validateCustomWidget(const HomeLayoutWidgetConfig& widget, String* e
             if (element.text.isEmpty()) return fail("Text element requires text");
         } else {
             if (!knownDataSource(element.source)) return fail("Unknown custom data source");
-            if ((element.type == "sparkline" || element.type == "trend") &&
+            if ((element.type == "sparkline" || element.type == "trend" ||
+                 element.type == "minmax") &&
                 !knownSparklineSource(element.source)) {
                 return fail("Trend element source has no history");
             }
