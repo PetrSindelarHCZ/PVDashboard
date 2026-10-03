@@ -14,6 +14,7 @@ enum class Icon : uint8_t {
     None,
     Home,
     Outdoor,
+    Tree,
     Pool,
     Solar,
     AZRouter,
@@ -27,6 +28,7 @@ inline const char* key(Icon icon) {
         case Icon::None:     return "none";
         case Icon::Home:     return "home";
         case Icon::Outdoor:  return "outdoor";
+        case Icon::Tree:     return "tree";
         case Icon::Pool:     return "pool";
         case Icon::Solar:    return "solar";
         case Icon::AZRouter: return "azrouter";
@@ -42,6 +44,7 @@ inline const char* label(Icon icon) {
         case Icon::None:     return "Bez ikony";
         case Icon::Home:     return "Dům";
         case Icon::Outdoor:  return "Venku / RF čidlo";
+        case Icon::Tree:     return "Strom";
         case Icon::Pool:     return "Bazén";
         case Icon::Solar:    return "FVE";
         case Icon::AZRouter: return "AZRouter";
@@ -148,13 +151,38 @@ inline void drawOutdoorApproved(
     int16_t y,
     uint16_t color) {
 
-    // Exact RF header symbol that was used on the approved Home RF card.
-    d.drawLine(x + 15, y + 9, x + 15, y + 29, color);
-    d.fillCircle(x + 15, y + 30, 1, color);
-    d.drawLine(x + 10, y + 11, x + 5, y + 6, color);
-    d.drawLine(x + 20, y + 11, x + 25, y + 6, color);
-    d.drawLine(x + 7, y + 16, x + 1, y + 10, color);
-    d.drawLine(x + 23, y + 16, x + 29, y + 10, color);
+    // Same approved RF motif, but with a stronger 2 px stroke so it does not
+    // disappear visually next to the rasterized 32 px card icons.
+    d.fillRect(x + 14, y + 8, 3, 21, color);
+    d.fillCircle(x + 15, y + 29, 2, color);
+
+    auto thickLine = [&](int16_t x1, int16_t y1, int16_t x2, int16_t y2) {
+        d.drawLine(x1, y1, x2, y2, color);
+        d.drawLine(x1 + 1, y1, x2 + 1, y2, color);
+    };
+
+    thickLine(x + 10, y + 11, x + 5, y + 6);
+    thickLine(x + 20, y + 11, x + 25, y + 6);
+    thickLine(x + 7, y + 17, x + 1, y + 11);
+    thickLine(x + 23, y + 17, x + 29, y + 11);
+}
+
+inline void drawTree(
+    IDisplay& d,
+    int16_t x,
+    int16_t y,
+    uint16_t color) {
+
+    // Compact 32 px deciduous tree: broad crown, visible trunk and a small
+    // ground line. Built from simple primitives for crisp monochrome e-paper.
+    d.fillCircle(x + 16, y + 10, 6, color);
+    d.fillCircle(x + 10, y + 14, 6, color);
+    d.fillCircle(x + 22, y + 14, 6, color);
+    d.fillCircle(x + 16, y + 16, 7, color);
+
+    d.fillRect(x + 14, y + 18, 5, 10, color);
+    d.drawLine(x + 11, y + 28, x + 22, y + 28, color);
+    d.drawLine(x + 9, y + 29, x + 24, y + 29, color);
 }
 
 inline void draw(
@@ -168,6 +196,11 @@ inline void draw(
 
     if (icon == Icon::Outdoor) {
         drawOutdoorApproved(d, x, y, color);
+        return;
+    }
+
+    if (icon == Icon::Tree) {
+        drawTree(d, x, y, color);
         return;
     }
 
