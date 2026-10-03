@@ -1805,8 +1805,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
 
     function findElementPosition(widget, width, height) {
         const step = gridStep || 5;
-        for (let y = 40; y + height <= widget.height - 8; y += step) {
-            for (let x = 8; x + width <= widget.width - 8; x += step) {
+        for (let y = 0; y + height <= widget.height; y += step) {
+            for (let x = 0; x + width <= widget.width; x += step) {
                 const probe = {x, y, width, height};
                 if (!(widget.elements || []).some(element => elementOverlap(probe, element))) {
                     return {x, y};
@@ -1830,10 +1830,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const typeInfo = elementTypeInfo(type);
         let width = Math.max(Number(typeInfo.minWidth || 40), type === 'sparkline' ? 220 : type === 'progress' ? 180 : type === 'trend' ? 40 : 140);
         let height = Math.max(Number(typeInfo.minHeight || 20), type === 'sparkline' ? 100 : type === 'kpi' ? 60 : type === 'progress' ? 50 : type === 'trend' ? 40 : 30);
-        width = Math.min(width, widget.width - 16);
-        height = Math.min(height, widget.height - 48);
+        width = Math.min(width, widget.width);
+        height = Math.min(height, widget.height);
 
-        const position = findElementPosition(widget, width, height) || {x: 8, y: 40};
+        const position = findElementPosition(widget, width, height) || {x: 0, y: 0};
 
         const elementId = uniqueElementId(widget, type);
         const sources = elementSources(widget, type);
