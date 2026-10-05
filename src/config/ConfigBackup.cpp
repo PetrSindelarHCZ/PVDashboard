@@ -128,7 +128,9 @@ String inferTimezoneId(const String& timezone) {
 
 String serializeRfSensorsBackup(const RfSensorsConfig& rfSensors) {
     JsonDocument doc;
-    JsonArray array = doc.to<JsonArray>();
+    JsonObject root = doc.to<JsonObject>();
+    root["bme280Name"] = rfSensors.bme280Name;
+    JsonArray array = root["sensors"].to<JsonArray>();
     const uint8_t count = min<uint8_t>(rfSensors.sensorCount, MaxRfSensors);
     for (uint8_t i = 0; i < count; ++i) {
         const RfSensorConfig& sensor = rfSensors.sensors[i];
@@ -150,10 +152,25 @@ String serializeRfSensorsBackup(const RfSensorsConfig& rfSensors) {
 bool parseRfSensorsBackup(const String& json, RfSensorsConfig& rfSensors) {
     JsonDocument doc;
     if (deserializeJson(doc, json)) return false;
-    JsonArray array = doc.as<JsonArray>();
-    if (array.isNull() || array.size() > MaxRfSensors) return false;
 
     RfSensorsConfig parsed;
+    JsonArray array;
+    if (doc.is<JsonArray>()) {
+        // Legacy backup: RF sensor array only.
+        array = doc.as<JsonArray>();
+    } else {
+        JsonObject root = doc.as<JsonObject>();
+        if (root.isNull()) return false;
+        parsed.bme280Name = root["bme280Name"] | "Inside";
+        parsed.bme280Name.trim();
+        if (parsed.bme280Name.isEmpty()) parsed.bme280Name = "Inside";
+        if (parsed.bme280Name.length() > 40 || invalidString(parsed.bme280Name))
+            return false;
+        array = root["sensors"].as<JsonArray>();
+    }
+
+    if (array.isNull() || array.size() > MaxRfSensors) return false;
+
     for (JsonObject item : array) {
         RfSensorConfig sensor;
         sensor.slotId = item["slotId"] | "";
