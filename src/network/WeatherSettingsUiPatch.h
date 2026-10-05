@@ -591,18 +591,22 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
     }
 
     async function selectLocation(id) {
-        const current = locations.find(item => item.id === activeLocationId);
         const selected = locations.find(item => item.id === id);
         if (!selected || id === activeLocationId) {
             closeLocationMenu();
             return;
         }
 
+        activeLocationId = id;
+        renderLocationPicker();
         closeLocationMenu();
-        await locationAction(
-            {action:'select', id},
-            'Aktivní místo: ' + displayName(selected)
-        );
+        updateDirtyState();
+
+        // Aktivní lokalita je součást hlavní konfigurace počasí.
+        // Ulož ji stejnou cestou jako provider/interval, aby se změna
+        // okamžitě propsala do ConfigManageru, workeru i displeje.
+        await applyWeatherConfig(false);
+        showToast('Aktivní místo: ' + displayName(selected));
     }
 
     async function moveLocation(id, direction) {
