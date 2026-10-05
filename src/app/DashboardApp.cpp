@@ -1109,60 +1109,90 @@ void DashboardApp::setup() {
         });
     
         _webServer->onWeatherConfig([this](const WeatherConfig& weather) {
-            const WeatherConfig previous = _configManager.get().weather;
+            // Keep this callback light on loopTask stack. WeatherConfig and
+            // especially WeatherData are large enough that local copies here
+            // can trip the 8 kB Arduino loopTask stack.
+            const WeatherConfig& previous = _configManager.get().weather;
             const bool enabledChanged = previous.enabled != weather.enabled;
             const bool providerChanged = previous.provider != weather.provider;
             const bool locationChanged =
                 fabs(previous.latitude - weather.latitude) > 0.00001 ||
                 fabs(previous.longitude - weather.longitude) > 0.00001;
-    
+
             _configManager.setWeather(weather);
             const WeatherConfig& applied = _configManager.get().weather;
+
+            Serial.printf(
+                "[CONFIG] Pocasi provider ulozen: %s\n",
+                applied.provider.c_str());
+
             if (!_weatherWorker.reconfigure(applied)) {
                 Serial.println("[CONFIG] Nepodarilo se aplikovat konfiguraci pocasi za behu.");
             }
-    
+
             const WeatherLocation* activeLocation = applied.activeLocation();
             const int activeIndex =
                 activeLocation != nullptr
                     ? weatherLocationIndexById(applied, activeLocation->id)
                     : -1;
-    
+
             _weatherDisplayLocationIndex =
                 activeIndex >= 0 ? static_cast<uint8_t>(activeIndex) : 0;
             _weatherDisplayLocationId =
                 activeLocation != nullptr ? activeLocation->id : "";
-    
+
             if (providerChanged || locationChanged) {
-                // Starou predpoved nesmime po prepnuti zdroje/lokality vydavat za
-                // data nove konfigurace. Cekame na prvni platnou odpoved workeru.
-                WeatherData pending;
-                pending.enabled = applied.enabled;
-                pending.provider = weatherProviderLabel(applied.provider);
-                pending.locationId = _weatherDisplayLocationId;
-                pending.locationName =
+                // Invalidate the existing forecast in place instead of
+                // constructing a large temporary WeatherData on loopTask.
+                _dataModel.weather.enabled = applied.enabled;
+                _dataModel.weather.provider =
+                    weatherProviderLabel(applied.provider);
+                _dataModel.weather.locationId = _weatherDisplayLocationId;
+                _dataModel.weather.locationName =
                     activeLocation != nullptr ? activeLocation->name : "";
-                pending.locationIndex = _weatherDisplayLocationIndex;
-                pending.locationCount =
+                _dataModel.weather.locationIndex =
+                    _weatherDisplayLocationIndex;
+                _dataModel.weather.locationCount =
                     min<uint8_t>(applied.locationCount, MaxWeatherLocations);
-                pending.status.available = false;
-                pending.status.lastAttemptMs = millis();
-                pending.status.lastError = "Aktualizuji pocasi";
-                _dataModel.weather = pending;
+                _dataModel.weather.dailyCount = 0;
+                _dataModel.weather.hourlyCount = 0;
+                _dataModel.weather.lastUpdateMs = 0;
+                _dataModel.weather.status.available = false;
+                _dataModel.weather.status.lastSuccessMs = 0;
+                _dataModel.weather.status.lastAttemptMs = millis();
+                _dataModel.weather.status.lastError = "Aktualizuji pocasi";
             } else {
                 selectWeatherDisplayLocation(
                     _weatherDisplayLocationIndex,
                     false);
             }
-    
+
             if (!applied.enabled) {
                 _dataModel.weather.status.recordError("Weather disabled");
             }
-    
+
             setWeatherScreensEnabled(applied.enabled);
             _navigationController.syncToActiveScreen(false);
-            if (enabledChanged) requestDisplayRefresh(true, 2500, "config-weather-enabled");
-            else requestAutomaticDisplayRefresh("config-weather-values");
+            if (enabledChanged) {
+                requestDisplayRefresh(true, 2500, "config-weather-enabled");
+            } else if (_screenManager.getActiveScreenId() == "home") {
+                DisplayRegion regions[MaxHomeLayoutWidgets];
+                const uint8_t count =
+                    homeDataRegions(
+                        _configManager.get().display.homeLayout,
+                        _dataModel,
+                        HomeDataGroup::Weather,
+                        regions,
+                        MaxHomeLayoutWidgets);
+                for (uint8_t i = 0; i < count; ++i) {
+                    requestAutomaticRegionRefresh(
+                        regions[i], true, "config-weather-values");
+                }
+            } else if (isWeatherScreenId(_screenManager.getActiveScreenId())) {
+                requestAutomaticRegionRefresh(
+                    pageRegion(), true, "config-weather-values");
+            }
+
             Serial.println("[CONFIG] Pocasi ulozeno a aplikovano za behu.");
         });
     
