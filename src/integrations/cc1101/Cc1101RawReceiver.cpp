@@ -7,6 +7,11 @@
 namespace Cc1101RawReceiver {
 namespace {
 
+// Verbose RAW/fingerprint logging is useful only while discovering new 433 MHz
+// protocols. Keep normal runtime logs readable and avoid spending CPU time on
+// formatting large pulse dumps.
+constexpr bool RawDiagnosticsEnabled = false;
+
 constexpr uint8_t Sres = 0x30;
 constexpr uint8_t Srx = 0x34;
 
@@ -2033,11 +2038,9 @@ bool begin() {
     interruptAttached = true;
 
     receiverReady = true;
-    Serial.println(
-        "[CC1101][RX] RAW prijem aktivni: 433.92 MHz ASK/OOK, "
-        "GDO0=data, GDO2=carrier-sense.");
-    Serial.println(
-        "[CC1101][RX] Cekam na RF bursty; vypis bude H/L + delka pulzu v us.");
+    Serial.printf(
+        "[CC1101][RX] 433.92 MHz ASK/OOK aktivni; RAW diagnostika: %s.\n",
+        RawDiagnosticsEnabled ? "ON" : "OFF");
     return true;
 }
 
@@ -2104,21 +2107,28 @@ void loop() {
     overflowed = false;
     interrupts();
 
-    if (!tryPrintTfaTwinPlus(snapshot, snapshotCount) &&
-        !tryPrintNexusTh(snapshot, snapshotCount) &&
-        !tryPrintHyundaiWs(snapshot, snapshotCount) &&
-        !tryPrintAuriolHg02832(snapshot, snapshotCount) &&
-        !tryPrintRepeatedManchester(snapshot, snapshotCount) &&
-        !tryPrintPwm67(snapshot, snapshotCount) &&
-        !tryPrintPwm67Candidate(snapshot, snapshotCount) &&
-        !tryPrintHyundaiR50(snapshot, snapshotCount) &&
-        !tryPrintOneTwoMsCandidate(snapshot, snapshotCount)) {
-        printBurst(
-            snapshot,
-            snapshotCount,
-            snapshotOverflow,
-            snapshotCarrierHighEdges,
-            snapshotCarrierHoldEdges);
+    const bool decoded =
+        tryPrintTfaTwinPlus(snapshot, snapshotCount) ||
+        tryPrintNexusTh(snapshot, snapshotCount) ||
+        tryPrintHyundaiWs(snapshot, snapshotCount) ||
+        tryPrintAuriolHg02832(snapshot, snapshotCount) ||
+        tryPrintRepeatedManchester(snapshot, snapshotCount) ||
+        tryPrintHyundaiR50(snapshot, snapshotCount);
+
+    if (!decoded && RawDiagnosticsEnabled) {
+        const bool diagnosticMatch =
+            tryPrintPwm67(snapshot, snapshotCount) ||
+            tryPrintPwm67Candidate(snapshot, snapshotCount) ||
+            tryPrintOneTwoMsCandidate(snapshot, snapshotCount);
+
+        if (!diagnosticMatch) {
+            printBurst(
+                snapshot,
+                snapshotCount,
+                snapshotOverflow,
+                snapshotCarrierHighEdges,
+                snapshotCarrierHoldEdges);
+        }
     }
 }
 
@@ -2155,7 +2165,7 @@ void setSuppressed(bool suppressed) {
         interruptAttached = true;
     }
 
-    if (changed) {
+    if (changed && RawDiagnosticsEnabled) {
         Serial.printf(
             "[CC1101][RX] capture %s kvuli aktivite e-paperu.\n",
             suppressed ? "PAUSED" : "RESUMED");
