@@ -96,7 +96,10 @@ void loadWeatherLocations(Preferences& preferences, WeatherConfig& weather) {
 
 String serializeRfSensors(const RfSensorsConfig& rfSensors) {
     JsonDocument doc;
-    JsonArray array = doc.to<JsonArray>();
+    JsonObject root = doc.to<JsonObject>();
+    root["bme280Name"] = rfSensors.bme280Name;
+
+    JsonArray array = root["sensors"].to<JsonArray>();
     const uint8_t count = min<uint8_t>(rfSensors.sensorCount, MaxRfSensors);
     for (uint8_t i = 0; i < count; ++i) {
         const RfSensorConfig& sensor = rfSensors.sensors[i];
@@ -123,13 +126,33 @@ bool parseRfSensors(const String& json, RfSensorsConfig& rfSensors, String& erro
         return false;
     }
 
-    JsonArray array = doc.as<JsonArray>();
+    JsonArray array;
+    RfSensorsConfig parsed;
+
+    if (doc.is<JsonArray>()) {
+        // Legacy format: the root was the sensor array.
+        array = doc.as<JsonArray>();
+    } else {
+        JsonObject root = doc.as<JsonObject>();
+        if (root.isNull()) {
+            error = "Invalid RF sensor configuration";
+            return false;
+        }
+        parsed.bme280Name = root["bme280Name"] | "BME280";
+        parsed.bme280Name.trim();
+        if (parsed.bme280Name.isEmpty()) parsed.bme280Name = "BME280";
+        if (parsed.bme280Name.length() > 40) {
+            error = "Invalid BME280 sensor name";
+            return false;
+        }
+        array = root["sensors"].as<JsonArray>();
+    }
+
     if (array.isNull() || array.size() > MaxRfSensors) {
         error = "Invalid RF sensor list";
         return false;
     }
 
-    RfSensorsConfig parsed;
     for (JsonObject item : array) {
         RfSensorConfig sensor;
         sensor.slotId = item["slotId"] | "";
