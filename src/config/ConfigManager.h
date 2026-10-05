@@ -23,6 +23,7 @@ public:
     void setPool(const PoolConfig& pool);
     bool setRfSensors(const RfSensorsConfig& rfSensors);
     bool setBme280Name(const String& name);
+    bool renameRfSensor(const String& slotId, const String& name, String& error);
     void setWeather(const WeatherConfig& weather);
     bool setHomeLayout(const HomeLayoutConfig& layout);
     bool resetToFactoryDefaults();
