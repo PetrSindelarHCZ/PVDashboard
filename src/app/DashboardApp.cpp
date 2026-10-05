@@ -808,7 +808,8 @@ void DashboardApp::setup() {
         if (_webServer != nullptr)
             _webServer->setNetworkClientGate(_networkClientGate);
         _weatherWorker.setNetworkClientGate(_networkClientGate);
-        Serial.println("[APP] Network-client gate pripraven pro Web/TLS.");
+        _goodweWorker.setNetworkClientGate(_networkClientGate);
+        Serial.println("[APP] Network-client gate pripraven pro Web/Weather/GoodWe/AZRouter.");
     }
 
     _displayPreview.init(); // tiled preview; komprimovany snapshot se drzi mimo TLS DRAM
@@ -2416,20 +2417,40 @@ void DashboardApp::loop() {
         now = millis();
         const uint32_t azrouterDelayMs = pollDelayMs(cfg.azrouter.pollIntervalSeconds, _azrouterFailureStreak);
         if (cfg.azrouter.enabled && now - _lastAzrouterSync >= azrouterDelayMs) {
-            const bool wasAvailable = _dataModel.azrouter.status.available;
-            const bool success = _azrouterClient.update(_dataModel.azrouter);
-            _lastAzrouterSync = millis();
-            _azrouterFailureStreak = success ? 0 : nextFailureStreak(_azrouterFailureStreak);
-            azrouterTelemetryUpdated = azrouterTelemetryUpdated || success;
-            azrouterAvailabilityChanged =
-                azrouterAvailabilityChanged ||
-                wasAvailable != _dataModel.azrouter.status.available;
-            if (!success) Serial.printf("[AZROUTER] Dalsi pokus za %lu ms (chyby v rade: %u)\n", pollDelayMs(cfg.azrouter.pollIntervalSeconds, _azrouterFailureStreak), _azrouterFailureStreak);
+            const bool gateTaken =
+                _networkClientGate == nullptr ||
+                xSemaphoreTake(_networkClientGate, 0) == pdTRUE;
 
-            // Service WebUI again after the AZRouter burst.
-            if (_webServer != nullptr) {
-                _webServer->loop();
+            if (gateTaken) {
+                const bool wasAvailable = _dataModel.azrouter.status.available;
+                const bool success = _azrouterClient.update(_dataModel.azrouter);
+                if (_networkClientGate != nullptr) {
+                    xSemaphoreGive(_networkClientGate);
+                }
+
+                _lastAzrouterSync = millis();
+                _azrouterFailureStreak =
+                    success ? 0 : nextFailureStreak(_azrouterFailureStreak);
+                azrouterTelemetryUpdated = azrouterTelemetryUpdated || success;
+                azrouterAvailabilityChanged =
+                    azrouterAvailabilityChanged ||
+                    wasAvailable != _dataModel.azrouter.status.available;
+                if (!success) {
+                    Serial.printf(
+                        "[AZROUTER] Dalsi pokus za %lu ms (chyby v rade: %u)\n",
+                        pollDelayMs(
+                            cfg.azrouter.pollIntervalSeconds,
+                            _azrouterFailureStreak),
+                        _azrouterFailureStreak);
+                }
+
+                // Service WebUI again after the AZRouter burst.
+                if (_webServer != nullptr) {
+                    _webServer->loop();
+                }
             }
+            // If Weather/Web owns the shared gate, leave _lastAzrouterSync
+            // untouched. The poll is retried as soon as the gate is free.
         }
 
         _dataModel.updateSystemMetrics();
