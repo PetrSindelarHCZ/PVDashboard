@@ -11,6 +11,7 @@ class GoodWeWorker {
 public:
     bool begin(const GoodWeConfig& config);
     bool reconfigure(const GoodWeConfig& config);
+    void setNetworkClientGate(SemaphoreHandle_t gate) { _networkClientGate = gate; }
     bool requestPoll();
     bool takeLatest(SolarData& data, bool& success, uint32_t& completedMs);
 
@@ -24,6 +25,7 @@ private:
     volatile bool _pollRequested = false;
     volatile bool _pollInFlight = false;
     uint32_t _configGeneration = 0;
+    SemaphoreHandle_t _networkClientGate = nullptr;
 
     SolarData _latest;
     bool _latestSuccess = false;
