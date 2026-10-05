@@ -1959,20 +1959,19 @@ void DashboardApp::loop() {
         displayStatus.state == DisplayTaskState::Queued ||
         displayStatus.pending;
 
-    // The 7.5" e-paper refresh can couple noise into exposed GPIO lines
-    // (GPIO18/RIGHT was observed doing this in practice). Do not sample any
-    // physical buttons while the panel is electrically active; otherwise a
-    // short false LOW can enter the debounce/repeat state machine and queue
-    // another navigation/render while the current refresh is still running.
+    // E-paper activity can inject false transitions on GPIO18. Keep the rest
+    // of the joystick responsive during rendering and suppress only that pin.
     NavigationAction joystickAction;
     const bool joystickEvent =
-        !displayElectricallyActive && _joystick.poll(joystickAction);
+        _joystick.poll(joystickAction, displayElectricallyActive);
     if (joystickEvent) {
         handleNavigationAction(joystickAction, false);
     }
 
+    // SET/RESET are on GPIO34/35 with external pull-ups and are not affected
+    // by the observed GPIO18 display noise, so keep them responsive as well.
     ControlAction controlAction;
-    if (!displayElectricallyActive && _joystick.pollControl(controlAction)) {
+    if (_joystick.pollControl(controlAction)) {
         handleControlAction(controlAction, false);
     }
 
@@ -2321,6 +2320,12 @@ void DashboardApp::loop() {
                 goodweAvailabilityChanged ||
                 wasAvailable != _dataModel.solar.status.available;
             if (!success) Serial.printf("[GOODWE] Dalsi pokus za %lu ms (chyby v rade: %u)\n", pollDelayMs(cfg.goodwe.pollIntervalSeconds, _goodweFailureStreak), _goodweFailureStreak);
+
+            // A GoodWe retry can block this loop for seconds. Give local HTTP
+            // clients a chance before starting the next network integration.
+            if (_webServer != nullptr) {
+                _webServer->loop();
+            }
         }
 
         now = millis();
@@ -2335,6 +2340,11 @@ void DashboardApp::loop() {
                 azrouterAvailabilityChanged ||
                 wasAvailable != _dataModel.azrouter.status.available;
             if (!success) Serial.printf("[AZROUTER] Dalsi pokus za %lu ms (chyby v rade: %u)\n", pollDelayMs(cfg.azrouter.pollIntervalSeconds, _azrouterFailureStreak), _azrouterFailureStreak);
+
+            // Service WebUI again after the AZRouter burst.
+            if (_webServer != nullptr) {
+                _webServer->loop();
+            }
         }
 
         _dataModel.updateSystemMetrics();
