@@ -138,9 +138,9 @@ bool parseRfSensors(const String& json, RfSensorsConfig& rfSensors, String& erro
             error = "Invalid RF sensor configuration";
             return false;
         }
-        parsed.bme280Name = root["bme280Name"] | "BME280";
+        parsed.bme280Name = root["bme280Name"] | "Inside";
         parsed.bme280Name.trim();
-        if (parsed.bme280Name.isEmpty()) parsed.bme280Name = "BME280";
+        if (parsed.bme280Name.isEmpty()) parsed.bme280Name = "Inside";
         if (parsed.bme280Name.length() > 40) {
             error = "Invalid BME280 sensor name";
             return false;
