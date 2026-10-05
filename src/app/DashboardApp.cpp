@@ -1217,7 +1217,10 @@ void DashboardApp::setup() {
                         _configManager.setHomeLayout(layout);
                     }
 
-                    requestAutomaticDisplayRefresh();
+                    Serial.printf(
+                        "[RF-SENSORS] BME280 prejmenovan: %s -> %s\n",
+                        oldName.c_str(),
+                        newName.c_str());
                     return true;
                 }
 
@@ -1294,7 +1297,10 @@ void DashboardApp::setup() {
                         "ale automaticky KPI popisek se nepodarilo aktualizovat.");
                 }
     
-                requestAutomaticDisplayRefresh();
+                Serial.printf(
+                    "[RF-SENSORS] %s prejmenovan na '%s'.\n",
+                    slotId.c_str(),
+                    name.c_str());
                 return true;
             },
             [this](const String& slotId, const String& bindingKey, String& error) {
