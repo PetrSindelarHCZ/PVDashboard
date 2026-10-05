@@ -340,6 +340,13 @@ bool ConfigManager::begin() {
         _config.system.timezoneId = inferTimezoneId(_config.system.timezone);
     }
     if (preferences.isKey("sys_ntp")) _config.system.ntpServer = preferences.getString("sys_ntp", _config.system.ntpServer);
+    if (preferences.isKey("bme_name")) {
+        _config.rfSensors.bme280Name =
+            preferences.getString("bme_name", _config.rfSensors.bme280Name);
+        _config.rfSensors.bme280Name.trim();
+        if (_config.rfSensors.bme280Name.isEmpty())
+            _config.rfSensors.bme280Name = "Inside";
+    }
     if (preferences.isKey("wifi_ssid")) _config.wifi.ssid = preferences.getString("wifi_ssid", _config.wifi.ssid);
     if (preferences.isKey("wifi_password")) _config.wifi.password = preferences.getString("wifi_password", _config.wifi.password);
     _config.wifi.dhcp = preferences.getBool("wifi_dhcp", _config.wifi.dhcp);
@@ -373,12 +380,18 @@ bool ConfigManager::begin() {
     if (preferences.isKey("az_password")) _config.azrouter.password = preferences.getString("az_password", "");
     _config.pool.enabled = preferences.getBool("pool_enabled", _config.pool.enabled);
     {
+        const String storedBmeName =
+            preferences.getString("bme_name", _config.rfSensors.bme280Name);
         String rfError;
         if (!loadRfSensors(preferences, _config.rfSensors, rfError)) {
             Serial.printf("[CONFIG] Ignoruji neplatnou konfiguraci RF cidel: %s\n", rfError.c_str());
             _config.rfSensors = RfSensorsConfig{};
             if (preferences.isKey("rf_cfg")) preferences.remove("rf_cfg");
         }
+        _config.rfSensors.bme280Name = storedBmeName;
+        _config.rfSensors.bme280Name.trim();
+        if (_config.rfSensors.bme280Name.isEmpty())
+            _config.rfSensors.bme280Name = "Inside";
     }
     _config.weather.enabled = preferences.getBool("wx_enabled", _config.weather.enabled);
     if (preferences.isKey("wx_provider")) _config.weather.provider = preferences.getString("wx_provider", _config.weather.provider);
@@ -575,6 +588,28 @@ void ConfigManager::setPool(const PoolConfig& pool) {
     preferences.end();
 }
 
+bool ConfigManager::setBme280Name(const String& requestedName) {
+    String name = requestedName;
+    name.trim();
+    if (name.isEmpty()) name = "Inside";
+    if (name.length() > 40) name.remove(40);
+    for (size_t i = 0; i < name.length(); ++i) {
+        if (static_cast<uint8_t>(name[i]) < 0x20) name.setCharAt(i, ' ');
+    }
+    name.trim();
+    if (name.isEmpty()) name = "Inside";
+
+    Preferences preferences;
+    if (!preferences.begin("dashboard", false)) return false;
+    const size_t written = preferences.putString("bme_name", name);
+    preferences.end();
+    if (written != name.length()) return false;
+
+    _config.rfSensors.bme280Name = name;
+    Serial.printf("[CONFIG] BME280 jmeno ulozeno: %s\n", name.c_str());
+    return true;
+}
+
 bool ConfigManager::setRfSensors(const RfSensorsConfig& rfSensors) {
     if (rfSensors.sensorCount > MaxRfSensors) return false;
 
@@ -585,6 +620,9 @@ bool ConfigManager::setRfSensors(const RfSensorsConfig& rfSensors) {
         Serial.printf("[CONFIG] RF cidla odmitnuta: %s\n", validationError.c_str());
         return false;
     }
+
+    // BME280 name is persisted independently from the RF sensor blob.
+    validated.bme280Name = _config.rfSensors.bme280Name;
 
     Preferences preferences;
     if (!preferences.begin("dashboard", false)) return false;
