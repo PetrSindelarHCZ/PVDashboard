@@ -21,7 +21,7 @@ public:
     void begin();
 
     // Returns true once for each debounced button press.
-    bool poll(NavigationAction& action);
+    bool poll(NavigationAction& action, bool suppressGpio18 = false);
     bool pollControl(ControlAction& action);
 
 private:
