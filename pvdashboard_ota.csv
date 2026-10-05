@@ -1,6 +1,8 @@
 # Name,   Type, SubType, Offset,   Size,     Flags
+# Diagnostic layout: keep app0 at 0x10000 but give it the remaining flash.
+# app1/OTA is intentionally omitted for this test. If the same firmware boots,
+# the reset is tied to the current OTA slot/image-size boundary rather than RAM.
 nvs,      data, nvs,     0x9000,   0x5000,
 otadata,  data, ota,     0xe000,   0x2000,
-app0,     app,  ota_0,   0x10000,  0x1F0000,
-app1,     app,  ota_1,   0x200000, 0x1F0000,
+app0,     app,  ota_0,   0x10000,  0x3E0000,
 spiffs,   data, spiffs,  0x3F0000, 0x10000,
