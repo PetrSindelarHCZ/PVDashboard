@@ -437,7 +437,7 @@ bool RfSensorManager::renameSensor(
 
     if (slotId == "bme280") {
         updated.bme280Name = normalizedName(requestedName);
-        if (updated.bme280Name.isEmpty()) updated.bme280Name = "BME280";
+        if (updated.bme280Name.isEmpty()) updated.bme280Name = "Inside";
         return true;
     }
 
@@ -546,7 +546,7 @@ String RfSensorManager::statusJson() const {
         const String bmeName =
             (_config != nullptr && !_config->bme280Name.isEmpty())
                 ? _config->bme280Name
-                : String("BME280");
+                : String("Inside");
         item["name"] = bmeName;
         item["displayName"] = bmeName;
         item["protocol"] = "bme280";
