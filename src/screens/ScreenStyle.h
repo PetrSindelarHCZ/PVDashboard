@@ -232,7 +232,6 @@ inline void drawMenuItem(IDisplay& d, int16_t y, const char* id,
     const bool active = dm.system.currentScreenId.equalsIgnoreCase(id) ||
         (strcmp(id, "weather") == 0 && dm.system.currentScreenId.startsWith("weather-hourly-"));
     const bool focused =
-        dm.system.navigationArea == "sidebar" &&
         dm.system.navigationSidebarScreenId.equalsIgnoreCase(id);
 
     constexpr int16_t tileX = 4;
@@ -357,17 +356,16 @@ inline void drawPageNavigationFocus(IDisplay& d, const DataModel& dm, const Navi
     const NavigationRect& bounds = layout.elements[index].bounds;
     if (bounds.width < 18 || bounds.height < 18) return;
 
-    // Keep the navigation cursor compact. A whole-card focus frame forced the
-    // e-paper driver to refresh the complete old/new widgets for every joystick
-    // step, which was visually very intrusive. The double L marker is still
-    // unambiguous but only dirties a small corner of the card.
-    const int16_t x = bounds.x + 5;
+    // High-contrast compact focus badge. The white moat plus black center is
+    // visible on both white and inverted cards while keeping the dirty region
+    // small enough for a quick partial refresh.
+    const int16_t x = bounds.x + bounds.width - 27;
     const int16_t y = bounds.y + 5;
-    constexpr int16_t Size = 12;
-    d.drawLine(x, y, x + Size, y, 0);
-    d.drawLine(x, y, x, y + Size, 0);
-    d.drawLine(x + 2, y + 2, x + Size, y + 2, 0);
-    d.drawLine(x + 2, y + 2, x + 2, y + Size, 0);
+    constexpr int16_t Size = 20;
+    d.fillRect(x, y, Size, Size, 1);
+    d.drawRect(x, y, Size, Size, 0);
+    d.drawRect(x + 2, y + 2, Size - 4, Size - 4, 0);
+    d.fillRect(x + 6, y + 6, Size - 12, Size - 12, 0);
 }
 
 } // namespace ScreenStyle
