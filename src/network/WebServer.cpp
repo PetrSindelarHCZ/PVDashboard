@@ -258,13 +258,30 @@ String homeLayoutResponseJson(
     rfWidget["minHeight"] = HomeLayout::minHeight("rf-sensor");
 
     JsonArray rfChoices = rfWidget["sensors"].to<JsonArray>();
+
+    // Local BME280 participates in the same temperature-sensor picker as
+    // 433 MHz sensors. It is not assigned a fake RF slot; sourcePrefix tells
+    // the editor which DataModel namespace to use.
+    {
+        JsonObject choice = rfChoices.add<JsonObject>();
+        choice["slotId"] = "bme280";
+        choice["name"] = "BME280";
+        choice["kind"] = "local";
+        choice["sourcePrefix"] = "inside";
+        choice["hasHumidity"] = true;
+        choice["hasPressure"] = true;
+    }
+
     for (uint8_t i = 0; i < rfSensors.sensorCount && i < MaxRfSensors; ++i) {
         const RfSensorConfig& sensor = rfSensors.sensors[i];
         if (sensor.slotId.isEmpty() || !sensor.hasTemperature) continue;
         JsonObject choice = rfChoices.add<JsonObject>();
         choice["slotId"] = sensor.slotId;
         choice["name"] = sensor.name.isEmpty() ? sensor.slotId : sensor.name;
+        choice["kind"] = "rf";
+        choice["sourcePrefix"] = "rf." + sensor.slotId;
         choice["hasHumidity"] = sensor.hasHumidity;
+        choice["hasPressure"] = false;
     }
 
     JsonObject appearance = doc["cardAppearance"].to<JsonObject>();
