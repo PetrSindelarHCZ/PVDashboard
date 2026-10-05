@@ -28,12 +28,12 @@
 // Pětisměrný navigační ovladač
 // Tlačítka spínají GPIO proti GND (active LOW)
 // Navigační ovladač:
-//   UP=GPIO17, DOWN=GPIO4, LEFT=GPIO33, RIGHT=GPIO16, MID/OK=GPIO32.
-// GPIO18 byl opuštěn: při e-paper refreshi na něm byly pozorovány
-// falešné přechody / nespolehlivé čtení.
+//   UP=GPIO17, DOWN=GPIO18, LEFT=GPIO33, RIGHT=GPIO16, MID/OK=GPIO32.
+// GPIO18 zatím zůstává pro DOWN; během aktivního e-paper refreshu
+// je tento pin ve vstupním kódu dočasně potlačen kvůli pozorovanému rušení.
 // ==========================================
 #define JOY_UP_PIN     17
-#define JOY_DOWN_PIN   4
+#define JOY_DOWN_PIN   18
 #define JOY_LEFT_PIN   33
 #define JOY_RIGHT_PIN  16
 #define JOY_OK_PIN     32
