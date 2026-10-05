@@ -127,17 +127,15 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
                         ${sourceBits.length ? '<div class="rf-sensor-meta">' + esc(sourceBits.join(' · ')) + '</div>' : ''}
                     </div>
                     <div class="rf-sensor-edit">
-                        ${item.kind === 'local'
-                            ? '<span class="rf-sensor-meta">Pevně připojené lokální čidlo</span>'
-                            : `<input class="wifi-input" maxlength="40" placeholder="Volitelné jméno"
-                                      data-rf-name="${esc(item.slotId)}" value="${esc(name)}">`}
+                        <input class="wifi-input" maxlength="40" placeholder="Volitelné jméno"
+                               data-rf-name="${esc(item.slotId)}" value="${esc(name)}">
                     </div>
                     <div class="rf-sensor-actions">
+                        <button class="btn btn-secondary" type="button"
+                                data-rf-rename="${esc(item.slotId)}">Uložit jméno</button>
                         ${item.kind === 'local'
                             ? ''
-                            : `<button class="btn btn-secondary" type="button"
-                                      data-rf-rename="${esc(item.slotId)}">Uložit jméno</button>
-                               <button class="btn btn-danger" type="button"
+                            : `<button class="btn btn-danger" type="button"
                                       data-rf-remove="${esc(item.slotId)}">Odebrat</button>`}
                     </div>
                 </div>`;
