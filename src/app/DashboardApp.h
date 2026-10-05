@@ -92,6 +92,7 @@ private:
     bool _pendingBlankDisplay = false;
     bool _pendingRefresh = false;
     bool _pendingFullRefresh = false;
+    String _pendingRefreshReason;
     bool _displayWorkerStarted = false;
     bool _handlingNavigationInput = false;
     bool _navigationInputChanged = false;
@@ -142,11 +143,13 @@ private:
     void setAZRouterScreenEnabled(bool enabled);
     void setPoolScreenEnabled(bool enabled);
     void setWeatherScreensEnabled(bool enabled);
-    void requestDisplayRefresh(bool full, unsigned long delayMs = 0);
+    void requestDisplayRefresh(bool full, unsigned long delayMs = 0,
+                               const char* reason = "unspecified");
     void requestNavigationDisplayRefresh(bool full, unsigned long delayMs,
                                          const DisplayRegion* region = nullptr,
-                                         bool capturePreview = true);
-    void requestAutomaticDisplayRefresh();
+                                         bool capturePreview = true,
+                                         const char* reason = "navigation");
+    void requestAutomaticDisplayRefresh(const char* reason = "automatic-whole-screen");
     void requestAutomaticRegionRefresh(const DisplayRegion& region,
                                        bool capturePreview = true);
     void clearDeferredAutomaticRegions();
