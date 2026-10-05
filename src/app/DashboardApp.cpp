@@ -1170,6 +1170,61 @@ void DashboardApp::setup() {
             },
             [this](const String& slotId, const String& name, String& error) {
                 const RfSensorsConfig previousRf = _configManager.get().rfSensors;
+
+                if (slotId == "bme280") {
+                    RfSensorsConfig updated;
+                    if (!_rfSensorManager.renameSensor(
+                            slotId, name, updated, error)) {
+                        return false;
+                    }
+                    if (!_configManager.setRfSensors(updated)) {
+                        error = "Nový název čidla se nepodařilo uložit.";
+                        return false;
+                    }
+                    _rfSensorManager.applyConfig(_configManager.get().rfSensors);
+
+                    // Existing temperature cards keep user-edited titles.
+                    // Rename only cards whose title still matches the previous
+                    // automatic BME280 display name.
+                    HomeLayoutConfig layout =
+                        _configManager.get().display.homeLayout;
+                    bool layoutChanged = false;
+                    const String oldName =
+                        previousRf.bme280Name.isEmpty()
+                            ? String("Inside")
+                            : previousRf.bme280Name;
+                    const String newName =
+                        updated.bme280Name.isEmpty()
+                            ? String("Inside")
+                            : updated.bme280Name;
+                    for (uint8_t w = 0;
+                         w < layout.widgetCount && w < MaxHomeLayoutWidgets;
+                         ++w) {
+                        HomeLayoutWidgetConfig& widget = layout.widgets[w];
+                        if (widget.type != "custom" ||
+                            widget.title != oldName) {
+                            continue;
+                        }
+                        bool usesBme = false;
+                        for (const auto& element : widget.elements) {
+                            if (element.source.startsWith("inside.")) {
+                                usesBme = true;
+                                break;
+                            }
+                        }
+                        if (usesBme) {
+                            widget.title = newName;
+                            layoutChanged = true;
+                        }
+                    }
+                    if (layoutChanged) {
+                        _configManager.setHomeLayout(layout);
+                    }
+
+                    requestAutomaticDisplayRefresh();
+                    return true;
+                }
+
                 const RfSensorConfig* previousSensor =
                     rfSensorBySlot(previousRf, slotId);
                 if (previousSensor == nullptr) {
