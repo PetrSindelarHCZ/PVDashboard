@@ -1408,6 +1408,8 @@ void DashboardApp::requestAutomaticRegionRefresh(
     if (!_deferredAutomaticRegionValid) {
         _deferredAutomaticRegion = region;
         _deferredAutomaticCapturePreview = capturePreview;
+        _deferredAutomaticReason =
+            reason != nullptr ? reason : "automatic-region";
         _deferredAutomaticRegionValid = true;
         return;
     }
@@ -1415,6 +1417,8 @@ void DashboardApp::requestAutomaticRegionRefresh(
     if (!_deferredAutomaticRegion2Valid) {
         _deferredAutomaticRegion2 = region;
         _deferredAutomaticCapturePreview2 = capturePreview;
+        _deferredAutomaticReason2 =
+            reason != nullptr ? reason : "automatic-region";
         _deferredAutomaticRegion2Valid = true;
         return;
     }
@@ -1431,28 +1435,35 @@ void DashboardApp::requestAutomaticRegionRefresh(
 void DashboardApp::clearDeferredAutomaticRegions() {
     _deferredAutomaticRegionValid = false;
     _deferredAutomaticCapturePreview = true;
+    _deferredAutomaticReason = "";
     _deferredAutomaticRegion2Valid = false;
     _deferredAutomaticCapturePreview2 = true;
+    _deferredAutomaticReason2 = "";
 }
 
 bool DashboardApp::popDeferredAutomaticRegion(
     DisplayRegion& region,
-    bool& capturePreview) {
+    bool& capturePreview,
+    String& reason) {
 
     if (!_deferredAutomaticRegionValid) return false;
 
     region = _deferredAutomaticRegion;
     capturePreview = _deferredAutomaticCapturePreview;
+    reason = _deferredAutomaticReason;
 
     if (_deferredAutomaticRegion2Valid) {
         _deferredAutomaticRegion = _deferredAutomaticRegion2;
         _deferredAutomaticCapturePreview =
             _deferredAutomaticCapturePreview2;
+        _deferredAutomaticReason = _deferredAutomaticReason2;
         _deferredAutomaticRegion2Valid = false;
         _deferredAutomaticCapturePreview2 = true;
+        _deferredAutomaticReason2 = "";
     } else {
         _deferredAutomaticRegionValid = false;
         _deferredAutomaticCapturePreview = true;
+        _deferredAutomaticReason = "";
     }
 
     return true;
@@ -1841,13 +1852,16 @@ void DashboardApp::loop() {
 
             DisplayRegion deferredAutomatic;
             bool capturePreview = true;
+            String reason;
             if (popDeferredAutomaticRegion(
                     deferredAutomatic,
-                    capturePreview)) {
+                    capturePreview,
+                    reason)) {
                 requestNavigationDisplayRefresh(
                     false, 0UL,
                     &deferredAutomatic,
-                    capturePreview);
+                    capturePreview,
+                    reason.isEmpty() ? "automatic-region" : reason.c_str());
             }
         }
     }
@@ -1866,7 +1880,7 @@ void DashboardApp::loop() {
     if (previousSignalLevel != _dataModel.system.wifiSignalLevel ||
         previousAccessPoint != _dataModel.system.wifiAccessPoint) {
         const DisplayRegion region = headerRegion();
-        requestAutomaticRegionRefresh(region, true);
+        requestAutomaticRegionRefresh(region, true, "wifi");
     }
     _dataModel.system.ipAddress = _wifiManager.getIpAddress();
     _dataModel.system.ntpSynced = _timeService.isSynced();
@@ -1901,8 +1915,9 @@ void DashboardApp::loop() {
                 requestAutomaticRegionRefresh(weatherRegion, true, "weather");
             }
         } else if (activeScreenId == "solar" ||
-                   activeScreenId == "azrouter" ||
-                   isWeatherScreenId(activeScreenId)) {
+                   activeScreenId == "azrouter") {
+            requestAutomaticRegionRefresh(pageRegion(), true, "energy-page");
+        } else if (isWeatherScreenId(activeScreenId)) {
             requestAutomaticRegionRefresh(pageRegion(), true, "weather-page");
         }
     }
@@ -2106,7 +2121,7 @@ void DashboardApp::loop() {
             if (availabilityChanged ||
                 alertChanged ||
                 (socChanged && refreshIntervalElapsed)) {
-                requestAutomaticRegionRefresh(headerRegion(), true, "wifi");
+                requestAutomaticRegionRefresh(headerRegion(), true, "battery-header");
             }
 
             if (_screenManager.getActiveScreenId() == "home") {
