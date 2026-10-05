@@ -4,8 +4,8 @@
 #include "app/DashboardApp.h"
 #include <new>
 
-// GitHub HTTPS checks and OTA downloads run on loopTask and need stack headroom.
-SET_LOOP_TASK_STACK_SIZE(16 * 1024);
+// Temporary 8 KiB loopTask: 16 KiB currently causes a pre-setup SW_RESET on the target ESP32.\n// Restore the larger stack only after the startup memory/layout issue is resolved.
+SET_LOOP_TASK_STACK_SIZE(8 * 1024);
 
 DashboardApp* app = nullptr;
 
