@@ -228,12 +228,11 @@ bool AZRouterClient::getJson(const char* path,
     http.end();
 
     Serial.printf(
-        "[AZROUTER][JSON] %s after parse: free=%u maxBlock=%u usage=%u\\n",
+        "[AZROUTER][JSON] %s after parse: free=%u maxBlock=%u\\n",
         path,
         static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_8BIT)),
         static_cast<unsigned>(
-            heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)),
-        static_cast<unsigned>(doc.memoryUsage()));
+            heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
 
     if (jsonError) {
         errorMessage = "JSON " + String(jsonError.c_str());
