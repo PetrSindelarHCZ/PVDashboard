@@ -696,6 +696,11 @@ bool ConfigManager::setUserConfiguration(const AppConfig& config) {
     preferences.putBool("az_auth", importedAzrouter.authEnabled);
     preferences.putString("az_user", importedAzrouter.username); preferences.putString("az_password", importedAzrouter.password);
     preferences.putBool("pool_enabled", config.pool.enabled);
+    preferences.putString(
+        "bme_name",
+        config.rfSensors.bme280Name.isEmpty()
+            ? String("Inside")
+            : config.rfSensors.bme280Name);
     if (!saveRfSensors(preferences, config.rfSensors)) { preferences.end(); return false; }
     WeatherConfig normalizedWeather = config.weather;
     normalizedWeather.syncActiveCoordinates();
