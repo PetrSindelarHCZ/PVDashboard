@@ -1478,7 +1478,27 @@ bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
 
     if (bestLength < 40) return false;
 
-    static char halfBits[MaximumPulseCount * 2 + 2];
+    // Allocate Manchester scratch space only when this decoder is actually used.
+    static char* halfBits = nullptr;
+    static char* decoded = nullptr;
+    static char* bestDecoded = nullptr;
+    constexpr size_t HalfBitsSize = MaximumPulseCount * 2 + 2;
+    constexpr size_t DecodedSize = (MaximumPulseCount * 2) / 2 + 2;
+    if (halfBits == nullptr) {
+        halfBits = static_cast<char*>(malloc(HalfBitsSize));
+        decoded = static_cast<char*>(malloc(DecodedSize));
+        bestDecoded = static_cast<char*>(malloc(DecodedSize));
+        if (halfBits == nullptr || decoded == nullptr || bestDecoded == nullptr) {
+            free(halfBits);
+            free(decoded);
+            free(bestDecoded);
+            halfBits = nullptr;
+            decoded = nullptr;
+            bestDecoded = nullptr;
+            Serial.println("[CC1101][RX] CHYBA: nelze alokovat Manchester buffery.");
+            return false;
+        }
+    }
     uint16_t halfCount = 0;
 
     for (uint16_t i = bestStart;
@@ -1497,13 +1517,11 @@ bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
         }
 
         for (uint8_t j = 0; j < halfBitCount; ++j) {
-            if (halfCount >= sizeof(halfBits) - 1) return false;
+            if (halfCount >= HalfBitsSize - 1) return false;
             halfBits[halfCount++] = level;
         }
     }
 
-    static char decoded[(MaximumPulseCount * 2) / 2 + 2];
-    static char bestDecoded[(MaximumPulseCount * 2) / 2 + 2];
     uint16_t bestBitCount = 0;
     uint16_t bestInvalid = 0xFFFF;
 
