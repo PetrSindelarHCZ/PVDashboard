@@ -1480,10 +1480,6 @@ bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
 
     static char halfBits[MaximumPulseCount * 2 + 2];
     uint16_t halfCount = 0;
-    uint32_t shortTotal = 0;
-    uint16_t shortCount = 0;
-    uint32_t longTotal = 0;
-    uint16_t longCount = 0;
 
     for (uint16_t i = bestStart;
          i < static_cast<uint16_t>(bestStart + bestLength);
@@ -1496,12 +1492,8 @@ bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
         uint8_t halfBitCount = 0;
         if (duration < 750) {
             halfBitCount = 1;
-            shortTotal += duration;
-            ++shortCount;
         } else {
             halfBitCount = 2;
-            longTotal += duration;
-            ++longCount;
         }
 
         for (uint8_t j = 0; j < halfBitCount; ++j) {
@@ -1578,50 +1570,9 @@ bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
 
     if (fullRepeats < 2 || frameBits == 0) return false;
 
-    const uint32_t shortAverage =
-        shortCount ? shortTotal / shortCount : 0;
-    const uint32_t longAverage =
-        longCount ? longTotal / longCount : 0;
-
-    Serial.printf(
-        "[CC1101][MC] frame=%u bits repeats=%u",
-        static_cast<unsigned>(frameBits),
-        static_cast<unsigned>(fullRepeats));
-    if (partialBits > 0) {
-        Serial.printf(
-            "+%u/%u",
-            static_cast<unsigned>(partialBits),
-            static_cast<unsigned>(frameBits));
-    }
-    Serial.printf(
-        " | half~%lu us double~%lu us | bits=",
-        static_cast<unsigned long>(shortAverage),
-        static_cast<unsigned long>(longAverage));
-
-    for (uint16_t i = 0; i < frameBits; ++i) {
-        Serial.print(decoded[i]);
-    }
-
-    Serial.print(" | hex=");
-    const uint16_t fullBytes = frameBits / 8;
-    for (uint16_t byteIndex = 0; byteIndex < fullBytes; ++byteIndex) {
-        uint8_t value = 0;
-        for (uint8_t bit = 0; bit < 8; ++bit) {
-            value <<= 1;
-            if (decoded[byteIndex * 8 + bit] == '1') value |= 1;
-        }
-        if (byteIndex > 0) Serial.print(' ');
-        if (value < 0x10) Serial.print('0');
-        Serial.print(value, HEX);
-    }
-    if ((frameBits % 8) != 0) {
-        Serial.print(" +");
-        for (uint16_t i = fullBytes * 8; i < frameBits; ++i) {
-            Serial.print(decoded[i]);
-        }
-    }
-
-    Serial.println();
+    // Generic Manchester bit/hex dumping was useful during protocol discovery,
+    // but costs several KiB of application flash. Keep only the actual protocol
+    // decoder in production builds.
     tryPrintFt017Th(decoded, frameBits);
     return true;
 }
