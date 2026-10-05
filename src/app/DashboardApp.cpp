@@ -300,6 +300,27 @@ DisplayRegion solarHistoryDataRegion() {
     return region;
 }
 
+DisplayRegion azRouterLiveDataRegion() {
+    DisplayRegion region;
+    // Dynamic values from the master card and the three phase cards.
+    // Keep static card frames/titles outside the dirty area.
+    region.x = 83;
+    region.y = 136;
+    region.width = 694;
+    region.height = 229;
+    return region;
+}
+
+DisplayRegion azRouterEnergyDataRegion() {
+    DisplayRegion region;
+    // Only the numeric energy totals inside the lower energy card.
+    region.x = 83;
+    region.y = 416;
+    region.width = 694;
+    region.height = 41;
+    return region;
+}
+
 DisplayRegion dashboardBodyRegion() {
     DisplayRegion region;
     region.x = 0;
@@ -2349,9 +2370,21 @@ void DashboardApp::loop() {
                         solarHistoryDataRegion(), true, "solar-history");
                 }
             } else if (activeScreenId == "azrouter") {
-                const DisplayRegion region = pageRegion();
                 requestAutomaticRegionRefresh(
-                    region, true, "azrouter-live");
+                    azRouterLiveDataRegion(), true, "azrouter-live");
+
+                // Energy counters change much more slowly than live phase
+                // telemetry. Avoid flashing the lower card every minute.
+                constexpr unsigned long AzRouterEnergyDisplayIntervalMs =
+                    15UL * 60UL * 1000UL;
+                if (_lastAzRouterEnergyDisplayRefresh == 0) {
+                    _lastAzRouterEnergyDisplayRefresh = telemetryNow;
+                } else if (telemetryNow - _lastAzRouterEnergyDisplayRefresh >=
+                           AzRouterEnergyDisplayIntervalMs) {
+                    _lastAzRouterEnergyDisplayRefresh = telemetryNow;
+                    requestAutomaticRegionRefresh(
+                        azRouterEnergyDataRegion(), true, "azrouter-energy");
+                }
             } else {
                 DisplayRegion energyRegions[ScreenLayout::MaxWidgets];
                 const uint8_t energyRegionCount =
