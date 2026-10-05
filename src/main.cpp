@@ -21,7 +21,10 @@ void setup() {
         return;
     }
 
-    Serial.println("[BOOT-ALLOC] DashboardApp allocation OK; app->setup intentionally skipped");
+    Serial.println("[BOOT-ALLOC] DashboardApp allocation OK");
+    Serial.println("[BOOT-SETUP] before DashboardApp::setup");
+    app->setup();
+    Serial.println("[BOOT-SETUP] after DashboardApp::setup");
 }
 
 void loop() {
