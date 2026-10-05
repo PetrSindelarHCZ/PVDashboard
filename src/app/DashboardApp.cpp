@@ -322,6 +322,88 @@ bool widgetUsesGroup(
     return false;
 }
 
+bool widgetUsesRfSlot(
+    const HomeLayoutWidgetConfig& widget,
+    const String& slotId) {
+
+    const String prefix = "rf." + slotId + ".";
+    for (const auto& element : widget.elements) {
+        if (element.source.startsWith(prefix)) return true;
+    }
+    return false;
+}
+
+uint8_t configuredRfSlotForObservation(
+    const RfSensorsConfig& config,
+    const RfSensorObservation& observation) {
+
+    for (uint8_t i = 0; i < config.sensorCount && i < MaxRfSensors; ++i) {
+        const RfSensorConfig& sensor = config.sensors[i];
+        if (sensor.protocol != observation.protocol ||
+            sensor.sensorId != observation.sensorId ||
+            sensor.channel != observation.channel) {
+            continue;
+        }
+
+        if (!sensor.slotId.startsWith("sensor")) return 0;
+        const int slot = sensor.slotId.substring(6).toInt();
+        return slot >= 1 && slot <= MaxRfSensors
+            ? static_cast<uint8_t>(slot)
+            : 0;
+    }
+    return 0;
+}
+
+DisplayRegion homeRfSensorRegion(
+    const HomeLayoutConfig& config,
+    const DataModel& dataModel,
+    uint8_t rfSensorSlot) {
+
+    if (rfSensorSlot == 0 || rfSensorSlot > MaxRfSensors) {
+        return DisplayRegion();
+    }
+
+    const String slotId = "sensor" + String(rfSensorSlot);
+    ScreenLayout layout;
+    HomeLayout::buildResolved(config, dataModel, layout);
+
+    DisplayRegion dirty;
+    for (uint8_t i = 0; i < layout.count(); ++i) {
+        const LayoutWidget& widget = layout[i];
+        const HomeLayoutWidgetConfig* configured =
+            HomeLayout::findWidget(config, widget.id);
+        bool matches = false;
+
+        if (widget.type == LayoutWidgetType::HomeRfSensorCard) {
+            matches =
+                configured != nullptr &&
+                configured->rfSensorSlot == rfSensorSlot;
+        } else if (configured != nullptr && !configured->elements.empty()) {
+            matches = widgetUsesRfSlot(*configured, slotId);
+        }
+
+        if (!matches) continue;
+
+        DisplayRegion widgetRegion;
+        if (widget.type == LayoutWidgetType::HomeCustomCard) {
+            widgetRegion.x = widget.x;
+            widgetRegion.y = widget.y;
+            widgetRegion.width = widget.width;
+            widgetRegion.height = widget.height;
+        } else {
+            widgetRegion.x = widget.x + 8;
+            widgetRegion.y = widget.y + 38;
+            widgetRegion.width =
+                widget.width > 16 ? widget.width - 16 : widget.width;
+            widgetRegion.height =
+                widget.height > 46 ? widget.height - 46 : widget.height;
+        }
+        dirty = unionDisplayRegions(dirty, widgetRegion);
+    }
+
+    return dirty;
+}
+
 DisplayRegion homeDataRegion(
     const HomeLayoutConfig& config,
     const DataModel& dataModel,
@@ -507,13 +589,19 @@ void DashboardApp::setup() {
                 _lastRfSensorDisplayRefresh = now;
 
                 if (_screenManager.getActiveScreenId() == "home") {
+                    const auto& config = _configManager.get();
+                    const uint8_t rfSensorSlot =
+                        configuredRfSlotForObservation(
+                            config.rfSensors,
+                            observation);
                     const DisplayRegion region =
-                        homeDataRegion(
-                            _configManager.get().display.homeLayout,
+                        homeRfSensorRegion(
+                            config.display.homeLayout,
                             _dataModel,
-                            HomeDataGroup::Rf);
+                            rfSensorSlot);
                     if (region.valid()) {
-                        requestAutomaticRegionRefresh(region, true);
+                        requestAutomaticRegionRefresh(
+                            region, true, "rf-sensor");
                     }
                 }
             }
@@ -599,7 +687,7 @@ void DashboardApp::setup() {
         _dataModel.system.wifiConnected = connected;
         _dataModel.system.wifiSignalLevel = _wifiSignalLevel.update(connected, _wifiManager.getRssi(), millis());
         _dataModel.system.ipAddress = ip;
-        requestAutomaticRegionRefresh(headerRegion(), true);
+        requestAutomaticRegionRefresh(headerRegion(), true, "wifi");
     });
 
     _wifiManager.onKnownNetworkLookup([this](const String& ssid, String& password) {
@@ -1264,7 +1352,8 @@ void DashboardApp::requestAutomaticDisplayRefresh(const char* reason) {
 
 void DashboardApp::requestAutomaticRegionRefresh(
     const DisplayRegion& region,
-    bool capturePreview) {
+    bool capturePreview,
+    const char* reason) {
 
     if (!_displayEnabled || !region.valid()) return;
 
@@ -1298,7 +1387,7 @@ void DashboardApp::requestAutomaticRegionRefresh(
         !_deferredAutomaticRegionValid &&
         !_deferredAutomaticRegion2Valid) {
         requestNavigationDisplayRefresh(
-            false, 0UL, &region, capturePreview, "automatic-region");
+            false, 0UL, &region, capturePreview, reason);
         return;
     }
 
@@ -1581,7 +1670,7 @@ void DashboardApp::selectWeatherDisplayLocation(
         const String activeScreenId =
             _screenManager.getActiveScreenId();
         if (isWeatherScreenId(activeScreenId)) {
-            requestAutomaticRegionRefresh(pageRegion(), true);
+            requestAutomaticRegionRefresh(pageRegion(), true, "weather-page");
         } else if (activeScreenId == "home") {
             const DisplayRegion region =
                 homeDataRegion(
@@ -1589,7 +1678,7 @@ void DashboardApp::selectWeatherDisplayLocation(
                     _dataModel,
                     HomeDataGroup::Weather);
             if (region.valid()) {
-                requestAutomaticRegionRefresh(region, true);
+                requestAutomaticRegionRefresh(region, true, "weather");
             }
         }
     }
@@ -1658,7 +1747,7 @@ void DashboardApp::refreshWeatherDisplayFromCache(
         const String activeScreenId =
             _screenManager.getActiveScreenId();
         if (isWeatherScreenId(activeScreenId)) {
-            requestAutomaticRegionRefresh(pageRegion(), true);
+            requestAutomaticRegionRefresh(pageRegion(), true, "weather-page");
         } else if (activeScreenId == "home") {
             const DisplayRegion region =
                 homeDataRegion(
@@ -1666,7 +1755,7 @@ void DashboardApp::refreshWeatherDisplayFromCache(
                     _dataModel,
                     HomeDataGroup::Weather);
             if (region.valid()) {
-                requestAutomaticRegionRefresh(region, true);
+                requestAutomaticRegionRefresh(region, true, "weather");
             }
         }
     }
@@ -1800,7 +1889,7 @@ void DashboardApp::loop() {
                     _dataModel,
                     HomeDataGroup::Energy);
             if (energyRegion.valid()) {
-                requestAutomaticRegionRefresh(energyRegion, true);
+                requestAutomaticRegionRefresh(energyRegion, true, "energy");
             }
 
             const DisplayRegion weatherRegion =
@@ -1809,12 +1898,12 @@ void DashboardApp::loop() {
                     _dataModel,
                     HomeDataGroup::Weather);
             if (weatherRegion.valid()) {
-                requestAutomaticRegionRefresh(weatherRegion, true);
+                requestAutomaticRegionRefresh(weatherRegion, true, "weather");
             }
         } else if (activeScreenId == "solar" ||
                    activeScreenId == "azrouter" ||
                    isWeatherScreenId(activeScreenId)) {
-            requestAutomaticRegionRefresh(pageRegion(), true);
+            requestAutomaticRegionRefresh(pageRegion(), true, "weather-page");
         }
     }
 
@@ -1824,7 +1913,7 @@ void DashboardApp::loop() {
         previousDayOfWeekStr != _dataModel.system.dayOfWeekStr;
     if (timeChanged) {
         const DisplayRegion region = headerRegion();
-        requestAutomaticRegionRefresh(region, true);
+        requestAutomaticRegionRefresh(region, true, "clock");
     }
 
     WeatherData weatherUpdate;
@@ -1862,12 +1951,12 @@ void DashboardApp::loop() {
                 } else if (activeScreenId == "home") {
                     const DisplayRegion region =
                         homeDataRegion(
-                            _configManager.get().display.homeLayout,
-                            _dataModel,
-                            HomeDataGroup::Weather);
-                    if (region.valid()) {
-                        requestAutomaticRegionRefresh(region, true);
-                    }
+                    _configManager.get().display.homeLayout,
+                    _dataModel,
+                    HomeDataGroup::Weather);
+            if (region.valid()) {
+                requestAutomaticRegionRefresh(region, true, "weather");
+            }
                 }
             }
         }
@@ -1962,11 +2051,11 @@ void DashboardApp::loop() {
             if (_screenManager.getActiveScreenId() == "home") {
                 const DisplayRegion region =
                     homeDataRegion(
-                        _configManager.get().display.homeLayout,
-                        _dataModel,
-                        HomeDataGroup::Indoor);
+                    _configManager.get().display.homeLayout,
+                    _dataModel,
+                    HomeDataGroup::Indoor);
                 if (region.valid()) {
-                    requestAutomaticRegionRefresh(region, true);
+                    requestAutomaticRegionRefresh(region, true, "bme280");
                 }
             }
         }
@@ -2017,17 +2106,17 @@ void DashboardApp::loop() {
             if (availabilityChanged ||
                 alertChanged ||
                 (socChanged && refreshIntervalElapsed)) {
-                requestAutomaticRegionRefresh(headerRegion(), true);
+                requestAutomaticRegionRefresh(headerRegion(), true, "wifi");
             }
 
             if (_screenManager.getActiveScreenId() == "home") {
                 const DisplayRegion region =
                     homeDataRegion(
-                        _configManager.get().display.homeLayout,
-                        _dataModel,
-                        HomeDataGroup::Battery);
+                    _configManager.get().display.homeLayout,
+                    _dataModel,
+                    HomeDataGroup::Battery);
                 if (region.valid()) {
-                    requestAutomaticRegionRefresh(region, true);
+                    requestAutomaticRegionRefresh(region, true, "battery");
                 }
             }
         }
@@ -2074,11 +2163,11 @@ void DashboardApp::loop() {
             } else if (activeScreenId == "home") {
                 const DisplayRegion region =
                     homeDataRegion(
-                        _configManager.get().display.homeLayout,
-                        _dataModel,
-                        HomeDataGroup::Energy);
+                    _configManager.get().display.homeLayout,
+                    _dataModel,
+                    HomeDataGroup::Energy);
                 if (region.valid()) {
-                    requestAutomaticRegionRefresh(region, true);
+                    requestAutomaticRegionRefresh(region, true, "energy");
                 }
             }
         }
@@ -2105,11 +2194,11 @@ void DashboardApp::loop() {
             } else {
                 const DisplayRegion region =
                     homeDataRegion(
-                        _configManager.get().display.homeLayout,
-                        _dataModel,
-                        HomeDataGroup::Energy);
+                    _configManager.get().display.homeLayout,
+                    _dataModel,
+                    HomeDataGroup::Energy);
                 if (region.valid()) {
-                    requestAutomaticRegionRefresh(region, true);
+                    requestAutomaticRegionRefresh(region, true, "energy");
                 }
             }
         }
