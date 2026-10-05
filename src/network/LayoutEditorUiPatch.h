@@ -644,32 +644,19 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         (widget.elements||[]).forEach(i=>normalizeElement(widget,i));
     }
 
-    function editPredefinedWidget(id) {
-        let widget = byId(id);
-        if (!widget) {
-            const template = defaultWidgetById(id);
-            if (!template) {
-                editorMessage('Panel není v aktuální automatické šabloně dostupný.', 'error');
-                return;
-            }
-            widget = ensureWidgetStyle({...clone(template), visible: true});
-            draft.push(widget);
+    function editPredefinedWidget(id){
+        let widget=byId(id);
+        if(!widget){
+            const template=defaultWidgetById(id);
+            if(!template){editorMessage('Panel není v aktuální automatické šabloně dostupný.','error');return;}
+            widget=ensureWidgetStyle({...clone(template),visible:true});draft.push(widget);
         }
-        if (widget.type !== 'custom' && !(widget.elements || []).length) {
-            seedPredefinedDefaultElements(widget);
-        }
-
-        selectedId = id;
-        selectedElementId = isElementWidget(widget)
-            ? (widget.elements?.[0]?.id || '')
-            : '';
+        if(widget.type!=='custom'&&!(widget.elements||[]).length)seedPredefinedDefaultElements(widget);
+        selectedId=id;
+        selectedElementId=isElementWidget(widget)?(widget.elements?.[0]?.id||''):'';
         renderDraft();
-
-        const targetPanel = isElementWidget(widget)
-            ? document.getElementById('customEditorPanel')
-            : document.getElementById('cardStylePanel');
-
-        targetPanel?.scrollIntoView({behavior:'smooth', block:'nearest'});
+        (isElementWidget(widget)?document.getElementById('customEditorPanel'):document.getElementById('cardStylePanel'))
+            ?.scrollIntoView({behavior:'smooth',block:'nearest'});
     }
 
     function renderCardStyleEditor() {
@@ -1088,14 +1075,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const save = document.getElementById('layoutSaveButton');
         if (save) save.disabled = invalid.size > 0 || customInvalid || !draft.some(w => w.visible);
         if (invalid.size > 0) editorMessage('Widgety se překrývají. Uložení je zablokované.', 'error');
-        else if (customInvalid) {
-            const detail = firstInvalidElementDescription();
-            editorMessage(
-                detail
-                    ? 'Neplatný prvek: ' + detail
-                    : 'Widget obsahuje neplatný vnitřní prvek.',
-                'error');
-        }
+        else if(customInvalid){const detail=firstInvalidElementDescription();editorMessage(detail?'Neplatný prvek: '+detail:'Widget obsahuje neplatný vnitřní prvek.','error');}
     }
 
     function beginInteraction(event, id) {
@@ -1421,30 +1401,17 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         return elementInvalidIds(widget).size > 0;
     }
 
-    function firstInvalidElementDescription() {
-        for (const widget of draft) {
-            if (!isElementWidget(widget)) continue;
-
-            const elements = widget.elements || [];
-
-            if (widget.type === 'custom' && !elements.length) {
-                return widgetLabel(widget) + ': widget nemá žádný prvek';
-            }
-
-            if (elements.length > Number(apiState?.customWidget?.maxElements || 8)) {
-                return widgetLabel(widget) + ': příliš mnoho prvků';
-            }
-
-            const invalid = elementInvalidIds(widget);
-            if (!invalid.size) continue;
-
-            const id = [...invalid][0];
-            const element = elements.find(item => item.id === id);
-
-            return widgetLabel(widget) + ': ' +
-                (element ? customElementLabel(element) : id || 'neznámý prvek');
+    function firstInvalidElementDescription(){
+        for(const widget of draft){
+            if(!isElementWidget(widget))continue;
+            const elements=widget.elements||[];
+            if(widget.type==='custom'&&!elements.length)return widgetLabel(widget)+': widget nemá žádný prvek';
+            if(elements.length>Number(apiState?.customWidget?.maxElements||8))return widgetLabel(widget)+': příliš mnoho prvků';
+            const invalid=elementInvalidIds(widget);
+            if(!invalid.size)continue;
+            const id=[...invalid][0],element=elements.find(item=>item.id===id);
+            return widgetLabel(widget)+': '+(element?customElementLabel(element):id||'neznámý prvek');
         }
-
         return '';
     }
 
@@ -1890,18 +1857,12 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             selectedElementId = widget.elements?.[0]?.id || '';
         }
 
-        const titleInput = document.getElementById('customWidgetTitleInput');
-        if (titleInput) {
-            titleInput.disabled = widget.type !== 'custom';
-            if (document.activeElement !== titleInput) {
-                const fixedTitles = {
-                    weather: 'VENKU',
-                    energy: 'ENERGIE',
-                    indoor: 'UVNITŘ'
-                };
-                titleInput.value = widget.type === 'custom'
-                    ? (widget.title || '')
-                    : (fixedTitles[widget.type] || widgetLabel(widget));
+        const titleInput=document.getElementById('customWidgetTitleInput');
+        if(titleInput){
+            titleInput.disabled=widget.type!=='custom';
+            if(document.activeElement!==titleInput){
+                const fixedTitles={weather:'VENKU',energy:'ENERGIE',indoor:'UVNITŘ'};
+                titleInput.value=widget.type==='custom'?(widget.title||''):(fixedTitles[widget.type]||widgetLabel(widget));
             }
         }
         const dimensions = document.getElementById('customWidgetDimensions');
@@ -2346,12 +2307,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             return;
         }
         if (draft.some(widget => isElementWidget(widget) && customWidgetHasErrors(widget))) {
-            const detail = firstInvalidElementDescription();
-            editorMessage(
-                detail
-                    ? 'Nejdřív oprav neplatný prvek: ' + detail
-                    : 'Nejdřív oprav prvky uvnitř vlastních widgetů.',
-                'error');
+            const detail=firstInvalidElementDescription();
+            editorMessage(detail?'Nejdřív oprav neplatný prvek: '+detail:'Nejdřív oprav prvky uvnitř vlastních widgetů.','error');
             return;
         }
 
