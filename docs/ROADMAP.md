@@ -56,6 +56,13 @@ neurčuje spolehlivě, zda se akumulátor právě nabíjí.
 - [ ] stav nabíjení neodvozovat pouze z růstu napětí nebo SoC MAX17048,
 - [ ] INA219 použít až tehdy, pokud bude potřeba měřit také velikost a směr
       proudu, nikoli pouze binární stav nabíjení.
+- [ ] ověřit brownout při startu Wi-Fi na cílovém hardware. Diagnostika 5. 10. 2026
+      potvrdila reset přesně při `applyWifiAddressing()`; s vypnutým brownout
+      detektorem dashboard normálně dokončí inicializaci a běží. Test proběhl při
+      napájení Waveshare ESP32 desky z USB, baterie byla odpojená. Později ověřit
+      jiný kvalitní/krátký USB kabel a zdroj/USB port a změřit 5 V na VDD5V a
+      3,3 V větev během náběhu Wi-Fi (ideálně osciloskopem). Do vyřešení zůstává
+      vypnutí brownout detektoru pouze dočasným workaroundem, nikoli finální opravou.
 
 ## C — skutečná data domácnosti
 
