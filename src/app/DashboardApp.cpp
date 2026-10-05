@@ -404,6 +404,96 @@ DisplayRegion homeRfSensorRegion(
     return dirty;
 }
 
+uint8_t homeDataRegions(
+    const HomeLayoutConfig& config,
+    const DataModel& dataModel,
+    HomeDataGroup group,
+    DisplayRegion* regions,
+    uint8_t capacity) {
+
+    if (regions == nullptr || capacity == 0) return 0;
+
+    ScreenLayout layout;
+    HomeLayout::buildResolved(config, dataModel, layout);
+
+    uint8_t count = 0;
+    for (uint8_t i = 0; i < layout.count() && count < capacity; ++i) {
+        const LayoutWidget& widget = layout[i];
+        bool matches = false;
+
+        switch (widget.type) {
+            case LayoutWidgetType::HomeWeatherCard:
+            case LayoutWidgetType::HomeEnergyCard: {
+                const HomeLayoutWidgetConfig* configured =
+                    HomeLayout::findWidget(config, widget.id);
+                if (configured != nullptr && !configured->elements.empty()) {
+                    matches = widgetUsesGroup(*configured, group);
+                } else if (widget.type == LayoutWidgetType::HomeWeatherCard) {
+                    matches = group == HomeDataGroup::Weather;
+                } else {
+                    matches = group == HomeDataGroup::Energy;
+                }
+                break;
+            }
+            case LayoutWidgetType::HomeIndoorCard: {
+                const HomeLayoutWidgetConfig* configured =
+                    HomeLayout::findWidget(config, widget.id);
+                matches = configured != nullptr && !configured->elements.empty()
+                    ? widgetUsesGroup(*configured, group)
+                    : group == HomeDataGroup::Indoor;
+                break;
+            }
+            case LayoutWidgetType::HomeFveCard:
+            case LayoutWidgetType::HomeAZRouterCard:
+                matches = group == HomeDataGroup::Energy;
+                break;
+            case LayoutWidgetType::HomePoolCard: {
+                const HomeLayoutWidgetConfig* configured =
+                    HomeLayout::findWidget(config, widget.id);
+                matches = configured != nullptr && !configured->elements.empty()
+                    ? widgetUsesGroup(*configured, group)
+                    : group == HomeDataGroup::Indoor;
+                break;
+            }
+            case LayoutWidgetType::HomeConsumptionCard:
+                matches = group == HomeDataGroup::Energy;
+                break;
+            case LayoutWidgetType::HomeRfSensorCard:
+                matches = group == HomeDataGroup::Rf;
+                break;
+            case LayoutWidgetType::HomeCustomCard: {
+                const HomeLayoutWidgetConfig* configured =
+                    HomeLayout::findWidget(config, widget.id);
+                matches =
+                    configured != nullptr &&
+                    widgetUsesGroup(*configured, group);
+                break;
+            }
+        }
+
+        if (!matches) continue;
+
+        DisplayRegion region;
+        if (widget.type == LayoutWidgetType::HomeCustomCard) {
+            region.x = widget.x;
+            region.y = widget.y;
+            region.width = widget.width;
+            region.height = widget.height;
+        } else {
+            region.x = widget.x + 8;
+            region.y = widget.y + 38;
+            region.width =
+                widget.width > 16 ? widget.width - 16 : widget.width;
+            region.height =
+                widget.height > 46 ? widget.height - 46 : widget.height;
+        }
+
+        if (region.valid()) regions[count++] = region;
+    }
+
+    return count;
+}
+
 DisplayRegion homeDataRegion(
     const HomeLayoutConfig& config,
     const DataModel& dataModel,
@@ -1897,13 +1987,17 @@ void DashboardApp::loop() {
         const String activeScreenId =
             _screenManager.getActiveScreenId();
         if (activeScreenId == "home") {
-            const DisplayRegion energyRegion =
-                homeDataRegion(
+            DisplayRegion energyRegions[ScreenLayout::MaxWidgets];
+            const uint8_t energyRegionCount =
+                homeDataRegions(
                     _configManager.get().display.homeLayout,
                     _dataModel,
-                    HomeDataGroup::Energy);
-            if (energyRegion.valid()) {
-                requestAutomaticRegionRefresh(energyRegion, true, "energy");
+                    HomeDataGroup::Energy,
+                    energyRegions,
+                    ScreenLayout::MaxWidgets);
+            for (uint8_t i = 0; i < energyRegionCount; ++i) {
+                requestAutomaticRegionRefresh(
+                    energyRegions[i], true, "energy");
             }
 
             const DisplayRegion weatherRegion =
@@ -2176,13 +2270,17 @@ void DashboardApp::loop() {
                 const DisplayRegion region = pageRegion();
                 requestAutomaticRegionRefresh(region, true);
             } else if (activeScreenId == "home") {
-                const DisplayRegion region =
-                    homeDataRegion(
-                    _configManager.get().display.homeLayout,
-                    _dataModel,
-                    HomeDataGroup::Energy);
-                if (region.valid()) {
-                    requestAutomaticRegionRefresh(region, true, "energy");
+                DisplayRegion energyRegions[ScreenLayout::MaxWidgets];
+                const uint8_t energyRegionCount =
+                    homeDataRegions(
+                        _configManager.get().display.homeLayout,
+                        _dataModel,
+                        HomeDataGroup::Energy,
+                        energyRegions,
+                        ScreenLayout::MaxWidgets);
+                for (uint8_t i = 0; i < energyRegionCount; ++i) {
+                    requestAutomaticRegionRefresh(
+                        energyRegions[i], true, "energy");
                 }
             }
         }
@@ -2207,13 +2305,17 @@ void DashboardApp::loop() {
                 const DisplayRegion region = pageRegion();
                 requestAutomaticRegionRefresh(region, true);
             } else {
-                const DisplayRegion region =
-                    homeDataRegion(
-                    _configManager.get().display.homeLayout,
-                    _dataModel,
-                    HomeDataGroup::Energy);
-                if (region.valid()) {
-                    requestAutomaticRegionRefresh(region, true, "energy");
+                DisplayRegion energyRegions[ScreenLayout::MaxWidgets];
+                const uint8_t energyRegionCount =
+                    homeDataRegions(
+                        _configManager.get().display.homeLayout,
+                        _dataModel,
+                        HomeDataGroup::Energy,
+                        energyRegions,
+                        ScreenLayout::MaxWidgets);
+                for (uint8_t i = 0; i < energyRegionCount; ++i) {
+                    requestAutomaticRegionRefresh(
+                        energyRegions[i], true, "energy");
                 }
             }
         }
