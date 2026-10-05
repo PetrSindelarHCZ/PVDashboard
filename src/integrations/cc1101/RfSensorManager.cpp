@@ -434,6 +434,13 @@ bool RfSensorManager::renameSensor(
         return false;
     }
     updated = *_config;
+
+    if (slotId == "bme280") {
+        updated.bme280Name = normalizedName(requestedName);
+        if (updated.bme280Name.isEmpty()) updated.bme280Name = "BME280";
+        return true;
+    }
+
     for (uint8_t i = 0; i < updated.sensorCount && i < MaxRfSensors; ++i) {
         if (updated.sensors[i].slotId != slotId) continue;
         updated.sensors[i].name = normalizedName(requestedName);
@@ -536,13 +543,17 @@ String RfSensorManager::statusJson() const {
         JsonObject item = configured.add<JsonObject>();
         item["kind"] = "local";
         item["slotId"] = "bme280";
-        item["name"] = "BME280";
-        item["displayName"] = "BME280";
+        const String bmeName =
+            (_config != nullptr && !_config->bme280Name.isEmpty())
+                ? _config->bme280Name
+                : String("BME280");
+        item["name"] = bmeName;
+        item["displayName"] = bmeName;
         item["protocol"] = "bme280";
         item["protocolLabel"] = "Lokální I2C";
         item["available"] = inside.status.available;
         item["removable"] = false;
-        item["renameable"] = false;
+        item["renameable"] = true;
         item["lastSeenAgeSeconds"] =
             inside.lastUpdateMs == 0
                 ? -1
