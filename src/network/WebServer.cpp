@@ -391,9 +391,28 @@ String homeLayoutResponseJson(
     addSource("weather.outdoorHumidityPercent", "Venkovní vlhkost", "%", 0, false);
     addSource("weather.surfacePressureHpa", "Tlak", "hPa", 0, false);
     addSource("weather.windSpeedKmh", "Vítr", "km/h", 1, false);
-    addSource("inside.temperatureC", "BME280 teplota", "°C", 1, true);
-    addSource("inside.humidityPercent", "BME280 vlhkost", "%", 0, true);
-    addSource("inside.pressureHpa", "BME280 tlak", "hPa", 1, true);
+    const String bme280Label =
+        rfSensors.bme280Name.isEmpty()
+            ? String("Inside")
+            : rfSensors.bme280Name;
+    addSource(
+        "inside.temperatureC",
+        bme280Label + " – teplota",
+        "°C",
+        1,
+        true);
+    addSource(
+        "inside.humidityPercent",
+        bme280Label + " – vlhkost",
+        "%",
+        0,
+        true);
+    addSource(
+        "inside.pressureHpa",
+        bme280Label + " – tlak",
+        "hPa",
+        1,
+        true);
     addSource("inside.livingRoomTempC", "Obývák (BME280)", "°C", 1, false);
     addSource("inside.bedroomTempC", "Ložnice", "°C", 1, false);
     addSource("inside.poolTempC", "Bazén uvnitř modelu", "°C", 1, false);
