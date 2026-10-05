@@ -63,6 +63,7 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
     let installed = false;
     let lastState = null;
     const rebindTargets = new Map();
+    const pendingNames = new Map();
 
     const esc = value => String(value ?? '')
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -112,7 +113,9 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
         }
 
         list.innerHTML = items.map(item => {
-            const name = item.name || '';
+            const name = pendingNames.has(item.slotId)
+                ? pendingNames.get(item.slotId)
+                : (item.name || '');
             const sourceBits = [];
             if (item.sources?.temperature) sourceBits.push('KPI: ' + item.sources.temperature);
             if (item.sources?.humidity) sourceBits.push('KPI: ' + item.sources.humidity);
@@ -141,14 +144,21 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
                 </div>`;
         }).join('');
 
+        list.querySelectorAll('[data-rf-name]').forEach(input => {
+            input.addEventListener('input', () => {
+                pendingNames.set(input.dataset.rfName, input.value);
+            });
+        });
+
         list.querySelectorAll('[data-rf-rename]').forEach(button => {
             button.addEventListener('click', async () => {
                 const slotId = button.dataset.rfRename;
                 const input = list.querySelector('[data-rf-name="' + CSS.escape(slotId) + '"]');
-                await postAction('/api/rf-sensors/rename', {
+                const ok = await postAction('/api/rf-sensors/rename', {
                     slotId,
                     name: input?.value || ''
-                }, 'Jméno čidla uloženo');
+                }, 'Jméno čidla uloženo', () => pendingNames.delete(slotId));
+                if (!ok && input) pendingNames.set(slotId, input.value);
             });
         });
 
@@ -330,7 +340,7 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
         }
     }
 
-    async function postAction(url, values, successMessage) {
+    async function postAction(url, values, successMessage, beforeReload = null) {
         const body = new URLSearchParams(values);
         const response = await fetch(url, {
             method:'POST',
@@ -343,6 +353,7 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
             return false;
         }
         if (successMessage) toast(successMessage);
+        if (beforeReload) beforeReload();
         await loadState();
         return true;
     }
