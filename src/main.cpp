@@ -34,6 +34,14 @@ void setup() {
 }
 
 void loop() {
-    Serial.println("[BOOT-ALLOC] loop OK");
-    delay(1000);
+    static bool firstLoop = true;
+    if (firstLoop) {
+        firstLoop = false;
+        Serial.println("[BOOT-LOOP] entering DashboardApp::loop");
+    }
+
+    if (app != nullptr)
+        app->loop();
+    else
+        delay(1000);
 }
