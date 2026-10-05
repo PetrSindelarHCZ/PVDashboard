@@ -33,6 +33,26 @@ uint8_t nextFailureStreak(uint8_t current) {
     return current < MaximumBackoffShift ? current + 1 : MaximumBackoffShift;
 }
 
+void applyGoodWeWorkerResult(
+    SolarData& target,
+    const SolarData& source,
+    bool success) {
+
+    target.enabled = source.enabled;
+    target.status = source.status;
+
+    if (!success) return;
+
+    target.productionPowerW = source.productionPowerW;
+    target.houseConsumptionW = source.houseConsumptionW;
+    target.gridPowerW = source.gridPowerW;
+    target.energyTodayKWh = source.energyTodayKWh;
+    target.batteryPresent = source.batteryPresent;
+    target.batterySocPercent = source.batterySocPercent;
+    target.batteryPowerW = source.batteryPowerW;
+    target.lastUpdateMs = source.lastUpdateMs;
+}
+
 void sampleInsideHistory(InsideData& data, InsideHistory*& history) {
     if (history == nullptr) {
         history = new (std::nothrow) InsideHistory();
@@ -1011,9 +1031,10 @@ void DashboardApp::setup() {
             _dataModel.solar.enabled = goodwe.enabled;
             _dataModel.azrouter.enabled = azrouter.enabled;
     
-            if (goodwe.enabled) {
-                _goodweClient.begin(goodwe.host, goodwe.port);
-            } else {
+            if (!_goodweWorker.reconfigure(goodwe)) {
+                Serial.println("[CONFIG] Nepodarilo se aplikovat GoodWe worker konfiguraci.");
+            }
+            if (!goodwe.enabled) {
                 _dataModel.solar.status.recordError("Disabled");
                 _dataModel.solar.historyCount = 0;
             }
@@ -1264,7 +1285,9 @@ void DashboardApp::setup() {
         _webServer->begin();
     }
 
-    if (cfg.goodwe.enabled) _goodweClient.begin(cfg.goodwe.host, cfg.goodwe.port);
+    if (!_goodweWorker.begin(cfg.goodwe)) {
+        Serial.println("[GOODWE-WORKER] Inicializace selhala.");
+    }
     if (cfg.azrouter.enabled) {
         _azrouterClient.begin(
             cfg.azrouter.host,
@@ -2309,23 +2332,50 @@ void DashboardApp::loop() {
         bool azrouterAvailabilityChanged = false;
         bool goodweTelemetryUpdated = false;
         bool azrouterTelemetryUpdated = false;
-        const uint32_t goodweDelayMs = pollDelayMs(cfg.goodwe.pollIntervalSeconds, _goodweFailureStreak);
-        if (cfg.goodwe.enabled && now - _lastGoodweSync >= goodweDelayMs) {
-            const bool wasAvailable = _dataModel.solar.status.available;
-            const bool success = _goodweClient.update(_dataModel.solar);
-            _lastGoodweSync = millis();
-            _goodweFailureStreak = success ? 0 : nextFailureStreak(_goodweFailureStreak);
-            goodweTelemetryUpdated = goodweTelemetryUpdated || success;
+        SolarData goodweResult;
+        bool goodweResultSuccess = false;
+        uint32_t goodweCompletedMs = 0;
+        if (_goodweWorker.takeLatest(
+                goodweResult,
+                goodweResultSuccess,
+                goodweCompletedMs)) {
+            const bool wasAvailable =
+                _dataModel.solar.status.available;
+
+            applyGoodWeWorkerResult(
+                _dataModel.solar,
+                goodweResult,
+                goodweResultSuccess);
+
+            _lastGoodweSync = goodweCompletedMs;
+            _goodweFailureStreak =
+                goodweResultSuccess
+                    ? 0
+                    : nextFailureStreak(_goodweFailureStreak);
+            goodweTelemetryUpdated =
+                goodweTelemetryUpdated || goodweResultSuccess;
             goodweAvailabilityChanged =
                 goodweAvailabilityChanged ||
                 wasAvailable != _dataModel.solar.status.available;
-            if (!success) Serial.printf("[GOODWE] Dalsi pokus za %lu ms (chyby v rade: %u)\n", pollDelayMs(cfg.goodwe.pollIntervalSeconds, _goodweFailureStreak), _goodweFailureStreak);
 
-            // A GoodWe retry can block this loop for seconds. Give local HTTP
-            // clients a chance before starting the next network integration.
-            if (_webServer != nullptr) {
-                _webServer->loop();
+            if (!goodweResultSuccess) {
+                Serial.printf(
+                    "[GOODWE-WORKER] Dalsi pokus za %lu ms "
+                    "(chyby v rade: %u)\n",
+                    pollDelayMs(
+                        cfg.goodwe.pollIntervalSeconds,
+                        _goodweFailureStreak),
+                    _goodweFailureStreak);
             }
+        }
+
+        const uint32_t goodweDelayMs =
+            pollDelayMs(
+                cfg.goodwe.pollIntervalSeconds,
+                _goodweFailureStreak);
+        if (cfg.goodwe.enabled &&
+            now - _lastGoodweSync >= goodweDelayMs) {
+            _goodweWorker.requestPoll();
         }
 
         now = millis();
