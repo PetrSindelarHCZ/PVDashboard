@@ -34,6 +34,8 @@ void setup() {
 }
 
 void loop() {
-    Serial.println("[BOOT-ALLOC] loop OK");
-    delay(1000);
+    if (app != nullptr)
+        app->loop();
+    else
+        delay(1000);
 }
