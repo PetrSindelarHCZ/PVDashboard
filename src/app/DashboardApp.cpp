@@ -1115,7 +1115,10 @@ void DashboardApp::setup() {
             const WeatherConfig& previous = _configManager.get().weather;
             const bool enabledChanged = previous.enabled != weather.enabled;
             const bool providerChanged = previous.provider != weather.provider;
+            const bool activeLocationChanged =
+                previous.activeLocationId != weather.activeLocationId;
             const bool locationChanged =
+                activeLocationChanged ||
                 fabs(previous.latitude - weather.latitude) > 0.00001 ||
                 fabs(previous.longitude - weather.longitude) > 0.00001;
 
@@ -1123,8 +1126,10 @@ void DashboardApp::setup() {
             const WeatherConfig& applied = _configManager.get().weather;
 
             Serial.printf(
-                "[CONFIG] Pocasi provider ulozen: %s\n",
-                applied.provider.c_str());
+                "[CONFIG] Pocasi ulozeno: provider=%s active=%s%s\n",
+                applied.provider.c_str(),
+                applied.activeLocationId.c_str(),
+                activeLocationChanged ? " active-change" : "");
 
             if (!_weatherWorker.reconfigure(applied)) {
                 Serial.println("[CONFIG] Nepodarilo se aplikovat konfiguraci pocasi za behu.");
