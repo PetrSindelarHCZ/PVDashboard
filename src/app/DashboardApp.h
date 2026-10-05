@@ -114,9 +114,11 @@ private:
     bool _deferredAutomaticRegionValid = false;
     DisplayRegion _deferredAutomaticRegion;
     bool _deferredAutomaticCapturePreview = true;
+    String _deferredAutomaticReason;
     bool _deferredAutomaticRegion2Valid = false;
     DisplayRegion _deferredAutomaticRegion2;
     bool _deferredAutomaticCapturePreview2 = true;
+    String _deferredAutomaticReason2;
 
     bool _pendingWifiSave = false;
     String _pendingWifiSsid;
@@ -155,7 +157,8 @@ private:
                                        const char* reason = "automatic-region");
     void clearDeferredAutomaticRegions();
     bool popDeferredAutomaticRegion(DisplayRegion& region,
-                                    bool& capturePreview);
+                                    bool& capturePreview,
+                                    String& reason);
     bool handleNavigationAction(NavigationAction action, bool capturePreview);
     bool handleControlAction(ControlAction action, bool capturePreview);
     void setDisplayEnabled(bool enabled);
