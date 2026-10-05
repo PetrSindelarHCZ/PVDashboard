@@ -355,16 +355,19 @@ inline void drawPageNavigationFocus(IDisplay& d, const DataModel& dm, const Navi
     if (index < 0) return;
 
     const NavigationRect& bounds = layout.elements[index].bounds;
-    if (bounds.width < 10 || bounds.height < 10) return;
+    if (bounds.width < 18 || bounds.height < 18) return;
 
-    // Draw inside the widget bounds so the marker is preserved by both the
-    // physical e-paper renderer and the tiled WebUI preview.
-    d.drawRoundRect(bounds.x + 3, bounds.y + 3,
-                    bounds.width - 6, bounds.height - 6,
-                    CardRadius > 2 ? CardRadius - 2 : 1, 0);
-    d.drawRoundRect(bounds.x + 4, bounds.y + 4,
-                    bounds.width - 8, bounds.height - 8,
-                    CardRadius > 3 ? CardRadius - 3 : 1, 0);
+    // Keep the navigation cursor compact. A whole-card focus frame forced the
+    // e-paper driver to refresh the complete old/new widgets for every joystick
+    // step, which was visually very intrusive. The double L marker is still
+    // unambiguous but only dirties a small corner of the card.
+    const int16_t x = bounds.x + 5;
+    const int16_t y = bounds.y + 5;
+    constexpr int16_t Size = 12;
+    d.drawLine(x, y, x + Size, y, 0);
+    d.drawLine(x, y, x, y + Size, 0);
+    d.drawLine(x + 2, y + 2, x + Size, y + 2, 0);
+    d.drawLine(x + 2, y + 2, x + 2, y + Size, 0);
 }
 
 } // namespace ScreenStyle
