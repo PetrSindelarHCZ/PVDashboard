@@ -1,5 +1,6 @@
 #include "AZRouterClient.h"
 #include <math.h>
+#include <esp_heap_caps.h>
 
 namespace {
 constexpr int32_t ConnectTimeoutMs = 400;
@@ -215,9 +216,24 @@ bool AZRouterClient::getJson(const char* path,
 
     Serial.printf("[AZROUTER][HTTP] %s -> HTTP %d\\n", path, httpCode);
 
+    Serial.printf(
+        "[AZROUTER][JSON] %s before parse: free=%u maxBlock=%u\\n",
+        path,
+        static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_8BIT)),
+        static_cast<unsigned>(
+            heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+
     const DeserializationError jsonError =
         deserializeJson(doc, http.getStream());
     http.end();
+
+    Serial.printf(
+        "[AZROUTER][JSON] %s after parse: free=%u maxBlock=%u usage=%u\\n",
+        path,
+        static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_8BIT)),
+        static_cast<unsigned>(
+            heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)),
+        static_cast<unsigned>(doc.memoryUsage()));
 
     if (jsonError) {
         errorMessage = "JSON " + String(jsonError.c_str());
@@ -445,6 +461,11 @@ bool AZRouterClient::update(AZRouterData& azData) {
         return false;
     }
 
+    // The power payload is no longer needed. ArduinoJson 7 JsonDocument keeps
+    // its heap pool until released, so free it before parsing optional payloads.
+    powerDoc.clear();
+    powerDoc.shrinkToFit();
+
     JsonDocument statusDoc;
     String optionalError;
     if (getJson("/api/v1/status", statusDoc, Performance::AzStatus, optionalError)) {
@@ -476,6 +497,10 @@ bool AZRouterClient::update(AZRouterData& azData) {
     } else {
         Serial.printf("[AZROUTER] Volitelný /status selhal: %s\n", optionalError.c_str());
     }
+
+    // Release /status storage before the usually larger /devices response.
+    statusDoc.clear();
+    statusDoc.shrinkToFit();
 
     // Smart Slave / TUV device telemetry.
     JsonDocument devicesDoc;
@@ -532,6 +557,9 @@ bool AZRouterClient::update(AZRouterData& azData) {
     } else {
         Serial.printf("[AZROUTER] Volitelný /devices selhal: %s\n", optionalError.c_str());
     }
+
+    devicesDoc.clear();
+    devicesDoc.shrinkToFit();
 
     azData.authenticated =
         credentialsConfigured() && _loginCompleted;
