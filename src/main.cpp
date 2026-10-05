@@ -9,6 +9,11 @@ SET_LOOP_TASK_STACK_SIZE(8 * 1024);
 
 DashboardApp* app = nullptr;
 
+// Diagnostic A/B: keep DashboardApp::loop() and its dependency tree linked,
+// but do not execute it. The volatile runtime condition prevents the compiler
+// and linker from proving the call unreachable.
+volatile bool runDashboardLoop = false;
+
 void setup() {
     Serial.begin(115200);
     delay(500);
@@ -34,6 +39,9 @@ void setup() {
 }
 
 void loop() {
-    Serial.println("[BOOT-ALLOC] loop OK");
+    if (runDashboardLoop && app != nullptr)
+        app->loop();
+
+    Serial.println("[BOOT-LINK] DashboardApp::loop linked but not executed");
     delay(1000);
 }
