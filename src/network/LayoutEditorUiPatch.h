@@ -806,7 +806,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         }
 
         if (sensor) {
-            const choices = apiState?.rfSensorWidget?.sensors || [];
+            const allChoices = apiState?.rfSensorWidget?.sensors || [];
+            const choices = widget.type === 'pool-summary'
+                ? allChoices.filter(item => item.kind !== 'local')
+                : allChoices;
             sensor.innerHTML = choices.map(item =>
                 '<option value="' + escapeHtml(item.slotId) + '">' +
                 escapeHtml(item.name || item.slotId) + '</option>').join('');
