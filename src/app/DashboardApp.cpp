@@ -555,7 +555,9 @@ void DashboardApp::setup() {
     _lastBatterySync = millis();
     _lastBatteryDisplayRefresh = _lastBatterySync;
 
+    Serial.println("[BOOT-SETUP] before applyWifiAddressing");
     applyWifiAddressing(cfg.wifi);
+    Serial.println("[BOOT-SETUP] after applyWifiAddressing");
 
     _dataModel.solar.enabled = cfg.goodwe.enabled;
     _dataModel.azrouter.enabled = cfg.azrouter.enabled;
