@@ -108,17 +108,19 @@ private:
     bool _deferredNavigationCapturePreview = true;
 
     // Automatic data sources can change at the same moment (clock, BME280,
-    // telemetry, weather...). Keep at most two disjoint deferred regions
-    // sequentially. Fixed slots deliberately avoid the previous circular
-    // queue, which caused a boot loop when first used from the Wi-Fi callback.
-    bool _deferredAutomaticRegionValid = false;
-    DisplayRegion _deferredAutomaticRegion;
-    bool _deferredAutomaticCapturePreview = true;
-    String _deferredAutomaticReason;
-    bool _deferredAutomaticRegion2Valid = false;
-    DisplayRegion _deferredAutomaticRegion2;
-    bool _deferredAutomaticCapturePreview2 = true;
-    String _deferredAutomaticReason2;
+    // telemetry, weather...). Keep a small fixed FIFO of disjoint regions.
+    // This avoids both heap allocation and the old circular-queue boot issue,
+    // while preventing unrelated regions from being unioned into a slow large
+    // e-paper partial refresh.
+    static constexpr uint8_t MaxDeferredAutomaticRegions = 6;
+    struct DeferredAutomaticRefresh {
+        DisplayRegion region;
+        bool capturePreview = true;
+        const char* reason = "automatic-region";
+    };
+    DeferredAutomaticRefresh
+        _deferredAutomaticRegions[MaxDeferredAutomaticRegions];
+    uint8_t _deferredAutomaticRegionCount = 0;
 
     bool _pendingWifiSave = false;
     String _pendingWifiSsid;
