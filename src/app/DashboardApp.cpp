@@ -230,10 +230,10 @@ bool weatherDisplayDataChanged(const WeatherData& a, const WeatherData& b) {
 
 DisplayRegion navigationFocusMarkerRegion(const NavigationRect& bounds) {
     DisplayRegion region;
-    region.x = max<int16_t>(0, bounds.x + 2);
+    region.x = max<int16_t>(0, bounds.x + bounds.width - 31);
     region.y = max<int16_t>(0, bounds.y + 2);
-    region.width = min<int16_t>(22, ScreenStyle::Width - region.x);
-    region.height = min<int16_t>(22, ScreenStyle::Height - region.y);
+    region.width = min<int16_t>(28, ScreenStyle::Width - region.x);
+    region.height = min<int16_t>(26, ScreenStyle::Height - region.y);
     return region;
 }
 
@@ -710,9 +710,20 @@ DisplayRegion navigationDirtyRegion(
         return dirty;
     }
 
-    // Pager changes data/content, and transitions between Sidebar/Pager/Page
-    // affect distant areas at once. Let those use the normal full-window
-    // partial refresh.
+    if (previousState.area == NavigationArea::Sidebar &&
+        currentState.area == NavigationArea::Page) {
+        return navigationFocusRegion(currentState, currentLayout);
+    }
+
+    if (previousState.area == NavigationArea::Page &&
+        currentState.area == NavigationArea::Sidebar) {
+        const int oldIndex = previousLayout.find(previousState.focusId);
+        return oldIndex >= 0
+            ? navigationFocusMarkerRegion(previousLayout.elements[oldIndex].bounds)
+            : DisplayRegion();
+    }
+
+    // Pager changes can affect page content/dots and keep the broader handling.
     return DisplayRegion();
 }
 
@@ -1685,18 +1696,22 @@ bool DashboardApp::handleNavigationAction(
         requestNavigationDisplayRefresh(
             false, 40UL, &region, capturePreview);
     } else if (enteredPageFromSidebar) {
-        // RIGHT only changes navigation mode. Redraw the sidebar cursor state
-        // and the compact initial page focus in one physical e-paper update,
-        // instead of two consecutive partial refreshes.
-        DisplayRegion region = sidebarRegion();
-        const DisplayRegion focusRegion =
-            navigationFocusRegion(currentNavigation, currentLayout);
-        if (focusRegion.valid()) {
-            region = unionDisplayRegions(region, focusRegion);
+        // Sidebar selection remains visible while browsing page widgets.
+        // RIGHT therefore only needs to draw the compact widget focus marker.
+        _deferredNavigationRegionValid = false;
+        if (dirtyRegion.valid()) {
+            requestNavigationDisplayRefresh(
+                false, 40UL, &dirtyRegion, capturePreview);
         }
+    } else if (
+        previousNavigation.area == NavigationArea::Page &&
+        currentNavigation.area == NavigationArea::Sidebar &&
+        dirtyRegion.valid()) {
+        // LEFT back to sidebar: sidebar cursor was never removed, so only
+        // erase the old compact widget focus marker.
         _deferredNavigationRegionValid = false;
         requestNavigationDisplayRefresh(
-            false, 40UL, &region, capturePreview);
+            false, 40UL, &dirtyRegion, capturePreview);
     } else if (subpageChanged) {
         // Pager/subpage switch (FVE, weather locations, ...): only the page
         // changes. Sidebar and header stay physically untouched.
