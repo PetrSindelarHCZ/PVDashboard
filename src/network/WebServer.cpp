@@ -191,13 +191,13 @@ String homeLayoutResponseJson(
     JsonArray supported = doc["supportedWidgets"].to<JsonArray>();
     const char* ids[] = {
         "weather-card", "fve-summary", "azrouter-summary",
-        "indoor-card", "pool-summary", "consumption-summary"
+        "pool-summary", "consumption-summary"
     };
     const char* types[] = {
         "weather", "fve-summary", "azrouter-summary",
-        "indoor", "pool-summary", "consumption-summary"
+        "pool-summary", "consumption-summary"
     };
-    for (uint8_t i = 0; i < 6; ++i) {
+    for (uint8_t i = 0; i < 5; ++i) {
         JsonObject item = supported.add<JsonObject>();
         item["id"] = ids[i];
         item["type"] = types[i];
