@@ -151,7 +151,8 @@ private:
                                          const char* reason = "navigation");
     void requestAutomaticDisplayRefresh(const char* reason = "automatic-whole-screen");
     void requestAutomaticRegionRefresh(const DisplayRegion& region,
-                                       bool capturePreview = true);
+                                       bool capturePreview = true,
+                                       const char* reason = "automatic-region");
     void clearDeferredAutomaticRegions();
     bool popDeferredAutomaticRegion(DisplayRegion& region,
                                     bool& capturePreview);
