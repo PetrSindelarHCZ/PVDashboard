@@ -1392,6 +1392,9 @@ bool tryPrintFt017Th(const char* decoded, uint16_t frameBits) {
 
     Ft017ThSensorEntry& sensor = sensorEntryFor(candidateId);
     const uint32_t nowMs = millis();
+    const bool hadPrevious = sensor.packetCount > 0;
+    const uint16_t previousUnknownA = sensor.unknownA;
+    const uint8_t previousUnknownB = sensor.unknownB;
     sensor.used = true;
     sensor.candidateId = candidateId;
     sensor.unknownA = unknownA;
@@ -1413,6 +1416,25 @@ bool tryPrintFt017Th(const char* decoded, uint16_t frameBits) {
         static_cast<unsigned>(humidityRaw12),
         static_cast<unsigned>(unknownA),
         static_cast<unsigned>(unknownB));
+
+    if (hadPrevious) {
+        const uint16_t deltaA = previousUnknownA ^ unknownA;
+        const uint8_t deltaB = previousUnknownB ^ unknownB;
+        Serial.printf(
+            "[CC1101][FT017TH][DELTA] id=0x%03X "
+            "unkA 0x%04X->0x%04X xor=0x%04X | "
+            "unkB 0x%02X->0x%02X xor=0x%02X | "
+            "rawT=%u rawH=%u\n",
+            static_cast<unsigned>(candidateId),
+            static_cast<unsigned>(previousUnknownA),
+            static_cast<unsigned>(unknownA),
+            static_cast<unsigned>(deltaA),
+            static_cast<unsigned>(previousUnknownB),
+            static_cast<unsigned>(unknownB),
+            static_cast<unsigned>(deltaB),
+            static_cast<unsigned>(temperatureRaw12),
+            static_cast<unsigned>(humidityRaw12));
+    }
 
     RfSensorObservation observation;
     observation.protocol = "ft017th";
@@ -1456,12 +1478,28 @@ bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
 
     if (bestLength < 40) return false;
 
-    static char halfBits[MaximumPulseCount * 2 + 2];
+    // Allocate Manchester scratch space only when this decoder is actually used.
+    static char* halfBits = nullptr;
+    static char* decoded = nullptr;
+    static char* bestDecoded = nullptr;
+    constexpr size_t HalfBitsSize = MaximumPulseCount * 2 + 2;
+    constexpr size_t DecodedSize = (MaximumPulseCount * 2) / 2 + 2;
+    if (halfBits == nullptr) {
+        halfBits = static_cast<char*>(malloc(HalfBitsSize));
+        decoded = static_cast<char*>(malloc(DecodedSize));
+        bestDecoded = static_cast<char*>(malloc(DecodedSize));
+        if (halfBits == nullptr || decoded == nullptr || bestDecoded == nullptr) {
+            free(halfBits);
+            free(decoded);
+            free(bestDecoded);
+            halfBits = nullptr;
+            decoded = nullptr;
+            bestDecoded = nullptr;
+            Serial.println("[CC1101][RX] CHYBA: nelze alokovat Manchester buffery.");
+            return false;
+        }
+    }
     uint16_t halfCount = 0;
-    uint32_t shortTotal = 0;
-    uint16_t shortCount = 0;
-    uint32_t longTotal = 0;
-    uint16_t longCount = 0;
 
     for (uint16_t i = bestStart;
          i < static_cast<uint16_t>(bestStart + bestLength);
@@ -1474,22 +1512,16 @@ bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
         uint8_t halfBitCount = 0;
         if (duration < 750) {
             halfBitCount = 1;
-            shortTotal += duration;
-            ++shortCount;
         } else {
             halfBitCount = 2;
-            longTotal += duration;
-            ++longCount;
         }
 
         for (uint8_t j = 0; j < halfBitCount; ++j) {
-            if (halfCount >= sizeof(halfBits) - 1) return false;
+            if (halfCount >= HalfBitsSize - 1) return false;
             halfBits[halfCount++] = level;
         }
     }
 
-    static char decoded[(MaximumPulseCount * 2) / 2 + 2];
-    static char bestDecoded[(MaximumPulseCount * 2) / 2 + 2];
     uint16_t bestBitCount = 0;
     uint16_t bestInvalid = 0xFFFF;
 
@@ -1556,50 +1588,9 @@ bool tryPrintRepeatedManchester(const int32_t* data, uint16_t count) {
 
     if (fullRepeats < 2 || frameBits == 0) return false;
 
-    const uint32_t shortAverage =
-        shortCount ? shortTotal / shortCount : 0;
-    const uint32_t longAverage =
-        longCount ? longTotal / longCount : 0;
-
-    Serial.printf(
-        "[CC1101][MC] frame=%u bits repeats=%u",
-        static_cast<unsigned>(frameBits),
-        static_cast<unsigned>(fullRepeats));
-    if (partialBits > 0) {
-        Serial.printf(
-            "+%u/%u",
-            static_cast<unsigned>(partialBits),
-            static_cast<unsigned>(frameBits));
-    }
-    Serial.printf(
-        " | half~%lu us double~%lu us | bits=",
-        static_cast<unsigned long>(shortAverage),
-        static_cast<unsigned long>(longAverage));
-
-    for (uint16_t i = 0; i < frameBits; ++i) {
-        Serial.print(decoded[i]);
-    }
-
-    Serial.print(" | hex=");
-    const uint16_t fullBytes = frameBits / 8;
-    for (uint16_t byteIndex = 0; byteIndex < fullBytes; ++byteIndex) {
-        uint8_t value = 0;
-        for (uint8_t bit = 0; bit < 8; ++bit) {
-            value <<= 1;
-            if (decoded[byteIndex * 8 + bit] == '1') value |= 1;
-        }
-        if (byteIndex > 0) Serial.print(' ');
-        if (value < 0x10) Serial.print('0');
-        Serial.print(value, HEX);
-    }
-    if ((frameBits % 8) != 0) {
-        Serial.print(" +");
-        for (uint16_t i = fullBytes * 8; i < frameBits; ++i) {
-            Serial.print(decoded[i]);
-        }
-    }
-
-    Serial.println();
+    // Generic Manchester bit/hex dumping was useful during protocol discovery,
+    // but costs several KiB of application flash. Keep only the actual protocol
+    // decoder in production builds.
     tryPrintFt017Th(decoded, frameBits);
     return true;
 }
@@ -2068,7 +2059,27 @@ void loop() {
         return;
     }
 
-    static int32_t snapshot[MaximumPulseCount];
+    // Allocate the burst snapshot lazily instead of reserving 3 KiB in
+    // static DRAM before the Arduino loopTask is created. The buffer is
+    // allocated only when the first complete RF burst is processed.
+    static int32_t* snapshot = nullptr;
+    if (snapshot == nullptr) {
+        snapshot = static_cast<int32_t*>(
+            malloc(sizeof(int32_t) * MaximumPulseCount));
+        if (snapshot == nullptr) {
+            Serial.println("[CC1101][RX] CHYBA: nelze alokovat snapshot buffer.");
+            noInterrupts();
+            pulseCount = 0;
+            lastEdgeUs = 0;
+            lastActivityUs = 0;
+            carrierHighEdges = 0;
+            carrierHoldEdges = 0;
+            overflowed = false;
+            interrupts();
+            return;
+        }
+    }
+
     uint16_t snapshotCount = 0;
     bool snapshotOverflow = false;
     uint16_t snapshotCarrierHighEdges = 0;

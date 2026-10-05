@@ -437,7 +437,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     const byId = id => draft.find(w => w.id === id);
     const supportedById = id => (apiState?.supportedWidgets || []).find(w => w.id === id);
     const defaultWidgetById = id => (apiState?.defaultWidgets || []).find(w => w.id === id);
-    const isElementWidget = widget => ['custom','rf-sensor','indoor','pool-summary'].includes(widget?.type);
+    const isElementWidget = widget =>
+        ['custom','weather','energy','rf-sensor','indoor','pool-summary'].includes(widget?.type);
 
     function ensureWidgetStyle(widget) {
         if (!widget) return widget;
@@ -598,21 +599,64 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         editorMessage('Panel ' + widgetLabel(replacement) + ' byl vrácen na výchozí geometrii a vzhled. Změnu potvrď Uložit.', 'ok');
     }
 
-    function editPredefinedWidget(id) {
-        let widget = byId(id);
-        if (!widget) {
-            const template = defaultWidgetById(id);
-            if (!template) {
-                editorMessage('Panel není v aktuální automatické šabloně dostupný.', 'error');
-                return;
-            }
-            widget = ensureWidgetStyle({...clone(template), visible: true});
-            draft.push(widget);
+    function makeSeedElement(id,type,source,label,text,x,y,width,height,showLabel=true){
+        const info=sourceInfo(source);
+        return {id,type,source:source||'',label:label||'',unit:info.unit||'',text:text||'',x,y,width,height,decimals:Number(info.decimals??1),min:0,max:100,fontSize:'auto',align:'left',showLabel,graphStyle:'line'};
+    }
+    function seedPredefinedDefaultElements(widget){
+        if(!widget||widget.type==='custom'||(widget.elements||[]).length)return;
+        const w=Number(widget.width||0),h=Number(widget.height||0);
+        const fit=i=>i.x>=8&&i.y>=40&&i.x+i.width<=w-8&&i.y+i.height<=h-8;
+        if(widget.type==='indoor'){
+            const wide=w>=500,lx=wide?20:15,rx=wide?Math.floor(w/2)+10:lx;
+            const lw=wide?Math.max(140,Math.floor(w/2)-40):Math.max(140,w-30);
+            const rw=wide?Math.max(140,w-rx-15):lw;
+            widget.elements=[
+                makeSeedElement('indoor-living-label','text','','','Obývák',lx,45,lw,30,false),
+                makeSeedElement('indoor-living-temp','kpi','inside.temperatureC','','',lx,70,lw,45,false),
+                makeSeedElement('indoor-living-humidity','kpi','inside.humidityPercent','Vlhkost','',lx,115,lw,55,true),
+                makeSeedElement('indoor-living-pressure','kpi','inside.pressureHpa','Tlak','',lx,165,lw,55,true),
+                makeSeedElement('indoor-bedroom-label','text','','','Ložnice',rx,wide?45:205,rw,30,false),
+                makeSeedElement('indoor-bedroom-temp','kpi','inside.bedroomTempC','','',rx,wide?70:230,rw,45,false),
+                makeSeedElement('indoor-pool-label','text','','','Bazén',rx,wide?165:285,rw,30,false),
+                makeSeedElement('indoor-pool-temp','kpi','inside.poolTempC','','',rx,wide?190:310,rw,45,false)
+            ].filter(fit);
+        }else if(widget.type==='energy'){
+            const wide=w>=400,lx=wide?20:15,rx=wide?Math.floor(w/2)+10:lx;
+            const lw=wide?Math.max(140,Math.floor(w/2)-35):Math.max(140,w-30);
+            const rw=wide?Math.max(140,w-rx-15):lw;
+            widget.elements=[
+                makeSeedElement('energy-production','kpi','solar.productionPowerW','Výroba FVE','',lx,45,lw,60,true),
+                makeSeedElement('energy-house','kpi','solar.houseConsumptionW','Spotřeba domu','',lx,wide?155:115,lw,60,true),
+                makeSeedElement('energy-grid','kpi','solar.gridPowerW','Distribuce','',rx,wide?45:185,rw,60,true),
+                makeSeedElement('energy-battery-soc','kpi','solar.batterySocPercent','Baterie','',rx,wide?155:255,rw,60,true),
+                makeSeedElement('energy-battery-power','kpi','solar.batteryPowerW','Výkon baterie','',rx,wide?215:315,rw,55,true)
+            ].filter(fit);
+        }else if(widget.type==='weather'){
+            const x=15,width=Math.max(140,w-30);
+            widget.elements=[
+                makeSeedElement('weather-temp','kpi','weather.outdoorTempC','','',x,55,width,60,false),
+                makeSeedElement('weather-humidity','kpi','weather.outdoorHumidityPercent','Vlhkost','',x,105,width,55,true),
+                makeSeedElement('weather-pressure','kpi','weather.surfacePressureHpa','Tlak','',x,160,width,55,true),
+                makeSeedElement('weather-wind','kpi','weather.windSpeedKmh','Vítr','',x,215,width,55,true)
+            ].filter(fit);
         }
-        selectedId = id;
-        selectedElementId = '';
+        (widget.elements||[]).forEach(i=>normalizeElement(widget,i));
+    }
+
+    function editPredefinedWidget(id){
+        let widget=byId(id);
+        if(!widget){
+            const template=defaultWidgetById(id);
+            if(!template){editorMessage('Panel není v aktuální automatické šabloně dostupný.','error');return;}
+            widget=ensureWidgetStyle({...clone(template),visible:true});draft.push(widget);
+        }
+        if(widget.type!=='custom'&&!(widget.elements||[]).length)seedPredefinedDefaultElements(widget);
+        selectedId=id;
+        selectedElementId=isElementWidget(widget)?(widget.elements?.[0]?.id||''):'';
         renderDraft();
-        document.getElementById('cardStylePanel')?.scrollIntoView({behavior:'smooth', block:'nearest'});
+        (isElementWidget(widget)?document.getElementById('customEditorPanel'):document.getElementById('cardStylePanel'))
+            ?.scrollIntoView({behavior:'smooth',block:'nearest'});
     }
 
     function renderCardStyleEditor() {
@@ -1031,7 +1075,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const save = document.getElementById('layoutSaveButton');
         if (save) save.disabled = invalid.size > 0 || customInvalid || !draft.some(w => w.visible);
         if (invalid.size > 0) editorMessage('Widgety se překrývají. Uložení je zablokované.', 'error');
-        else if (customInvalid) editorMessage('Widget obsahuje neplatný vnitřní prvek.', 'error');
+        else if(customInvalid)editorMessage('Widget obsahuje neplatný vnitřní prvek.','error');
     }
 
     function beginInteraction(event, id) {
@@ -1352,7 +1396,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     function customWidgetHasErrors(widget) {
         if (!widget || !isElementWidget(widget)) return false;
         const elements = widget.elements || [];
-        if ((widget.type === 'rf-sensor' || widget.type === 'indoor' || widget.type === 'pool-summary') && elements.length === 0) return false;
+        if (widget.type !== 'custom' && elements.length === 0) return false;
         if (!elements.length || elements.length > Number(apiState?.customWidget?.maxElements || 8)) return true;
         return elementInvalidIds(widget).size > 0;
     }
@@ -1799,8 +1843,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             selectedElementId = widget.elements?.[0]?.id || '';
         }
 
-        const titleInput = document.getElementById('customWidgetTitleInput');
-        if (titleInput && document.activeElement !== titleInput) titleInput.value = widget.title || '';
+        const titleInput=document.getElementById('customWidgetTitleInput');
+        if(titleInput){
+            titleInput.disabled=widget.type!=='custom';
+            if(document.activeElement!==titleInput){
+                const fixedTitles={weather:'VENKU',energy:'ENERGIE',indoor:'UVNITŘ'};
+                titleInput.value=widget.type==='custom'?(widget.title||''):(fixedTitles[widget.type]||widgetLabel(widget));
+            }
+        }
         const dimensions = document.getElementById('customWidgetDimensions');
         if (dimensions) dimensions.textContent = widget.width + ' × ' + widget.height + ' px';
 
@@ -2116,7 +2166,22 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         renderDraft();
         editorMessage('RF karta přidána. Obsah můžeš přesouvat a měnit ve WYSIWYG editoru.');
     }
+    function findWidgetPosition(width, height) {
+        const bounds = apiState?.bounds;
+        if (!bounds) return null;
+        const step = gridStep || 5;
+        const visibleWidgets = draft.filter(widget => widget.visible);
 
+        for (let y = bounds.y; y + height <= bounds.y + bounds.height; y += step) {
+            for (let x = bounds.x; x + width <= bounds.x + bounds.width; x += step) {
+                const probe = {x, y, width, height, visible: true};
+                if (!visibleWidgets.some(widget => overlap(probe, widget))) {
+                    return {x, y};
+                }
+            }
+        }
+        return null;
+    }
     function addCustomWidget() {
         if (!apiState?.customWidget) {
             editorMessage('Firmware nepodporuje vlastní widgety.', 'error');
@@ -2132,14 +2197,43 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         while (byId('custom-' + sequence)) sequence++;
         const id = 'custom-' + sequence;
         const bounds = apiState.bounds;
+        const minWidth = Number(apiState.customWidget.minWidth || 160);
+        const minHeight = Number(apiState.customWidget.minHeight || 120);
+
+        const sizeCandidates = [
+            {width: 300, height: 180},
+            {width: 240, height: 160},
+            {width: 200, height: 140},
+            {width: minWidth, height: minHeight}
+        ];
+
+        let placement = null;
+        let chosenSize = null;
+        for (const candidate of sizeCandidates) {
+            const width = Math.max(minWidth, Math.min(candidate.width, bounds.width));
+            const height = Math.max(minHeight, Math.min(candidate.height, bounds.height));
+            const position = findWidgetPosition(width, height);
+            if (!position) continue;
+            placement = position;
+            chosenSize = {width, height};
+            break;
+        }
+
+        if (!placement || !chosenSize) {
+            editorMessage(
+                'Na Home není volné místo ani pro minimální vlastní widget. Nejprve zmenši, přesuň nebo skryj některou kartu.',
+                'error');
+            return;
+        }
+
         const widget = {
             id,
             type: 'custom',
             visible: true,
-            x: bounds.x,
-            y: bounds.y,
-            width: 300,
-            height: 180,
+            x: placement.x,
+            y: placement.y,
+            width: chosenSize.width,
+            height: chosenSize.height,
             showFrame: true,
             background: 'white',
             inverseText: false,
@@ -2154,7 +2248,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                 text: 'Nový vlastní widget',
                 x: 10,
                 y: 45,
-                width: 180,
+                width: Math.min(180, Math.max(40, chosenSize.width - 20)),
                 height: 30,
                 decimals: 1,
                 min: 0,
@@ -2171,7 +2265,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         selectedId = id;
         selectedElementId = 'text-1';
         renderDraft();
-        editorMessage('Vlastní widget přidán. Obsah můžeš upravit v editoru pod náhledem.');
+        editorMessage('Vlastní widget přidán do volného místa. Obsah můžeš upravit v editoru pod náhledem.');
     }
 
     async function loadLayoutEditor() {
@@ -2199,7 +2293,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             return;
         }
         if (draft.some(widget => isElementWidget(widget) && customWidgetHasErrors(widget))) {
-            editorMessage('Nejdřív oprav prvky uvnitř vlastních widgetů.', 'error');
+            editorMessage('Nejdřív oprav prvky uvnitř widgetu.','error');
             return;
         }
 

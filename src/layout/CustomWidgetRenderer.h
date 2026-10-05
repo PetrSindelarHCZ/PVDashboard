@@ -1030,7 +1030,11 @@ inline void drawElements(IDisplay& display, const DataModel& dm,
     }
 }
 
-inline void draw(IDisplay& display, const DataModel& dm, const HomeLayoutWidgetConfig& widget) {
+inline void draw(
+    IDisplay& display,
+    const DataModel& dm,
+    const HomeLayoutWidgetConfig& widget,
+    const char* fallbackTitle = "VLASTNÍ") {
     const bool blackBackground = widget.background == "black";
     const uint16_t textColor = widget.inverseText ? 1 : 0;
     const WidgetIcons::Icon icon =
@@ -1039,7 +1043,7 @@ inline void draw(IDisplay& display, const DataModel& dm, const HomeLayoutWidgetC
 
     ScreenStyle::drawStyledCard(
         display, widget.x, widget.y, widget.width, widget.height,
-        widget.title.isEmpty() ? "VLASTNÍ" : widget.title.c_str(),
+        widget.title.isEmpty() ? fallbackTitle : widget.title.c_str(),
         widget.showFrame, blackBackground, widget.inverseText,
         hasIcon ? 51 : 12,
         hasIcon ? 51 : 10);

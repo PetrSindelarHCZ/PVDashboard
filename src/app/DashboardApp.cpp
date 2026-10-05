@@ -337,11 +337,18 @@ DisplayRegion homeDataRegion(
 
         switch (widget.type) {
             case LayoutWidgetType::HomeWeatherCard:
-                matches = group == HomeDataGroup::Weather;
+            case LayoutWidgetType::HomeEnergyCard: {
+                const HomeLayoutWidgetConfig* configured =
+                    HomeLayout::findWidget(config, widget.id);
+                if (configured != nullptr && !configured->elements.empty()) {
+                    matches = widgetUsesGroup(*configured, group);
+                } else if (widget.type == LayoutWidgetType::HomeWeatherCard) {
+                    matches = group == HomeDataGroup::Weather;
+                } else {
+                    matches = group == HomeDataGroup::Energy;
+                }
                 break;
-            case LayoutWidgetType::HomeEnergyCard:
-                matches = group == HomeDataGroup::Energy;
-                break;
+            }
             case LayoutWidgetType::HomeIndoorCard: {
                 const HomeLayoutWidgetConfig* configured =
                     HomeLayout::findWidget(config, widget.id);
@@ -801,7 +808,7 @@ void DashboardApp::setup() {
             _lastAzrouterSync = millis() - azrouter.pollIntervalSeconds * 1000UL;
             _dataModel.updateSystemMetrics();
     
-            if (visibilityChanged) requestDisplayRefresh(true, 100);
+            if (visibilityChanged) requestDisplayRefresh(true, 2500);
             else requestAutomaticDisplayRefresh();
     
             Serial.println("[CONFIG] Datove zdroje ulozeny a aplikovany za behu.");
@@ -813,7 +820,7 @@ void DashboardApp::setup() {
             _dataModel.pool.enabled = pool.enabled;
             setPoolScreenEnabled(pool.enabled);
             _navigationController.syncToActiveScreen(false);
-            if (enabledChanged) requestDisplayRefresh(true, 100);
+            if (enabledChanged) requestDisplayRefresh(true, 2500);
             else requestAutomaticDisplayRefresh();
             Serial.println("[CONFIG] Bazen ulozen a aplikovan za behu.");
         });
@@ -821,7 +828,7 @@ void DashboardApp::setup() {
         _webServer->onHomeLayoutConfig([this](const HomeLayoutConfig& layout) {
             if (!_configManager.setHomeLayout(layout)) return false;
             _navigationController.syncToActiveScreen(false);
-            requestDisplayRefresh(true, 100);
+            requestDisplayRefresh(true, 2500);
             Serial.println("[CONFIG] Home layout ulozen a aplikovan za behu.");
             return true;
         });
@@ -879,7 +886,7 @@ void DashboardApp::setup() {
     
             setWeatherScreensEnabled(applied.enabled);
             _navigationController.syncToActiveScreen(false);
-            if (enabledChanged) requestDisplayRefresh(true, 100);
+            if (enabledChanged) requestDisplayRefresh(true, 2500);
             else requestAutomaticDisplayRefresh();
             Serial.println("[CONFIG] Pocasi ulozeno a aplikovano za behu.");
         });
@@ -1077,7 +1084,7 @@ void DashboardApp::setSolarScreenEnabled(bool enabled) {
     if (solarWasActive) {
         _screenManager.activateScreen("home");
         _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
-        requestDisplayRefresh(true, 100);
+        requestDisplayRefresh(true, 2500);
     }
     _navigationController.syncToActiveScreen(false);
 }
@@ -1097,7 +1104,7 @@ void DashboardApp::setAZRouterScreenEnabled(bool enabled) {
     if (azrouterWasActive) {
         _screenManager.activateScreen("home");
         _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
-        requestDisplayRefresh(true, 100);
+        requestDisplayRefresh(true, 2500);
     }
     _navigationController.syncToActiveScreen(false);
 }
@@ -1116,7 +1123,7 @@ void DashboardApp::setPoolScreenEnabled(bool enabled) {
     if (poolWasActive) {
         _screenManager.activateScreen("home");
         _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
-        requestDisplayRefresh(true, 100);
+        requestDisplayRefresh(true, 2500);
     }
     _navigationController.syncToActiveScreen(false);
 }
@@ -1140,7 +1147,7 @@ void DashboardApp::setWeatherScreensEnabled(bool enabled) {
     if (weatherWasActive) {
         _screenManager.activateScreen("home");
         _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
-        requestDisplayRefresh(true, 100);
+        requestDisplayRefresh(true, 2500);
     }
     _navigationController.syncToActiveScreen(false);
 }

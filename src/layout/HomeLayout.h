@@ -419,6 +419,11 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
         if (widget.type == "custom") {
             String customError;
             if (!validateCustomWidget(widget, &customError)) return fail(customError);
+        } else if (widget.type == "weather" || widget.type == "energy") {
+            if (!widget.elements.empty()) {
+                String elementError;
+                if (!validateCustomWidget(widget, &elementError)) return fail(elementError);
+            }
         } else if (widget.type == "indoor") {
             if (widget.title.length() > 40)
                 return fail("Indoor widget title is too long");
@@ -601,7 +606,8 @@ inline String serializeJson(const HomeLayoutConfig& config) {
             WidgetIcons::key(static_cast<WidgetIcons::Icon>(widget.icon));
         item["historyPeriodHours"] = historyPeriodHours(widget);
 
-        if (widget.type == "indoor" || widget.type == "pool-summary") {
+        if (widget.type == "weather" || widget.type == "energy" ||
+            widget.type == "indoor" || widget.type == "pool-summary") {
             item["title"] = widget.title;
             if (widget.type == "pool-summary")
                 item["rfSensorSlotId"] = rfSlotId(widget.rfSensorSlot);
@@ -701,8 +707,14 @@ inline bool parseJson(const String& json, HomeLayoutConfig& config, String* erro
             WidgetIcons::fromKey(String(item["icon"] | "auto")));
         uint8_t sharedHistoryPeriod = item["historyPeriodHours"] | 0;
 
-        if (widget.type == "indoor" || widget.type == "pool-summary") {
-            widget.title = String(item["title"] | (widget.type == "indoor" ? "UVNITŘ" : "BAZÉN"));
+        if (widget.type == "weather" || widget.type == "energy" ||
+            widget.type == "indoor" || widget.type == "pool-summary") {
+            if (widget.type == "weather")
+                widget.title = String(item["title"] | "VENKU");
+            else if (widget.type == "energy")
+                widget.title = String(item["title"] | "ENERGIE");
+            else
+                widget.title = String(item["title"] | (widget.type == "indoor" ? "UVNITŘ" : "BAZÉN"));
             if (widget.type == "pool-summary")
                 widget.rfSensorSlot = rfSlotNumber(String(item["rfSensorSlotId"] | ""));
             JsonArray elements = item["elements"].as<JsonArray>();
