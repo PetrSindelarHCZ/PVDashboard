@@ -2041,7 +2041,27 @@ void loop() {
         return;
     }
 
-    static int32_t snapshot[MaximumPulseCount];
+    // Allocate the burst snapshot lazily instead of reserving 3 KiB in
+    // static DRAM before the Arduino loopTask is created. The buffer is
+    // allocated only when the first complete RF burst is processed.
+    static int32_t* snapshot = nullptr;
+    if (snapshot == nullptr) {
+        snapshot = static_cast<int32_t*>(
+            malloc(sizeof(int32_t) * MaximumPulseCount));
+        if (snapshot == nullptr) {
+            Serial.println("[CC1101][RX] CHYBA: nelze alokovat snapshot buffer.");
+            noInterrupts();
+            pulseCount = 0;
+            lastEdgeUs = 0;
+            lastActivityUs = 0;
+            carrierHighEdges = 0;
+            carrierHoldEdges = 0;
+            overflowed = false;
+            interrupts();
+            return;
+        }
+    }
+
     uint16_t snapshotCount = 0;
     bool snapshotOverflow = false;
     uint16_t snapshotCarrierHighEdges = 0;
