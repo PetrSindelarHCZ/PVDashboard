@@ -132,7 +132,20 @@ void GoodWeWorker::taskLoop() {
 
         SolarData result;
         result.enabled = config.enabled;
-        const bool success = client.update(result);
+
+        // Weather HTTPS can consume nearly all internal Wi-Fi/TLS buffers on
+        // the classic ESP32. Serialize GoodWe UDP with the shared network gate
+        // so socket allocation is postponed instead of failing under TLS load.
+        bool success = false;
+        const bool gateTaken =
+            _networkClientGate == nullptr ||
+            xSemaphoreTake(_networkClientGate, portMAX_DELAY) == pdTRUE;
+        if (gateTaken) {
+            success = client.update(result);
+            if (_networkClientGate != nullptr) {
+                xSemaphoreGive(_networkClientGate);
+            }
+        }
         const uint32_t completedMs = millis();
 
         if (xSemaphoreTake(_mutex, portMAX_DELAY) == pdTRUE) {
