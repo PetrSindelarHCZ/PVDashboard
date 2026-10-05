@@ -1172,16 +1172,20 @@ void DashboardApp::setup() {
                 const RfSensorsConfig previousRf = _configManager.get().rfSensors;
 
                 if (slotId == "bme280") {
-                    RfSensorsConfig updated;
-                    if (!_rfSensorManager.renameSensor(
-                            slotId, name, updated, error)) {
-                        return false;
-                    }
-                    if (!_configManager.setRfSensors(updated)) {
+                    const String oldName =
+                        previousRf.bme280Name.isEmpty()
+                            ? String("Inside")
+                            : previousRf.bme280Name;
+
+                    if (!_configManager.setBme280Name(name)) {
                         error = "Nový název čidla se nepodařilo uložit.";
                         return false;
                     }
-                    _rfSensorManager.applyConfig(_configManager.get().rfSensors);
+
+                    const String newName =
+                        _configManager.get().rfSensors.bme280Name.isEmpty()
+                            ? String("Inside")
+                            : _configManager.get().rfSensors.bme280Name;
 
                     // Existing temperature cards keep user-edited titles.
                     // Rename only cards whose title still matches the previous
@@ -1189,14 +1193,6 @@ void DashboardApp::setup() {
                     HomeLayoutConfig layout =
                         _configManager.get().display.homeLayout;
                     bool layoutChanged = false;
-                    const String oldName =
-                        previousRf.bme280Name.isEmpty()
-                            ? String("Inside")
-                            : previousRf.bme280Name;
-                    const String newName =
-                        updated.bme280Name.isEmpty()
-                            ? String("Inside")
-                            : updated.bme280Name;
                     for (uint8_t w = 0;
                          w < layout.widgetCount && w < MaxHomeLayoutWidgets;
                          ++w) {
