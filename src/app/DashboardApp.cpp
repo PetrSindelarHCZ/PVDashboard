@@ -277,6 +277,29 @@ DisplayRegion pageRegion() {
     return region;
 }
 
+DisplayRegion solarLiveDataRegion() {
+    DisplayRegion region;
+    // Only the changing values of the three upper GoodWe cards.
+    // Frames/titles stay untouched; the renderer clips its normal full-page
+    // drawing to this interior strip and therefore also clears old digits.
+    region.x = 83;
+    region.y = 136;
+    region.width = 694;
+    region.height = 119;
+    return region;
+}
+
+DisplayRegion solarHistoryDataRegion() {
+    DisplayRegion region;
+    // Plot + axes/labels inside the lower history card, excluding static
+    // title/frame chrome.
+    region.x = 83;
+    region.y = 315;
+    region.width = 694;
+    region.height = 142;
+    return region;
+}
+
 DisplayRegion dashboardBodyRegion() {
     DisplayRegion region;
     region.x = 0;
@@ -2266,9 +2289,14 @@ void DashboardApp::loop() {
         // Source availability is visible on Home and the corresponding
         // GoodWe/AZRouter screens. Keep updates inside the page region.
         if (availabilityChanged) {
-            if (activeScreenId == "solar" || activeScreenId == "azrouter") {
+            if (activeScreenId == "solar") {
                 const DisplayRegion region = pageRegion();
-                requestAutomaticRegionRefresh(region, true);
+                requestAutomaticRegionRefresh(
+                    region, true, "solar-availability");
+            } else if (activeScreenId == "azrouter") {
+                const DisplayRegion region = pageRegion();
+                requestAutomaticRegionRefresh(
+                    region, true, "azrouter-availability");
             } else if (activeScreenId == "home") {
                 DisplayRegion energyRegions[ScreenLayout::MaxWidgets];
                 const uint8_t energyRegionCount =
@@ -2301,9 +2329,29 @@ void DashboardApp::loop() {
 
             _lastTelemetryDisplayRefresh = telemetryNow;
 
-            if (activeScreenId == "solar" || activeScreenId == "azrouter") {
+            if (activeScreenId == "solar") {
+                requestAutomaticRegionRefresh(
+                    solarLiveDataRegion(), true, "solar-live");
+
+                // Solar history is bucketed into 15-minute slots. Updating the
+                // large graph every minute made the e-paper behave like a
+                // near-full page refresh. Keep live KPIs at 1 minute, but redraw
+                // the graph only once per history interval.
+                constexpr unsigned long SolarHistoryDisplayIntervalMs =
+                    static_cast<unsigned long>(SolarHistoryIntervalMinutes) *
+                    60UL * 1000UL;
+                if (_lastSolarHistoryDisplayRefresh == 0) {
+                    _lastSolarHistoryDisplayRefresh = telemetryNow;
+                } else if (telemetryNow - _lastSolarHistoryDisplayRefresh >=
+                           SolarHistoryDisplayIntervalMs) {
+                    _lastSolarHistoryDisplayRefresh = telemetryNow;
+                    requestAutomaticRegionRefresh(
+                        solarHistoryDataRegion(), true, "solar-history");
+                }
+            } else if (activeScreenId == "azrouter") {
                 const DisplayRegion region = pageRegion();
-                requestAutomaticRegionRefresh(region, true);
+                requestAutomaticRegionRefresh(
+                    region, true, "azrouter-live");
             } else {
                 DisplayRegion energyRegions[ScreenLayout::MaxWidgets];
                 const uint8_t energyRegionCount =
