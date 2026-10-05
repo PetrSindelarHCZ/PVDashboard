@@ -300,14 +300,23 @@ DisplayRegion solarHistoryDataRegion() {
     return region;
 }
 
-DisplayRegion azRouterLiveDataRegion() {
+DisplayRegion azRouterMasterDataRegion() {
     DisplayRegion region;
-    // Dynamic values from the master card and the three phase cards.
-    // Keep static card frames/titles outside the dirty area.
+    // Dynamic values inside the top AZRouter master card.
     region.x = 83;
-    region.y = 136;
+    region.y = 132;
     region.width = 694;
-    region.height = 229;
+    region.height = 63;
+    return region;
+}
+
+DisplayRegion azRouterPhaseDataRegion() {
+    DisplayRegion region;
+    // Dynamic values inside the three phase cards, excluding frames/titles.
+    region.x = 83;
+    region.y = 246;
+    region.width = 694;
+    region.height = 111;
     return region;
 }
 
@@ -2278,16 +2287,20 @@ void DashboardApp::loop() {
     now = millis();
     if (_wifiManager.isConnected()) {
         const auto& cfg = _configManager.get();
-        bool availabilityChanged = false;
-        bool liveTelemetryUpdated = false;
+        bool goodweAvailabilityChanged = false;
+        bool azrouterAvailabilityChanged = false;
+        bool goodweTelemetryUpdated = false;
+        bool azrouterTelemetryUpdated = false;
         const uint32_t goodweDelayMs = pollDelayMs(cfg.goodwe.pollIntervalSeconds, _goodweFailureStreak);
         if (cfg.goodwe.enabled && now - _lastGoodweSync >= goodweDelayMs) {
             const bool wasAvailable = _dataModel.solar.status.available;
             const bool success = _goodweClient.update(_dataModel.solar);
             _lastGoodweSync = millis();
             _goodweFailureStreak = success ? 0 : nextFailureStreak(_goodweFailureStreak);
-            liveTelemetryUpdated = liveTelemetryUpdated || success;
-            availabilityChanged |= wasAvailable != _dataModel.solar.status.available;
+            goodweTelemetryUpdated = goodweTelemetryUpdated || success;
+            goodweAvailabilityChanged =
+                goodweAvailabilityChanged ||
+                wasAvailable != _dataModel.solar.status.available;
             if (!success) Serial.printf("[GOODWE] Dalsi pokus za %lu ms (chyby v rade: %u)\n", pollDelayMs(cfg.goodwe.pollIntervalSeconds, _goodweFailureStreak), _goodweFailureStreak);
         }
 
@@ -2298,8 +2311,10 @@ void DashboardApp::loop() {
             const bool success = _azrouterClient.update(_dataModel.azrouter);
             _lastAzrouterSync = millis();
             _azrouterFailureStreak = success ? 0 : nextFailureStreak(_azrouterFailureStreak);
-            liveTelemetryUpdated = liveTelemetryUpdated || success;
-            availabilityChanged |= wasAvailable != _dataModel.azrouter.status.available;
+            azrouterTelemetryUpdated = azrouterTelemetryUpdated || success;
+            azrouterAvailabilityChanged =
+                azrouterAvailabilityChanged ||
+                wasAvailable != _dataModel.azrouter.status.available;
             if (!success) Serial.printf("[AZROUTER] Dalsi pokus za %lu ms (chyby v rade: %u)\n", pollDelayMs(cfg.azrouter.pollIntervalSeconds, _azrouterFailureStreak), _azrouterFailureStreak);
         }
 
@@ -2307,30 +2322,31 @@ void DashboardApp::loop() {
 
         const String activeScreenId = _screenManager.getActiveScreenId();
 
-        // Source availability is visible on Home and the corresponding
-        // GoodWe/AZRouter screens. Keep updates inside the page region.
-        if (availabilityChanged) {
-            if (activeScreenId == "solar") {
-                const DisplayRegion region = pageRegion();
+        // Availability belongs to a specific source. A GoodWe failure must
+        // not force an AZRouter page redraw (and vice versa).
+        if (activeScreenId == "solar" && goodweAvailabilityChanged) {
+            const DisplayRegion region = pageRegion();
+            requestAutomaticRegionRefresh(
+                region, true, "solar-availability");
+        } else if (activeScreenId == "azrouter" &&
+                   azrouterAvailabilityChanged) {
+            const DisplayRegion region = pageRegion();
+            requestAutomaticRegionRefresh(
+                region, true, "azrouter-availability");
+        } else if (activeScreenId == "home" &&
+                   (goodweAvailabilityChanged ||
+                    azrouterAvailabilityChanged)) {
+            DisplayRegion energyRegions[ScreenLayout::MaxWidgets];
+            const uint8_t energyRegionCount =
+                homeDataRegions(
+                    _configManager.get().display.homeLayout,
+                    _dataModel,
+                    HomeDataGroup::Energy,
+                    energyRegions,
+                    ScreenLayout::MaxWidgets);
+            for (uint8_t i = 0; i < energyRegionCount; ++i) {
                 requestAutomaticRegionRefresh(
-                    region, true, "solar-availability");
-            } else if (activeScreenId == "azrouter") {
-                const DisplayRegion region = pageRegion();
-                requestAutomaticRegionRefresh(
-                    region, true, "azrouter-availability");
-            } else if (activeScreenId == "home") {
-                DisplayRegion energyRegions[ScreenLayout::MaxWidgets];
-                const uint8_t energyRegionCount =
-                    homeDataRegions(
-                        _configManager.get().display.homeLayout,
-                        _dataModel,
-                        HomeDataGroup::Energy,
-                        energyRegions,
-                        ScreenLayout::MaxWidgets);
-                for (uint8_t i = 0; i < energyRegionCount; ++i) {
-                    requestAutomaticRegionRefresh(
-                        energyRegions[i], true, "energy");
-                }
+                    energyRegions[i], true, "energy");
             }
         }
 
@@ -2339,13 +2355,13 @@ void DashboardApp::loop() {
         // show them, and only in the page/content area. The header clock has
         // its own small partial refresh above.
         const unsigned long telemetryNow = millis();
-        const bool showsLiveTelemetry =
-            activeScreenId == "home" ||
-            activeScreenId == "solar" ||
-            activeScreenId == "azrouter";
+        const bool activeTelemetryUpdated =
+            (activeScreenId == "home" &&
+             (goodweTelemetryUpdated || azrouterTelemetryUpdated)) ||
+            (activeScreenId == "solar" && goodweTelemetryUpdated) ||
+            (activeScreenId == "azrouter" && azrouterTelemetryUpdated);
 
-        if (liveTelemetryUpdated &&
-            showsLiveTelemetry &&
+        if (activeTelemetryUpdated &&
             telemetryNow - _lastTelemetryDisplayRefresh >= 60000UL) {
 
             _lastTelemetryDisplayRefresh = telemetryNow;
@@ -2370,11 +2386,23 @@ void DashboardApp::loop() {
                         solarHistoryDataRegion(), true, "solar-history");
                 }
             } else if (activeScreenId == "azrouter") {
+                // Keep the frequent update below the panel's slow large-region
+                // threshold. The master card carries the most useful live
+                // values and can therefore stay on a one-minute cadence.
                 requestAutomaticRegionRefresh(
-                    azRouterLiveDataRegion(), true, "azrouter-live");
+                    azRouterMasterDataRegion(), true, "azrouter-master");
 
-                // Energy counters change much more slowly than live phase
-                // telemetry. Avoid flashing the lower card every minute.
+                constexpr unsigned long AzRouterPhaseDisplayIntervalMs =
+                    5UL * 60UL * 1000UL;
+                if (_lastAzRouterPhaseDisplayRefresh == 0) {
+                    _lastAzRouterPhaseDisplayRefresh = telemetryNow;
+                } else if (telemetryNow - _lastAzRouterPhaseDisplayRefresh >=
+                           AzRouterPhaseDisplayIntervalMs) {
+                    _lastAzRouterPhaseDisplayRefresh = telemetryNow;
+                    requestAutomaticRegionRefresh(
+                        azRouterPhaseDataRegion(), true, "azrouter-phases");
+                }
+
                 constexpr unsigned long AzRouterEnergyDisplayIntervalMs =
                     15UL * 60UL * 1000UL;
                 if (_lastAzRouterEnergyDisplayRefresh == 0) {
