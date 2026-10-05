@@ -265,7 +265,7 @@ String homeLayoutResponseJson(
     {
         JsonObject choice = rfChoices.add<JsonObject>();
         choice["slotId"] = "bme280";
-        choice["name"] = "BME280";
+        choice["name"] = "Inside";
         choice["kind"] = "local";
         choice["sourcePrefix"] = "inside";
         choice["hasHumidity"] = true;
