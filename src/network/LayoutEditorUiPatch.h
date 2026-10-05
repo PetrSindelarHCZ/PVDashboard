@@ -983,7 +983,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             row.innerHTML = `
                 <div class="layout-widget-row-main">
                     <div class="layout-widget-row-title">${escapeHtml(widgetLabel(widget))}</div>
-                    <div class="layout-widget-row-meta">Vlastní · ${widget.elements?.length || 0} prvků · min. ${minimum.minWidth} × ${minimum.minHeight} px</div>
+                    <div class="layout-widget-row-meta">${widget.id?.startsWith('custom-temp-') ? 'Teplotní · uživatelsky definovaný' : 'Vlastní'} · ${widget.elements?.length || 0} prvků · min. ${minimum.minWidth} × ${minimum.minHeight} px</div>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center">
                     <label class="toggle">
