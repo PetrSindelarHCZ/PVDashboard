@@ -19,7 +19,7 @@
 #include "../network/WifiSignalLevel.h"
 #include "../network/TimeService.h"
 #include "../network/WebServer.h"
-#include "../integrations/goodwe/GoodWeClient.h"
+#include "../integrations/goodwe/GoodWeWorker.h"
 #include "../integrations/azrouter/AZRouterClient.h"
 #include "../integrations/weather/WeatherWorker.h"
 #include "../integrations/bme280/Bme280Sensor.h"
@@ -74,7 +74,7 @@ private:
     // loopTask (16 KiB stack) before setup() starts.
     DashboardWebServer* _webServer = nullptr;
 
-    GoodWeClient _goodweClient;
+    GoodWeWorker _goodweWorker;
     AZRouterClient _azrouterClient;
     WeatherWorker _weatherWorker;
     Bme280Sensor _bme280Sensor;
