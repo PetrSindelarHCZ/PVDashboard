@@ -1856,13 +1856,19 @@ void DashboardApp::selectWeatherDisplayLocation(
         if (isWeatherScreenId(activeScreenId)) {
             requestAutomaticRegionRefresh(pageRegion(), true, "weather-page");
         } else if (activeScreenId == "home") {
-            const DisplayRegion region =
-                homeDataRegion(
+            DisplayRegion regions[MaxHomeLayoutWidgets];
+            const uint8_t count =
+                homeDataRegions(
                     _configManager.get().display.homeLayout,
                     _dataModel,
-                    HomeDataGroup::Weather);
-            if (region.valid()) {
-                requestAutomaticRegionRefresh(region, true, "weather");
+                    HomeDataGroup::Weather,
+                    regions,
+                    MaxHomeLayoutWidgets);
+            for (uint8_t i = 0; i < count; ++i) {
+                requestAutomaticRegionRefresh(
+                    regions[i],
+                    true,
+                    "weather");
             }
         }
     }
@@ -1933,13 +1939,19 @@ void DashboardApp::refreshWeatherDisplayFromCache(
         if (isWeatherScreenId(activeScreenId)) {
             requestAutomaticRegionRefresh(pageRegion(), true, "weather-page");
         } else if (activeScreenId == "home") {
-            const DisplayRegion region =
-                homeDataRegion(
+            DisplayRegion regions[MaxHomeLayoutWidgets];
+            const uint8_t count =
+                homeDataRegions(
                     _configManager.get().display.homeLayout,
                     _dataModel,
-                    HomeDataGroup::Weather);
-            if (region.valid()) {
-                requestAutomaticRegionRefresh(region, true, "weather");
+                    HomeDataGroup::Weather,
+                    regions,
+                    MaxHomeLayoutWidgets);
+            for (uint8_t i = 0; i < count; ++i) {
+                requestAutomaticRegionRefresh(
+                    regions[i],
+                    true,
+                    "weather");
             }
         }
     }
