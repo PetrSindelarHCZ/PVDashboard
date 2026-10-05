@@ -1197,39 +1197,14 @@ void DashboardApp::setup() {
                     return true;
                 }
 
-                const RfSensorConfig* previousSensor =
-                    rfSensorBySlot(previousRf, slotId);
-                if (previousSensor == nullptr) {
-                    error = "Uložené čidlo nebylo nalezeno.";
+                if (!_configManager.renameRfSensor(slotId, name, error)) {
                     return false;
                 }
-    
-                const String oldTemperatureLabel =
-                    rfSensorMetricLabel(*previousSensor, false);
-                const String oldHumidityLabel =
-                    rfSensorMetricLabel(*previousSensor, true);
-    
-                RfSensorsConfig updated;
-                if (!_rfSensorManager.renameSensor(
-                        slotId, name, updated, error)) {
-                    return false;
-                }
-    
-                const RfSensorConfig* updatedSensor =
-                    rfSensorBySlot(updated, slotId);
-                if (updatedSensor == nullptr) {
-                    error = "Aktualizované čidlo nebylo nalezeno.";
-                    return false;
-                }
-    
-                if (!_configManager.setRfSensors(updated)) {
-                    error = "Nový název čidla se nepodařilo uložit.";
-                    return false;
-                }
+
                 _rfSensorManager.applyConfig(_configManager.get().rfSensors);
-    
-                // Home temperature cards are user-defined. Keep their
-                // labels/titles untouched when only the saved sensor name changes.
+
+                // Saved sensor names and user-defined widget titles are separate.
+                // Do not copy/rewrite Home layout here.
                 Serial.printf(
                     "[RF-SENSORS] %s prejmenovan na '%s'.\n",
                     slotId.c_str(),
