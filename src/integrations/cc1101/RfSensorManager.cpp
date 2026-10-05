@@ -527,6 +527,45 @@ String RfSensorManager::statusJson() const {
 
     JsonArray configured = doc["configured"].to<JsonArray>();
     const uint32_t now = millis();
+
+    // Fixed local BME280 is presented in the same saved-sensors list as
+    // user-paired 433 MHz sensors. It is not an RF binding and therefore
+    // cannot be removed/rebound through RF management actions.
+    {
+        const InsideData& inside = _dataModel.inside;
+        JsonObject item = configured.add<JsonObject>();
+        item["kind"] = "local";
+        item["slotId"] = "bme280";
+        item["name"] = "BME280";
+        item["displayName"] = "BME280";
+        item["protocol"] = "bme280";
+        item["protocolLabel"] = "Lokální I2C";
+        item["available"] = inside.status.available;
+        item["removable"] = false;
+        item["renameable"] = false;
+        item["lastSeenAgeSeconds"] =
+            inside.lastUpdateMs == 0
+                ? -1
+                : static_cast<long>(
+                      static_cast<uint32_t>(now - inside.lastUpdateMs) / 1000UL);
+
+        JsonObject capabilities = item["capabilities"].to<JsonObject>();
+        capabilities["temperature"] = true;
+        capabilities["humidity"] = true;
+        capabilities["pressure"] = true;
+        capabilities["battery"] = false;
+
+        if (inside.status.available && inside.lastUpdateMs > 0) {
+            item["temperatureC"] = inside.temperatureC;
+            item["humidityPercent"] = inside.humidityPercent;
+            item["pressureHpa"] = inside.pressureHpa;
+        }
+
+        JsonObject sources = item["sources"].to<JsonObject>();
+        sources["temperature"] = "inside.temperatureC";
+        sources["humidity"] = "inside.humidityPercent";
+        sources["pressure"] = "inside.pressureHpa";
+    }
     const uint8_t configuredCount =
         _config == nullptr ? 0 :
         (_config->sensorCount > MaxRfSensors ? MaxRfSensors : _config->sensorCount);
@@ -535,6 +574,9 @@ String RfSensorManager::statusJson() const {
         const RfSensorData& data = _dataModel.rfSensors.sensors[i];
 
         JsonObject item = configured.add<JsonObject>();
+        item["kind"] = "rf";
+        item["removable"] = true;
+        item["renameable"] = true;
         item["slotId"] = cfg.slotId;
         item["name"] = cfg.name;
         item["displayName"] = cfg.name.isEmpty() ? defaultSensorLabel(cfg) : cfg.name;
