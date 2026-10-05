@@ -1,8 +1,9 @@
 # Name,   Type, SubType, Offset,   Size,     Flags
-# Diagnostic layout: keep app0 at 0x10000 but give it the remaining flash.
-# app1/OTA is intentionally omitted for this test. If the same firmware boots,
-# the reset is tied to the current OTA slot/image-size boundary rather than RAM.
+# ESP32 devboard layout: OTA intentionally disabled.
+# The current firmware no longer fits safely into two OTA slots on 4 MiB flash.
+# Keep the application at 0x10000 and use the remaining flash for one app image.
+# Revisit OTA for the incoming ESP32-S3 replacement hardware.
 nvs,      data, nvs,     0x9000,   0x5000,
 otadata,  data, ota,     0xe000,   0x2000,
-app0,     app,  ota_0,   0x10000,  0x3E0000,
+app0,     app,  factory, 0x10000,  0x3E0000,
 spiffs,   data, spiffs,  0x3F0000, 0x10000,
