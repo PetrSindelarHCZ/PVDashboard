@@ -5,7 +5,7 @@
 #include <new>
 
 // GitHub HTTPS checks and OTA downloads run on loopTask and need stack headroom.
-SET_LOOP_TASK_STACK_SIZE(16 * 1024);
+SET_LOOP_TASK_STACK_SIZE(8 * 1024);
 
 DashboardApp* app = nullptr;
 
