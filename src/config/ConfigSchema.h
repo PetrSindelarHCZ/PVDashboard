@@ -169,6 +169,8 @@ struct RfSensorConfig {
 };
 
 struct RfSensorsConfig {
+    // User-facing name of the fixed local BME280 sensor.
+    String bme280Name = "BME280";
     uint8_t sensorCount = 0;
     RfSensorConfig sensors[MaxRfSensors];
 };
