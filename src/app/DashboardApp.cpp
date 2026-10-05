@@ -1507,7 +1507,17 @@ void DashboardApp::requestAutomaticRegionRefresh(
                a.height == b.height;
     };
 
-    // A pending full/whole-screen render already contains the newest model.
+    const auto containsRegion = [](const DisplayRegion& outer,
+                                   const DisplayRegion& inner) {
+        return inner.x >= outer.x &&
+               inner.y >= outer.y &&
+               inner.x + inner.width <= outer.x + outer.width &&
+               inner.y + inner.height <= outer.y + outer.height;
+    };
+
+    const char* queuedReason =
+        reason != nullptr ? reason : "automatic-region";
+
     if (_pendingRefresh &&
         (_pendingFullRefresh || !_pendingDisplayRegionValid)) {
         _pendingCapturePreview =
@@ -1515,73 +1525,83 @@ void DashboardApp::requestAutomaticRegionRefresh(
         return;
     }
 
-    // The same pending region already contains the newest data.
     if (_pendingRefresh &&
         _pendingDisplayRegionValid &&
-        sameRegion(_pendingDisplayRegion, region)) {
+        (sameRegion(_pendingDisplayRegion, region) ||
+         containsRegion(_pendingDisplayRegion, region))) {
         _pendingCapturePreview =
             _pendingCapturePreview || capturePreview;
         return;
     }
 
-    // Fast path: nothing is waiting, so use the already proven-safe regional
-    // display request directly.
-    if (!_pendingRefresh &&
-        !_deferredAutomaticRegionValid &&
-        !_deferredAutomaticRegion2Valid) {
+    if (!_pendingRefresh && _deferredAutomaticRegionCount == 0) {
         requestNavigationDisplayRefresh(
-            false, 0UL, &region, capturePreview, reason);
+            false, 0UL, &region, capturePreview, queuedReason);
         return;
     }
 
-    if (_deferredAutomaticRegionValid &&
-        sameRegion(_deferredAutomaticRegion, region)) {
-        _deferredAutomaticCapturePreview =
-            _deferredAutomaticCapturePreview || capturePreview;
+    for (uint8_t i = 0; i < _deferredAutomaticRegionCount; ++i) {
+        DeferredAutomaticRefresh& queued = _deferredAutomaticRegions[i];
+        if (sameRegion(queued.region, region) ||
+            containsRegion(queued.region, region)) {
+            queued.capturePreview =
+                queued.capturePreview || capturePreview;
+            return;
+        }
+    }
+
+    for (uint8_t i = 0; i < _deferredAutomaticRegionCount;) {
+        if (!containsRegion(region, _deferredAutomaticRegions[i].region)) {
+            ++i;
+            continue;
+        }
+
+        capturePreview =
+            capturePreview ||
+            _deferredAutomaticRegions[i].capturePreview;
+
+        for (uint8_t j = i + 1;
+             j < _deferredAutomaticRegionCount;
+             ++j) {
+            _deferredAutomaticRegions[j - 1] =
+                _deferredAutomaticRegions[j];
+        }
+        --_deferredAutomaticRegionCount;
+    }
+
+    if (_deferredAutomaticRegionCount >= MaxDeferredAutomaticRegions) {
+        Serial.printf(
+            "[DISPLAY][QUEUE] plna %u/%u; zahazuji reason=%s "
+            "region=%d,%d %dx%d\n",
+            static_cast<unsigned>(_deferredAutomaticRegionCount),
+            static_cast<unsigned>(MaxDeferredAutomaticRegions),
+            queuedReason,
+            region.x,
+            region.y,
+            region.width,
+            region.height);
         return;
     }
 
-    if (_deferredAutomaticRegion2Valid &&
-        sameRegion(_deferredAutomaticRegion2, region)) {
-        _deferredAutomaticCapturePreview2 =
-            _deferredAutomaticCapturePreview2 || capturePreview;
-        return;
-    }
+    DeferredAutomaticRefresh& slot =
+        _deferredAutomaticRegions[_deferredAutomaticRegionCount++];
+    slot.region = region;
+    slot.capturePreview = capturePreview;
+    slot.reason = queuedReason;
 
-    if (!_deferredAutomaticRegionValid) {
-        _deferredAutomaticRegion = region;
-        _deferredAutomaticCapturePreview = capturePreview;
-        _deferredAutomaticReason =
-            reason != nullptr ? reason : "automatic-region";
-        _deferredAutomaticRegionValid = true;
-        return;
-    }
-
-    if (!_deferredAutomaticRegion2Valid) {
-        _deferredAutomaticRegion2 = region;
-        _deferredAutomaticCapturePreview2 = capturePreview;
-        _deferredAutomaticReason2 =
-            reason != nullptr ? reason : "automatic-region";
-        _deferredAutomaticRegion2Valid = true;
-        return;
-    }
-
-    // Two separate automatic regions are already waiting. Do not union them:
-    // that could create a large rectangle and trigger a slow OTP partial.
-    // The newest model value remains in DataModel and the skipped region will
-    // be picked up by its next normal source refresh.
-    Serial.println(
-        "[DISPLAY] Varovani: dva automaticke regiony uz cekaji; "
-        "dalsi region preskakuji.");
+    Serial.printf(
+        "[DISPLAY][QUEUE] deferred %u/%u reason=%s region=%d,%d %dx%d\n",
+        static_cast<unsigned>(_deferredAutomaticRegionCount),
+        static_cast<unsigned>(MaxDeferredAutomaticRegions),
+        slot.reason,
+        slot.region.x,
+        slot.region.y,
+        slot.region.width,
+        slot.region.height);
 }
 
 void DashboardApp::clearDeferredAutomaticRegions() {
-    _deferredAutomaticRegionValid = false;
-    _deferredAutomaticCapturePreview = true;
-    _deferredAutomaticReason = "";
-    _deferredAutomaticRegion2Valid = false;
-    _deferredAutomaticCapturePreview2 = true;
-    _deferredAutomaticReason2 = "";
+    _deferredAutomaticRegionCount = 0;
 }
 
 bool DashboardApp::popDeferredAutomaticRegion(
@@ -1589,25 +1609,24 @@ bool DashboardApp::popDeferredAutomaticRegion(
     bool& capturePreview,
     String& reason) {
 
-    if (!_deferredAutomaticRegionValid) return false;
+    if (_deferredAutomaticRegionCount == 0) return false;
 
-    region = _deferredAutomaticRegion;
-    capturePreview = _deferredAutomaticCapturePreview;
-    reason = _deferredAutomaticReason;
+    const DeferredAutomaticRefresh next =
+        _deferredAutomaticRegions[0];
 
-    if (_deferredAutomaticRegion2Valid) {
-        _deferredAutomaticRegion = _deferredAutomaticRegion2;
-        _deferredAutomaticCapturePreview =
-            _deferredAutomaticCapturePreview2;
-        _deferredAutomaticReason = _deferredAutomaticReason2;
-        _deferredAutomaticRegion2Valid = false;
-        _deferredAutomaticCapturePreview2 = true;
-        _deferredAutomaticReason2 = "";
-    } else {
-        _deferredAutomaticRegionValid = false;
-        _deferredAutomaticCapturePreview = true;
-        _deferredAutomaticReason = "";
+    region = next.region;
+    capturePreview = next.capturePreview;
+    reason = next.reason != nullptr
+        ? next.reason
+        : "automatic-region";
+
+    for (uint8_t i = 1;
+         i < _deferredAutomaticRegionCount;
+         ++i) {
+        _deferredAutomaticRegions[i - 1] =
+            _deferredAutomaticRegions[i];
     }
+    --_deferredAutomaticRegionCount;
 
     return true;
 }
