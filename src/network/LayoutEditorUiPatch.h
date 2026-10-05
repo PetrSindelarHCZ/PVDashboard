@@ -1063,6 +1063,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             layer.appendChild(box);
         });
 
+        refreshTemperatureSensorPicker();
         renderInspector();
         renderWidgetList();
         updateGrid();
@@ -2064,13 +2065,119 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         }, 180);
     }
 
+    function temperatureElements(sourcePrefix, hasHumidity = true, hasPressure = false, width = 160) {
+        const contentWidth = Math.max(70, width - 20);
+        const elements = [{
+            id: 'temperature',
+            type: 'kpi',
+            source: sourcePrefix + '.temperatureC',
+            label: '',
+            unit: '°C',
+            text: '',
+            x: 10,
+            y: 48,
+            width: contentWidth,
+            height: 38,
+            decimals: 1,
+            min: -50,
+            max: 80,
+            fontSize: '28',
+            align: 'left',
+            showLabel: false,
+            graphStyle: 'line',
+            graphPeriodHours: 12
+        }];
+        if (hasHumidity) {
+            elements.push({
+                id: 'humidity',
+                type: 'kpi',
+                source: sourcePrefix + '.humidityPercent',
+                label: 'Vlhkost',
+                unit: '%',
+                text: '',
+                x: 10,
+                y: 94,
+                width: contentWidth,
+                height: 44,
+                decimals: 0,
+                min: 0,
+                max: 100,
+                fontSize: '18',
+                align: 'left',
+                showLabel: true,
+                graphStyle: 'line',
+                graphPeriodHours: 12
+            });
+        }
+        if (hasPressure) {
+            elements.push({
+                id: 'pressure',
+                type: 'kpi',
+                source: sourcePrefix + '.pressureHpa',
+                label: 'Tlak',
+                unit: 'hPa',
+                text: '',
+                x: 10,
+                y: 136,
+                width: contentWidth,
+                height: 34,
+                decimals: 0,
+                min: 850,
+                max: 1100,
+                fontSize: '16',
+                align: 'left',
+                showLabel: false,
+                graphStyle: 'line',
+                graphPeriodHours: 12
+            });
+        }
+        return elements;
+    }
+
+    function migrateTemperatureWidget(widget, index) {
+        if (!widget || (widget.type !== 'indoor' && widget.type !== 'rf-sensor'))
+            return widget;
+
+        const migrated = clone(widget);
+        let sourcePrefix = 'inside';
+        let sourceId = 'bme280';
+        let hasHumidity = true;
+        let hasPressure = true;
+
+        if (widget.type === 'rf-sensor') {
+            sourceId = widget.rfSensorSlotId || ('sensor' + (index + 1));
+            sourcePrefix = 'rf.' + sourceId;
+            const sensor = (apiState?.rfSensorWidget?.sensors || [])
+                .find(item => item.slotId === sourceId);
+            hasHumidity = sensor?.hasHumidity !== false;
+            hasPressure = false;
+        }
+
+        migrated.id = 'custom-temp-' + sourceId + '-' + (index + 1);
+        migrated.type = 'custom';
+        migrated.title = migrated.title ||
+            (sourceId === 'bme280' ? 'UVNITŘ' : sourceId);
+        if (!Array.isArray(migrated.elements) || migrated.elements.length === 0) {
+            migrated.elements = temperatureElements(
+                sourcePrefix, hasHumidity, hasPressure, migrated.width || 160);
+        }
+        delete migrated.rfSensorSlotId;
+        delete migrated.rfShowHumidity;
+        delete migrated.rfShowLastSeen;
+        return migrated;
+    }
+
     function draftFromApi(state) {
-        const widgets = state.customized && state.widgets?.length
+        let widgets = state.customized && state.widgets?.length
             ? clone(state.widgets)
             : (state.effectiveWidgets || []).map(widget => {
                 const template = (state.defaultWidgets || []).find(item => item.id === widget.id);
                 return ensureWidgetStyle({...clone(template || widget), visible: true});
             });
+
+        widgets = widgets.map((widget, index) =>
+            migrateTemperatureWidget(widget, index));
+
         widgets.forEach(widget => {
             (widget.elements || []).forEach(element => {
                 const raw = element.verticalAlign;
@@ -2084,11 +2191,21 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         return widgets;
     }
 
-    function addRfSensorWidget() {
-        const rf = apiState?.rfSensorWidget;
-        const sensors = rf?.sensors || [];
-        if (!rf || sensors.length === 0) {
-            editorMessage('Nejdřív je potřeba uložit alespoň jedno RF čidlo s teplotou.', 'error');
+    function refreshTemperatureSensorPicker() {
+        const select = document.getElementById('layoutTemperatureSensor');
+        if (!select) return;
+        const sensors = apiState?.rfSensorWidget?.sensors || [];
+        select.innerHTML = sensors.map(item =>
+            '<option value="' + escapeHtml(item.slotId) + '">' +
+            escapeHtml(item.name || item.slotId) +
+            (item.kind === 'local' ? ' · lokální' : ' · 433 MHz') +
+            '</option>').join('');
+    }
+
+    function addTemperatureSensorWidget() {
+        const sensors = apiState?.rfSensorWidget?.sensors || [];
+        if (sensors.length === 0) {
+            editorMessage('Není dostupné žádné teplotní čidlo.', 'error');
             return;
         }
         const maxWidgets = Number(apiState?.maxWidgets || 7);
@@ -2097,74 +2214,53 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             return;
         }
 
+        const selectedId =
+            document.getElementById('layoutTemperatureSensor')?.value ||
+            sensors[0].slotId;
+        const sensor = sensors.find(item => item.slotId === selectedId) || sensors[0];
+        const sourcePrefix = sensor.sourcePrefix ||
+            (sensor.slotId === 'bme280' ? 'inside' : 'rf.' + sensor.slotId);
+
         let sequence = 1;
-        while (byId('rf-card-' + sequence)) sequence++;
-        const sensor = sensors[0];
+        while (byId('custom-temp-' + sequence)) sequence++;
+        const id = 'custom-temp-' + sequence;
+        const width = 160;
+        const height = sensor.hasPressure ? 190 : 172;
+        const placement = findWidgetPosition(width, height);
+        if (!placement) {
+            editorMessage('Na Home není pro teplotní widget volné místo.', 'error');
+            return;
+        }
+
         const widget = ensureWidgetStyle({
-            id: 'rf-card-' + sequence,
-            type: 'rf-sensor',
+            id,
+            type: 'custom',
             visible: true,
-            x: 240,
-            y: 293,
-            width: 155,
-            height: 172,
+            x: placement.x,
+            y: placement.y,
+            width,
+            height,
             showFrame: true,
             background: 'white',
             inverseText: false,
             icon: 'auto',
-            title: sensor.name || 'VENKU',
-            rfSensorSlotId: sensor.slotId,
-            rfShowHumidity: sensor.hasHumidity !== false,
-            rfShowLastSeen: true,
-            elements: [
-                {
-                    id: 'temperature',
-                    type: 'kpi',
-                    source: 'rf.' + sensor.slotId + '.temperatureC',
-                    label: '',
-                    unit: '°C',
-                    text: '',
-                    x: 10,
-                    y: 48,
-                    width: 135,
-                    height: 38,
-                    decimals: 1,
-                    min: 0,
-                    max: 100,
-                    fontSize: '28',
-                    align: 'left',
-                    showLabel: false,
-                    graphStyle: 'line',
-                    graphPeriodHours: 12
-                },
-                ...(sensor.hasHumidity === false ? [] : [{
-                    id: 'humidity',
-                    type: 'kpi',
-                    source: 'rf.' + sensor.slotId + '.humidityPercent',
-                    label: 'Vlhkost',
-                    unit: '%',
-                    text: '',
-                    x: 10,
-                    y: 96,
-                    width: 135,
-                    height: 48,
-                    decimals: 0,
-                    min: 0,
-                    max: 100,
-                    fontSize: '18',
-                    align: 'left',
-                    showLabel: true,
-                    graphStyle: 'line',
-                    graphPeriodHours: 12
-                }])
-            ]
+            title: sensor.name || (sensor.kind === 'local' ? 'UVNITŘ' : 'TEPLOTA'),
+            historyPeriodHours: 12,
+            elements: temperatureElements(
+                sourcePrefix,
+                sensor.hasHumidity !== false,
+                sensor.hasPressure === true,
+                width)
         });
+
         normalizeWidget(widget);
         draft.push(widget);
         selectedId = widget.id;
         selectedElementId = 'temperature';
         renderDraft();
-        editorMessage('RF karta přidána. Obsah můžeš přesouvat a měnit ve WYSIWYG editoru.');
+        editorMessage(
+            'Teplotní widget přidán jako uživatelsky definovaný. Všechny prvky můžeš měnit ve WYSIWYG editoru.',
+            'ok');
     }
     function findWidgetPosition(width, height) {
         const bounds = apiState?.bounds;
@@ -2419,7 +2515,11 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                         <label>Magnetismus</label>
                         <label class="toggle"><input id="layoutSnapToggle" type="checkbox" checked><span class="slider"></span></label>
                     </div>
-                    <button class="btn btn-secondary" type="button" id="layoutAddRfButton">＋ RF čidlo</button>
+                    <div class="field">
+                        <label for="layoutTemperatureSensor">Teplotní čidlo</label>
+                        <select id="layoutTemperatureSensor"></select>
+                    </div>
+                    <button class="btn btn-secondary" type="button" id="layoutAddRfButton">＋ Teplotní widget</button>
                     <button class="btn btn-secondary" type="button" id="layoutAddCustomButton">＋ Přidat vlastní</button>
                     <button class="btn btn-secondary" type="button" id="layoutShowHomeButton">⌂ Zobrazit Home</button>
                     <button class="btn btn-secondary" type="button" id="layoutReloadButton">↻ Znovu načíst</button>
@@ -2574,7 +2674,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             const widget = byId(selectedId);
             if (isElementWidget(widget)) renderCustomElements(widget);
         });
-        document.getElementById('layoutAddRfButton').addEventListener('click', addRfSensorWidget);
+        document.getElementById('layoutAddRfButton').addEventListener('click', addTemperatureSensorWidget);
         document.getElementById('layoutAddCustomButton').addEventListener('click', addCustomWidget);
         document.querySelectorAll('[data-add-element]').forEach(button => {
             button.addEventListener('click', () => addCustomElement(button.dataset.addElement));
