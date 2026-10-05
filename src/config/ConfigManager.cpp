@@ -610,6 +610,59 @@ bool ConfigManager::setBme280Name(const String& requestedName) {
     return true;
 }
 
+bool ConfigManager::renameRfSensor(
+    const String& slotId,
+    const String& requestedName,
+    String& error) {
+
+    int index = -1;
+    for (uint8_t i = 0;
+         i < _config.rfSensors.sensorCount && i < MaxRfSensors;
+         ++i) {
+        if (_config.rfSensors.sensors[i].slotId == slotId) {
+            index = static_cast<int>(i);
+            break;
+        }
+    }
+    if (index < 0) {
+        error = "Uložené čidlo nebylo nalezeno.";
+        return false;
+    }
+
+    String name = requestedName;
+    name.trim();
+    if (name.length() > 40) name.remove(40);
+    for (size_t i = 0; i < name.length(); ++i) {
+        if (static_cast<uint8_t>(name[i]) < 0x20) name.setCharAt(i, ' ');
+    }
+    name.trim();
+
+    RfSensorConfig& sensor = _config.rfSensors.sensors[index];
+    const String previousName = sensor.name;
+    sensor.name = name;
+
+    Preferences preferences;
+    if (!preferences.begin("dashboard", false)) {
+        sensor.name = previousName;
+        error = "Nelze otevřít úložiště konfigurace.";
+        return false;
+    }
+    const bool saved = saveRfSensors(preferences, _config.rfSensors);
+    preferences.end();
+
+    if (!saved) {
+        sensor.name = previousName;
+        error = "Nový název čidla se nepodařilo uložit.";
+        return false;
+    }
+
+    Serial.printf(
+        "[CONFIG] RF cidlo %s prejmenovano na '%s'.\n",
+        slotId.c_str(),
+        sensor.name.c_str());
+    return true;
+}
+
 bool ConfigManager::setRfSensors(const RfSensorsConfig& rfSensors) {
     if (rfSensors.sensorCount > MaxRfSensors) return false;
 
