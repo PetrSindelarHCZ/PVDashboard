@@ -228,6 +228,15 @@ bool weatherDisplayDataChanged(const WeatherData& a, const WeatherData& b) {
            a.hourlyCount != b.hourlyCount;
 }
 
+DisplayRegion navigationFocusMarkerRegion(const NavigationRect& bounds) {
+    DisplayRegion region;
+    region.x = max<int16_t>(0, bounds.x + 2);
+    region.y = max<int16_t>(0, bounds.y + 2);
+    region.width = min<int16_t>(22, ScreenStyle::Width - region.x);
+    region.height = min<int16_t>(22, ScreenStyle::Height - region.y);
+    return region;
+}
+
 DisplayRegion expandedNavigationRegion(const NavigationRect& bounds) {
     constexpr int16_t Margin = 8;
 
@@ -666,7 +675,7 @@ DisplayRegion navigationFocusRegion(
     const int index = layout.find(state.focusId);
     if (index < 0) return DisplayRegion();
 
-    return expandedNavigationRegion(layout.elements[index].bounds);
+    return navigationFocusMarkerRegion(layout.elements[index].bounds);
 }
 
 DisplayRegion navigationDirtyRegion(
@@ -686,14 +695,16 @@ DisplayRegion navigationDirtyRegion(
 
         const int oldIndex = previousLayout.find(previousState.focusId);
         if (oldIndex >= 0) {
-            dirty = expandedNavigationRegion(previousLayout.elements[oldIndex].bounds);
+            dirty = navigationFocusMarkerRegion(
+                previousLayout.elements[oldIndex].bounds);
         }
 
         const int newIndex = currentLayout.find(currentState.focusId);
         if (newIndex >= 0) {
             dirty = unionDisplayRegions(
                 dirty,
-                expandedNavigationRegion(currentLayout.elements[newIndex].bounds));
+                navigationFocusMarkerRegion(
+                    currentLayout.elements[newIndex].bounds));
         }
 
         return dirty;
@@ -1674,21 +1685,18 @@ bool DashboardApp::handleNavigationAction(
         requestNavigationDisplayRefresh(
             false, 40UL, &region, capturePreview);
     } else if (enteredPageFromSidebar) {
-        // RIGHT after OK only changes navigation mode; the page content was
-        // already drawn by OK. First refresh the sidebar to remove its cursor.
-        const DisplayRegion region = sidebarRegion();
-        requestNavigationDisplayRefresh(
-            false, 40UL, &region, capturePreview);
-
-        // Then draw the initial page focus as a separate partial region. This
-        // keeps both updates small and avoids a second whole-page refresh.
+        // RIGHT only changes navigation mode. Redraw the sidebar cursor state
+        // and the compact initial page focus in one physical e-paper update,
+        // instead of two consecutive partial refreshes.
+        DisplayRegion region = sidebarRegion();
         const DisplayRegion focusRegion =
             navigationFocusRegion(currentNavigation, currentLayout);
         if (focusRegion.valid()) {
-            _deferredNavigationRegion = focusRegion;
-            _deferredNavigationRegionValid = true;
-            _deferredNavigationCapturePreview = capturePreview;
+            region = unionDisplayRegions(region, focusRegion);
         }
+        _deferredNavigationRegionValid = false;
+        requestNavigationDisplayRefresh(
+            false, 40UL, &region, capturePreview);
     } else if (subpageChanged) {
         // Pager/subpage switch (FVE, weather locations, ...): only the page
         // changes. Sidebar and header stay physically untouched.
