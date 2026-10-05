@@ -668,7 +668,8 @@ void DashboardApp::setup() {
         }
 
         syncWeatherDisplayForActiveScreen(false);
-        requestNavigationDisplayRefresh(fullRefresh, 50UL, nullptr, true);
+        requestNavigationDisplayRefresh(
+            fullRefresh, 50UL, nullptr, true, "navigation-controller-change");
     });
 
     if (_webServer != nullptr) {
@@ -808,7 +809,7 @@ void DashboardApp::setup() {
             _lastAzrouterSync = millis() - azrouter.pollIntervalSeconds * 1000UL;
             _dataModel.updateSystemMetrics();
     
-            if (visibilityChanged) requestDisplayRefresh(true, 2500);
+            if (visibilityChanged) requestDisplayRefresh(true, 2500, "config-data-source-visibility");
             else requestAutomaticDisplayRefresh();
     
             Serial.println("[CONFIG] Datove zdroje ulozeny a aplikovany za behu.");
@@ -820,15 +821,15 @@ void DashboardApp::setup() {
             _dataModel.pool.enabled = pool.enabled;
             setPoolScreenEnabled(pool.enabled);
             _navigationController.syncToActiveScreen(false);
-            if (enabledChanged) requestDisplayRefresh(true, 2500);
-            else requestAutomaticDisplayRefresh();
+            if (enabledChanged) requestDisplayRefresh(true, 2500, "config-pool-enabled");
+            else requestAutomaticDisplayRefresh("config-pool-values");
             Serial.println("[CONFIG] Bazen ulozen a aplikovan za behu.");
         });
     
         _webServer->onHomeLayoutConfig([this](const HomeLayoutConfig& layout) {
             if (!_configManager.setHomeLayout(layout)) return false;
             _navigationController.syncToActiveScreen(false);
-            requestDisplayRefresh(true, 2500);
+            requestDisplayRefresh(true, 2500, "config-home-layout");
             Serial.println("[CONFIG] Home layout ulozen a aplikovan za behu.");
             return true;
         });
@@ -886,8 +887,8 @@ void DashboardApp::setup() {
     
             setWeatherScreensEnabled(applied.enabled);
             _navigationController.syncToActiveScreen(false);
-            if (enabledChanged) requestDisplayRefresh(true, 2500);
-            else requestAutomaticDisplayRefresh();
+            if (enabledChanged) requestDisplayRefresh(true, 2500, "config-weather-enabled");
+            else requestAutomaticDisplayRefresh("config-weather-values");
             Serial.println("[CONFIG] Pocasi ulozeno a aplikovano za behu.");
         });
     
@@ -1045,7 +1046,7 @@ void DashboardApp::setup() {
     _lastGoodweSync = millis();
     _lastAzrouterSync = millis();
     _displayInitNotBefore = millis() + 1500;
-    requestDisplayRefresh(true);
+    requestDisplayRefresh(true, 0, "boot");
     Serial.println("[APP] Inicializace uspesne dokoncena.");
 }
 
@@ -1084,7 +1085,7 @@ void DashboardApp::setSolarScreenEnabled(bool enabled) {
     if (solarWasActive) {
         _screenManager.activateScreen("home");
         _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
-        requestDisplayRefresh(true, 2500);
+        requestDisplayRefresh(true, 2500, "solar-screen-disabled-while-active");
     }
     _navigationController.syncToActiveScreen(false);
 }
@@ -1104,7 +1105,7 @@ void DashboardApp::setAZRouterScreenEnabled(bool enabled) {
     if (azrouterWasActive) {
         _screenManager.activateScreen("home");
         _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
-        requestDisplayRefresh(true, 2500);
+        requestDisplayRefresh(true, 2500, "azrouter-screen-disabled-while-active");
     }
     _navigationController.syncToActiveScreen(false);
 }
@@ -1123,7 +1124,7 @@ void DashboardApp::setPoolScreenEnabled(bool enabled) {
     if (poolWasActive) {
         _screenManager.activateScreen("home");
         _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
-        requestDisplayRefresh(true, 2500);
+        requestDisplayRefresh(true, 2500, "pool-screen-disabled-while-active");
     }
     _navigationController.syncToActiveScreen(false);
 }
@@ -1147,20 +1148,35 @@ void DashboardApp::setWeatherScreensEnabled(bool enabled) {
     if (weatherWasActive) {
         _screenManager.activateScreen("home");
         _dataModel.system.currentScreenId = _screenManager.getActiveScreenId();
-        requestDisplayRefresh(true, 2500);
+        requestDisplayRefresh(true, 2500, "weather-screen-disabled-while-active");
     }
     _navigationController.syncToActiveScreen(false);
 }
 
-void DashboardApp::requestDisplayRefresh(bool full, unsigned long delayMs) {
+void DashboardApp::requestDisplayRefresh(bool full, unsigned long delayMs,
+                                        const char* reason) {
     if (!_displayEnabled) return;
+
+    Serial.printf(
+        "[REFRESH][REQ][%lu ms] WHOLE type=%s reason=%s screen=%s delay=%lu ms pending=%d pendingFull=%d\n",
+        millis(),
+        full ? "FULL" : "PARTIAL",
+        reason != nullptr ? reason : "unspecified",
+        _screenManager.getActiveScreenId().c_str(),
+        delayMs,
+        _pendingRefresh,
+        _pendingFullRefresh);
 
     // A whole-screen request supersedes queued automatic dirty regions,
     // because it will render the newest DataModel everywhere.
     clearDeferredAutomaticRegions();
 
+    const bool hadPending = _pendingRefresh;
     _pendingRefresh = true;
     _pendingFullRefresh = _pendingFullRefresh || full;
+    if (!hadPending || full || _pendingRefreshReason.isEmpty()) {
+        _pendingRefreshReason = reason != nullptr ? reason : "unspecified";
+    }
 
     // Ordinary data refreshes may modify any part of the screen, so they
     // intentionally discard a pending cursor-only dirty region.
@@ -1178,13 +1194,30 @@ void DashboardApp::requestNavigationDisplayRefresh(
     bool full,
     unsigned long delayMs,
     const DisplayRegion* region,
-    bool capturePreview) {
+    bool capturePreview,
+    const char* reason) {
 
     if (!_displayEnabled) return;
+
+    if (full || region == nullptr || !region->valid()) {
+        Serial.printf(
+            "[REFRESH][REQ][%lu ms] NAV type=%s scope=%s reason=%s screen=%s delay=%lu ms pending=%d pendingFull=%d\n",
+            millis(),
+            full ? "FULL" : "PARTIAL",
+            (region != nullptr && region->valid()) ? "REGION" : "WHOLE",
+            reason != nullptr ? reason : "navigation",
+            _screenManager.getActiveScreenId().c_str(),
+            delayMs,
+            _pendingRefresh,
+            _pendingFullRefresh);
+    }
 
     const bool hadPending = _pendingRefresh;
     _pendingRefresh = true;
     _pendingFullRefresh = _pendingFullRefresh || full;
+    if (!hadPending || full || _pendingRefreshReason.isEmpty()) {
+        _pendingRefreshReason = reason != nullptr ? reason : "navigation";
+    }
 
     if (_pendingFullRefresh) {
         _pendingDisplayRegionValid = false;
@@ -1217,7 +1250,7 @@ void DashboardApp::requestNavigationDisplayRefresh(
     _displayRefreshNotBefore = millis() + delayMs;
 }
 
-void DashboardApp::requestAutomaticDisplayRefresh() {
+void DashboardApp::requestAutomaticDisplayRefresh(const char* reason) {
     if (!_displayEnabled) return;
 
     unsigned long delayMs = 0;
@@ -1226,7 +1259,7 @@ void DashboardApp::requestAutomaticDisplayRefresh() {
         constexpr unsigned long CoalesceWindowMs = 5000;
         if (elapsed < CoalesceWindowMs) delayMs = CoalesceWindowMs - elapsed;
     }
-    requestDisplayRefresh(false, delayMs);
+    requestDisplayRefresh(false, delayMs, reason);
 }
 
 void DashboardApp::requestAutomaticRegionRefresh(
@@ -1265,7 +1298,7 @@ void DashboardApp::requestAutomaticRegionRefresh(
         !_deferredAutomaticRegionValid &&
         !_deferredAutomaticRegion2Valid) {
         requestNavigationDisplayRefresh(
-            false, 0UL, &region, capturePreview);
+            false, 0UL, &region, capturePreview, "automatic-region");
         return;
     }
 
@@ -1451,6 +1484,7 @@ void DashboardApp::setDisplayEnabled(bool enabled) {
     clearDeferredAutomaticRegions();
     _pendingRefresh = true;
     _pendingFullRefresh = true;
+    _pendingRefreshReason = enabled ? "display-soft-on" : "display-soft-off";
     _pendingDisplayRegionValid = false;
     _pendingCapturePreview = false;
     _displayRefreshNotBefore = millis();
@@ -1640,7 +1674,10 @@ void DashboardApp::refreshWeatherDisplayFromCache(
 
 void DashboardApp::onRefreshRequested(bool full) {
     Serial.printf("[APP][%lu ms] Pozadavek na refresh displeje (Full: %d)\n", millis(), full);
-    requestDisplayRefresh(full, 100);
+    requestDisplayRefresh(
+        full,
+        100,
+        full ? "web-api-full-refresh" : "web-api-partial-refresh");
 }
 
 void DashboardApp::loop() {
@@ -1861,6 +1898,20 @@ void DashboardApp::loop() {
         // first bytes of the e-paper transfer.
         Cc1101RawReceiver::setSuppressed(true);
 
+        Serial.printf(
+            "[REFRESH][ENQUEUE][%lu ms] type=%s scope=%s reason=%s screen=%s",
+            millis(),
+            _pendingFullRefresh ? "FULL" : "PARTIAL",
+            region != nullptr ? "REGION" : "WHOLE",
+            _pendingRefreshReason.isEmpty() ? "unspecified" : _pendingRefreshReason.c_str(),
+            screenToRender != nullptr ? screenToRender->getId().c_str() : "null");
+        if (region != nullptr) {
+            Serial.printf(
+                " region=%d,%d %dx%d",
+                region->x, region->y, region->width, region->height);
+        }
+        Serial.println();
+
         if (_displayWorker.enqueue(
                 screenToRender,
                 _dataModel,
@@ -1869,6 +1920,7 @@ void DashboardApp::loop() {
                 _pendingCapturePreview)) {
             _pendingRefresh = false;
             _pendingFullRefresh = false;
+            _pendingRefreshReason = "";
             _pendingBlankDisplay = false;
             _pendingDisplayRegionValid = false;
             _pendingCapturePreview = true;
