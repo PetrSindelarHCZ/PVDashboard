@@ -1187,36 +1187,9 @@ void DashboardApp::setup() {
                             ? String("Inside")
                             : _configManager.get().rfSensors.bme280Name;
 
-                    // Existing temperature cards keep user-edited titles.
-                    // Rename only cards whose title still matches the previous
-                    // automatic BME280 display name.
-                    HomeLayoutConfig layout =
-                        _configManager.get().display.homeLayout;
-                    bool layoutChanged = false;
-                    for (uint8_t w = 0;
-                         w < layout.widgetCount && w < MaxHomeLayoutWidgets;
-                         ++w) {
-                        HomeLayoutWidgetConfig& widget = layout.widgets[w];
-                        if (widget.type != "custom" ||
-                            widget.title != oldName) {
-                            continue;
-                        }
-                        bool usesBme = false;
-                        for (const auto& element : widget.elements) {
-                            if (element.source.startsWith("inside.")) {
-                                usesBme = true;
-                                break;
-                            }
-                        }
-                        if (usesBme) {
-                            widget.title = newName;
-                            layoutChanged = true;
-                        }
-                    }
-                    if (layoutChanged) {
-                        _configManager.setHomeLayout(layout);
-                    }
-
+                    // Temperature widgets are user-defined. Renaming the
+                    // physical/logical sensor must not rewrite widget titles
+                    // or allocate/copy the complete HomeLayoutConfig on loopTask.
                     Serial.printf(
                         "[RF-SENSORS] BME280 prejmenovan: %s -> %s\n",
                         oldName.c_str(),
@@ -1255,48 +1228,8 @@ void DashboardApp::setup() {
                 }
                 _rfSensorManager.applyConfig(_configManager.get().rfSensors);
     
-                // KPI label follows the sensor name only while it still carries
-                // the automatically generated label. User-edited labels remain
-                // untouched.
-                HomeLayoutConfig layout =
-                    _configManager.get().display.homeLayout;
-                bool layoutChanged = false;
-                const String temperatureSource =
-                    "rf." + slotId + ".temperatureC";
-                const String humiditySource =
-                    "rf." + slotId + ".humidityPercent";
-                const String newTemperatureLabel =
-                    rfSensorMetricLabel(*updatedSensor, false);
-                const String newHumidityLabel =
-                    rfSensorMetricLabel(*updatedSensor, true);
-    
-                for (uint8_t w = 0;
-                     w < layout.widgetCount && w < MaxHomeLayoutWidgets;
-                     ++w) {
-                    HomeLayoutWidgetConfig& widget = layout.widgets[w];
-                    if (widget.type != "custom") continue;
-    
-                    for (auto& element : widget.elements) {
-                        if (element.type != "kpi") continue;
-    
-                        if (element.source == temperatureSource &&
-                            element.label == oldTemperatureLabel) {
-                            element.label = newTemperatureLabel;
-                            layoutChanged = true;
-                        } else if (element.source == humiditySource &&
-                                   element.label == oldHumidityLabel) {
-                            element.label = newHumidityLabel;
-                            layoutChanged = true;
-                        }
-                    }
-                }
-    
-                if (layoutChanged && !_configManager.setHomeLayout(layout)) {
-                    Serial.println(
-                        "[RF-SENSORS] Varovani: jmeno cidla ulozeno, "
-                        "ale automaticky KPI popisek se nepodarilo aktualizovat.");
-                }
-    
+                // Home temperature cards are user-defined. Keep their
+                // labels/titles untouched when only the saved sensor name changes.
                 Serial.printf(
                     "[RF-SENSORS] %s prejmenovan na '%s'.\n",
                     slotId.c_str(),
