@@ -58,7 +58,7 @@ void FiveWayJoystick::begin() {
         digitalRead(SetPin), digitalRead(ResetPin));
 }
 
-bool FiveWayJoystick::poll(NavigationAction& action) {
+bool FiveWayJoystick::poll(NavigationAction& action, bool suppressGpio18) {
     if (!_started) return false;
 
     const unsigned long now = millis();
@@ -67,6 +67,16 @@ bool FiveWayJoystick::poll(NavigationAction& action) {
 
     for (auto& button : _buttons) {
         const bool pressed = digitalRead(button.pin) == LOW;
+
+        if (suppressGpio18 && button.pin == 18) {
+            // Keep the electrical state synchronized while the e-paper is
+            // active, but do not debounce or emit actions/repeats from GPIO18.
+            button.rawPressed = pressed;
+            button.stablePressed = pressed;
+            button.lastRawChangeMs = now;
+            button.nextRepeatMs = 0;
+            continue;
+        }
 
         if (pressed != button.rawPressed) {
             button.rawPressed = pressed;
