@@ -86,6 +86,8 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
             values.push('<span class="rf-sensor-value">' + Number(item.temperatureC).toFixed(1) + ' °C</span>');
         if (item.humidityPercent !== undefined)
             values.push('<span class="rf-sensor-value">' + Math.round(Number(item.humidityPercent)) + ' %</span>');
+        if (item.pressureHpa !== undefined)
+            values.push('<span class="rf-sensor-value">' + Math.round(Number(item.pressureHpa)) + ' hPa</span>');
         if (item.batteryOk !== undefined)
             values.push('<span class="rf-sensor-value">baterie ' + (item.batteryOk ? 'OK' : 'LOW') + '</span>');
         if (item.available === false)
@@ -94,6 +96,7 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
     };
 
     const radioIdentity = item => {
+        if (item.kind === 'local') return item.protocolLabel || 'Lokální čidlo';
         const channel = Number(item.channel || 0);
         return (item.protocolLabel || item.protocol || 'RF') +
             ' · ID 0x' + String(item.sensorIdHex || Number(item.sensorId || 0).toString(16)).toUpperCase() +
@@ -104,7 +107,7 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
         const list = document.getElementById('rfSensorConfigured');
         if (!list) return;
         if (!items?.length) {
-            list.innerHTML = '<div class="rf-sensor-empty">Zatím není uložené žádné 433 MHz čidlo.</div>';
+            list.innerHTML = '<div class="rf-sensor-empty">Zatím není dostupné žádné uložené čidlo.</div>';
             return;
         }
 
@@ -113,6 +116,7 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
             const sourceBits = [];
             if (item.sources?.temperature) sourceBits.push('KPI: ' + item.sources.temperature);
             if (item.sources?.humidity) sourceBits.push('KPI: ' + item.sources.humidity);
+            if (item.sources?.pressure) sourceBits.push('KPI: ' + item.sources.pressure);
             return `
                 <div class="rf-sensor-row" data-rf-slot="${esc(item.slotId)}">
                     <div class="rf-sensor-main">
@@ -123,14 +127,18 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
                         ${sourceBits.length ? '<div class="rf-sensor-meta">' + esc(sourceBits.join(' · ')) + '</div>' : ''}
                     </div>
                     <div class="rf-sensor-edit">
-                        <input class="wifi-input" maxlength="40" placeholder="Volitelné jméno"
-                               data-rf-name="${esc(item.slotId)}" value="${esc(name)}">
+                        ${item.kind === 'local'
+                            ? '<span class="rf-sensor-meta">Pevně připojené lokální čidlo</span>'
+                            : `<input class="wifi-input" maxlength="40" placeholder="Volitelné jméno"
+                                      data-rf-name="${esc(item.slotId)}" value="${esc(name)}">`}
                     </div>
                     <div class="rf-sensor-actions">
-                        <button class="btn btn-secondary" type="button"
-                                data-rf-rename="${esc(item.slotId)}">Uložit jméno</button>
-                        <button class="btn btn-danger" type="button"
-                                data-rf-remove="${esc(item.slotId)}">Odebrat</button>
+                        ${item.kind === 'local'
+                            ? ''
+                            : `<button class="btn btn-secondary" type="button"
+                                      data-rf-rename="${esc(item.slotId)}">Uložit jméno</button>
+                               <button class="btn btn-danger" type="button"
+                                      data-rf-remove="${esc(item.slotId)}">Odebrat</button>`}
                     </div>
                 </div>`;
         }).join('');
@@ -168,7 +176,7 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
         list.innerHTML = items.map((item, index) => {
             const saved = item.saved === true;
             const compatible = (lastState?.configured || [])
-                .filter(sensor => sensor.protocol === item.protocol);
+                .filter(sensor => sensor.kind !== 'local' && sensor.protocol === item.protocol);
             const selectedSlot = rebindTargets.get(item.bindingKey) || '';
             const options = compatible.map(sensor =>
                 '<option value="' + esc(sensor.slotId) + '"' +
@@ -359,7 +367,7 @@ static const char RF_SENSOR_SETTINGS_UI_PATCH[] PROGMEM = R"rfsensorpatch(
         const card = document.createElement('div');
         card.className = 'card rf-sensor-settings-card';
         card.innerHTML = `
-            <div class="card-title">433 MHz čidla</div>
+            <div class="card-title">Teplotní čidla</div>
             <div class="rf-sensor-toolbar">
                 <button class="btn btn-secondary" id="rfSensorScanButton" type="button">Vyhledat okolní čidla</button>
                 <span class="rf-sensor-scan-state" id="rfSensorScanState">Načítám…</span>
