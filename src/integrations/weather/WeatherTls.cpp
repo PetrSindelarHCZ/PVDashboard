@@ -2,5 +2,5 @@
 #include "WeatherCaBundle.h"
 
 void configureWeatherTls(WiFiClientSecure& client) {
-    client.setCACertBundle(WeatherCaBundle, WeatherCaBundleSize);
+    client.setCACertBundle(WeatherCaBundle);
 }
