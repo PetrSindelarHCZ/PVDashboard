@@ -1546,6 +1546,16 @@ void DashboardApp::requestAutomaticRegionRefresh(
 
     if (!_displayEnabled || !region.valid()) return;
 
+    // A queued/running FULL refresh already renders the newest DataModel for
+    // the whole screen. Do not accumulate automatic dirty regions while that
+    // refresh is still in the display worker; otherwise they run immediately
+    // after the full refresh and cause redundant e-paper flashing.
+    const DisplayTaskStatus displayStatus = _displayWorker.getStatus();
+    if (displayStatus.pendingFull ||
+        displayStatus.state == DisplayTaskState::RenderingFull) {
+        return;
+    }
+
     const auto sameRegion = [](const DisplayRegion& a, const DisplayRegion& b) {
         return a.x == b.x &&
                a.y == b.y &&
