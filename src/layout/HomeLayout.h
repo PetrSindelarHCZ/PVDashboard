@@ -171,6 +171,7 @@ inline bool knownWidget(const String& id, const String& type) {
     if (type == "rf-sensor") return validIdentifier(id) && id.startsWith("rf-card-");
     return (id == "weather-card" && type == "weather") ||
            (id == "energy-card" && type == "energy") ||
+           (id == "energy-flow" && type == "energy-flow") ||
            (id == "indoor-card" && type == "indoor") ||
            (id == "fve-summary" && type == "fve-summary") ||
            (id == "azrouter-summary" && type == "azrouter-summary") ||
@@ -186,6 +187,7 @@ inline int16_t minWidth(const String& type) {
     if (type == "azrouter-summary") return 190;
     if (type == "pool-summary") return 150;
     if (type == "consumption-summary") return 180;
+    if (type == "energy-flow") return 360;
     if (type == "rf-sensor") return 150;
     if (type == "custom") return 160;
     return 0;
@@ -199,6 +201,7 @@ inline int16_t minHeight(const String& type) {
     if (type == "azrouter-summary") return 180;
     if (type == "pool-summary") return 140;
     if (type == "consumption-summary") return 140;
+    if (type == "energy-flow") return 240;
     if (type == "rf-sensor") return 140;
     if (type == "custom") return 120;
     return 0;
@@ -211,6 +214,7 @@ inline LayoutWidgetType runtimeType(const String& type) {
     if (type == "azrouter-summary") return LayoutWidgetType::HomeAZRouterCard;
     if (type == "pool-summary") return LayoutWidgetType::HomePoolCard;
     if (type == "consumption-summary") return LayoutWidgetType::HomeConsumptionCard;
+    if (type == "energy-flow") return LayoutWidgetType::HomeEnergyFlowCard;
     if (type == "rf-sensor") return LayoutWidgetType::HomeRfSensorCard;
     if (type == "custom") return LayoutWidgetType::HomeCustomCard;
     return LayoutWidgetType::HomeIndoorCard;
@@ -225,6 +229,7 @@ inline const char* typeName(LayoutWidgetType type) {
         case LayoutWidgetType::HomeAZRouterCard: return "azrouter-summary";
         case LayoutWidgetType::HomePoolCard: return "pool-summary";
         case LayoutWidgetType::HomeConsumptionCard: return "consumption-summary";
+        case LayoutWidgetType::HomeEnergyFlowCard: return "energy-flow";
         case LayoutWidgetType::HomeRfSensorCard: return "rf-sensor";
         case LayoutWidgetType::HomeCustomCard: return "custom";
     }
@@ -404,6 +409,9 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
         if (!WidgetIcons::valid(widget.icon)) {
             return fail("Unknown Home widget icon");
         }
+        if (widget.whiteHalo > 16) {
+            return fail("Home widget white halo must be 0 to 16 px");
+        }
 
         if (widget.width < minWidth(widget.type) ||
             widget.height < minHeight(widget.type)) {
@@ -479,7 +487,8 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
                 widget.type == previous.type) {
                 return fail("Duplicate predefined Home widget");
             }
-            if (widget.visible && previous.visible && intersects(widget, previous)) {
+            if (widget.visible && previous.visible && intersects(widget, previous) &&
+                !widget.allowOverlap && !previous.allowOverlap) {
                 return fail("Visible Home widgets overlap");
             }
         }
@@ -552,6 +561,8 @@ inline String serializeStorageJson(const HomeLayoutConfig& config) {
             if (!widget.showFrame) item["showFrame"] = false;
             if (widget.background != "white") item["background"] = widget.background;
             if (widget.inverseText) item["inverseText"] = true;
+            if (widget.allowOverlap) item["allowOverlap"] = true;
+            if (widget.whiteHalo > 0) item["whiteHalo"] = widget.whiteHalo;
             if (widget.icon != static_cast<uint8_t>(WidgetIcons::Icon::Auto))
                 item["icon"] = WidgetIcons::key(static_cast<WidgetIcons::Icon>(widget.icon));
             if (!widget.title.isEmpty()) item["title"] = widget.title;
@@ -602,6 +613,8 @@ inline String serializeJson(const HomeLayoutConfig& config) {
         item["showFrame"] = widget.showFrame;
         item["background"] = widget.background;
         item["inverseText"] = widget.inverseText;
+        item["allowOverlap"] = widget.allowOverlap;
+        item["whiteHalo"] = widget.whiteHalo;
         item["icon"] =
             WidgetIcons::key(static_cast<WidgetIcons::Icon>(widget.icon));
         item["historyPeriodHours"] = historyPeriodHours(widget);
@@ -703,6 +716,8 @@ inline bool parseJson(const String& json, HomeLayoutConfig& config, String* erro
         widget.showFrame = item["showFrame"] | true;
         widget.background = String(item["background"] | "white");
         widget.inverseText = item["inverseText"] | false;
+        widget.allowOverlap = item["allowOverlap"] | false;
+        widget.whiteHalo = item["whiteHalo"] | 0;
         widget.icon = static_cast<uint8_t>(
             WidgetIcons::fromKey(String(item["icon"] | "auto")));
         uint8_t sharedHistoryPeriod = item["historyPeriodHours"] | 0;
@@ -903,6 +918,11 @@ inline bool buildDefaultWidget(const DataModel& dm, const String& id,
         return true;
     }
     if (id == "consumption-summary") return set("consumption-summary", "consumption-summary", 570, 293, 215, 172);
+    if (id == "energy-flow") {
+        if (!set("energy-flow", "energy-flow", 315, 63, 470, 402)) return false;
+        result.title = "ENERGETICKÝ TOK";
+        return true;
+    }
 
     if (id == "rf-card-1") {
         if (!set("rf-card-1", "rf-sensor", 240, 293, 155, 172)) return false;
@@ -935,6 +955,7 @@ inline void buildResolved(const HomeLayoutConfig& config, const DataModel& dm, S
         if (widget.type == "weather" && !dm.weather.enabled) continue;
         if ((widget.type == "energy" || widget.type == "fve-summary" ||
              widget.type == "consumption-summary") && !dm.solar.enabled) continue;
+        if (widget.type == "energy-flow" && !dm.solar.enabled && !dm.azrouter.enabled) continue;
         if (widget.type == "azrouter-summary" && !dm.azrouter.enabled) continue;
         if (widget.type == "pool-summary" && !dm.pool.enabled) continue;
 
