@@ -770,8 +770,8 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
     // energy category around it.
     const int16_t houseX = cx - EnergyFlowAssets::HouseWidth / 2;
     const int16_t houseY = y + min<int16_t>(
-        150,
-        max<int16_t>(105, h - EnergyFlowAssets::HouseHeight - 28));
+        155,
+        max<int16_t>(110, h - EnergyFlowAssets::HouseHeight - 23));
 
     display.drawBitmap(
         houseX,
@@ -783,7 +783,7 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
 
     // FVE category: fixed bitmap + fixed downward flow arrow.
     const int16_t pvX = cx - 92;
-    const int16_t pvY = y + 48;
+    const int16_t pvY = y + 40;
     display.drawBitmap(
         pvX, pvY,
         EnergyFlowUiAssets::PvIconBitmap,
@@ -801,14 +801,14 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
         display.print("--.- kW");
     display.drawBitmap(
         cx - EnergyFlowUiAssets::ArrowPvDownWidth / 2,
-        pvY + 42,
+        pvY + 46,
         EnergyFlowUiAssets::ArrowPvDownBitmap,
         EnergyFlowUiAssets::ArrowPvDownWidth,
         EnergyFlowUiAssets::ArrowPvDownHeight,
         color);
 
     // Grid category. Direction is represented by one of two bitmap arrows.
-    const int16_t gridX = x + 18;
+    const int16_t gridX = x + 8;
     const int16_t gridY = houseY + 38;
     display.drawBitmap(
         gridX, gridY,
@@ -819,7 +819,7 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
 
     const bool gridAvailable = dm.solar.status.available;
     const bool exporting = gridAvailable && dm.solar.gridPowerW >= 0.0f;
-    const int16_t gridTextX = gridX + EnergyFlowUiAssets::GridIconWidth + 10;
+    const int16_t gridTextX = gridX + EnergyFlowUiAssets::GridIconWidth + 16;
 
     ScreenStyle::useBody(display, color);
     display.setCursor(gridTextX, gridY + 3);
@@ -834,10 +834,11 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
     display.setCursor(gridTextX, gridY + 54);
     display.print(gridAvailable ? (exporting ? "přetok" : "odběr") : "nedostupné");
 
-    const int16_t gridArrowX = max<int16_t>(
-        gridTextX + 10,
-        houseX - EnergyFlowUiAssets::ArrowGridInWidth - 4);
-    const int16_t gridArrowY = gridY + 31;
+    // Keep the flow arrow below the numeric/status text so it never crosses
+    // the value. Its right edge is anchored just before the house.
+    const int16_t gridArrowX =
+        houseX - EnergyFlowUiAssets::ArrowGridInWidth - 4;
+    const int16_t gridArrowY = gridY + 68;
     const uint8_t* gridArrow =
         exporting
             ? EnergyFlowUiAssets::ArrowGridOutBitmap
@@ -850,7 +851,7 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
         color);
 
     // AZRouter category.
-    const int16_t azX = x + w - 138;
+    const int16_t azX = x + w - 128;
     const int16_t azY = houseY + 44;
     display.drawBitmap(
         azX, azY,
