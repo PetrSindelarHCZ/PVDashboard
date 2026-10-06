@@ -411,7 +411,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         'azrouter-summary': 'AZRouter',
         'indoor-card': 'Uvnitř',
         'pool-summary': 'Bazén',
-        'consumption-summary': 'Spotřeba domu'
+        'consumption-summary': 'Spotřeba domu',
+        'energy-flow': 'Energetický tok'
     };
 
     let installed = false;
@@ -445,6 +446,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         if (typeof widget.showFrame !== 'boolean') widget.showFrame = true;
         if (!widget.background) widget.background = 'white';
         if (typeof widget.inverseText !== 'boolean') widget.inverseText = false;
+        if (typeof widget.allowOverlap !== 'boolean') widget.allowOverlap = false;
+        widget.whiteHalo = Math.max(0, Math.min(16, Number(widget.whiteHalo || 0)));
         if (!widget.icon) widget.icon = 'auto';
         if (isElementWidget(widget) && !Array.isArray(widget.elements)) widget.elements = [];
         if (!Number(widget.historyPeriodHours)) {
@@ -543,7 +546,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const ids = new Set();
         for (let i = 0; i < draft.length; i++) {
             for (let j = i + 1; j < draft.length; j++) {
-                if (overlap(draft[i], draft[j])) {
+                if (overlap(draft[i], draft[j]) &&
+                    !draft[i].allowOverlap && !draft[j].allowOverlap) {
                     ids.add(draft[i].id);
                     ids.add(draft[j].id);
                 }
@@ -677,10 +681,14 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const background = document.getElementById('cardBackground');
         const inverse = document.getElementById('cardInverseText');
         const icon = document.getElementById('cardIcon');
+        const overlapToggle = document.getElementById('cardAllowOverlap');
+        const halo = document.getElementById('cardWhiteHalo');
         const reset = document.getElementById('cardResetSelected');
         if (frame) frame.checked = widget.showFrame !== false;
         if (background) background.value = widget.background || 'white';
         if (inverse) inverse.checked = widget.inverseText === true;
+        if (overlapToggle) overlapToggle.checked = widget.allowOverlap === true;
+        if (halo) halo.value = String(widget.whiteHalo || 0);
         if (icon) {
             const choices = apiState?.cardAppearance?.icons || [
                 {id:'auto',label:'Automatická'},
@@ -716,6 +724,28 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             widget.icon = icon.value || 'auto';
             renderDraft();
         };
+        if (overlapToggle) overlapToggle.onchange = () => {
+            widget.allowOverlap = overlapToggle.checked;
+            if (!widget.allowOverlap) widget.whiteHalo = 0;
+            renderDraft();
+        };
+        if (halo) halo.onchange = () => {
+            widget.whiteHalo = Math.max(0, Math.min(16, Number(halo.value || 0)));
+            if (widget.whiteHalo > 0) widget.allowOverlap = true;
+            renderDraft();
+        };
+    }
+
+    function moveSelectedWidgetLayer(delta) {
+        const index = draft.findIndex(item => item.id === selectedId);
+        if (index < 0) return;
+        const target = index + delta;
+        if (target < 0 || target >= draft.length) return;
+        const tmp = draft[index];
+        draft[index] = draft[target];
+        draft[target] = tmp;
+        renderDraft();
+        editorMessage(delta > 0 ? 'Widget posunut o vrstvu výš.' : 'Widget posunut o vrstvu níž.', 'ok');
     }
 
     function renderRfCardEditor() {
@@ -2575,6 +2605,21 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <div class="field">
                         <label for="cardIcon">Ikona</label>
                         <select id="cardIcon"></select>
+                    </div>
+                    <div class="field">
+                        <label>Povolit překrytí</label>
+                        <label class="toggle"><input id="cardAllowOverlap" type="checkbox"><span class="slider"></span></label>
+                    </div>
+                    <div class="field">
+                        <label for="cardWhiteHalo">Bílý okraj overlay</label>
+                        <input id="cardWhiteHalo" type="number" min="0" max="16" step="1" value="0">
+                    </div>
+                    <div class="field">
+                        <label>Vrstva</label>
+                        <div class="layer-actions">
+                            <button class="btn btn-secondary" type="button" id="cardLayerDown">↓ Níž</button>
+                            <button class="btn btn-secondary" type="button" id="cardLayerUp">↑ Výš</button>
+                        </div>
                     </div>
                     <div class="field">
                         <button class="btn btn-secondary" type="button" id="cardResetSelected" style="width:auto">Obnovit tento panel</button>
