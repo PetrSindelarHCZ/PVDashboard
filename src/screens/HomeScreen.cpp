@@ -4,6 +4,7 @@
 #include "../layout/CustomWidgetRenderer.h"
 #include "../display/assets/WidgetIcons.h"
 #include "../display/assets/EnergyFlowAssets.h"
+#include "../display/assets/EnergyFlowUiAssets.h"
 #include "../display/EInkGraph.h"
 
 namespace {
@@ -785,9 +786,9 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
     const int16_t pvY = y + 48;
     display.drawBitmap(
         pvX, pvY,
-        EnergyFlowAssets::PvIconBitmap,
-        EnergyFlowAssets::PvIconWidth,
-        EnergyFlowAssets::PvIconHeight,
+        EnergyFlowUiAssets::PvIconBitmap,
+        EnergyFlowUiAssets::PvIconWidth,
+        EnergyFlowUiAssets::PvIconHeight,
         color);
     ScreenStyle::useBody(display, color);
     display.setCursor(pvX + 68, pvY + 6);
@@ -799,11 +800,11 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
     else
         display.print("--.- kW");
     display.drawBitmap(
-        cx - EnergyFlowAssets::ArrowPvDownWidth / 2,
+        cx - EnergyFlowUiAssets::ArrowPvDownWidth / 2,
         pvY + 42,
-        EnergyFlowAssets::ArrowPvDownBitmap,
-        EnergyFlowAssets::ArrowPvDownWidth,
-        EnergyFlowAssets::ArrowPvDownHeight,
+        EnergyFlowUiAssets::ArrowPvDownBitmap,
+        EnergyFlowUiAssets::ArrowPvDownWidth,
+        EnergyFlowUiAssets::ArrowPvDownHeight,
         color);
 
     // Grid category. Direction is represented by one of two bitmap arrows.
@@ -811,14 +812,14 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
     const int16_t gridY = houseY + 38;
     display.drawBitmap(
         gridX, gridY,
-        EnergyFlowAssets::GridIconBitmap,
-        EnergyFlowAssets::GridIconWidth,
-        EnergyFlowAssets::GridIconHeight,
+        EnergyFlowUiAssets::GridIconBitmap,
+        EnergyFlowUiAssets::GridIconWidth,
+        EnergyFlowUiAssets::GridIconHeight,
         color);
 
     const bool gridAvailable = dm.solar.status.available;
     const bool exporting = gridAvailable && dm.solar.gridPowerW >= 0.0f;
-    const int16_t gridTextX = gridX + EnergyFlowAssets::GridIconWidth + 10;
+    const int16_t gridTextX = gridX + EnergyFlowUiAssets::GridIconWidth + 10;
 
     ScreenStyle::useBody(display, color);
     display.setCursor(gridTextX, gridY + 3);
@@ -835,17 +836,17 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
 
     const int16_t gridArrowX = max<int16_t>(
         gridTextX + 10,
-        houseX - EnergyFlowAssets::ArrowGridInWidth - 4);
+        houseX - EnergyFlowUiAssets::ArrowGridInWidth - 4);
     const int16_t gridArrowY = gridY + 31;
     const uint8_t* gridArrow =
         exporting
-            ? EnergyFlowAssets::ArrowGridOutBitmap
-            : EnergyFlowAssets::ArrowGridInBitmap;
+            ? EnergyFlowUiAssets::ArrowGridOutBitmap
+            : EnergyFlowUiAssets::ArrowGridInBitmap;
     display.drawBitmap(
         gridArrowX, gridArrowY,
         gridArrow,
-        EnergyFlowAssets::ArrowGridInWidth,
-        EnergyFlowAssets::ArrowGridInHeight,
+        EnergyFlowUiAssets::ArrowGridInWidth,
+        EnergyFlowUiAssets::ArrowGridInHeight,
         color);
 
     // AZRouter category.
@@ -853,9 +854,9 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
     const int16_t azY = houseY + 44;
     display.drawBitmap(
         azX, azY,
-        EnergyFlowAssets::AzrouterIconBitmap,
-        EnergyFlowAssets::AzrouterIconWidth,
-        EnergyFlowAssets::AzrouterIconHeight,
+        EnergyFlowUiAssets::AzrouterIconBitmap,
+        EnergyFlowUiAssets::AzrouterIconWidth,
+        EnergyFlowUiAssets::AzrouterIconHeight,
         color);
 
     ScreenStyle::useBody(display, color);
@@ -875,14 +876,14 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
         display.print("--.- kWh");
 
     const int16_t azArrowX = min<int16_t>(
-        azX - EnergyFlowAssets::ArrowAzOutWidth - 4,
+        azX - EnergyFlowUiAssets::ArrowAzOutWidth - 4,
         houseX + EnergyFlowAssets::HouseWidth - 8);
     display.drawBitmap(
         azArrowX,
         azY + 23,
-        EnergyFlowAssets::ArrowAzOutBitmap,
-        EnergyFlowAssets::ArrowAzOutWidth,
-        EnergyFlowAssets::ArrowAzOutHeight,
+        EnergyFlowUiAssets::ArrowAzOutBitmap,
+        EnergyFlowUiAssets::ArrowAzOutWidth,
+        EnergyFlowUiAssets::ArrowAzOutHeight,
         color);
 
     // Battery support stays dormant for battery-less installations. The data
@@ -896,13 +897,13 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
 
     // Fixed downward connector for a separate consumption-summary overlay.
     const int16_t loadArrowY = houseY + EnergyFlowAssets::HouseHeight + 2;
-    if (loadArrowY + EnergyFlowAssets::ArrowPvDownHeight < y + h - 4) {
+    if (loadArrowY + EnergyFlowUiAssets::ArrowLoadDownHeight < y + h - 4) {
         display.drawBitmap(
-            cx - EnergyFlowAssets::ArrowPvDownWidth / 2,
+            cx - EnergyFlowUiAssets::ArrowLoadDownWidth / 2,
             loadArrowY,
-            EnergyFlowAssets::ArrowPvDownBitmap,
-            EnergyFlowAssets::ArrowPvDownWidth,
-            EnergyFlowAssets::ArrowPvDownHeight,
+            EnergyFlowUiAssets::ArrowLoadDownBitmap,
+            EnergyFlowUiAssets::ArrowLoadDownWidth,
+            EnergyFlowUiAssets::ArrowLoadDownHeight,
             color);
     }
 }
