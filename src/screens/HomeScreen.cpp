@@ -790,8 +790,8 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
         color);
 
     // FVE category: fixed bitmap + fixed downward flow arrow.
-    const int16_t pvX = cx - 92;
-    const int16_t pvY = y + 40;
+    const int16_t pvX = cx - 20;
+    const int16_t pvY = y + 55;
     display.drawBitmap(
         pvX, pvY,
         EnergyFlowUiAssets::PvIconBitmap,
@@ -809,7 +809,7 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
         display.print("--.- kW");
     display.drawBitmap(
         cx - EnergyFlowUiAssets::ArrowPvDownWidth / 2,
-        pvY + 46,
+        pvY + 66,
         EnergyFlowUiAssets::ArrowPvDownBitmap,
         EnergyFlowUiAssets::ArrowPvDownWidth,
         EnergyFlowUiAssets::ArrowPvDownHeight,
@@ -817,7 +817,7 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
 
     // Grid category. Direction is represented by one of two bitmap arrows.
     const int16_t gridX = x + 8;
-    const int16_t gridY = houseY - 10;
+    const int16_t gridY = houseY + 30;
     display.drawBitmap(
         gridX, gridY,
         EnergyFlowUiAssets::GridIconBitmap,
@@ -827,26 +827,26 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
 
     const bool gridAvailable = dm.solar.status.available;
     const bool exporting = gridAvailable && dm.solar.gridPowerW >= 0.0f;
-    const int16_t gridTextX = gridX + EnergyFlowUiAssets::GridIconWidth + 16;
+    const int16_t gridTextX = gridX + EnergyFlowUiAssets::GridIconWidth + 12;
 
-    ScreenStyle::useBody(display, color);
-    display.setCursor(gridTextX, gridY + 3);
-    display.print("SÍŤ");
+    //ScreenStyle::useBody(display, color);
+    //display.setCursor(gridTextX, gridY - 37);
+    //display.print("SÍŤ");
     ScreenStyle::useMetric(display, color);
-    display.setCursor(gridTextX, gridY + 29);
+    display.setCursor(gridTextX, gridY - 11);
     if (gridAvailable)
         display.printf("%+.1f kW", dm.solar.gridPowerW / 1000.0f);
     else
         display.print("--.- kW");
     ScreenStyle::useBody(display, color);
-    display.setCursor(gridTextX, gridY + 54);
+    display.setCursor(gridTextX, gridY + 14);
     display.print(gridAvailable ? (exporting ? "přetok" : "odběr") : "nedostupné");
 
     // Keep the flow arrow below the numeric/status text so it never crosses
     // the value. Its right edge is anchored just before the house.
     const int16_t gridArrowX =
-        houseX - EnergyFlowUiAssets::ArrowGridInWidth - 4;
-    const int16_t gridArrowY = gridY + 68;
+        houseX - EnergyFlowUiAssets::ArrowGridInWidth + 4;
+    const int16_t gridArrowY = gridY + 28;
     const uint8_t* gridArrow =
         exporting
             ? EnergyFlowUiAssets::ArrowGridOutBitmap
