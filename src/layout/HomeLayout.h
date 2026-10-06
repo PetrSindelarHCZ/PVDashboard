@@ -201,7 +201,7 @@ inline int16_t minHeight(const String& type) {
     if (type == "azrouter-summary") return 180;
     if (type == "pool-summary") return 140;
     if (type == "consumption-summary") return 140;
-    if (type == "energy-flow") return 240;
+    if (type == "energy-flow") return 300;
     if (type == "rf-sensor") return 140;
     if (type == "custom") return 120;
     return 0;
