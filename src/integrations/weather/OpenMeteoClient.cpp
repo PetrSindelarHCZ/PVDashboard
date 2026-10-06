@@ -84,7 +84,7 @@ bool OpenMeteoClient::update(const WeatherConfig& config, WeatherData& weatherDa
         "&current=temperature_2m,relative_humidity_2m,surface_pressure,weather_code,wind_speed_10m,precipitation"
         "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max"
         "&hourly=temperature_2m,weather_code,precipitation_probability,precipitation,wind_speed_10m"
-        "&forecast_days=4&timezone=auto";
+        "&forecast_days=4&temporal_resolution=hourly_3&timezone=auto";
 
     WiFiClientSecure client;
     configureWeatherTls(client);
@@ -215,7 +215,7 @@ bool OpenMeteoClient::parseResponse(Stream& stream, WeatherData& weatherData, St
     const size_t hourlyAvailable = hourlyTimes.size();
     for (size_t sourceIndex = 0;
          sourceIndex < hourlyAvailable && weatherData.hourlyCount < WeatherHourlySlotCount;
-         sourceIndex += 3) {
+         ++sourceIndex) {
         HourlyWeatherForecast& item = weatherData.hourly[weatherData.hourlyCount++];
         const char* timestamp = hourlyTimes[sourceIndex].as<const char*>();
         copyText(item.date, timestamp);
