@@ -3,6 +3,7 @@
 #include "../layout/HomeLayout.h"
 #include "../layout/CustomWidgetRenderer.h"
 #include "../display/assets/WidgetIcons.h"
+#include "../display/assets/EnergyFlowAssets.h"
 #include "../display/EInkGraph.h"
 
 namespace {
@@ -762,118 +763,127 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
             : "ENERGETICKÝ TOK");
 
     const int16_t cx = x + w / 2;
-    const int16_t houseTop = y + 118;
-    const int16_t houseBottom = y + h - 78;
-    const int16_t houseHalfW = min<int16_t>(86, w / 5);
+    const int16_t houseX =
+        cx - EnergyFlowAssets::HouseWidth / 2;
+    const int16_t houseY =
+        y + max<int16_t>(92, (h - EnergyFlowAssets::HouseHeight) / 2);
 
-    // Stylized house.
-    display.drawLine(cx - houseHalfW, houseTop + 42, cx, houseTop, color);
-    display.drawLine(cx, houseTop, cx + houseHalfW, houseTop + 42, color);
-    display.drawLine(cx - houseHalfW + 12, houseTop + 36,
-                     cx - houseHalfW + 12, houseBottom, color);
-    display.drawLine(cx + houseHalfW - 12, houseTop + 36,
-                     cx + houseHalfW - 12, houseBottom, color);
-    display.drawLine(cx - houseHalfW + 12, houseBottom,
-                     cx + houseHalfW - 12, houseBottom, color);
-    display.drawRect(cx - 14, houseBottom - 42, 28, 42, color);
+    // Static illustration lives in flash as a 1-bit bitmap. Dynamic values
+    // and arrows remain separate so partial refreshes do not require another
+    // image asset for every energy state.
+    display.drawBitmap(
+        houseX,
+        houseY,
+        EnergyFlowAssets::HouseBitmap,
+        EnergyFlowAssets::HouseWidth,
+        EnergyFlowAssets::HouseHeight,
+        color);
 
-    // Solar panel above the house.
-    const int16_t panelW = 76;
-    const int16_t panelH = 34;
-    const int16_t panelX = cx - panelW / 2;
-    const int16_t panelY = y + 58;
-    display.drawRect(panelX, panelY, panelW, panelH, color);
-    for (int16_t col = 1; col < 4; ++col)
-        display.drawLine(panelX + col * panelW / 4, panelY,
-                         panelX + col * panelW / 4, panelY + panelH, color);
-    display.drawLine(panelX, panelY + panelH / 2,
-                     panelX + panelW, panelY + panelH / 2, color);
-    drawFlowArrow(display, cx, panelY + panelH + 4, cx, houseTop - 7, color);
-
+    // FVE: value above the roof, arrow points into the house.
+    const int16_t solarY = y + 55;
     ScreenStyle::useBody(display, color);
-    display.setCursor(panelX + panelW + 12, panelY + 4);
+    display.setCursor(cx + 26, solarY);
     display.print("FVE");
     ScreenStyle::useMetric(display, color);
-    display.setCursor(panelX + panelW + 12, panelY + 28);
+    display.setCursor(cx + 26, solarY + 28);
     if (dm.solar.status.available)
         display.printf("%.1f kW", dm.solar.productionPowerW / 1000.0f);
     else
         display.print("--.- kW");
+    drawFlowArrow(
+        display,
+        cx,
+        solarY + 38,
+        cx,
+        houseY + 20,
+        color);
 
-    // Grid on the left.
-    const int16_t gridX = x + 28;
-    const int16_t gridY = houseTop + 18;
-    display.drawLine(gridX + 18, gridY, gridX, gridY + 56, color);
-    display.drawLine(gridX + 18, gridY, gridX + 36, gridY + 56, color);
-    display.drawLine(gridX + 18, gridY, gridX + 18, gridY + 58, color);
-    display.drawLine(gridX + 5, gridY + 18, gridX + 31, gridY + 18, color);
-    display.drawLine(gridX + 2, gridY + 34, gridX + 34, gridY + 34, color);
+    // Grid tower stays vector based because its direction arrow is dynamic.
+    const int16_t gridX = x + 24;
+    const int16_t gridY = houseY + 63;
+    display.drawLine(gridX + 18, gridY, gridX, gridY + 62, color);
+    display.drawLine(gridX + 18, gridY, gridX + 36, gridY + 62, color);
+    display.drawLine(gridX + 18, gridY, gridX + 18, gridY + 64, color);
+    display.drawLine(gridX + 5, gridY + 19, gridX + 31, gridY + 19, color);
+    display.drawLine(gridX + 2, gridY + 36, gridX + 34, gridY + 36, color);
 
-    const bool exporting = dm.solar.status.available && dm.solar.gridPowerW >= 0.0f;
-    if (exporting)
-        drawFlowArrow(display, cx - houseHalfW - 8, gridY + 34, gridX + 42, gridY + 34, color);
-    else
-        drawFlowArrow(display, gridX + 42, gridY + 34, cx - houseHalfW - 8, gridY + 34, color);
+    const bool gridAvailable = dm.solar.status.available;
+    const bool exporting = gridAvailable && dm.solar.gridPowerW >= 0.0f;
+    const int16_t gridArrowY = gridY + 35;
+    const int16_t houseLeft = houseX + 37;
+    if (exporting) {
+        drawFlowArrow(display, houseLeft - 4, gridArrowY,
+                      gridX + 44, gridArrowY, color);
+    } else {
+        drawFlowArrow(display, gridX + 44, gridArrowY,
+                      houseLeft - 4, gridArrowY, color);
+    }
 
     ScreenStyle::useBody(display, color);
-    display.setCursor(gridX + 44, gridY - 2);
+    display.setCursor(gridX + 45, gridY - 4);
     display.print("SÍŤ");
     ScreenStyle::useMetric(display, color);
-    display.setCursor(gridX + 44, gridY + 24);
-    if (dm.solar.status.available)
+    display.setCursor(gridX + 45, gridY + 22);
+    if (gridAvailable)
         display.printf("%+.1f kW", dm.solar.gridPowerW / 1000.0f);
     else
         display.print("--.- kW");
     ScreenStyle::useBody(display, color);
-    display.setCursor(gridX + 44, gridY + 50);
-    display.print(exporting ? "přetok" : "odběr");
+    display.setCursor(gridX + 45, gridY + 50);
+    display.print(gridAvailable ? (exporting ? "přetok" : "odběr") : "nedostupné");
 
-    // AZRouter branch on the right.
+    // AZRouter on the right. Its symbol stays vector based and only the
+    // telemetry beside it changes.
     const int16_t azX = x + w - 132;
-    const int16_t azY = gridY + 8;
+    const int16_t azY = houseY + 72;
     display.drawRoundRect(azX, azY, 40, 58, 4, color);
     display.drawLine(azX + 13, azY + 15, azX + 13, azY + 34, color);
     display.drawLine(azX + 20, azY + 12, azX + 20, azY + 37, color);
     display.drawLine(azX + 27, azY + 15, azX + 27, azY + 34, color);
-    drawFlowArrow(display, cx + houseHalfW + 8, azY + 29, azX - 8, azY + 29, color);
+    drawFlowArrow(
+        display,
+        houseX + EnergyFlowAssets::HouseWidth - 37,
+        azY + 29,
+        azX - 8,
+        azY + 29,
+        color);
 
     ScreenStyle::useBody(display, color);
-    display.setCursor(azX + 48, azY + 4);
-    display.print("AZ");
+    display.setCursor(azX + 48, azY + 3);
+    display.print("AZROUTER");
     ScreenStyle::useMetric(display, color);
     display.setCursor(azX + 48, azY + 30);
-    if (dm.azrouter.status.available)
+    if (dm.azrouter.status.available && dm.azrouter.hasRoutedPower)
         display.printf("%.1f kW", dm.azrouter.routedPowerW / 1000.0f);
     else
         display.print("--.- kW");
     ScreenStyle::useBody(display, color);
-    display.setCursor(azX + 48, azY + 54);
-    if (dm.azrouter.hasRoutedEnergyToday)
+    display.setCursor(azX + 48, azY + 55);
+    if (dm.azrouter.status.available && dm.azrouter.hasRoutedEnergyToday)
         display.printf("%.1f kWh", dm.azrouter.routedEnergyTodayKWh);
-
-    // Household load is the visual anchor at the bottom.
-    const int16_t loadY = y + h - 54;
-    drawFlowArrow(display, cx, houseBottom + 5, cx, loadY - 8, color);
-    ScreenStyle::useBody(display, color);
-    display.setCursor(x + 22, loadY);
-    display.print("SPOTŘEBA DOMU");
-    ScreenStyle::useValue(display, color);
-    display.setCursor(x + w - 150, loadY + 2);
-    if (dm.solar.status.available)
-        display.printf("%.1f kW", dm.solar.houseConsumptionW / 1000.0f);
     else
-        display.print("--.- kW");
+        display.print("--.- kWh");
 
-    // Battery state inside the house.
+    // Battery text belongs inside the static house illustration.
     ScreenStyle::useBody(display, color);
-    display.setCursor(cx - 52, houseBottom - 58);
+    display.setCursor(cx - 54, houseY + 118);
     if (dm.solar.status.available && dm.solar.batteryPresent) {
-        display.printf("Bat %.0f%%", dm.solar.batterySocPercent);
+        display.printf("Baterie %.0f%%", dm.solar.batterySocPercent);
     } else {
         display.print("Bez baterie");
     }
-}
 
+    // Keep only the load connector here. A consumption-summary card can be
+    // placed as a real overlay below/over the house and moved to the top layer.
+    drawFlowArrow(
+        display,
+        cx,
+        houseY + EnergyFlowAssets::HouseHeight - 12,
+        cx,
+        min<int16_t>(y + h - 14,
+                     houseY + EnergyFlowAssets::HouseHeight + 28),
+        color);
+}
 
 } // namespace
 
