@@ -1,6 +1,6 @@
 #include "WeatherTls.h"
-#include "WeatherRootCertificates.h"
+#include "WeatherCaBundle.h"
 
 void configureWeatherTls(WiFiClientSecure& client) {
-    client.setCACert(WeatherRootCertificates);
+    client.setCACertBundle(WeatherCaBundle, WeatherCaBundleSize);
 }
