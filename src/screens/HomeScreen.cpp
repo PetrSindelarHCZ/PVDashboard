@@ -13,6 +13,14 @@ uint16_t cardTextColor(const HomeLayoutWidgetConfig* style) {
     return style != nullptr && style->inverseText ? 1 : 0;
 }
 
+void printAdaptivePower(IDisplay& display, float watts) {
+    if (watts > -1000.0f && watts < 1000.0f) {
+        display.printf("%.0f W", watts);
+    } else {
+        display.printf("%.1f kW", watts / 1000.0f);
+    }
+}
+
 void drawHomeCardBackground(IDisplay& display, const LayoutWidget& widget,
                             const HomeLayoutWidgetConfig* style, const char* title,
                             bool hasHeaderIcon = false) {
@@ -501,9 +509,9 @@ void drawFveSummaryCard(IDisplay& display, const DataModel& dm, const LayoutWidg
     ScreenStyle::useMetric(display, color);
     display.setCursor(x + 18, y + 91);
     if (dm.solar.status.available)
-        display.printf("%.1f kW", dm.solar.productionPowerW / 1000.0f);
+        printAdaptivePower(display, dm.solar.productionPowerW);
     else
-        display.print("--.- kW");
+        display.print("-- W");
 
     drawMiniBars(display, x + 150, y + 58, 54, 38, dm.solar, color);
 
@@ -866,9 +874,9 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
     ScreenStyle::useMetric(display, color);
     display.setCursor(azX + 52, azY + 30);
     if (dm.azrouter.status.available && dm.azrouter.hasRoutedPower)
-        display.printf("%.1f kW", dm.azrouter.routedPowerW / 1000.0f);
+        printAdaptivePower(display, dm.azrouter.routedPowerW);
     else
-        display.print("--.- kW");
+        display.print("-- W");
     ScreenStyle::useBody(display, color);
     display.setCursor(azX + 52, azY + 55);
     if (dm.azrouter.status.available && dm.azrouter.hasRoutedEnergyToday)
