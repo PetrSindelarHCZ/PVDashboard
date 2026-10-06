@@ -378,7 +378,10 @@ DisplayRegion homeEnergyFlowDataRegion(const LayoutWidget& widget) {
     region.y = widget.y + 38;
     region.width = widget.width > 16 ? widget.width - 16 : widget.width;
 
-    const int16_t desiredHeight = 245;
+    // Keep this comfortably below the hybrid driver's 96k-pixel threshold
+    // so the proven register-partial waveform is used. For the current
+    // ~524 px-wide card, 170 px is ~89k pixels.
+    const int16_t desiredHeight = 170;
     const int16_t availableHeight =
         widget.height > 50 ? widget.height - 50 : widget.height;
     region.height = min<int16_t>(desiredHeight, availableHeight);
