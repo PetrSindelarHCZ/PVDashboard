@@ -543,17 +543,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     }
 
     function invalidIds() {
-        const ids = new Set();
-        for (let i = 0; i < draft.length; i++) {
-            for (let j = i + 1; j < draft.length; j++) {
-                if (overlap(draft[i], draft[j]) &&
-                    !draft[i].allowOverlap && !draft[j].allowOverlap) {
-                    ids.add(draft[i].id);
-                    ids.add(draft[j].id);
-                }
-            }
-        }
-        return ids;
+        // Widget overlap is intentional and supported. Paint order follows
+        // draft order; overlay controls decide which widget is on top.
+        return new Set();
     }
 
     function updateGrid() {
@@ -1108,8 +1100,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             isElementWidget(widget) && customWidgetHasErrors(widget));
         const save = document.getElementById('layoutSaveButton');
         if (save) save.disabled = invalid.size > 0 || customInvalid || !draft.some(w => w.visible);
-        if (invalid.size > 0) editorMessage('Widgety se překrývají. Uložení je zablokované.', 'error');
-        else if(customInvalid)editorMessage('Widget obsahuje neplatný vnitřní prvek.','error');
+        if(customInvalid)editorMessage('Widget obsahuje neplatný vnitřní prvek.','error');
     }
 
     function beginInteraction(event, id) {
@@ -2417,10 +2408,6 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     async function saveLayout() {
         if (!apiState) return;
         const invalid = invalidIds();
-        if (invalid.size > 0) {
-            editorMessage('Nejdřív odstraň překryvy widgetů.', 'error');
-            return;
-        }
         if (draft.some(widget => isElementWidget(widget) && customWidgetHasErrors(widget))) {
             editorMessage('Nejdřív oprav prvky uvnitř widgetu.','error');
             return;
