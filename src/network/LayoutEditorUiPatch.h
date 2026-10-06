@@ -740,6 +740,16 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         editorMessage(delta > 0 ? 'Widget posunut o vrstvu výš.' : 'Widget posunut o vrstvu níž.', 'ok');
     }
 
+    function moveSelectedWidgetToEdge(top) {
+        const index = draft.findIndex(item => item.id === selectedId);
+        if (index < 0) return;
+        const [widget] = draft.splice(index, 1);
+        if (top) draft.push(widget);
+        else draft.unshift(widget);
+        renderDraft();
+        editorMessage(top ? 'Widget přesunut navrch.' : 'Widget přesunut na spodek.', 'ok');
+    }
+
     function renderRfCardEditor() {
         const panel = document.getElementById('rfCardEditor');
         if (!panel) return;
@@ -2604,8 +2614,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                     <div class="field">
                         <label>Vrstva</label>
                         <div class="layer-actions">
+                            <button class="btn btn-secondary" type="button" id="cardLayerBottom">⇊ Spodek</button>
                             <button class="btn btn-secondary" type="button" id="cardLayerDown">↓ Níž</button>
                             <button class="btn btn-secondary" type="button" id="cardLayerUp">↑ Výš</button>
+                            <button class="btn btn-secondary" type="button" id="cardLayerTop">⇈ Navrch</button>
                         </div>
                     </div>
                     <div class="field">
@@ -2742,6 +2754,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         document.getElementById('layoutReloadButton').addEventListener('click', loadLayoutEditor);
         document.getElementById('layoutSaveButton').addEventListener('click', saveLayout);
         document.getElementById('layoutResetButton').addEventListener('click', resetLayout);
+        document.getElementById('cardLayerBottom').addEventListener('click', () => moveSelectedWidgetToEdge(false));
+        document.getElementById('cardLayerDown').addEventListener('click', () => moveSelectedWidgetLayer(-1));
+        document.getElementById('cardLayerUp').addEventListener('click', () => moveSelectedWidgetLayer(1));
+        document.getElementById('cardLayerTop').addEventListener('click', () => moveSelectedWidgetToEdge(true));
 
         const stage = document.getElementById('layoutEditorStage');
         stage.addEventListener('pointermove', moveInteraction);
