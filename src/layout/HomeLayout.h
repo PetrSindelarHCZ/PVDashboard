@@ -396,7 +396,7 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
     }
 
     if (config.widgetCount == 0 || config.widgetCount > MaxHomeLayoutWidgets) {
-        return fail("Custom Home layout must contain 1 to 7 widgets");
+        return fail("Custom Home layout must contain 1 to 8 widgets");
     }
 
     bool anyVisible = false;
