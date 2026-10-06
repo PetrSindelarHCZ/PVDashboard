@@ -427,7 +427,8 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
         if (widget.type == "custom") {
             String customError;
             if (!validateCustomWidget(widget, &customError)) return fail(customError);
-        } else if (widget.type == "weather" || widget.type == "energy") {
+        } else if (widget.type == "weather" || widget.type == "energy" ||
+                   widget.type == "energy-flow") {
             if (!widget.elements.empty()) {
                 String elementError;
                 if (!validateCustomWidget(widget, &elementError)) return fail(elementError);
@@ -620,7 +621,8 @@ inline String serializeJson(const HomeLayoutConfig& config) {
         item["historyPeriodHours"] = historyPeriodHours(widget);
 
         if (widget.type == "weather" || widget.type == "energy" ||
-            widget.type == "indoor" || widget.type == "pool-summary") {
+            widget.type == "energy-flow" || widget.type == "indoor" ||
+            widget.type == "pool-summary") {
             item["title"] = widget.title;
             if (widget.type == "pool-summary")
                 item["rfSensorSlotId"] = rfSlotId(widget.rfSensorSlot);
@@ -728,6 +730,8 @@ inline bool parseJson(const String& json, HomeLayoutConfig& config, String* erro
                 widget.title = String(item["title"] | "VENKU");
             else if (widget.type == "energy")
                 widget.title = String(item["title"] | "ENERGIE");
+            else if (widget.type == "energy-flow")
+                widget.title = String(item["title"] | "ENERGETICKÝ TOK");
             else
                 widget.title = String(item["title"] | (widget.type == "indoor" ? "UVNITŘ" : "BAZÉN"));
             if (widget.type == "pool-summary")
