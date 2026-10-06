@@ -809,7 +809,7 @@ void drawEnergyFlowCard(IDisplay& display, const DataModel& dm, const LayoutWidg
 
     // Grid category. Direction is represented by one of two bitmap arrows.
     const int16_t gridX = x + 8;
-    const int16_t gridY = houseY + 16;
+    const int16_t gridY = houseY - 10;
     display.drawBitmap(
         gridX, gridY,
         EnergyFlowUiAssets::GridIconBitmap,
