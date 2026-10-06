@@ -538,6 +538,7 @@ uint8_t homeDataRegions(
                 break;
             }
             case LayoutWidgetType::HomeConsumptionCard:
+            case LayoutWidgetType::HomeEnergyFlowCard:
                 matches = group == HomeDataGroup::Energy;
                 break;
             case LayoutWidgetType::HomeRfSensorCard:
