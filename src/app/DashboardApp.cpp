@@ -368,6 +368,23 @@ DisplayRegion dashboardBodyRegion() {
     return region;
 }
 
+DisplayRegion homeEnergyFlowDataRegion(const LayoutWidget& widget) {
+    DisplayRegion region;
+    // Energy-flow has a large static illustration. Its live values and
+    // directional arrows occupy only the upper/middle band of the card.
+    // Keeping the minute refresh out of the lower half avoids a visually
+    // near-full-card e-paper flash.
+    region.x = widget.x + 8;
+    region.y = widget.y + 38;
+    region.width = widget.width > 16 ? widget.width - 16 : widget.width;
+
+    const int16_t desiredHeight = 245;
+    const int16_t availableHeight =
+        widget.height > 50 ? widget.height - 50 : widget.height;
+    region.height = min<int16_t>(desiredHeight, availableHeight);
+    return region;
+}
+
 enum class HomeDataGroup : uint8_t {
     Weather,
     Energy,
@@ -562,6 +579,8 @@ uint8_t homeDataRegions(
             region.y = widget.y;
             region.width = widget.width;
             region.height = widget.height;
+        } else if (widget.type == LayoutWidgetType::HomeEnergyFlowCard) {
+            region = homeEnergyFlowDataRegion(widget);
         } else {
             region.x = widget.x + 8;
             region.y = widget.y + 38;
@@ -650,6 +669,8 @@ DisplayRegion homeDataRegion(
             widgetRegion.y = widget.y;
             widgetRegion.width = widget.width;
             widgetRegion.height = widget.height;
+        } else if (widget.type == LayoutWidgetType::HomeEnergyFlowCard) {
+            widgetRegion = homeEnergyFlowDataRegion(widget);
         } else {
             // Predefined cards have static frame/title chrome. Automatic data
             // updates only need the inner content area, which makes e-paper
