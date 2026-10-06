@@ -125,8 +125,39 @@ bool OpenMeteoClient::update(const WeatherConfig& config, WeatherData& weatherDa
 }
 
 bool OpenMeteoClient::parseResponse(Stream& stream, WeatherData& weatherData, String& error) {
+    // Open-Meteo responses contain metadata, units and full hourly arrays that
+    // we do not need. Filtering during deserialization keeps the ArduinoJson
+    // document small and, more importantly on the classic ESP32, avoids
+    // requiring one large contiguous heap block after several TLS requests.
+    JsonDocument filter;
+
+    filter["current"]["temperature_2m"] = true;
+    filter["current"]["relative_humidity_2m"] = true;
+    filter["current"]["surface_pressure"] = true;
+    filter["current"]["wind_speed_10m"] = true;
+    filter["current"]["precipitation"] = true;
+    filter["current"]["weather_code"] = true;
+
+    filter["daily"]["time"] = true;
+    filter["daily"]["weather_code"] = true;
+    filter["daily"]["temperature_2m_max"] = true;
+    filter["daily"]["temperature_2m_min"] = true;
+    filter["daily"]["precipitation_sum"] = true;
+    filter["daily"]["precipitation_probability_max"] = true;
+    filter["daily"]["wind_speed_10m_max"] = true;
+
+    filter["hourly"]["time"] = true;
+    filter["hourly"]["temperature_2m"] = true;
+    filter["hourly"]["weather_code"] = true;
+    filter["hourly"]["precipitation_probability"] = true;
+    filter["hourly"]["precipitation"] = true;
+    filter["hourly"]["wind_speed_10m"] = true;
+
     JsonDocument doc;
-    const DeserializationError jsonError = deserializeJson(doc, stream);
+    const DeserializationError jsonError = deserializeJson(
+        doc,
+        stream,
+        DeserializationOption::Filter(filter));
     if (jsonError) {
         error = "JSON " + String(jsonError.c_str());
         return false;
