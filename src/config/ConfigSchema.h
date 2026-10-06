@@ -21,7 +21,7 @@ struct WifiConfig {
     String dns2 = "";
 };
 
-constexpr uint8_t MaxHomeLayoutWidgets = 7;
+constexpr uint8_t MaxHomeLayoutWidgets = 8;
 constexpr uint8_t MaxCustomWidgetElements = 8;
 
 struct CustomWidgetElementConfig {
@@ -59,6 +59,11 @@ struct HomeLayoutWidgetConfig {
     bool showFrame = true;
     String background = "white"; // white | black
     bool inverseText = false;
+
+    // Overlay widgets are rendered in stored order; later widgets are on top.
+    // whiteHalo clears a white margin around an overlay before drawing it.
+    bool allowOverlap = false;
+    uint8_t whiteHalo = 0; // 0..16 px
 
     // Custom title is also used by RF sensor cards.
     String title = "";
