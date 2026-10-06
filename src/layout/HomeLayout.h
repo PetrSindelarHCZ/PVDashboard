@@ -488,10 +488,8 @@ inline bool validate(const HomeLayoutConfig& config, String* error = nullptr) {
                 widget.type == previous.type) {
                 return fail("Duplicate predefined Home widget");
             }
-            if (widget.visible && previous.visible && intersects(widget, previous) &&
-                !widget.allowOverlap && !previous.allowOverlap) {
-                return fail("Visible Home widgets overlap");
-            }
+            // Home widgets may overlap. Stored widget order defines the
+            // paint order, so later widgets form the upper layers.
         }
     }
 
