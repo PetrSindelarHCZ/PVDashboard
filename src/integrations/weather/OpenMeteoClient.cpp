@@ -86,70 +86,30 @@ bool OpenMeteoClient::update(const WeatherConfig& config, WeatherData& weatherDa
         "&hourly=temperature_2m,weather_code,precipitation_probability,precipitation,wind_speed_10m"
         "&forecast_days=4&timezone=auto";
 
+    WiFiClientSecure client;
+    configureWeatherTls(client);
+
+    HTTPClient http;
+    if (!http.begin(client, url)) {
+        weatherData.status.recordError("HTTPS begin failed");
+        return false;
+    }
+    http.setConnectTimeout(ConnectTimeoutMs);
+    http.setTimeout(ResponseTimeoutMs);
+    http.useHTTP10(true);
+
+    const int httpCode = http.GET();
+    if (httpCode != HTTP_CODE_OK) {
+        weatherData.status.recordError("HTTP " + String(httpCode));
+        http.end();
+        return false;
+    }
+
     String parseError;
-    bool success = false;
-    int httpCode = -1;
-
-    {
-        WiFiClientSecure client;
-        configureWeatherTls(client);
-
-        HTTPClient http;
-        if (http.begin(client, url)) {
-            http.setConnectTimeout(ConnectTimeoutMs);
-            http.setTimeout(ResponseTimeoutMs);
-            http.useHTTP10(true);
-
-            httpCode = http.GET();
-            if (httpCode == HTTP_CODE_OK) {
-                success =
-                    parseResponse(http.getStream(), weatherData, parseError);
-            }
-            http.end();
-        } else {
-            parseError = "HTTPS begin failed";
-        }
-    }
-
-    // Open-Meteo is GeoDNS-backed and currently serves more than one CA chain
-    // across its edge servers. The classic ESP32 has only our small embedded
-    // CA bundle, not a system trust store. Keep normal certificate validation
-    // as the primary path, but if the TLS connection itself fails, retry once
-    // encrypted without certificate validation. This fallback is intentionally
-    // limited to Open-Meteo weather data; MET Norway remains strict TLS.
-    if (!success && httpCode < 0) {
-        Serial.printf(
-            "[WEATHER][TLS] Open-Meteo verified TLS selhalo (%d); "
-            "zkousim jednorazovy fallback bez overeni CA.\n",
-            httpCode);
-
-        WiFiClientSecure fallbackClient;
-        fallbackClient.setInsecure();
-
-        HTTPClient fallbackHttp;
-        if (fallbackHttp.begin(fallbackClient, url)) {
-            fallbackHttp.setConnectTimeout(ConnectTimeoutMs);
-            fallbackHttp.setTimeout(ResponseTimeoutMs);
-            fallbackHttp.useHTTP10(true);
-
-            httpCode = fallbackHttp.GET();
-            if (httpCode == HTTP_CODE_OK) {
-                parseError = "";
-                success = parseResponse(
-                    fallbackHttp.getStream(),
-                    weatherData,
-                    parseError);
-            }
-            fallbackHttp.end();
-        }
-    }
-
+    const bool success = parseResponse(http.getStream(), weatherData, parseError);
+    http.end();
     if (!success) {
-        if (!parseError.isEmpty()) {
-            weatherData.status.recordError(parseError);
-        } else {
-            weatherData.status.recordError("HTTP " + String(httpCode));
-        }
+        weatherData.status.recordError(parseError);
         return false;
     }
 
