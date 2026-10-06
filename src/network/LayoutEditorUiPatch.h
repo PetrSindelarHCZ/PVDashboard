@@ -667,7 +667,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         panel.hidden = false;
 
         const title = document.getElementById('cardStyleTitle');
-        if (title) title.textContent = 'Vzhled: ' + widgetLabel(widget);
+        const layerIndex = draft.findIndex(item => item.id === widget.id);
+        if (title) title.textContent =
+            'Vzhled: ' + widgetLabel(widget) +
+            ' · vrstva ' + (layerIndex + 1) + ' / ' + draft.length;
 
         const frame = document.getElementById('cardShowFrame');
         const background = document.getElementById('cardBackground');
@@ -675,12 +678,20 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         const icon = document.getElementById('cardIcon');
         const overlapToggle = document.getElementById('cardAllowOverlap');
         const halo = document.getElementById('cardWhiteHalo');
+        const layerBottom = document.getElementById('cardLayerBottom');
+        const layerDown = document.getElementById('cardLayerDown');
+        const layerUp = document.getElementById('cardLayerUp');
+        const layerTop = document.getElementById('cardLayerTop');
         const reset = document.getElementById('cardResetSelected');
         if (frame) frame.checked = widget.showFrame !== false;
         if (background) background.value = widget.background || 'white';
         if (inverse) inverse.checked = widget.inverseText === true;
         if (overlapToggle) overlapToggle.checked = widget.allowOverlap === true;
         if (halo) halo.value = String(widget.whiteHalo || 0);
+        if (layerBottom) layerBottom.disabled = layerIndex <= 0;
+        if (layerDown) layerDown.disabled = layerIndex <= 0;
+        if (layerUp) layerUp.disabled = layerIndex < 0 || layerIndex >= draft.length - 1;
+        if (layerTop) layerTop.disabled = layerIndex < 0 || layerIndex >= draft.length - 1;
         if (icon) {
             const choices = apiState?.cardAppearance?.icons || [
                 {id:'auto',label:'Automatická'},
