@@ -86,30 +86,52 @@ bool OpenMeteoClient::update(const WeatherConfig& config, WeatherData& weatherDa
         "&hourly=temperature_2m,weather_code,precipitation_probability,precipitation,wind_speed_10m"
         "&forecast_days=4&temporal_resolution=hourly_3&timezone=auto";
 
-    WiFiClientSecure client;
-    configureWeatherTls(client);
-
-    HTTPClient http;
-    if (!http.begin(client, url)) {
-        weatherData.status.recordError("HTTPS begin failed");
-        return false;
-    }
-    http.setConnectTimeout(ConnectTimeoutMs);
-    http.setTimeout(ResponseTimeoutMs);
-    http.useHTTP10(true);
-
-    const int httpCode = http.GET();
-    if (httpCode != HTTP_CODE_OK) {
-        weatherData.status.recordError("HTTP " + String(httpCode));
-        http.end();
-        return false;
-    }
-
     String parseError;
-    const bool success = parseResponse(http.getStream(), weatherData, parseError);
-    http.end();
+    bool success = false;
+    int httpCode = -1;
+
+    for (uint8_t attempt = 0; attempt < 2 && !success; ++attempt) {
+        WiFiClientSecure client;
+        configureWeatherTls(client);
+
+        HTTPClient http;
+        if (!http.begin(client, url)) {
+            weatherData.status.recordError("HTTPS begin failed");
+            return false;
+        }
+        http.setConnectTimeout(ConnectTimeoutMs);
+        http.setTimeout(ResponseTimeoutMs);
+        http.useHTTP10(true);
+
+        httpCode = http.GET();
+        if (httpCode == HTTP_CODE_OK) {
+            parseError = "";
+            success = parseResponse(http.getStream(), weatherData, parseError);
+            http.end();
+            client.stop();
+            break;
+        }
+
+        http.end();
+        client.stop();
+
+        // A freshly released lwIP socket can be temporarily unavailable when
+        // Weather starts immediately after another network client. Retry only
+        // the transport-level failure once; TLS verification stays strict.
+        if (httpCode == -1 && attempt == 0) {
+            Serial.println(
+                "[WEATHER] Open-Meteo HTTP -1; kratky retry socketu za 200 ms.");
+            delay(200);
+            continue;
+        }
+
+        weatherData.status.recordError("HTTP " + String(httpCode));
+        return false;
+    }
+
     if (!success) {
-        weatherData.status.recordError(parseError);
+        weatherData.status.recordError(
+            parseError.isEmpty() ? "HTTP " + String(httpCode) : parseError);
         return false;
     }
 
