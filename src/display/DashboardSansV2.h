@@ -10,22 +10,10 @@
 #include "fonts/v2/DashboardSansV2_Bold12.h"
 #include "fonts/v2/DashboardSansV2_Regular14.h"
 #include "fonts/v2/DashboardSansV2_Bold14.h"
-#include "fonts/v2/DashboardSansV2_Regular16.h"
 #include "fonts/v2/DashboardSansV2_Bold16.h"
 #include "fonts/v2/DashboardSansV2_Regular18.h"
 #include "fonts/v2/DashboardSansV2_Bold18.h"
-#include "fonts/v2/DashboardSansV2_Regular20.h"
-#include "fonts/v2/DashboardSansV2_Bold20.h"
-#include "fonts/v2/DashboardSansV2_Regular22.h"
-#include "fonts/v2/DashboardSansV2_Bold22.h"
-#include "fonts/v2/DashboardSansV2_Regular24.h"
-#include "fonts/v2/DashboardSansV2_Bold24.h"
-#include "fonts/v2/DashboardSansV2_Regular28.h"
-#include "fonts/v2/DashboardSansV2_Bold28.h"
-#include "fonts/v2/DashboardSansV2_Regular32.h"
-#include "fonts/v2/DashboardSansV2_Bold32.h"
-#include "fonts/v2/DashboardSansV2_Regular36.h"
-#include "fonts/v2/DashboardSansV2_Bold36.h"
+#include "fonts/DashboardSansV2LargeFaces.h"
 
 namespace DashboardSansV2 {
 
