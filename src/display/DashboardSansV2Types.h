@@ -76,9 +76,10 @@ inline void drawGlyph(
 
     for (uint8_t yy = 0; yy < glyph.h; ++yy) {
         for (uint8_t xx = 0; xx < glyph.w; ++xx) {
-            const uint16_t bitIndex =
-                static_cast<uint16_t>(yy) * glyph.w + xx;
-            const uint16_t localByteIndex = bitIndex / 8u;
+            const uint8_t stride =
+                static_cast<uint8_t>((glyph.w + 7u) / 8u);
+            const uint16_t localByteIndex =
+                static_cast<uint16_t>(yy) * stride + (xx / 8u);
 
             if (localByteIndex != cachedByteIndex) {
                 cachedByteIndex = localByteIndex;
@@ -87,7 +88,7 @@ inline void drawGlyph(
                     glyph.bitmapOffset + localByteIndex);
             }
 
-            if ((cachedByte & (0x80u >> (bitIndex & 7u))) != 0) {
+            if ((cachedByte & (0x80u >> (xx & 7u))) != 0) {
                 display.drawPixel(
                     x + glyph.xOffset + xx,
                     top + glyph.yOffset + yy,
