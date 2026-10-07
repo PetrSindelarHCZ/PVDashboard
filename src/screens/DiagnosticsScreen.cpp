@@ -184,6 +184,51 @@ void renderKpiFontCandidatesPage(IDisplay& display) {
     }
 }
 
+void renderDashboardSansV2CharsetPage(IDisplay& display) {
+    constexpr int16_t x = 104;
+    constexpr int16_t w = 656;
+
+    ScreenStyle::useStrongBody(display);
+    display.setCursor(108, 61);
+    display.print("DASHBOARD SANS V2 - FULL CHARSET");
+
+    display.drawRoundRect(x, 78, w, 86, 5, 0);
+    ScreenStyle::useStrongBody(display);
+    display.setCursor(x + 12, 104);
+    display.print("16 REGULAR");
+    DashboardSansV2::drawText(
+        display, x + 126, 91,
+        "áčďéěíňóřšťúůýž",
+        16, DashboardSansV2::Weight::Regular);
+
+    display.drawRoundRect(x, 174, w, 86, 5, 0);
+    ScreenStyle::useStrongBody(display);
+    display.setCursor(x + 12, 200);
+    display.print("16 BOLD");
+    DashboardSansV2::drawText(
+        display, x + 126, 187,
+        "ÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ",
+        16, DashboardSansV2::Weight::Bold);
+
+    display.drawRoundRect(x, 270, w, 86, 5, 0);
+    ScreenStyle::useStrongBody(display);
+    display.setCursor(x + 12, 296);
+    display.print("14 REGULAR");
+    DashboardSansV2::drawText(
+        display, x + 126, 283,
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        14, DashboardSansV2::Weight::Regular);
+
+    display.drawRoundRect(x, 366, w, 86, 5, 0);
+    ScreenStyle::useStrongBody(display);
+    display.setCursor(x + 12, 392);
+    display.print("14 BOLD");
+    DashboardSansV2::drawText(
+        display, x + 126, 379,
+        "abcdefghijklmnopqrstuvwxyz 0123456789 °C",
+        14, DashboardSansV2::Weight::Bold);
+}
+
 class ReferenceBase64Reader {
 public:
     uint8_t readByte() {
@@ -309,11 +354,11 @@ void renderDiagnosticsOverview(IDisplay& display, const DataModel& dm) {
 
 void DiagnosticsScreen::render(IDisplay& display, const DataModel& dm) {
     const uint8_t subpage =
-        dm.system.navigationSubpageIndex < 5
+        dm.system.navigationSubpageIndex < 6
             ? dm.system.navigationSubpageIndex
             : 0;
 
-    if (subpage == 4) {
+    if (subpage == 5) {
         // Exact 800x480 / 1-bit V2 reference. Do not draw dashboard chrome
         // over it; this page is intended for direct panel evaluation.
         renderDashboardSansV2Reference(display);
@@ -334,11 +379,13 @@ void DiagnosticsScreen::render(IDisplay& display, const DataModel& dm) {
             display,
             V2LargeSizes,
             "DASHBOARD SANS V2 - 20..36");
-    } else {
+    } else if (subpage == 3) {
         renderKpiFontCandidatesPage(display);
+    } else {
+        renderDashboardSansV2CharsetPage(display);
     }
 
-    ScreenStyle::drawSubpageDots(display, subpage, 5);
+    ScreenStyle::drawSubpageDots(display, subpage, 6);
 
     NavigationLayout navigationLayout;
     buildNavigationLayout(dm, navigationLayout);
@@ -352,7 +399,7 @@ void DiagnosticsScreen::buildNavigationLayout(
     layout.clear();
 
     const uint8_t subpage =
-        dm.system.navigationSubpageIndex < 5
+        dm.system.navigationSubpageIndex < 6
             ? dm.system.navigationSubpageIndex
             : 0;
 
@@ -362,8 +409,16 @@ void DiagnosticsScreen::buildNavigationLayout(
         return;
     }
 
-    if (subpage == 4) {
+    if (subpage == 5) {
         // Exact reference page is visual-only; keep page focus empty.
+        return;
+    }
+
+    if (subpage == 4) {
+        layout.add("font-v2-charset-regular", 104, 78, 656, 86);
+        layout.add("font-v2-charset-bold", 104, 174, 656, 86);
+        layout.add("font-v2-ascii-upper", 104, 270, 656, 86);
+        layout.add("font-v2-ascii-lower", 104, 366, 656, 86);
         return;
     }
 

@@ -1,0 +1,51 @@
+name: Generate Dashboard Sans V2 full charset
+
+on:
+  push:
+    branches:
+      - feature/dashboard-sans-v2-rebuild
+    paths:
+      - tools/generate-dashboard-sans-v2.py
+      - .github/workflows/generate-dashboard-sans-v2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dashboard-sans-v2-rebuild
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install generator dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-inter fontconfig
+          python -m pip install --disable-pip-version-check pillow fonttools
+
+      - name: Resolve Inter Display source fonts
+        run: |
+          echo "DASHBOARD_SANS_REGULAR=$(fc-match -f '%{file}' 'Inter Display:style=Regular' | head -1)" >> "$GITHUB_ENV"
+          echo "DASHBOARD_SANS_BOLD=$(fc-match -f '%{file}' 'Inter Display:style=Bold' | head -1)" >> "$GITHUB_ENV"
+
+      - name: Generate full Dashboard Sans V2 faces
+        run: python tools/generate-dashboard-sans-v2.py
+
+      - name: Commit generated faces
+        run: |
+          if git diff --quiet -- src/display/DashboardSansV2.h src/display/fonts/DashboardSansV2FullFaces.h; then
+            echo "Generated font data already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/display/DashboardSansV2.h src/display/fonts/DashboardSansV2FullFaces.h
+          git commit -m "Generate full Dashboard Sans V2 charset [generated-fonts]"
+          git push
