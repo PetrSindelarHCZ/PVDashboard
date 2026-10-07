@@ -1877,6 +1877,17 @@ void DashboardApp::onScreenSwitchRequested(const String& screenId) {
 void DashboardApp::onNavigationSubpageChanged(
     const String& screenId,
     uint8_t subpageIndex) {
+
+    if (screenId == "diagnostics") {
+        // The third diagnostics subpage is an exact 800x480 reference image
+        // and intentionally replaces all dashboard chrome. Entering or leaving
+        // it therefore needs one deliberate full redraw.
+        if (subpageIndex == 2 || _dataModel.system.navigationSubpageIndex == 2) {
+            requestDisplayRefresh(true, 0, "diagnostics-v2-reference");
+        }
+        return;
+    }
+
     if (screenId != "weather") return;
     selectWeatherDisplayLocation(subpageIndex, false);
 }
