@@ -2,7 +2,7 @@
 #include "ScreenStyle.h"
 #include "../../include/Version.h"
 #include "../display/DashboardSansV2.h"
-#include "../display/DashboardTech.h"
+#include "../display/fonts/KpiFontCandidates.h"
 #include "../display/assets/DashboardSansV2Reference.h"
 
 namespace {
@@ -109,40 +109,54 @@ void renderFontMatrixPage(
 }
 
 
-void renderDashboardTechPage(IDisplay& display) {
+void renderKpiFontCandidatesPage(IDisplay& display) {
+    struct Candidate {
+        const char* name;
+        const DashboardSansV2::Face* face;
+    };
+
+    const Candidate candidates[] = {
+        {"CHAKRA PETCH BOLD", &KpiFontCandidates::ChakraPetch32Face},
+        {"QUANTICO BOLD", &KpiFontCandidates::Quantico32Face},
+        {"ALDRICH", &KpiFontCandidates::Aldrich32Face},
+    };
+
     constexpr int16_t cardX = 104;
     constexpr int16_t cardW = 656;
-    constexpr int16_t cardH = 82;
-    constexpr int16_t firstY = 78;
-    constexpr int16_t gap = 10;
-    const uint8_t sizes[] = {24, 28, 32, 36};
-    const char* samples[] = {
-        "FVE 5.4 kW",
-        "23.4 kWh",
-        "-420 W",
-        "78 %"
-    };
+    constexpr int16_t cardH = 112;
+    constexpr int16_t firstY = 84;
+    constexpr int16_t gap = 9;
+    constexpr int16_t labelW = 150;
 
     ScreenStyle::useStrongBody(display);
     display.setCursor(108, 61);
-    display.print("DASHBOARD TECH - KPI FONT");
+    display.print("KPI DISPLAY FONT - 32 PX");
 
-    for (uint8_t i = 0; i < 4; ++i) {
+    for (uint8_t i = 0; i < 3; ++i) {
         const int16_t y = firstY + static_cast<int16_t>(i) * (cardH + gap);
-        const uint8_t px = sizes[i];
-
         display.drawRoundRect(cardX, y, cardW, cardH, 5, 0);
 
         ScreenStyle::useStrongBody(display);
-        display.setCursor(cardX + 14, y + 27);
-        display.printf("%u BOLD", static_cast<unsigned>(px));
+        display.setCursor(cardX + 12, y + 29);
+        display.print(candidates[i].name);
 
-        const int16_t dividerX = cardX + 128;
+        ScreenStyle::useBody(display);
+        display.setCursor(cardX + 12, y + 57);
+        display.print("TRUE TTF -> 1 BIT");
+
+        const int16_t dividerX = cardX + labelW;
         display.drawLine(dividerX, y + 8, dividerX, y + cardH - 8, 0);
 
         const int16_t textX = dividerX + 18;
-        const int16_t textTop = y + (cardH - px) / 2;
-        DashboardTech::drawText(display, textX, textTop, samples[i], px);
+        DashboardSansV2::drawText(
+            display, textX, y + 15,
+            *candidates[i].face,
+            "FVE 5.4 kW");
+
+        DashboardSansV2::drawText(
+            display, textX, y + 62,
+            *candidates[i].face,
+            "23.4 kWh");
     }
 }
 
@@ -297,7 +311,7 @@ void DiagnosticsScreen::render(IDisplay& display, const DataModel& dm) {
             V2LargeSizes,
             "DASHBOARD SANS V2 - 20..36");
     } else {
-        renderDashboardTechPage(display);
+        renderKpiFontCandidatesPage(display);
     }
 
     ScreenStyle::drawSubpageDots(display, subpage, 5);
@@ -332,14 +346,13 @@ void DiagnosticsScreen::buildNavigationLayout(
     if (subpage == 3) {
         constexpr int16_t cardX = 104;
         constexpr int16_t cardW = 656;
-        constexpr int16_t cardH = 82;
-        constexpr int16_t firstY = 78;
-        constexpr int16_t gap = 10;
-        const uint8_t sizes[] = {24, 28, 32, 36};
+        constexpr int16_t cardH = 112;
+        constexpr int16_t firstY = 84;
+        constexpr int16_t gap = 9;
 
-        for (uint8_t i = 0; i < 4; ++i) {
+        for (uint8_t i = 0; i < 3; ++i) {
             layout.add(
-                "font-tech-" + String(sizes[i]),
+                "font-kpi-candidate-" + String(i),
                 cardX,
                 firstY + static_cast<int16_t>(i) * (cardH + gap),
                 cardW,
