@@ -251,6 +251,11 @@ void DiagnosticsScreen::buildNavigationLayout(
         return;
     }
 
+    if (subpage == 2) {
+        // Exact reference page is visual-only; keep page focus empty.
+        return;
+    }
+
     for (uint8_t i = 0; i < 12; ++i) {
         const uint8_t column = i / 6;
         const uint8_t row = i % 6;
