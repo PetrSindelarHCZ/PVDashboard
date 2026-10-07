@@ -1,68 +1,60 @@
 #include "DiagnosticsScreen.h"
 #include "ScreenStyle.h"
 #include "../../include/Version.h"
-#include "../display/DashboardSans.h"
+#include "../display/DashboardSansV2.h"
 #include "../display/assets/DashboardSansV2Reference.h"
 
 namespace {
 
-constexpr uint8_t DashboardSansSizes[] = {
-    8, 10, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36
+constexpr int16_t V2CardX = 88;
+constexpr int16_t V2CardW = 684;
+constexpr int16_t V2CardH = 68;
+constexpr int16_t V2FirstY = 66;
+constexpr int16_t V2Gap = 9;
+
+struct V2Sample {
+    uint8_t px;
+    DashboardSansV2::Weight weight;
+    const char* label;
+    const char* text;
 };
 
-constexpr int16_t FontGridX = 88;
-constexpr int16_t FontGridY = 63;
-constexpr int16_t FontColumnW = 337;
-constexpr int16_t FontRowH = 62;
-constexpr int16_t FontColumnGap = 12;
-constexpr int16_t FontRowGap = 4;
+const V2Sample V2Samples[] = {
+    {12, DashboardSansV2::Weight::Regular, "12 REGULAR", "Dnes 23.4 kWh"},
+    {16, DashboardSansV2::Weight::Regular, "16 REGULAR", "Dnes 23.4 kWh"},
+    {16, DashboardSansV2::Weight::Bold,    "16 BOLD",    "FVE 5.4 kW"},
+    {22, DashboardSansV2::Weight::Bold,    "22 BOLD",    "FVE 5.4 kW"},
+    {28, DashboardSansV2::Weight::Bold,    "28 BOLD",    "23.4 kWh"},
+    {36, DashboardSansV2::Weight::Bold,    "36 BOLD",    "5.4 kW"},
+};
 
-void drawDashboardSansSample(
-    IDisplay& display,
-    int16_t x,
-    int16_t y,
-    uint8_t px) {
-
-    display.drawRoundRect(x, y, FontColumnW, FontRowH, 4, 0);
-
+void renderFontTest(IDisplay& display) {
     ScreenStyle::useStrongBody(display);
-    display.setCursor(x + 8, y + 24);
-    display.printf("%u", static_cast<unsigned>(px));
+    display.setCursor(92, 58);
+    display.print("DASHBOARD SANS V2 - FAZE A");
 
-    const int16_t sampleX = x + 47;
+    for (uint8_t i = 0; i < 6; ++i) {
+        const int16_t y =
+            V2FirstY + static_cast<int16_t>(i) * (V2CardH + V2Gap);
 
-    if (px <= 14) {
-        DashboardSans::drawText(
-            display, sampleX, y + 5,
-            "Příliš žluťoučký kůň",
-            px, DashboardSans::Weight::Regular);
-        DashboardSans::drawText(
-            display, sampleX, y + 31,
-            "FVE 5.4 kW Dnes 23.4",
-            px, DashboardSans::Weight::Bold);
-    } else if (px <= 20) {
-        DashboardSans::drawText(
-            display, sampleX, y + 5,
-            "Příliš žluťoučký",
-            px, DashboardSans::Weight::Regular);
-        DashboardSans::drawText(
-            display, sampleX, y + 31,
-            "FVE 5.4 kW",
-            px, DashboardSans::Weight::Bold);
-    } else if (px <= 24) {
-        DashboardSans::drawText(
-            display, sampleX, y + 5,
-            "Český Brod",
-            px, DashboardSans::Weight::Regular);
-        DashboardSans::drawText(
-            display, sampleX, y + 31,
-            "5.4 kW",
-            px, DashboardSans::Weight::Bold);
-    } else {
-        DashboardSans::drawText(
-            display, sampleX, y + 12,
-            "5.4 kW",
-            px, DashboardSans::Weight::Bold);
+        display.drawRoundRect(V2CardX, y, V2CardW, V2CardH, 4, 0);
+
+        ScreenStyle::useBody(display);
+        display.setCursor(V2CardX + 10, y + 25);
+        display.print(V2Samples[i].label);
+
+        display.drawLine(
+            V2CardX + 150, y + 8,
+            V2CardX + 150, y + V2CardH - 8,
+            0);
+
+        DashboardSansV2::drawText(
+            display,
+            V2CardX + 170,
+            y + 5,
+            V2Samples[i].text,
+            V2Samples[i].px,
+            V2Samples[i].weight);
     }
 }
 
@@ -186,23 +178,6 @@ void renderDiagnosticsOverview(IDisplay& display, const DataModel& dm) {
     display.printf("Obrazovka: %s", dm.system.currentScreenId.c_str());
 }
 
-void renderFontTest(IDisplay& display) {
-    ScreenStyle::useStrongBody(display);
-    display.setCursor(92, 58);
-    display.print("DASHBOARD SANS v1");
-
-    for (uint8_t i = 0; i < 12; ++i) {
-        const uint8_t column = i / 6;
-        const uint8_t row = i % 6;
-        const int16_t x =
-            FontGridX + static_cast<int16_t>(column) *
-            (FontColumnW + FontColumnGap);
-        const int16_t y =
-            FontGridY + static_cast<int16_t>(row) *
-            (FontRowH + FontRowGap);
-        drawDashboardSansSample(display, x, y, DashboardSansSizes[i]);
-    }
-}
 
 } // namespace
 
@@ -256,16 +231,12 @@ void DiagnosticsScreen::buildNavigationLayout(
         return;
     }
 
-    for (uint8_t i = 0; i < 12; ++i) {
-        const uint8_t column = i / 6;
-        const uint8_t row = i % 6;
+    for (uint8_t i = 0; i < 6; ++i) {
         layout.add(
-            "font-" + String(DashboardSansSizes[i]),
-            FontGridX + static_cast<int16_t>(column) *
-                (FontColumnW + FontColumnGap),
-            FontGridY + static_cast<int16_t>(row) *
-                (FontRowH + FontRowGap),
-            FontColumnW,
-            FontRowH);
+            "font-v2-" + String(V2Samples[i].px) + "-" + String(i),
+            V2CardX,
+            V2FirstY + static_cast<int16_t>(i) * (V2CardH + V2Gap),
+            V2CardW,
+            V2CardH);
     }
 }
