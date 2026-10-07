@@ -2,35 +2,11 @@
 #include "../../DashboardSansV2Types.h"
 namespace DashboardSansV2 {
 static const char Bold16BitmapBase64[] PROGMEM =
-"Hg/nGYdg+D4Ng2HcY/h4Oe+mGGGGGGGGHh/GOYYBgMBwOBweB/n+Hh/GOYYDg8D4BmGYZ/h4B4DwPg3DuGcY5/7/wHAOAcB/H8YBgH4fxjgG4Zjn8HgeD+cZgG4fzzmGYZxj+Hj/f4DA4GBwMDgYHAwOAB4fxjmGc4/D8YbhmGf4+B4fxjmGYZjn+HYBmOfweGZgZkwADAMAwf5/gwDAMAAAfPgAAAAAZgAGZgA4MNhBkYMmA8gAMADOATYGTBiYIbDBwGAwGAxmY3Hw+H4zGcxw4YfjxmPGY85zznfsNmw2bD58HngcOBw4YDAYDcfzmY7HY7HY7HB/v9gMBgP9/sBgMBgMAODmDmDHDDHDGDmBuBsB8A8A4A4A8B8BsBuDmDGD/H/GDGDuBn8P8YcwZg7B2DsHYMw5/j+Abj+czHY7HY7HY4AeP5jMb/sBjP4eADx+Z3B+D+N/PA==";
+"f/B/8H/wcABwAHAAcAB/4H/gf+BwAHAAcABwAHAAcADwHnAccBx4PDg4ODg8eBxwHHAc8A7gDuAO4AfAB8AHwH/wf/B/8HAAcABwAH/wf/B/8HAAcABwAHAAf/B/8H/wf+B/4H/gcABwAHeAf8B54HDwAHAAcHBwcPB94D/AD4BwcHAAAeAD4APgB+AO4A7gHOA44DjgcOB/+H/4AOAA4ADgAOBwAHAAcABwAHAAceBxwHOAdwB+AH8AfwBzgHPAceBw4PBwePDwcHD4cHD4cHD48HjY4Dnc4Dnc4Dnc4B2NwB+PwB+PwB+PwA8HgA8HgA8HgA==";
 static const Glyph Bold16Glyphs[] PROGMEM = {
-    {32,3,0,3,0,16,0},
-    {48,10,12,10,0,4,0},
-    {49,6,12,6,0,4,15},
-    {50,10,12,10,0,4,24},
-    {51,10,12,10,0,4,39},
-    {52,11,12,11,0,4,54},
-    {53,10,12,10,0,4,71},
-    {54,10,12,10,0,4,86},
-    {55,9,12,9,0,4,101},
-    {56,10,12,10,0,4,115},
-    {57,10,12,10,0,4,130},
-    {46,4,3,4,0,13,145},
-    {44,4,5,4,0,14,147},
-    {43,10,9,10,0,7,150},
-    {45,7,6,7,0,10,162},
-    {58,4,9,4,0,7,168},
-    {37,15,12,15,0,4,173},
-    {107,9,12,9,0,4,196},
-    {87,16,12,16,0,4,210},
-    {104,9,12,9,0,4,234},
-    {70,9,12,9,0,4,248},
-    {86,12,12,11,0,4,262},
-    {65,12,12,11,0,4,280},
-    {68,11,12,11,0,4,298},
-    {110,9,9,9,0,7,315},
-    {101,9,9,9,0,7,326},
-    {115,8,9,8,0,7,337},
+    {32,0,0,4,0,0,0},{70,12,16,12,0,5,0},{86,15,16,15,0,5,32},{69,13,16,13,0,5,64},
+    {53,13,16,13,0,5,96},{46,5,4,5,0,17,128},{52,14,16,14,0,5,132},{107,12,16,12,0,5,164},
+    {87,21,16,21,0,5,196},
 };
-static const Face Bold16Face = {16,20,Bold16Glyphs,27,Bold16BitmapBase64};
-}
+static const Face Bold16Face = {16,27,Bold16Glyphs,9,Bold16BitmapBase64};
+} // namespace DashboardSansV2
