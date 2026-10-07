@@ -121,7 +121,9 @@ void renderKpiFontCandidatesPage(IDisplay& display) {
         {24, &KpiFontCandidates::Quantico24Face,
          "Příliš žluťoučký kůň",
          "áčďéěíňóřšťúůýž"},
-        {28, &KpiFontCandidates::Quantico28Face, "Český Brod", nullptr},
+        {28, &KpiFontCandidates::Quantico28Face,
+         "Český Brod",
+         "ÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ"},
         {32, &KpiFontCandidates::Quantico32Face, "Výroba 5.4 kW", nullptr},
         {36, &KpiFontCandidates::Quantico36Face, "Síť 230 V", nullptr},
     };
@@ -155,17 +157,20 @@ void renderKpiFontCandidatesPage(IDisplay& display) {
         const int16_t textX = dividerX + 18;
 
         if (samples[i].text2 != nullptr) {
+            const int16_t firstLineY = (samples[i].px == 28) ? (y + 4) : (y + 7);
+            const int16_t secondLineY = (samples[i].px == 28) ? (y + 42) : (y + 40);
+
             DashboardSansV2::drawText(
                 display,
                 textX,
-                y + 7,
+                firstLineY,
                 *samples[i].face,
                 samples[i].text);
 
             DashboardSansV2::drawText(
                 display,
                 textX,
-                y + 40,
+                secondLineY,
                 *samples[i].face,
                 samples[i].text2);
         } else {
