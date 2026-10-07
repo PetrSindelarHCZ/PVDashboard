@@ -3,6 +3,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from fontTools.ttLib import TTFont
 from fontTools.pens.ttGlyphPen import TTGlyphPen
+from fontTools.pens.boundsPen import BoundsPen
 from fontTools.misc.transform import Transform
 import base64
 import tempfile
@@ -56,6 +57,19 @@ def glyph_advance(tt, glyph_name):
 def center_dx(tt, base_name, mark_name):
     return round((glyph_advance(tt, base_name) - glyph_advance(tt, mark_name)) / 2)
 
+def glyph_bounds(tt, glyph_name):
+    glyph_set = tt.getGlyphSet()
+    pen = BoundsPen(glyph_set)
+    glyph_set[glyph_name].draw(pen)
+    if pen.bounds is None:
+        return (0, 0, 0, 0)
+    return pen.bounds
+
+def lowercase_accent_top(tt):
+    cmap = unicode_cmap(tt)
+    caron_name = cmap[0x02C7]
+    return glyph_bounds(tt, caron_name)[3]
+
 def add_composite(tt, target_char, base_char, mark_kind, y_shift):
     cmap = unicode_cmap(tt)
     base_name = cmap[ord(base_char)]
@@ -76,9 +90,15 @@ def add_composite(tt, target_char, base_char, mark_kind, y_shift):
         mark_adv = glyph_advance(tt, mark_name) * scale
         dx = round((base_adv - mark_adv) / 2)
 
-        # Lift the smaller ring slightly so it remains clearly detached from
-        # the U/u at 24..36 px.
-        dy = y_shift + (40 if target_char == "ů" else 20)
+        if target_char == "ů":
+            # Align the top of the ring exactly with the top of the normal
+            # lower-case Quantico caron. That makes ů sit on the same visual
+            # diacritic line as č/ě/ň/ř/š/ž.
+            ring_top = glyph_bounds(tt, mark_name)[3]
+            dy = round(lowercase_accent_top(tt) - ring_top * scale)
+        else:
+            dy = y_shift + 20
+
         transform = Transform(scale, 0, 0, scale, dx, dy)
     elif mark_kind == "apostrophe":
         # Quantico's own quotesingle outline, reduced to a Czech d/t caron.
@@ -89,14 +109,15 @@ def add_composite(tt, target_char, base_char, mark_kind, y_shift):
         scale = 0.70
         mark_adv = glyph_advance(tt, mark_name) * scale
         dx = round(base_adv - mark_adv * 0.55)
-        dy = 70
 
-        # The caron on Czech ť needs a little more breathing room than on ď.
-        # Move it slightly right and up in font units so it does not visually
-        # stick to the top-right of the t at 24..36 px.
+        # Put the top of the apostrophe-shaped Czech caron on the same visual
+        # line as the regular lower-case Quantico caron. This applies to both
+        # ď and ť; only ť keeps its extra horizontal breathing room.
+        apostrophe_top = glyph_bounds(tt, mark_name)[3]
+        dy = round(lowercase_accent_top(tt) - apostrophe_top * scale)
+
         if target_char == "ť":
             dx += 35
-            dy += 55
 
         transform = Transform(scale, 0, 0, scale, dx, dy)
     else:
