@@ -223,9 +223,20 @@ void renderDashboardSansV2CharsetPage(IDisplay& display) {
     ScreenStyle::useStrongBody(display);
     display.setCursor(x + 12, 392);
     display.print("14 BOLD");
+
     DashboardSansV2::drawText(
-        display, x + 126, 379,
-        "abcdefghijklmnopqrstuvwxyz 0123456789 °C",
+        display, x + 126, 373,
+        "abcdefghijklmnopqrstuvwxyz",
+        14, DashboardSansV2::Weight::Bold);
+
+    DashboardSansV2::drawText(
+        display, x + 126, 397,
+        "! \" # $ % & ' ( ) * + , - . / : ; < = > ? @",
+        14, DashboardSansV2::Weight::Bold);
+
+    DashboardSansV2::drawText(
+        display, x + 126, 421,
+        "[ \\ ] ^ _ \\x60 { | } ~ ° − × ± ← → ↑ ↓",
         14, DashboardSansV2::Weight::Bold);
 }
 
