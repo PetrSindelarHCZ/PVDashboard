@@ -10,11 +10,12 @@ namespace HomeLayout {
 
 constexpr int16_t DisplayWidth = 800;
 constexpr int16_t DisplayHeight = 480;
-constexpr int16_t ContentLeft = 75;
+constexpr int16_t ContentLeft = 60;
 constexpr int16_t ContentTop = 60;
 constexpr int16_t ContentRight = 785;
 constexpr int16_t ContentBottom = 465;
-constexpr uint8_t GeometryVersion = 3;
+constexpr uint8_t GeometryVersion = 4;
+constexpr int16_t LegacyContentLeft = 75;
 constexpr int16_t LegacyContentTopV1 = 63;
 constexpr int16_t LegacyContentTopV2 = 65;
 
@@ -810,9 +811,11 @@ inline bool parseJson(const String& json, HomeLayoutConfig& config, String* erro
         if (geometryVersion <= 1) previousContentTop = LegacyContentTopV1;
         else if (geometryVersion == 2) previousContentTop = LegacyContentTopV2;
 
+        const int16_t deltaX = ContentLeft - LegacyContentLeft;
         const int16_t deltaY = ContentTop - previousContentTop;
         for (uint8_t i = 0; i < parsed.widgetCount; ++i) {
             HomeLayoutWidgetConfig& widget = parsed.widgets[i];
+            widget.x += deltaX;
             widget.y += deltaY;
             const int16_t overflow =
                 widget.y + widget.height - ContentBottom;
@@ -831,13 +834,13 @@ inline void buildDefault(const DataModel& dm, ScreenLayout& layout) {
     // Seven-card overview matching the visual Home concept:
     // 3 large source cards above, 4 compact operational cards below.
     if (dm.weather.enabled)
-        layout.add("weather-card", LayoutWidgetType::HomeWeatherCard, 75, 60, 225, 215);
+        layout.add("weather-card", LayoutWidgetType::HomeWeatherCard, 60, 60, 225, 215);
 
     if (dm.solar.enabled)
-        layout.add("fve-summary", LayoutWidgetType::HomeFveCard, 315, 60, 225, 215);
+        layout.add("fve-summary", LayoutWidgetType::HomeFveCard, 300, 60, 225, 215);
 
     if (dm.azrouter.enabled)
-        layout.add("azrouter-summary", LayoutWidgetType::HomeAZRouterCard, 555, 60, 230, 215);
+        layout.add("azrouter-summary", LayoutWidgetType::HomeAZRouterCard, 540, 60, 245, 215);
 
     bool hasRfTemperature = false;
     for (uint8_t i = 0; i < dm.rfSensors.sensorCount && i < MaxRfSensors; ++i) {
@@ -848,18 +851,18 @@ inline void buildDefault(const DataModel& dm, ScreenLayout& layout) {
     }
 
     if (hasRfTemperature) {
-        layout.add("indoor-card", LayoutWidgetType::HomeIndoorCard, 75, 290, 155, 175);
-        layout.add("rf-card-1", LayoutWidgetType::HomeRfSensorCard, 240, 290, 155, 175);
+        layout.add("indoor-card", LayoutWidgetType::HomeIndoorCard, 60, 290, 155, 175);
+        layout.add("rf-card-1", LayoutWidgetType::HomeRfSensorCard, 225, 290, 155, 175);
         if (dm.pool.enabled)
-            layout.add("pool-summary", LayoutWidgetType::HomePoolCard, 405, 290, 155, 175);
+            layout.add("pool-summary", LayoutWidgetType::HomePoolCard, 390, 290, 155, 175);
         if (dm.solar.enabled)
-            layout.add("consumption-summary", LayoutWidgetType::HomeConsumptionCard, 570, 290, 215, 175);
+            layout.add("consumption-summary", LayoutWidgetType::HomeConsumptionCard, 555, 290, 230, 175);
     } else {
-        layout.add("indoor-card", LayoutWidgetType::HomeIndoorCard, 75, 290, 210, 175);
+        layout.add("indoor-card", LayoutWidgetType::HomeIndoorCard, 60, 290, 210, 175);
         if (dm.pool.enabled)
-            layout.add("pool-summary", LayoutWidgetType::HomePoolCard, 295, 290, 210, 175);
+            layout.add("pool-summary", LayoutWidgetType::HomePoolCard, 280, 290, 210, 175);
         if (dm.solar.enabled)
-            layout.add("consumption-summary", LayoutWidgetType::HomeConsumptionCard, 515, 290, 270, 175);
+            layout.add("consumption-summary", LayoutWidgetType::HomeConsumptionCard, 500, 290, 285, 175);
     }
 }
 
@@ -882,11 +885,11 @@ inline bool buildDefaultWidget(const DataModel& dm, const String& id,
         return true;
     };
 
-    if (id == "weather-card") return set("weather-card", "weather", 75, 60, 225, 215);
-    if (id == "fve-summary") return set("fve-summary", "fve-summary", 315, 60, 225, 215);
-    if (id == "azrouter-summary") return set("azrouter-summary", "azrouter-summary", 555, 60, 230, 215);
+    if (id == "weather-card") return set("weather-card", "weather", 60, 60, 225, 215);
+    if (id == "fve-summary") return set("fve-summary", "fve-summary", 300, 60, 225, 215);
+    if (id == "azrouter-summary") return set("azrouter-summary", "azrouter-summary", 540, 60, 245, 215);
     if (id == "indoor-card") {
-        if (!set("indoor-card", "indoor", 75, 290, 155, 175)) return false;
+        if (!set("indoor-card", "indoor", 60, 290, 155, 175)) return false;
         result.title = "UVNITŘ";
 
         CustomWidgetElementConfig temperature;
@@ -936,19 +939,19 @@ inline bool buildDefaultWidget(const DataModel& dm, const String& id,
         return true;
     }
     if (id == "pool-summary") {
-        if (!set("pool-summary", "pool-summary", 405, 290, 155, 175)) return false;
+        if (!set("pool-summary", "pool-summary", 390, 290, 155, 175)) return false;
         result.title = "BAZÉN";
         return true;
     }
-    if (id == "consumption-summary") return set("consumption-summary", "consumption-summary", 570, 290, 215, 175);
+    if (id == "consumption-summary") return set("consumption-summary", "consumption-summary", 555, 290, 230, 175);
     if (id == "energy-flow") {
-        if (!set("energy-flow", "energy-flow", 315, 60, 470, 405)) return false;
+        if (!set("energy-flow", "energy-flow", 300, 60, 485, 405)) return false;
         result.title = "ENERGETICKÝ TOK";
         return true;
     }
 
     if (id == "rf-card-1") {
-        if (!set("rf-card-1", "rf-sensor", 240, 290, 155, 175)) return false;
+        if (!set("rf-card-1", "rf-sensor", 225, 290, 155, 175)) return false;
         result.title = "VENKU";
         for (uint8_t i = 0; i < dm.rfSensors.sensorCount && i < MaxRfSensors; ++i) {
             const RfSensorData& sensor = dm.rfSensors.sensors[i];
@@ -961,7 +964,7 @@ inline bool buildDefaultWidget(const DataModel& dm, const String& id,
     }
 
     // Legacy editor template retained for older saved layouts.
-    if (id == "energy-card") return set("energy-card", "energy", 315, 60, 225, 405);
+    if (id == "energy-card") return set("energy-card", "energy", 300, 60, 240, 405);
     return false;
 }
 
