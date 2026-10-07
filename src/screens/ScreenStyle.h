@@ -267,7 +267,7 @@ inline void drawSidebar(IDisplay& d, const DataModel& dm) {
     // První 48px dlaždice začíná 1 px pod bílou dělicí linkou.
     // Linka je na y=HeaderHeight, následuje 1 px mezera a pak dlaždice.
     constexpr int16_t firstCenterY = HeaderHeight + 1 + 24;
-    constexpr int16_t itemStep = 51;
+    constexpr int16_t itemStep = 50;
     int16_t y = firstCenterY;
 
     drawMenuItem(d, y, "home", dm, SidebarIcons::Icon::Home);
