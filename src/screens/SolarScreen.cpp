@@ -6,7 +6,7 @@
 namespace {
 
 void drawUnavailableCard(IDisplay& display, const char* title, const char* text) {
-    ScreenStyle::drawCard(display, 60, 95, 725, 370, title);
+    ScreenStyle::drawCard(display, 65, 95, 720, 370, title);
     ScreenStyle::useMetric(display);
     display.setCursor(105, 180);
     display.print("Nedostupné");
@@ -21,7 +21,7 @@ void renderSolar(IDisplay& display, const DataModel& dm) {
         return;
     }
 
-    ScreenStyle::drawCard(display, 60, 95, 225, 165, "SOLÁRNÍ VÝROBA");
+    ScreenStyle::drawCard(display, 65, 95, 225, 165, "SOLÁRNÍ VÝROBA");
     ScreenStyle::useMetric(display);
     display.setCursor(90, 170);
     if (dm.solar.status.available) display.printf("%.0f W", dm.solar.productionPowerW);
@@ -33,7 +33,7 @@ void renderSolar(IDisplay& display, const DataModel& dm) {
     display.setCursor(90, 238);
     display.printf("Status: %s", dm.solar.status.available ? "Online" : "Nedostupné");
 
-    ScreenStyle::drawCard(display, 300, 95, 225, 165, "BATERIE");
+    ScreenStyle::drawCard(display, 305, 95, 225, 165, "BATERIE");
     ScreenStyle::useMetric(display);
     display.setCursor(330, 170);
     if (dm.solar.status.available && dm.solar.batteryPresent) display.printf("%.0f %%", dm.solar.batterySocPercent);
@@ -54,7 +54,7 @@ void renderSolar(IDisplay& display, const DataModel& dm) {
         display.print("Nedostupné");
     }
 
-    ScreenStyle::drawCard(display, 540, 95, 245, 165, "DISTRIBUCE");
+    ScreenStyle::drawCard(display, 545, 95, 240, 165, "DISTRIBUCE");
     ScreenStyle::useMetric(display);
     display.setCursor(570, 170);
     if (dm.solar.status.available) display.printf("%+.0f W", dm.solar.gridPowerW);
@@ -69,7 +69,7 @@ void renderSolar(IDisplay& display, const DataModel& dm) {
     if (dm.solar.status.available) display.printf("Dům: %.0f W", dm.solar.houseConsumptionW);
     else display.print("Dům: -- W");
 
-    ScreenStyle::drawCard(display, 60, 275, 725, 190, "DNEŠNÍ PRŮBĚH FVE");
+    ScreenStyle::drawCard(display, 65, 275, 720, 190, "DNEŠNÍ PRŮBĚH FVE");
 
     if (!dm.solar.status.available || dm.solar.historyCount == 0) {
         ScreenStyle::useBody(display);
@@ -136,8 +136,8 @@ void SolarScreen::render(IDisplay& display, const DataModel& dm) {
 
 void SolarScreen::buildNavigationLayout(const DataModel&, NavigationLayout& layout) const {
     layout.clear();
-    layout.add("goodwe-production", 60, 95, 225, 165);
-    layout.add("goodwe-battery", 300, 95, 225, 165);
-    layout.add("goodwe-grid", 540, 95, 245, 165);
-    layout.add("goodwe-history", 60, 275, 725, 190);
+    layout.add("goodwe-production", 65, 95, 225, 165);
+    layout.add("goodwe-battery", 305, 95, 225, 165);
+    layout.add("goodwe-grid", 545, 95, 240, 165);
+    layout.add("goodwe-history", 65, 275, 720, 190);
 }
