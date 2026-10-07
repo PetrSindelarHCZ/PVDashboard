@@ -6,11 +6,12 @@
 
 namespace {
 
-constexpr int16_t V2CardX = 88;
-constexpr int16_t V2CardW = 684;
-constexpr int16_t V2CardH = 68;
-constexpr int16_t V2FirstY = 66;
-constexpr int16_t V2Gap = 9;
+constexpr int16_t V2GridX = 88;
+constexpr int16_t V2GridY = 66;
+constexpr int16_t V2CardW = 335;
+constexpr int16_t V2CardH = 122;
+constexpr int16_t V2ColumnGap = 12;
+constexpr int16_t V2RowGap = 8;
 
 struct V2Sample {
     uint8_t px;
@@ -34,24 +35,30 @@ void renderFontTest(IDisplay& display) {
     display.print("DASHBOARD SANS V2 - FAZE A");
 
     for (uint8_t i = 0; i < 6; ++i) {
+        const uint8_t column = i % 2;
+        const uint8_t row = i / 2;
+        const int16_t x =
+            V2GridX + static_cast<int16_t>(column) *
+            (V2CardW + V2ColumnGap);
         const int16_t y =
-            V2FirstY + static_cast<int16_t>(i) * (V2CardH + V2Gap);
+            V2GridY + static_cast<int16_t>(row) *
+            (V2CardH + V2RowGap);
 
-        display.drawRoundRect(V2CardX, y, V2CardW, V2CardH, 4, 0);
+        display.drawRoundRect(x, y, V2CardW, V2CardH, 4, 0);
 
         ScreenStyle::useBody(display);
-        display.setCursor(V2CardX + 10, y + 25);
+        display.setCursor(x + 10, y + 25);
         display.print(V2Samples[i].label);
 
         display.drawLine(
-            V2CardX + 150, y + 8,
-            V2CardX + 150, y + V2CardH - 8,
+            x + 8, y + 34,
+            x + V2CardW - 8, y + 34,
             0);
 
         DashboardSansV2::drawText(
             display,
-            V2CardX + 170,
-            y + 5,
+            x + 14,
+            y + 46,
             V2Samples[i].text,
             V2Samples[i].px,
             V2Samples[i].weight);
@@ -232,10 +239,14 @@ void DiagnosticsScreen::buildNavigationLayout(
     }
 
     for (uint8_t i = 0; i < 6; ++i) {
+        const uint8_t column = i % 2;
+        const uint8_t row = i / 2;
         layout.add(
             "font-v2-" + String(V2Samples[i].px) + "-" + String(i),
-            V2CardX,
-            V2FirstY + static_cast<int16_t>(i) * (V2CardH + V2Gap),
+            V2GridX + static_cast<int16_t>(column) *
+                (V2CardW + V2ColumnGap),
+            V2GridY + static_cast<int16_t>(row) *
+                (V2CardH + V2RowGap),
             V2CardW,
             V2CardH);
     }
