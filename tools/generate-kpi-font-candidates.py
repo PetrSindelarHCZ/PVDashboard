@@ -29,6 +29,14 @@ SYNTH = {
     "ů": ("u", "ring"), "Ů": ("U", "ring"),
 }
 
+# Accent donors already drawn by the original Quantico designer. We extract
+# only the diacritic pixels by subtracting the unaccented base glyph, then
+# reuse that exact Quantico accent on the missing Czech glyphs.
+ACCENT_DONORS = {
+    "caron": [("ř", "r"), ("š", "s"), ("ž", "z")],
+    "ring": [("å", "a"), ("Å", "A")],
+}
+
 def best_cmap(path: Path):
     tt = TTFont(str(path), fontNumber=0)
     return tt.getBestCmap() or {}
@@ -77,68 +85,133 @@ def pack_bitmap(img):
                 data[y * stride + x // 8] |= 0x80 >> (x & 7)
     return bytes(data)
 
-def stroke(draw, points, width):
-    draw.line(points, fill=255, width=max(1, width), joint="curve")
-
-def render_synth(font, base, accent, target_height):
-    left, top, right, bottom = font.getbbox(base, anchor="ls")
-    base_w = max(1, right - left)
-    base_h = max(1, bottom - top)
-
-    accent_w = max(5, round(target_height * 0.26))
-    accent_h = max(3, round(target_height * 0.15))
-    gap = max(1, round(target_height * 0.05))
-    thick = max(1, round(target_height * 0.07))
-
-    canvas_left = left
-    canvas_right = right
-    canvas_top = top
-    canvas_bottom = bottom
-
-    if accent in ("caron", "ring"):
-        center = (left + right) // 2
-        canvas_top = min(canvas_top, top - accent_h - gap)
-        canvas_left = min(canvas_left, center - accent_w // 2 - thick)
-        canvas_right = max(canvas_right, center + accent_w // 2 + thick)
-    elif accent == "apostrophe":
-        # Czech ď/ť use an apostrophe-like caron at the upper-right.
-        canvas_right = max(canvas_right, right + accent_w // 2 + thick)
-        canvas_top = min(canvas_top, top - accent_h // 3)
-
-    w = max(1, canvas_right - canvas_left)
-    h = max(1, canvas_bottom - canvas_top)
+def render_on_common_canvas(font, text, bounds):
+    left, top, right, bottom = bounds
+    w = max(1, right - left)
+    h = max(1, bottom - top)
     img = Image.new("L", (w, h), 0)
     draw = ImageDraw.Draw(img)
+    draw.text((-left, -top), text, font=font, fill=255, anchor="ls")
+    return img.point(lambda p: 255 if p >= 128 else 0)
 
-    # Baseline is y=0 in font coordinates, translated to canvas space.
-    draw.text((-canvas_left, -canvas_top), base, font=font, fill=255, anchor="ls")
+def extract_accent(font, accented, base):
+    ab = font.getbbox(accented, anchor="ls")
+    bb = font.getbbox(base, anchor="ls")
+    bounds = (
+        min(ab[0], bb[0]),
+        min(ab[1], bb[1]),
+        max(ab[2], bb[2]),
+        max(ab[3], bb[3]),
+    )
 
-    if accent == "caron":
-        center = (left + right) // 2 - canvas_left
-        y0 = top - accent_h - gap - canvas_top
-        y1 = top - gap - canvas_top
-        stroke(draw, [(center - accent_w // 2, y0),
-                      (center, y1),
-                      (center + accent_w // 2, y0)], thick)
-    elif accent == "ring":
-        center = (left + right) // 2 - canvas_left
-        y0 = top - accent_h - gap - canvas_top
-        x0 = center - accent_w // 3
-        x1 = center + accent_w // 3
-        y1 = y0 + accent_h
-        draw.ellipse((x0, y0, x1, y1), outline=255, width=thick)
-    elif accent == "apostrophe":
-        x0 = right - canvas_left + max(1, thick // 2)
-        y0 = top - canvas_top
-        stroke(draw, [(x0 + accent_w // 3, y0),
-                      (x0, y0 + accent_h)], thick)
+    ai = render_on_common_canvas(font, accented, bounds)
+    bi = render_on_common_canvas(font, base, bounds)
 
-    img = img.point(lambda p: 255 if p >= 128 else 0)
+    diff = Image.new("L", ai.size, 0)
+    ap = ai.load()
+    bp = bi.load()
+    dp = diff.load()
+
+    for y in range(ai.height):
+        for x in range(ai.width):
+            if ap[x, y] and not bp[x, y]:
+                dp[x, y] = 255
+
+    bbox = diff.getbbox()
+    if not bbox:
+        raise RuntimeError(f"Could not extract accent from {accented}/{base}")
+
+    accent = diff.crop(bbox)
+    # Position in baseline font coordinates.
+    accent_left = bounds[0] + bbox[0]
+    accent_top = bounds[1] + bbox[1]
+    return accent, accent_left, accent_top
+
+def build_accent_templates(font, cmap):
+    templates = {}
+
+    for accent_name, donors in ACCENT_DONORS.items():
+        for accented, base in donors:
+            if ord(accented) in cmap and ord(base) in cmap:
+                accent, left, top = extract_accent(font, accented, base)
+                base_box = font.getbbox(base, anchor="ls")
+                donor_center = (base_box[0] + base_box[2]) / 2.0
+                accent_center = left + accent.width / 2.0
+                templates[accent_name] = {
+                    "img": accent,
+                    "top": top,
+                    "center_delta": accent_center - donor_center,
+                    "base_top": base_box[1],
+                }
+                break
+
+    # Czech ď/ť use the apostrophe-shaped caron. Quantico does not contain
+    # those precomposed glyphs, so use Quantico's own apostrophe artwork rather
+    # than drawing a synthetic slash.
+    if ord("'") in cmap:
+        box = font.getbbox("'", anchor="ls")
+        img = render_on_common_canvas(font, "'", box)
+        templates["apostrophe"] = {
+            "img": img,
+            "top": box[1],
+            "left": box[0],
+        }
+
+    return templates
+
+def render_synth(font, base, accent, target_height, templates):
+    left, top, right, bottom = font.getbbox(base, anchor="ls")
+
+    if accent not in templates:
+        raise RuntimeError(f"No Quantico accent template available for {accent}")
+
+    base_img = render_on_common_canvas(font, base, (left, top, right, bottom))
+    tpl = templates[accent]
+    accent_img = tpl["img"]
+
+    if accent in ("caron", "ring"):
+        base_center = (left + right) / 2.0
+        accent_left = round(
+            base_center + tpl.get("center_delta", 0.0) - accent_img.width / 2.0
+        )
+
+        # Preserve the vertical relationship of the donor accent to its donor
+        # base top. This keeps the accent visually native to Quantico.
+        accent_top = round(
+            top + (tpl["top"] - tpl["base_top"])
+        )
+    else:
+        # Apostrophe-like Czech caron: place Quantico's own apostrophe just
+        # outside the upper-right of d/t, aligned to the cap/x-height area.
+        gap = max(1, round(target_height * 0.04))
+        accent_left = right + gap
+        accent_top = top + max(0, round(target_height * 0.01))
+
+    canvas_left = min(left, accent_left)
+    canvas_top = min(top, accent_top)
+    canvas_right = max(right, accent_left + accent_img.width)
+    canvas_bottom = max(bottom, accent_top + accent_img.height)
+
+    out = Image.new(
+        "L",
+        (max(1, canvas_right - canvas_left),
+         max(1, canvas_bottom - canvas_top)),
+        0,
+    )
+    out.paste(base_img, (left - canvas_left, top - canvas_top))
+    out.paste(
+        accent_img,
+        (accent_left - canvas_left, accent_top - canvas_top),
+        accent_img,
+    )
+    out = out.point(lambda p: 255 if p >= 128 else 0)
+
     adv = max(1, round(font.getlength(base)))
     if accent == "apostrophe":
         adv = max(adv, canvas_right - left)
+
     return {
-        "img": img,
+        "img": out,
         "left": canvas_left,
         "top": canvas_top,
         "advance": adv,
@@ -162,6 +235,15 @@ def render_direct(font, ch):
 def make_face(target_height: int, cmap):
     name = f"Quantico{target_height}"
     font = choose_size(FONT, target_height)
+    templates = build_accent_templates(font, cmap)
+
+    needed_accents = {accent for _, accent in SYNTH.values()}
+    missing_templates = sorted(needed_accents - set(templates.keys()))
+    if missing_templates:
+        raise RuntimeError(
+            "Missing Quantico accent donor templates: " +
+            ", ".join(missing_templates)
+        )
 
     rendered = []
     common_top = 32767
@@ -177,7 +259,7 @@ def make_face(target_height: int, cmap):
             rec["code"] = ord(ch)
         else:
             base, accent = SYNTH[ch]
-            rec = render_synth(font, base, accent, target_height)
+            rec = render_synth(font, base, accent, target_height, templates)
             rec["code"] = ord(ch)
 
         if rec["img"] is not None:
