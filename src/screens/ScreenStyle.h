@@ -234,20 +234,19 @@ inline void drawMenuItem(IDisplay& d, int16_t y, const char* id,
     const bool focused =
         dm.system.navigationSidebarScreenId.equalsIgnoreCase(id);
 
-    constexpr int16_t tileX = 2;
-    constexpr int16_t tileW = 46;
-    constexpr int16_t tileH = 58;
-    constexpr int16_t tileRadius = 8;
+    constexpr int16_t tileX = 1;
+    constexpr int16_t tileW = 48;
+    constexpr int16_t tileH = 48;
     const int16_t tileY = y - tileH / 2;
 
-    if (active) d.fillRoundRect(tileX, tileY, tileW, tileH, tileRadius, 1);
+    if (active) d.fillRect(tileX, tileY, tileW, tileH, 1);
 
     // Inverted sidebar: black background, white active tile.
     // Active screen and navigation cursor remain separate states.
     if (focused) {
         const uint16_t focusColor = active ? 0 : 1;
-        d.drawRoundRect(tileX + 2, tileY + 2, tileW - 4, tileH - 4, tileRadius - 2, focusColor);
-        d.drawRoundRect(tileX + 3, tileY + 3, tileW - 6, tileH - 6, tileRadius - 3, focusColor);
+        d.drawRect(tileX + 2, tileY + 2, tileW - 4, tileH - 4, focusColor);
+        d.drawRect(tileX + 3, tileY + 3, tileW - 6, tileH - 6, focusColor);
     }
 
     const SidebarIcons::Bitmap icon = SidebarIcons::get(iconId);
@@ -266,9 +265,9 @@ inline void drawSidebar(IDisplay& d, const DataModel& dm) {
     d.drawLine(0, HeaderHeight, SidebarWidth - 1, HeaderHeight, 1);
     d.drawLine(SidebarWidth, HeaderHeight, SidebarWidth, Height - 1, 0);
 
-    // Horní položky skládáme těsně pod sebe od horního okraje sidebaru.
-    // Dlaždice mají výšku 58 px; 2 px mezera dává krok 60 px.
-    constexpr int16_t firstCenterY = HeaderHeight + 6 + 29;
+    // Horní položky skládáme od horního okraje sidebaru.
+    // Dlaždice mají 48 x 48 px; krok 60 px nechává 12 px mezeru.
+    constexpr int16_t firstCenterY = HeaderHeight + 6 + 24;
     constexpr int16_t itemStep = 60;
     int16_t y = firstCenterY;
 
@@ -295,7 +294,7 @@ inline void drawSidebar(IDisplay& d, const DataModel& dm) {
     }
 
     // Nastavení / diagnostika zůstává vždy zarovnané ke spodnímu okraji.
-    constexpr int16_t settingsCenterY = Height - 1 - 29;
+    constexpr int16_t settingsCenterY = Height - 1 - 24;
     drawMenuItem(d, settingsCenterY, "diagnostics", dm, SidebarIcons::Icon::Settings);
 }
 
