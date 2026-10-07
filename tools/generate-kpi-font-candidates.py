@@ -67,8 +67,19 @@ def add_composite(tt, target_char, base_char, mark_kind, y_shift):
         transform = Transform(1, 0, 0, 1, dx, y_shift)
     elif mark_kind == "ring":
         mark_name = cmap[0x02DA]  # spacing ring
-        dx = center_dx(tt, base_name, mark_name)
-        transform = Transform(1, 0, 0, 1, dx, y_shift)
+
+        # The stock Quantico spacing ring is visually too large when reused
+        # directly on U/u at our 1-bit KPI sizes. Scale it down while keeping
+        # the original Quantico outline, then center it over the base glyph.
+        scale = 0.75 if target_char == "ů" else 0.80
+        base_adv = glyph_advance(tt, base_name)
+        mark_adv = glyph_advance(tt, mark_name) * scale
+        dx = round((base_adv - mark_adv) / 2)
+
+        # Lift the smaller ring slightly so it remains clearly detached from
+        # the U/u at 24..36 px.
+        dy = y_shift + (25 if target_char == "ů" else 20)
+        transform = Transform(scale, 0, 0, scale, dx, dy)
     elif mark_kind == "apostrophe":
         # Quantico's own quotesingle outline, reduced to a Czech d/t caron.
         # Keep it close to the base rather than looking like a separate quote.
