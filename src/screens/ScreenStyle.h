@@ -16,10 +16,10 @@ constexpr int16_t Width = 800;
 constexpr int16_t Height = 480;
 constexpr int16_t HeaderHeight = 45;
 constexpr int16_t SidebarWidth = 50;
-constexpr int16_t ContentLeft = 65;
-constexpr int16_t ContentRight = 785;
-constexpr int16_t ContentTop = 60;
-constexpr int16_t ContentBottom = 465;
+constexpr int16_t ContentLeft = 50;
+constexpr int16_t ContentRight = 800;
+constexpr int16_t ContentTop = 45;
+constexpr int16_t ContentBottom = 480;
 constexpr int16_t CardRadius = 6;
 
 inline void useTitle(IDisplay& d, uint16_t color = 0) { d.setTextColor(color); d.setUnicodeFont(DisplayFonts::title()); }
