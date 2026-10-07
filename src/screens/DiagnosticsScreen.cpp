@@ -110,53 +110,51 @@ void renderFontMatrixPage(
 
 
 void renderKpiFontCandidatesPage(IDisplay& display) {
-    struct Candidate {
-        const char* name;
+    struct Sample {
+        uint8_t px;
         const DashboardSansV2::Face* face;
+        const char* text;
     };
 
-    const Candidate candidates[] = {
-        {"CHAKRA PETCH BOLD", &KpiFontCandidates::ChakraPetch32Face},
-        {"QUANTICO BOLD", &KpiFontCandidates::Quantico32Face},
-        {"ALDRICH", &KpiFontCandidates::Aldrich32Face},
+    const Sample samples[] = {
+        {24, &KpiFontCandidates::Quantico24Face, "Příliš žluťoučký kůň"},
+        {28, &KpiFontCandidates::Quantico28Face, "Český Brod"},
+        {32, &KpiFontCandidates::Quantico32Face, "Výroba 5.4 kW"},
+        {36, &KpiFontCandidates::Quantico36Face, "Síť 230 V"},
     };
 
     constexpr int16_t cardX = 104;
     constexpr int16_t cardW = 656;
-    constexpr int16_t cardH = 112;
-    constexpr int16_t firstY = 84;
-    constexpr int16_t gap = 9;
-    constexpr int16_t labelW = 150;
+    constexpr int16_t cardH = 82;
+    constexpr int16_t firstY = 78;
+    constexpr int16_t gap = 10;
+    constexpr int16_t labelW = 112;
 
     ScreenStyle::useStrongBody(display);
     display.setCursor(108, 61);
-    display.print("KPI DISPLAY FONT - 32 PX");
+    display.print("DASHBOARD KPI - QUANTICO CZ");
 
-    for (uint8_t i = 0; i < 3; ++i) {
+    for (uint8_t i = 0; i < 4; ++i) {
         const int16_t y = firstY + static_cast<int16_t>(i) * (cardH + gap);
         display.drawRoundRect(cardX, y, cardW, cardH, 5, 0);
 
         ScreenStyle::useStrongBody(display);
-        display.setCursor(cardX + 12, y + 29);
-        display.print(candidates[i].name);
+        display.setCursor(cardX + 12, y + 30);
+        display.printf("%u BOLD", static_cast<unsigned>(samples[i].px));
 
         ScreenStyle::useBody(display);
-        display.setCursor(cardX + 12, y + 57);
-        display.print("TRUE TTF -> 1 BIT");
+        display.setCursor(cardX + 12, y + 58);
+        display.print("1 BIT");
 
         const int16_t dividerX = cardX + labelW;
         display.drawLine(dividerX, y + 8, dividerX, y + cardH - 8, 0);
 
-        const int16_t textX = dividerX + 18;
         DashboardSansV2::drawText(
-            display, textX, y + 15,
-            *candidates[i].face,
-            "FVE 5.4 kW");
-
-        DashboardSansV2::drawText(
-            display, textX, y + 62,
-            *candidates[i].face,
-            "23.4 kWh");
+            display,
+            dividerX + 18,
+            y + 14,
+            *samples[i].face,
+            samples[i].text);
     }
 }
 
@@ -346,13 +344,13 @@ void DiagnosticsScreen::buildNavigationLayout(
     if (subpage == 3) {
         constexpr int16_t cardX = 104;
         constexpr int16_t cardW = 656;
-        constexpr int16_t cardH = 112;
-        constexpr int16_t firstY = 84;
-        constexpr int16_t gap = 9;
+        constexpr int16_t cardH = 82;
+        constexpr int16_t firstY = 78;
+        constexpr int16_t gap = 10;
 
-        for (uint8_t i = 0; i < 3; ++i) {
+        for (uint8_t i = 0; i < 4; ++i) {
             layout.add(
-                "font-kpi-candidate-" + String(i),
+                "font-kpi-quantico-" + String(i),
                 cardX,
                 firstY + static_cast<int16_t>(i) * (cardH + gap),
                 cardW,
