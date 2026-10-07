@@ -240,12 +240,12 @@ inline void drawMenuItem(IDisplay& d, int16_t y, const char* id,
     constexpr int16_t tileRadius = 8;
     const int16_t tileY = y - tileH / 2;
 
-    if (active) d.fillRoundRect(tileX, tileY, tileW, tileH, tileRadius, 0);
+    if (active) d.fillRoundRect(tileX, tileY, tileW, tileH, tileRadius, 1);
 
-    // Active screen and navigation cursor are intentionally separate states.
-    // A black tile means "currently displayed"; the extra ring means "cursor".
+    // Inverted sidebar: black background, white active tile.
+    // Active screen and navigation cursor remain separate states.
     if (focused) {
-        const uint16_t focusColor = active ? 1 : 0;
+        const uint16_t focusColor = active ? 0 : 1;
         d.drawRoundRect(tileX + 2, tileY + 2, tileW - 4, tileH - 4, tileRadius - 2, focusColor);
         d.drawRoundRect(tileX + 3, tileY + 3, tileW - 6, tileH - 6, tileRadius - 3, focusColor);
     }
@@ -257,11 +257,12 @@ inline void drawMenuItem(IDisplay& d, int16_t y, const char* id,
                      icon.data,
                      icon.width,
                      icon.height,
-                     active ? 1 : 0);
+                     active ? 0 : 1);
     }
 }
 
 inline void drawSidebar(IDisplay& d, const DataModel& dm) {
+    d.fillRect(0, HeaderHeight, SidebarWidth, Height - HeaderHeight, 0);
     d.drawLine(SidebarWidth, HeaderHeight, SidebarWidth, Height - 1, 0);
 
     // Horní položky skládáme těsně pod sebe od horního okraje sidebaru.
