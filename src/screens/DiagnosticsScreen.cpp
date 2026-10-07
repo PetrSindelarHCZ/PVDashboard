@@ -2,6 +2,7 @@
 #include "ScreenStyle.h"
 #include "../../include/Version.h"
 #include "../display/DashboardSansV2.h"
+#include "../display/DashboardTech.h"
 #include "../display/assets/DashboardSansV2Reference.h"
 
 namespace {
@@ -104,6 +105,44 @@ void renderFontMatrixPage(
             sample,
             px,
             DashboardSansV2::Weight::Bold);
+    }
+}
+
+
+void renderDashboardTechPage(IDisplay& display) {
+    constexpr int16_t cardX = 104;
+    constexpr int16_t cardW = 656;
+    constexpr int16_t cardH = 82;
+    constexpr int16_t firstY = 78;
+    constexpr int16_t gap = 10;
+    const uint8_t sizes[] = {24, 28, 32, 36};
+    const char* samples[] = {
+        "FVE 5.4 kW",
+        "23.4 kWh",
+        "-420 W",
+        "78 %"
+    };
+
+    ScreenStyle::useStrongBody(display);
+    display.setCursor(108, 61);
+    display.print("DASHBOARD TECH - KPI FONT");
+
+    for (uint8_t i = 0; i < 4; ++i) {
+        const int16_t y = firstY + static_cast<int16_t>(i) * (cardH + gap);
+        const uint8_t px = sizes[i];
+
+        display.drawRoundRect(cardX, y, cardW, cardH, 5, 0);
+
+        ScreenStyle::useStrongBody(display);
+        display.setCursor(cardX + 14, y + 27);
+        display.printf("%u BOLD", static_cast<unsigned>(px));
+
+        const int16_t dividerX = cardX + 128;
+        display.drawLine(dividerX, y + 8, dividerX, y + cardH - 8, 0);
+
+        const int16_t textX = dividerX + 18;
+        const int16_t textTop = y + (cardH - px) / 2;
+        DashboardTech::drawText(display, textX, textTop, samples[i], px);
     }
 }
 
@@ -232,11 +271,11 @@ void renderDiagnosticsOverview(IDisplay& display, const DataModel& dm) {
 
 void DiagnosticsScreen::render(IDisplay& display, const DataModel& dm) {
     const uint8_t subpage =
-        dm.system.navigationSubpageIndex < 4
+        dm.system.navigationSubpageIndex < 5
             ? dm.system.navigationSubpageIndex
             : 0;
 
-    if (subpage == 3) {
+    if (subpage == 4) {
         // Exact 800x480 / 1-bit V2 reference. Do not draw dashboard chrome
         // over it; this page is intended for direct panel evaluation.
         renderDashboardSansV2Reference(display);
@@ -252,14 +291,16 @@ void DiagnosticsScreen::render(IDisplay& display, const DataModel& dm) {
             display,
             V2SmallSizes,
             "DASHBOARD SANS V2 - 8..18");
-    } else {
+    } else if (subpage == 2) {
         renderFontMatrixPage(
             display,
             V2LargeSizes,
             "DASHBOARD SANS V2 - 20..36");
+    } else {
+        renderDashboardTechPage(display);
     }
 
-    ScreenStyle::drawSubpageDots(display, subpage, 4);
+    ScreenStyle::drawSubpageDots(display, subpage, 5);
 
     NavigationLayout navigationLayout;
     buildNavigationLayout(dm, navigationLayout);
@@ -273,7 +314,7 @@ void DiagnosticsScreen::buildNavigationLayout(
     layout.clear();
 
     const uint8_t subpage =
-        dm.system.navigationSubpageIndex < 4
+        dm.system.navigationSubpageIndex < 5
             ? dm.system.navigationSubpageIndex
             : 0;
 
@@ -283,8 +324,27 @@ void DiagnosticsScreen::buildNavigationLayout(
         return;
     }
 
-    if (subpage == 3) {
+    if (subpage == 4) {
         // Exact reference page is visual-only; keep page focus empty.
+        return;
+    }
+
+    if (subpage == 3) {
+        constexpr int16_t cardX = 104;
+        constexpr int16_t cardW = 656;
+        constexpr int16_t cardH = 82;
+        constexpr int16_t firstY = 78;
+        constexpr int16_t gap = 10;
+        const uint8_t sizes[] = {24, 28, 32, 36};
+
+        for (uint8_t i = 0; i < 4; ++i) {
+            layout.add(
+                "font-tech-" + String(sizes[i]),
+                cardX,
+                firstY + static_cast<int16_t>(i) * (cardH + gap),
+                cardW,
+                cardH);
+        }
         return;
     }
 
