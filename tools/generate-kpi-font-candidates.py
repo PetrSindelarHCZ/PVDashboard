@@ -70,6 +70,11 @@ def lowercase_accent_top(tt):
     caron_name = cmap[0x02C7]
     return glyph_bounds(tt, caron_name)[3]
 
+def uppercase_accent_top(tt):
+    cmap = unicode_cmap(tt)
+    caron_name = cmap[0x02C7]
+    return glyph_bounds(tt, caron_name)[3] + 195
+
 def add_composite(tt, target_char, base_char, mark_kind, y_shift):
     cmap = unicode_cmap(tt)
     base_name = cmap[ord(base_char)]
@@ -90,14 +95,15 @@ def add_composite(tt, target_char, base_char, mark_kind, y_shift):
         mark_adv = glyph_advance(tt, mark_name) * scale
         dx = round((base_adv - mark_adv) / 2)
 
+        ring_top = glyph_bounds(tt, mark_name)[3]
+
         if target_char == "ů":
-            # Align the top of the ring exactly with the top of the normal
-            # lower-case Quantico caron. That makes ů sit on the same visual
-            # diacritic line as č/ě/ň/ř/š/ž.
-            ring_top = glyph_bounds(tt, mark_name)[3]
+            # Keep lowercase ů aligned with the normal lower-case accent line.
             dy = round(lowercase_accent_top(tt) - ring_top * scale)
         else:
-            dy = y_shift + 20
+            # Align uppercase Ů with the same top line as uppercase Czech
+            # diacritics (Č/Ď/Ě/Ň/Ř/Š/Ť/Ž).
+            dy = round(uppercase_accent_top(tt) - ring_top * scale)
 
         transform = Transform(scale, 0, 0, scale, dx, dy)
     elif mark_kind == "apostrophe":
@@ -106,7 +112,7 @@ def add_composite(tt, target_char, base_char, mark_kind, y_shift):
         mark_name = cmap[0x0027]
         base_adv = glyph_advance(tt, base_name)
         # 70% retains Quantico's stroke character but shortens the mark.
-        scale = 0.70
+        scale = 0.78
         mark_adv = glyph_advance(tt, mark_name) * scale
         dx = round(base_adv - mark_adv * 0.55)
 
