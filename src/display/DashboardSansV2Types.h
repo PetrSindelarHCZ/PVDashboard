@@ -21,8 +21,36 @@ struct Face {
     uint8_t lineHeight;
     const Glyph* glyphs;
     uint8_t glyphCount;
-    const uint8_t* bitmap;
+    const char* bitmapBase64;
 };
+
+inline int8_t decodeBase64(char ch) {
+    if (ch >= 'A' && ch <= 'Z') return ch - 'A';
+    if (ch >= 'a' && ch <= 'z') return ch - 'a' + 26;
+    if (ch >= '0' && ch <= '9') return ch - '0' + 52;
+    if (ch == '+') return 62;
+    if (ch == '/') return 63;
+    return 0;
+}
+
+inline uint8_t bitmapByte(const Face& face, uint16_t byteIndex) {
+    const uint32_t group = byteIndex / 3u;
+    const uint8_t rem = byteIndex % 3u;
+    const uint32_t base = group * 4u;
+
+    const uint8_t a = decodeBase64(
+        static_cast<char>(pgm_read_byte(face.bitmapBase64 + base + 0)));
+    const uint8_t b = decodeBase64(
+        static_cast<char>(pgm_read_byte(face.bitmapBase64 + base + 1)));
+    const uint8_t c = decodeBase64(
+        static_cast<char>(pgm_read_byte(face.bitmapBase64 + base + 2)));
+    const uint8_t d = decodeBase64(
+        static_cast<char>(pgm_read_byte(face.bitmapBase64 + base + 3)));
+
+    if (rem == 0) return static_cast<uint8_t>((a << 2) | (b >> 4));
+    if (rem == 1) return static_cast<uint8_t>((b << 4) | (c >> 2));
+    return static_cast<uint8_t>((c << 6) | d);
+}
 
 inline bool readGlyph(const Face& face, char ch, Glyph& out) {
     const uint8_t code = static_cast<uint8_t>(ch);
@@ -43,16 +71,23 @@ inline void drawGlyph(
 
     if (glyph.w == 0 || glyph.h == 0) return;
 
+    uint16_t cachedByteIndex = 0xFFFFu;
+    uint8_t cachedByte = 0;
+
     for (uint8_t yy = 0; yy < glyph.h; ++yy) {
         for (uint8_t xx = 0; xx < glyph.w; ++xx) {
             const uint16_t bitIndex =
                 static_cast<uint16_t>(yy) * glyph.w + xx;
-            const uint8_t byte = pgm_read_byte(
-                face.bitmap +
-                glyph.bitmapOffset +
-                bitIndex / 8u);
+            const uint16_t localByteIndex = bitIndex / 8u;
 
-            if ((byte & (0x80u >> (bitIndex & 7u))) != 0) {
+            if (localByteIndex != cachedByteIndex) {
+                cachedByteIndex = localByteIndex;
+                cachedByte = bitmapByte(
+                    face,
+                    glyph.bitmapOffset + localByteIndex);
+            }
+
+            if ((cachedByte & (0x80u >> (bitIndex & 7u))) != 0) {
                 display.drawPixel(
                     x + glyph.xOffset + xx,
                     top + glyph.yOffset + yy,
