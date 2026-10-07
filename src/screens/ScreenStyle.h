@@ -290,7 +290,12 @@ inline void drawSidebar(IDisplay& d, const DataModel& dm) {
 
     if (dm.weather.enabled) {
         drawMenuItem(d, y, "weather", dm, SidebarIcons::Icon::Weather);
+        y += itemStep;
     }
+
+    // Temporary development page for comparing Czech-capable U8g2 fonts.
+    // It reuses the settings glyph so no new bitmap asset is needed.
+    drawMenuItem(d, y, "font-test", dm, SidebarIcons::Icon::Settings);
 
     // Nastavení / diagnostika zůstává vždy zarovnané ke spodnímu okraji.
     constexpr int16_t settingsCenterY = Height - 1 - 29;
