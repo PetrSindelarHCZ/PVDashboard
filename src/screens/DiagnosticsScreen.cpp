@@ -30,20 +30,37 @@ void drawDashboardSansSample(
 
     const int16_t sampleX = x + 47;
 
-    if (px <= 24) {
+    if (px <= 14) {
         DashboardSans::drawText(
             display, sampleX, y + 5,
             "Příliš žluťoučký kůň",
             px, DashboardSans::Weight::Regular);
-
         DashboardSans::drawText(
             display, sampleX, y + 31,
-            "FVE 5.4 kW  Dnes 23.4 kWh",
+            "FVE 5.4 kW Dnes 23.4",
+            px, DashboardSans::Weight::Bold);
+    } else if (px <= 20) {
+        DashboardSans::drawText(
+            display, sampleX, y + 5,
+            "Příliš žluťoučký",
+            px, DashboardSans::Weight::Regular);
+        DashboardSans::drawText(
+            display, sampleX, y + 31,
+            "FVE 5.4 kW",
+            px, DashboardSans::Weight::Bold);
+    } else if (px <= 24) {
+        DashboardSans::drawText(
+            display, sampleX, y + 5,
+            "Český Brod",
+            px, DashboardSans::Weight::Regular);
+        DashboardSans::drawText(
+            display, sampleX, y + 31,
+            "5.4 kW",
             px, DashboardSans::Weight::Bold);
     } else {
         DashboardSans::drawText(
             display, sampleX, y + 12,
-            "FVE 5.4 kW",
+            "5.4 kW",
             px, DashboardSans::Weight::Bold);
     }
 }
