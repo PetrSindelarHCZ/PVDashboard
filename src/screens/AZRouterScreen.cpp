@@ -25,7 +25,7 @@ const char* modeText(const AZRouterData& az) {
 
 
 void drawUnavailableCard(IDisplay& display, const char* title, const char* text) {
-    ScreenStyle::drawCard(display, 65, 95, 720, 370, title);
+    ScreenStyle::drawCard(display, 50, 80, 750, 400, title);
     ScreenStyle::useMetric(display);
     display.setCursor(105, 180);
     display.print("Nedostupné");
@@ -74,7 +74,7 @@ void renderAZRouter(IDisplay& display, const DataModel& dm) {
 
     const AZRouterData& az = dm.azrouter;
 
-    ScreenStyle::drawCard(display, 65, 95, 720, 105, "AZ ROUTER MASTER");
+    ScreenStyle::drawCard(display, 50, 80, 750, 105, "AZ ROUTER MASTER");
     ScreenStyle::useMetric(display);
     display.setCursor(95, 170);
     if (az.status.available && az.hasRoutedPower)
@@ -105,7 +105,7 @@ void renderAZRouter(IDisplay& display, const DataModel& dm) {
     renderAZPhase(display, az, 1, 315, 225);
     renderAZPhase(display, az, 2, 555, 230);
 
-    ScreenStyle::drawCard(display, 65, 380, 720, 85, "ULOŽENÁ ENERGIE");
+    ScreenStyle::drawCard(display, 50, 365, 750, 115, "ULOŽENÁ ENERGIE");
     ScreenStyle::useBody(display);
     display.setCursor(95, 431);
     if (az.hasRoutedEnergyTotal) display.printf("Celkem %.0f kWh", az.routedEnergyTotalKWh);
@@ -140,9 +140,9 @@ void AZRouterScreen::render(IDisplay& display, const DataModel& dm) {
 
 void AZRouterScreen::buildNavigationLayout(const DataModel&, NavigationLayout& layout) const {
     layout.clear();
-    layout.add("az-master", 65, 95, 720, 105);
-    layout.add("az-l1", 65, 210, 225, 160);
-    layout.add("az-l2", 305, 210, 225, 160);
-    layout.add("az-l3", 545, 210, 240, 160);
-    layout.add("az-energy", 65, 380, 720, 85);
+    layout.add("az-master", 50, 80, 750, 105);
+    layout.add("az-l1", 50, 195, 225, 160);
+    layout.add("az-l2", 290, 195, 225, 160);
+    layout.add("az-l3", 530, 195, 270, 160);
+    layout.add("az-energy", 50, 365, 750, 115);
 }
