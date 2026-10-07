@@ -118,6 +118,8 @@ def add_composite(tt, target_char, base_char, mark_kind, y_shift):
 
         if target_char == "ť":
             dx += 35
+        elif target_char == "ď":
+            dx += 20
 
         transform = Transform(scale, 0, 0, scale, dx, dy)
     else:
