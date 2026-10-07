@@ -263,6 +263,7 @@ inline void drawMenuItem(IDisplay& d, int16_t y, const char* id,
 
 inline void drawSidebar(IDisplay& d, const DataModel& dm) {
     d.fillRect(0, HeaderHeight, SidebarWidth, Height - HeaderHeight, 0);
+    d.drawLine(0, HeaderHeight, SidebarWidth - 1, HeaderHeight, 1);
     d.drawLine(SidebarWidth, HeaderHeight, SidebarWidth, Height - 1, 0);
 
     // Horní položky skládáme těsně pod sebe od horního okraje sidebaru.
