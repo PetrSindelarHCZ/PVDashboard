@@ -1879,12 +1879,10 @@ void DashboardApp::onNavigationSubpageChanged(
     uint8_t subpageIndex) {
 
     if (screenId == "diagnostics") {
-        // The third diagnostics subpage is an exact 800x480 reference image
-        // and intentionally replaces all dashboard chrome. Entering or leaving
-        // it therefore needs one deliberate full redraw.
-        if (subpageIndex == 2 || _dataModel.system.navigationSubpageIndex == 2) {
-            requestDisplayRefresh(true, 0, "diagnostics-v2-reference");
-        }
+        // Diagnostics includes an exact 800x480 reference page that replaces
+        // all dashboard chrome. A diagnostics pager change therefore uses one
+        // deliberate full redraw so entering and leaving that page are clean.
+        requestDisplayRefresh(true, 0, "diagnostics-subpage");
         return;
     }
 
