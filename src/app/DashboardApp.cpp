@@ -368,6 +368,26 @@ DisplayRegion dashboardBodyRegion() {
     return region;
 }
 
+DisplayRegion homeEnergyFlowDataRegion(const LayoutWidget& widget) {
+    DisplayRegion region;
+    // Energy-flow has a large static illustration. Its live values and
+    // directional arrows occupy only the upper/middle band of the card.
+    // Keeping the minute refresh out of the lower half avoids a visually
+    // near-full-card e-paper flash.
+    region.x = widget.x + 8;
+    region.y = widget.y + 38;
+    region.width = widget.width > 16 ? widget.width - 16 : widget.width;
+
+    // Keep this comfortably below the hybrid driver's 96k-pixel threshold
+    // so the proven register-partial waveform is used. For the current
+    // ~524 px-wide card, 170 px is ~89k pixels.
+    const int16_t desiredHeight = 170;
+    const int16_t availableHeight =
+        widget.height > 50 ? widget.height - 50 : widget.height;
+    region.height = min<int16_t>(desiredHeight, availableHeight);
+    return region;
+}
+
 enum class HomeDataGroup : uint8_t {
     Weather,
     Energy,
@@ -538,6 +558,7 @@ uint8_t homeDataRegions(
                 break;
             }
             case LayoutWidgetType::HomeConsumptionCard:
+            case LayoutWidgetType::HomeEnergyFlowCard:
                 matches = group == HomeDataGroup::Energy;
                 break;
             case LayoutWidgetType::HomeRfSensorCard:
@@ -561,6 +582,8 @@ uint8_t homeDataRegions(
             region.y = widget.y;
             region.width = widget.width;
             region.height = widget.height;
+        } else if (widget.type == LayoutWidgetType::HomeEnergyFlowCard) {
+            region = homeEnergyFlowDataRegion(widget);
         } else {
             region.x = widget.x + 8;
             region.y = widget.y + 38;
@@ -649,6 +672,8 @@ DisplayRegion homeDataRegion(
             widgetRegion.y = widget.y;
             widgetRegion.width = widget.width;
             widgetRegion.height = widget.height;
+        } else if (widget.type == LayoutWidgetType::HomeEnergyFlowCard) {
+            widgetRegion = homeEnergyFlowDataRegion(widget);
         } else {
             // Predefined cards have static frame/title chrome. Automatic data
             // updates only need the inner content area, which makes e-paper
@@ -1695,9 +1720,9 @@ bool DashboardApp::handleNavigationAction(
 
     const NavigationState previousNavigation =
         _navigationController.getState();
-    NavigationLayout previousLayout;
+    _previousNavigationLayout.clear();
     if (previousNavigation.area == NavigationArea::Page) {
-        _navigationController.buildCurrentLayout(previousLayout);
+        _navigationController.buildCurrentLayout(_previousNavigationLayout);
     }
 
     _navigationInputChanged = false;
@@ -1713,19 +1738,25 @@ bool DashboardApp::handleNavigationAction(
     const bool subpageChanged =
         previousNavigation.subpageIndex != currentNavigation.subpageIndex;
 
-    NavigationLayout currentLayout;
+    _currentNavigationLayout.clear();
     if (currentNavigation.area == NavigationArea::Page) {
-        _navigationController.buildCurrentLayout(currentLayout);
+        _navigationController.buildCurrentLayout(_currentNavigationLayout);
     }
 
-    syncWeatherDisplayForActiveScreen(false);
+    // Moving the cursor inside the sidebar/page does not change the
+    // active weather context. Avoid rebuilding WeatherData on every navigation
+    // action: that structure is large enough to put loopTask close to its
+    // stack limit, especially when navigation comes through WebUI.
+    if (_navigationInputFullRefresh) {
+        syncWeatherDisplayForActiveScreen(false);
+    }
 
     const DisplayRegion dirtyRegion =
         navigationDirtyRegion(
             previousNavigation,
-            previousLayout,
+            _previousNavigationLayout,
             currentNavigation,
-            currentLayout);
+            _currentNavigationLayout);
 
     const bool enteredPageFromSidebar =
         previousNavigation.area == NavigationArea::Sidebar &&
@@ -1846,6 +1877,15 @@ void DashboardApp::onScreenSwitchRequested(const String& screenId) {
 void DashboardApp::onNavigationSubpageChanged(
     const String& screenId,
     uint8_t subpageIndex) {
+
+    if (screenId == "diagnostics") {
+        // Diagnostics includes an exact 800x480 reference page that replaces
+        // all dashboard chrome. A diagnostics pager change therefore uses one
+        // deliberate full redraw so entering and leaving that page are clean.
+        requestDisplayRefresh(true, 0, "diagnostics-subpage");
+        return;
+    }
+
     if (screenId != "weather") return;
     selectWeatherDisplayLocation(subpageIndex, false);
 }
@@ -1942,6 +1982,12 @@ void DashboardApp::syncWeatherDisplayForActiveScreen(
             requestRefresh);
         return;
     }
+
+    // Non-weather pages do not need to rebuild the selected WeatherData.
+    // Home is the only ordinary page that displays weather values directly.
+    // Skipping this on Solar/AZRouter/Pool/Diagnostics keeps the large weather
+    // cache copy off loopTask's already shallow navigation call stack.
+    if (screenId != "home") return;
 
     const WeatherLocation* active = weather.activeLocation();
     int index =

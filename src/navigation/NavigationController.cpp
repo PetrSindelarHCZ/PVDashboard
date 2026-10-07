@@ -119,9 +119,17 @@ bool NavigationController::moveSidebar(int8_t delta) {
     }
     if (current < 0) current = 0;
 
-    const int next = current + delta;
-    if (next < 0 || next >= count) return false;
-    if (next == current && _state.sidebarScreenId == entries[next]->getId()) return false;
+    int next = current + delta;
+    if (next < 0) {
+        next = count - 1;
+    } else if (next >= count) {
+        next = 0;
+    }
+
+    if (next == current &&
+        _state.sidebarScreenId == entries[next]->getId()) {
+        return false;
+    }
 
     _state.sidebarScreenId = entries[next]->getId();
     return true;

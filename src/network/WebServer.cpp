@@ -137,10 +137,13 @@ String homeLayoutResponseJson(
         item["showFrame"] = widget.showFrame;
         item["background"] = widget.background;
         item["inverseText"] = widget.inverseText;
+        item["allowOverlap"] = widget.allowOverlap;
+        item["whiteHalo"] = widget.whiteHalo;
         item["icon"] =
             WidgetIcons::key(static_cast<WidgetIcons::Icon>(widget.icon));
         if (widget.type == "weather" || widget.type == "energy" ||
-            widget.type == "indoor" || widget.type == "pool-summary") {
+            widget.type == "energy-flow" || widget.type == "indoor" ||
+            widget.type == "pool-summary") {
             item["title"] = widget.title;
             if (widget.type == "pool-summary")
                 item["rfSensorSlotId"] = HomeLayout::rfSlotId(widget.rfSensorSlot);
@@ -191,13 +194,13 @@ String homeLayoutResponseJson(
     JsonArray supported = doc["supportedWidgets"].to<JsonArray>();
     const char* ids[] = {
         "weather-card", "fve-summary", "azrouter-summary",
-        "pool-summary", "consumption-summary"
+        "pool-summary", "consumption-summary", "energy-flow"
     };
     const char* types[] = {
         "weather", "fve-summary", "azrouter-summary",
-        "pool-summary", "consumption-summary"
+        "pool-summary", "consumption-summary", "energy-flow"
     };
-    for (uint8_t i = 0; i < 5; ++i) {
+    for (uint8_t i = 0; i < 6; ++i) {
         JsonObject item = supported.add<JsonObject>();
         item["id"] = ids[i];
         item["type"] = types[i];
@@ -208,7 +211,8 @@ String homeLayoutResponseJson(
     JsonArray defaultWidgets = doc["defaultWidgets"].to<JsonArray>();
     const char* defaultIds[] = {
         "weather-card", "fve-summary", "azrouter-summary",
-        "indoor-card", "rf-card-1", "pool-summary", "consumption-summary"
+        "indoor-card", "rf-card-1", "pool-summary", "consumption-summary",
+        "energy-flow"
     };
     for (const char* id : defaultIds) {
         HomeLayoutWidgetConfig widget;
@@ -224,10 +228,13 @@ String homeLayoutResponseJson(
         item["showFrame"] = widget.showFrame;
         item["background"] = widget.background;
         item["inverseText"] = widget.inverseText;
+        item["allowOverlap"] = widget.allowOverlap;
+        item["whiteHalo"] = widget.whiteHalo;
         item["icon"] =
             WidgetIcons::key(static_cast<WidgetIcons::Icon>(widget.icon));
         if (widget.type == "weather" || widget.type == "energy" ||
-            widget.type == "indoor" || widget.type == "pool-summary") {
+            widget.type == "energy-flow" || widget.type == "indoor" ||
+            widget.type == "pool-summary") {
             item["title"] = widget.title;
             if (widget.type == "pool-summary")
                 item["rfSensorSlotId"] = HomeLayout::rfSlotId(widget.rfSensorSlot);

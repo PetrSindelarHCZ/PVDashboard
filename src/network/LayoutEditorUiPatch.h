@@ -411,7 +411,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         'azrouter-summary': 'AZRouter',
         'indoor-card': 'Uvnitř',
         'pool-summary': 'Bazén',
-        'consumption-summary': 'Spotřeba domu'
+        'consumption-summary': 'Spotřeba domu',
+        'energy-flow': 'Energetický tok'
     };
 
     let installed = false;
@@ -445,6 +446,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         if (typeof widget.showFrame !== 'boolean') widget.showFrame = true;
         if (!widget.background) widget.background = 'white';
         if (typeof widget.inverseText !== 'boolean') widget.inverseText = false;
+        if (typeof widget.allowOverlap !== 'boolean') widget.allowOverlap = false;
+        widget.whiteHalo = Math.max(0, Math.min(16, Number(widget.whiteHalo || 0)));
         if (!widget.icon) widget.icon = 'auto';
         if (isElementWidget(widget) && !Array.isArray(widget.elements)) widget.elements = [];
         if (!Number(widget.historyPeriodHours)) {
@@ -540,16 +543,9 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     }
 
     function invalidIds() {
-        const ids = new Set();
-        for (let i = 0; i < draft.length; i++) {
-            for (let j = i + 1; j < draft.length; j++) {
-                if (overlap(draft[i], draft[j])) {
-                    ids.add(draft[i].id);
-                    ids.add(draft[j].id);
-                }
-            }
-        }
-        return ids;
+        // Widget overlap is intentional and supported. Paint order follows
+        // draft order; overlay controls decide which widget is on top.
+        return new Set();
     }
 
     function updateGrid() {
@@ -671,16 +667,31 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         panel.hidden = false;
 
         const title = document.getElementById('cardStyleTitle');
-        if (title) title.textContent = 'Vzhled: ' + widgetLabel(widget);
+        const layerIndex = draft.findIndex(item => item.id === widget.id);
+        if (title) title.textContent =
+            'Vzhled: ' + widgetLabel(widget) +
+            ' · vrstva ' + (layerIndex + 1) + ' / ' + draft.length;
 
         const frame = document.getElementById('cardShowFrame');
         const background = document.getElementById('cardBackground');
         const inverse = document.getElementById('cardInverseText');
         const icon = document.getElementById('cardIcon');
+        const overlapToggle = document.getElementById('cardAllowOverlap');
+        const halo = document.getElementById('cardWhiteHalo');
+        const layerBottom = document.getElementById('cardLayerBottom');
+        const layerDown = document.getElementById('cardLayerDown');
+        const layerUp = document.getElementById('cardLayerUp');
+        const layerTop = document.getElementById('cardLayerTop');
         const reset = document.getElementById('cardResetSelected');
         if (frame) frame.checked = widget.showFrame !== false;
         if (background) background.value = widget.background || 'white';
         if (inverse) inverse.checked = widget.inverseText === true;
+        if (overlapToggle) overlapToggle.checked = widget.allowOverlap === true;
+        if (halo) halo.value = String(widget.whiteHalo || 0);
+        if (layerBottom) layerBottom.disabled = layerIndex <= 0;
+        if (layerDown) layerDown.disabled = layerIndex <= 0;
+        if (layerUp) layerUp.disabled = layerIndex < 0 || layerIndex >= draft.length - 1;
+        if (layerTop) layerTop.disabled = layerIndex < 0 || layerIndex >= draft.length - 1;
         if (icon) {
             const choices = apiState?.cardAppearance?.icons || [
                 {id:'auto',label:'Automatická'},
@@ -716,6 +727,38 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             widget.icon = icon.value || 'auto';
             renderDraft();
         };
+        if (overlapToggle) overlapToggle.onchange = () => {
+            widget.allowOverlap = overlapToggle.checked;
+            if (!widget.allowOverlap) widget.whiteHalo = 0;
+            renderDraft();
+        };
+        if (halo) halo.onchange = () => {
+            widget.whiteHalo = Math.max(0, Math.min(16, Number(halo.value || 0)));
+            if (widget.whiteHalo > 0) widget.allowOverlap = true;
+            renderDraft();
+        };
+    }
+
+    function moveSelectedWidgetLayer(delta) {
+        const index = draft.findIndex(item => item.id === selectedId);
+        if (index < 0) return;
+        const target = index + delta;
+        if (target < 0 || target >= draft.length) return;
+        const tmp = draft[index];
+        draft[index] = draft[target];
+        draft[target] = tmp;
+        renderDraft();
+        editorMessage(delta > 0 ? 'Widget posunut o vrstvu výš.' : 'Widget posunut o vrstvu níž.', 'ok');
+    }
+
+    function moveSelectedWidgetToEdge(top) {
+        const index = draft.findIndex(item => item.id === selectedId);
+        if (index < 0) return;
+        const [widget] = draft.splice(index, 1);
+        if (top) draft.push(widget);
+        else draft.unshift(widget);
+        renderDraft();
+        editorMessage(top ? 'Widget přesunut navrch.' : 'Widget přesunut na spodek.', 'ok');
     }
 
     function renderRfCardEditor() {
@@ -1078,8 +1121,7 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             isElementWidget(widget) && customWidgetHasErrors(widget));
         const save = document.getElementById('layoutSaveButton');
         if (save) save.disabled = invalid.size > 0 || customInvalid || !draft.some(w => w.visible);
-        if (invalid.size > 0) editorMessage('Widgety se překrývají. Uložení je zablokované.', 'error');
-        else if(customInvalid)editorMessage('Widget obsahuje neplatný vnitřní prvek.','error');
+        if(customInvalid)editorMessage('Widget obsahuje neplatný vnitřní prvek.','error');
     }
 
     function beginInteraction(event, id) {
@@ -2387,10 +2429,6 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
     async function saveLayout() {
         if (!apiState) return;
         const invalid = invalidIds();
-        if (invalid.size > 0) {
-            editorMessage('Nejdřív odstraň překryvy widgetů.', 'error');
-            return;
-        }
         if (draft.some(widget => isElementWidget(widget) && customWidgetHasErrors(widget))) {
             editorMessage('Nejdřív oprav prvky uvnitř widgetu.','error');
             return;
@@ -2577,6 +2615,23 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
                         <select id="cardIcon"></select>
                     </div>
                     <div class="field">
+                        <label>Povolit překrytí</label>
+                        <label class="toggle"><input id="cardAllowOverlap" type="checkbox"><span class="slider"></span></label>
+                    </div>
+                    <div class="field">
+                        <label for="cardWhiteHalo">Bílý okraj overlay</label>
+                        <input id="cardWhiteHalo" type="number" min="0" max="16" step="1" value="0">
+                    </div>
+                    <div class="field">
+                        <label>Vrstva</label>
+                        <div class="layer-actions">
+                            <button class="btn btn-secondary" type="button" id="cardLayerBottom">⇊ Spodek</button>
+                            <button class="btn btn-secondary" type="button" id="cardLayerDown">↓ Níž</button>
+                            <button class="btn btn-secondary" type="button" id="cardLayerUp">↑ Výš</button>
+                            <button class="btn btn-secondary" type="button" id="cardLayerTop">⇈ Navrch</button>
+                        </div>
+                    </div>
+                    <div class="field">
                         <button class="btn btn-secondary" type="button" id="cardResetSelected" style="width:auto">Obnovit tento panel</button>
                     </div>
                 </div>
@@ -2710,6 +2765,10 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
         document.getElementById('layoutReloadButton').addEventListener('click', loadLayoutEditor);
         document.getElementById('layoutSaveButton').addEventListener('click', saveLayout);
         document.getElementById('layoutResetButton').addEventListener('click', resetLayout);
+        document.getElementById('cardLayerBottom').addEventListener('click', () => moveSelectedWidgetToEdge(false));
+        document.getElementById('cardLayerDown').addEventListener('click', () => moveSelectedWidgetLayer(-1));
+        document.getElementById('cardLayerUp').addEventListener('click', () => moveSelectedWidgetLayer(1));
+        document.getElementById('cardLayerTop').addEventListener('click', () => moveSelectedWidgetToEdge(true));
 
         const stage = document.getElementById('layoutEditorStage');
         stage.addEventListener('pointermove', moveInteraction);

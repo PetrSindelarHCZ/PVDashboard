@@ -52,6 +52,11 @@ private:
     DisplayWorker _displayWorker;
     ScreenManager _screenManager;
     NavigationController _navigationController;
+    // Reusable navigation scratch layouts live with the app instead of on
+    // loopTask's limited stack. Navigation actions previously allocated two
+    // full layouts at once and could trip the ESP32 stack canary.
+    NavigationLayout _previousNavigationLayout;
+    NavigationLayout _currentNavigationLayout;
     FiveWayJoystick _joystick;
     BlankDisplayScreen _blankDisplayScreen;
 
