@@ -7,7 +7,7 @@ namespace DashboardSansV2 {
 enum class Weight : uint8_t { Regular, Bold };
 
 struct Glyph {
-    uint8_t code;
+    uint16_t code;
     uint8_t w;
     uint8_t h;
     uint8_t advance;
@@ -52,13 +52,48 @@ inline uint8_t bitmapByte(const Face& face, uint16_t byteIndex) {
     return static_cast<uint8_t>((c << 6) | d);
 }
 
-inline bool readGlyph(const Face& face, char ch, Glyph& out) {
-    const uint8_t code = static_cast<uint8_t>(ch);
+inline bool readGlyph(const Face& face, uint16_t code, Glyph& out) {
     for (uint8_t i = 0; i < face.glyphCount; ++i) {
         memcpy_P(&out, &face.glyphs[i], sizeof(Glyph));
         if (out.code == code) return true;
     }
     return false;
+}
+
+inline uint16_t nextUtf8Codepoint(const String& text, size_t& index) {
+    if (index >= text.length()) return 0;
+
+    const uint8_t b0 = static_cast<uint8_t>(text[index++]);
+    if ((b0 & 0x80u) == 0) return b0;
+
+    if ((b0 & 0xE0u) == 0xC0u && index < text.length()) {
+        const uint8_t b1 = static_cast<uint8_t>(text[index++]);
+        if ((b1 & 0xC0u) == 0x80u) {
+            return static_cast<uint16_t>(
+                ((b0 & 0x1Fu) << 6) | (b1 & 0x3Fu));
+        }
+        return '?';
+    }
+
+    if ((b0 & 0xF0u) == 0xE0u && index + 1 < text.length()) {
+        const uint8_t b1 = static_cast<uint8_t>(text[index++]);
+        const uint8_t b2 = static_cast<uint8_t>(text[index++]);
+        if ((b1 & 0xC0u) == 0x80u && (b2 & 0xC0u) == 0x80u) {
+            return static_cast<uint16_t>(
+                ((b0 & 0x0Fu) << 12) |
+                ((b1 & 0x3Fu) << 6) |
+                (b2 & 0x3Fu));
+        }
+        return '?';
+    }
+
+    // The dashboard font tables intentionally cover BMP characters only.
+    // Consume remaining UTF-8 continuation bytes of unsupported sequences.
+    while (index < text.length() &&
+           (static_cast<uint8_t>(text[index]) & 0xC0u) == 0x80u) {
+        ++index;
+    }
+    return '?';
 }
 
 inline void drawGlyph(
@@ -104,8 +139,10 @@ inline int16_t textWidth(
 
     int16_t width = 0;
     Glyph glyph;
-    for (size_t i = 0; i < text.length(); ++i) {
-        if (readGlyph(face, text[i], glyph)) {
+    size_t index = 0;
+    while (index < text.length()) {
+        const uint16_t codepoint = nextUtf8Codepoint(text, index);
+        if (readGlyph(face, codepoint, glyph)) {
             width += glyph.advance;
         }
     }
@@ -121,8 +158,10 @@ inline void drawText(
     uint16_t color = 0) {
 
     Glyph glyph;
-    for (size_t i = 0; i < text.length(); ++i) {
-        if (!readGlyph(face, text[i], glyph)) continue;
+    size_t index = 0;
+    while (index < text.length()) {
+        const uint16_t codepoint = nextUtf8Codepoint(text, index);
+        if (!readGlyph(face, codepoint, glyph)) continue;
         drawGlyph(display, x, top, face, glyph, color);
         x += glyph.advance;
     }
