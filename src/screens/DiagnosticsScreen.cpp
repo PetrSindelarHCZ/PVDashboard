@@ -114,13 +114,16 @@ void renderKpiFontCandidatesPage(IDisplay& display) {
         uint8_t px;
         const DashboardSansV2::Face* face;
         const char* text;
+        const char* text2;
     };
 
     const Sample samples[] = {
-        {24, &KpiFontCandidates::Quantico24Face, "Příliš žluťoučký kůň"},
-        {28, &KpiFontCandidates::Quantico28Face, "Český Brod"},
-        {32, &KpiFontCandidates::Quantico32Face, "Výroba 5.4 kW"},
-        {36, &KpiFontCandidates::Quantico36Face, "Síť 230 V"},
+        {24, &KpiFontCandidates::Quantico24Face,
+         "Příliš žluťoučký kůň",
+         "áčďéěíňóřšťúůýž"},
+        {28, &KpiFontCandidates::Quantico28Face, "Český Brod", nullptr},
+        {32, &KpiFontCandidates::Quantico32Face, "Výroba 5.4 kW", nullptr},
+        {36, &KpiFontCandidates::Quantico36Face, "Síť 230 V", nullptr},
     };
 
     constexpr int16_t cardX = 104;
@@ -149,12 +152,30 @@ void renderKpiFontCandidatesPage(IDisplay& display) {
         const int16_t dividerX = cardX + labelW;
         display.drawLine(dividerX, y + 8, dividerX, y + cardH - 8, 0);
 
-        DashboardSansV2::drawText(
-            display,
-            dividerX + 18,
-            y + 14,
-            *samples[i].face,
-            samples[i].text);
+        const int16_t textX = dividerX + 18;
+
+        if (samples[i].text2 != nullptr) {
+            DashboardSansV2::drawText(
+                display,
+                textX,
+                y + 7,
+                *samples[i].face,
+                samples[i].text);
+
+            DashboardSansV2::drawText(
+                display,
+                textX,
+                y + 40,
+                *samples[i].face,
+                samples[i].text2);
+        } else {
+            DashboardSansV2::drawText(
+                display,
+                textX,
+                y + 14,
+                *samples[i].face,
+                samples[i].text);
+        }
     }
 }
 
