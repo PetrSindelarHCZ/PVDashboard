@@ -234,9 +234,9 @@ inline void drawMenuItem(IDisplay& d, int16_t y, const char* id,
     const bool focused =
         dm.system.navigationSidebarScreenId.equalsIgnoreCase(id);
 
-    constexpr int16_t tileX = 1;
-    constexpr int16_t tileW = 48;
-    constexpr int16_t tileH = 48;
+    constexpr int16_t tileX = 0;
+    constexpr int16_t tileW = SidebarWidth;
+    constexpr int16_t tileH = 50;
     const int16_t tileY = y - tileH / 2;
 
     if (active) d.fillRect(tileX, tileY, tileW, tileH, 1);
@@ -294,7 +294,7 @@ inline void drawSidebar(IDisplay& d, const DataModel& dm) {
     }
 
     // Nastavení / diagnostika zůstává vždy zarovnané ke spodnímu okraji.
-    constexpr int16_t settingsCenterY = Height - 1 - 24;
+    constexpr int16_t settingsCenterY = Height - 1 - 25;
     drawMenuItem(d, settingsCenterY, "diagnostics", dm, SidebarIcons::Icon::Settings);
 }
 
