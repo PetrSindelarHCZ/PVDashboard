@@ -236,7 +236,7 @@ void renderDashboardSansV2CharsetPage(IDisplay& display) {
 
     DashboardSansV2::drawText(
         display, x + 126, 421,
-        "[ \\ ] ^ _ \\x60 { | } ~ ° − × ± ← → ↑ ↓",
+        "[ \\ ] ^ _ ` { | } ~ ° − × ± ← → ↑ ↓",
         14, DashboardSansV2::Weight::Bold);
 }
 
