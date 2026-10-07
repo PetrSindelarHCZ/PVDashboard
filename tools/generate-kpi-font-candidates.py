@@ -79,6 +79,14 @@ def add_composite(tt, target_char, base_char, mark_kind, y_shift):
         mark_adv = glyph_advance(tt, mark_name) * scale
         dx = round(base_adv - mark_adv * 0.55)
         dy = 70
+
+        # The caron on Czech ť needs a little more breathing room than on ď.
+        # Move it slightly right and up in font units so it does not visually
+        # stick to the top-right of the t at 24..36 px.
+        if target_char == "ť":
+            dx += 35
+            dy += 35
+
         transform = Transform(scale, 0, 0, scale, dx, dy)
     else:
         raise ValueError(mark_kind)
