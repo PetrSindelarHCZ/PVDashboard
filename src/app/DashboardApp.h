@@ -13,7 +13,6 @@
 #include "../screens/PoolScreen.h"
 #include "../screens/WeatherScreen.h"
 #include "../screens/DiagnosticsScreen.h"
-#include "../screens/FontTestScreen.h"
 #include "../navigation/NavigationController.h"
 #include "../input/FiveWayJoystick.h"
 #include "../network/WifiManager.h"
@@ -64,7 +63,6 @@ private:
     WeatherScreen _weatherHourlyScreens[WeatherForecastDayCount] = {
         WeatherScreen(0), WeatherScreen(1), WeatherScreen(2), WeatherScreen(3)
     };
-    FontTestScreen _fontTestScreen;
     DiagnosticsScreen _diagnosticsScreen;
 
     WifiManager _wifiManager;
