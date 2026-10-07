@@ -265,9 +265,9 @@ inline void drawSidebar(IDisplay& d, const DataModel& dm) {
     d.drawLine(0, HeaderHeight, SidebarWidth - 1, HeaderHeight, 1);
     d.drawLine(SidebarWidth, HeaderHeight, SidebarWidth, Height - 1, 0);
 
-    // Horní položky skládáme od horního okraje sidebaru.
-    // Dlaždice mají 48 x 48 px; krok 60 px nechává 12 px mezeru.
-    constexpr int16_t firstCenterY = HeaderHeight + 6 + 24;
+    // První 48px dlaždice začíná 1 px pod bílou dělicí linkou.
+    // Linka je na y=HeaderHeight, následuje 1 px mezera a pak dlaždice.
+    constexpr int16_t firstCenterY = HeaderHeight + 2 + 24;
     constexpr int16_t itemStep = 60;
     int16_t y = firstCenterY;
 
