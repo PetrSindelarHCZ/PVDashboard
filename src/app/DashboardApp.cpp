@@ -1720,9 +1720,9 @@ bool DashboardApp::handleNavigationAction(
 
     const NavigationState previousNavigation =
         _navigationController.getState();
-    NavigationLayout previousLayout;
+    _previousNavigationLayout.clear();
     if (previousNavigation.area == NavigationArea::Page) {
-        _navigationController.buildCurrentLayout(previousLayout);
+        _navigationController.buildCurrentLayout(_previousNavigationLayout);
     }
 
     _navigationInputChanged = false;
@@ -1738,9 +1738,9 @@ bool DashboardApp::handleNavigationAction(
     const bool subpageChanged =
         previousNavigation.subpageIndex != currentNavigation.subpageIndex;
 
-    NavigationLayout currentLayout;
+    _currentNavigationLayout.clear();
     if (currentNavigation.area == NavigationArea::Page) {
-        _navigationController.buildCurrentLayout(currentLayout);
+        _navigationController.buildCurrentLayout(_currentNavigationLayout);
     }
 
     syncWeatherDisplayForActiveScreen(false);
@@ -1748,9 +1748,9 @@ bool DashboardApp::handleNavigationAction(
     const DisplayRegion dirtyRegion =
         navigationDirtyRegion(
             previousNavigation,
-            previousLayout,
+            _previousNavigationLayout,
             currentNavigation,
-            currentLayout);
+            _currentNavigationLayout);
 
     const bool enteredPageFromSidebar =
         previousNavigation.area == NavigationArea::Sidebar &&
