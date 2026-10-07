@@ -1367,7 +1367,6 @@ void DashboardApp::registerScreens() {
         _screenManager.registerScreen(&_weatherScreen);
         for (auto& screen : _weatherHourlyScreens) _screenManager.registerScreen(&screen);
     }
-    _screenManager.registerScreen(&_fontTestScreen);
     _screenManager.registerScreen(&_diagnosticsScreen);
 }
 
