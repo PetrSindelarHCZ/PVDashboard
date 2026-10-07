@@ -1743,7 +1743,13 @@ bool DashboardApp::handleNavigationAction(
         _navigationController.buildCurrentLayout(_currentNavigationLayout);
     }
 
-    syncWeatherDisplayForActiveScreen(false);
+    // Moving the cursor inside the sidebar/page does not change the
+    // active weather context. Avoid rebuilding WeatherData on every navigation
+    // action: that structure is large enough to put loopTask close to its
+    // stack limit, especially when navigation comes through WebUI.
+    if (_navigationInputFullRefresh) {
+        syncWeatherDisplayForActiveScreen(false);
+    }
 
     const DisplayRegion dirtyRegion =
         navigationDirtyRegion(
