@@ -14,11 +14,11 @@ namespace ScreenStyle {
 
 constexpr int16_t Width = 800;
 constexpr int16_t Height = 480;
-constexpr int16_t HeaderHeight = 48;
+constexpr int16_t HeaderHeight = 45;
 constexpr int16_t SidebarWidth = 60;
 constexpr int16_t ContentLeft = 75;
 constexpr int16_t ContentRight = 785;
-constexpr int16_t ContentTop = 63;
+constexpr int16_t ContentTop = 60;
 constexpr int16_t ContentBottom = 465;
 constexpr int16_t CardRadius = 6;
 
@@ -161,19 +161,19 @@ inline void drawDeviceBatteryStatus(
 inline void drawHeader(IDisplay& d, const DataModel& dm) {
     d.fillRect(0, 0, Width, HeaderHeight, 0);
     const bool online = dm.system.wifiConnected;
-    drawWifi(d, 8, 8, online, dm.system.wifiSignalLevel, dm.system.wifiAccessPoint);
+    drawWifi(d, 8, 6, online, dm.system.wifiSignalLevel, dm.system.wifiAccessPoint);
 
     int16_t sourceX = 56;
     if (dm.solar.enabled) {
-        drawSolarStatus(d, sourceX, 8, online && dm.solar.status.available);
+        drawSolarStatus(d, sourceX, 6, online && dm.solar.status.available);
         sourceX += 48;
     }
     if (dm.azrouter.enabled) {
-        drawRouterStatus(d, sourceX, 8, online && dm.azrouter.status.available);
+        drawRouterStatus(d, sourceX, 6, online && dm.azrouter.status.available);
         sourceX += 48;
     }
     if (dm.battery.status.available || dm.battery.version != 0) {
-        drawDeviceBatteryStatus(d, sourceX, 8, dm.battery);
+        drawDeviceBatteryStatus(d, sourceX, 6, dm.battery);
         sourceX += 48;
     }
 
@@ -183,7 +183,7 @@ inline void drawHeader(IDisplay& d, const DataModel& dm) {
     d.setTextColor(1);
     d.setFont(&FreeSansBold18pt7b);
     const int16_t timeX = Width - 12 - d.textWidth(dm.system.timeStr);
-    d.setCursor(timeX, 35);
+    d.setCursor(timeX, 33);
     d.print(dm.system.timeStr);
 
     d.setUnicodeFont(DisplayFonts::strongBody());
@@ -200,7 +200,7 @@ inline void drawHeader(IDisplay& d, const DataModel& dm) {
         }
         date += "...";
     }
-    d.setCursor(dateRight - d.textWidth(date), 31);
+    d.setCursor(dateRight - d.textWidth(date), 30);
     d.print(date);
 }
 
