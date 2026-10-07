@@ -15,8 +15,8 @@ namespace ScreenStyle {
 constexpr int16_t Width = 800;
 constexpr int16_t Height = 480;
 constexpr int16_t HeaderHeight = 45;
-constexpr int16_t SidebarWidth = 45;
-constexpr int16_t ContentLeft = 60;
+constexpr int16_t SidebarWidth = 50;
+constexpr int16_t ContentLeft = 65;
 constexpr int16_t ContentRight = 785;
 constexpr int16_t ContentTop = 60;
 constexpr int16_t ContentBottom = 465;
@@ -235,7 +235,7 @@ inline void drawMenuItem(IDisplay& d, int16_t y, const char* id,
         dm.system.navigationSidebarScreenId.equalsIgnoreCase(id);
 
     constexpr int16_t tileX = 2;
-    constexpr int16_t tileW = 41;
+    constexpr int16_t tileW = 46;
     constexpr int16_t tileH = 58;
     constexpr int16_t tileRadius = 8;
     const int16_t tileY = y - tileH / 2;
@@ -252,7 +252,7 @@ inline void drawMenuItem(IDisplay& d, int16_t y, const char* id,
 
     const SidebarIcons::Bitmap icon = SidebarIcons::get(iconId);
     if (icon.data != nullptr) {
-        d.drawBitmap(22 - icon.width / 2,
+        d.drawBitmap(25 - icon.width / 2,
                      y - icon.height / 2,
                      icon.data,
                      icon.width,
