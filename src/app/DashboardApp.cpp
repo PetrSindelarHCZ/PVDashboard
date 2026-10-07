@@ -1974,6 +1974,12 @@ void DashboardApp::syncWeatherDisplayForActiveScreen(
         return;
     }
 
+    // Non-weather pages do not need to rebuild the selected WeatherData.
+    // Home is the only ordinary page that displays weather values directly.
+    // Skipping this on Solar/AZRouter/Pool/Diagnostics keeps the large weather
+    // cache copy off loopTask's already shallow navigation call stack.
+    if (screenId != "home") return;
+
     const WeatherLocation* active = weather.activeLocation();
     int index =
         active != nullptr
