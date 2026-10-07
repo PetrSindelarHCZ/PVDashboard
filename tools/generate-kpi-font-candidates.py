@@ -85,7 +85,7 @@ def add_composite(tt, target_char, base_char, mark_kind, y_shift):
         # The stock Quantico spacing ring is visually too large when reused
         # directly on U/u at our 1-bit KPI sizes. Scale it down while keeping
         # the original Quantico outline, then center it over the base glyph.
-        scale = 0.75 if target_char == "ů" else 0.80
+        scale = 0.68 if target_char == "ů" else 0.80
         base_adv = glyph_advance(tt, base_name)
         mark_adv = glyph_advance(tt, mark_name) * scale
         dx = round((base_adv - mark_adv) / 2)
