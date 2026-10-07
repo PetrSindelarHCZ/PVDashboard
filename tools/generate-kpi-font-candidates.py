@@ -2,14 +2,16 @@
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from fontTools.ttLib import TTFont
+from fontTools.pens.ttGlyphPen import TTGlyphPen
+from fontTools.misc.transform import Transform
 import base64
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "src/display/fonts/KpiFontCandidates.h"
-FONT = ROOT / "tools/fonts/kpi-candidates/Quantico-Bold.ttf"
+SOURCE_FONT = ROOT / "tools/fonts/kpi-candidates/Quantico-Bold.ttf"
 
 SIZES = (24, 28, 32, 36)
-
 CHARS = "".join(dict.fromkeys(
     " 0123456789.,+-:%/°"
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -18,52 +20,130 @@ CHARS = "".join(dict.fromkeys(
     "áčďéěíňóřšťúůýž"
 ))
 
-# Quantico Bold lacks these precomposed Czech glyphs. We derive them during
-# raster generation so the ESP32 gets ordinary, self-contained 1-bit glyphs.
-SYNTH = {
-    "č": ("c", "caron"), "Č": ("C", "caron"),
-    "ď": ("d", "apostrophe"), "Ď": ("D", "caron"),
-    "ě": ("e", "caron"), "Ě": ("E", "caron"),
-    "ň": ("n", "caron"), "Ň": ("N", "caron"),
-    "ť": ("t", "apostrophe"), "Ť": ("T", "caron"),
-    "ů": ("u", "ring"), "Ů": ("U", "ring"),
+# Missing Czech glyphs in the distributed Quantico Bold. We build a real
+# derived TTF first, at vector-outline level, then rasterize that font. Accent
+# placement follows Quantico's own Glyphs source geometry:
+#   lower-case caron: spacing caron at its native y
+#   upper-case caron: same caron shifted +195 font units
+#   lower-case ring: spacing ring at native y
+#   upper-case ring: same ring shifted +50 font units
+# Czech d/ť use a small apostrophe-like caron at the upper-right.
+SPECS = {
+    "č": ("c", "caron", 0),
+    "Č": ("C", "caron", 195),
+    "ď": ("d", "apostrophe", 0),
+    "Ď": ("D", "caron", 195),
+    "ě": ("e", "caron", 0),
+    "Ě": ("E", "caron", 195),
+    "ň": ("n", "caron", 0),
+    "Ň": ("N", "caron", 195),
+    "ť": ("t", "apostrophe", 0),
+    "Ť": ("T", "caron", 195),
+    "ů": ("u", "ring", 0),
+    "Ů": ("U", "ring", 50),
 }
 
-# Accent donors already drawn by the original Quantico designer. We extract
-# only the diacritic pixels by subtracting the unaccented base glyph, then
-# reuse that exact Quantico accent on the missing Czech glyphs.
-ACCENT_DONORS = {
-    "caron": [("ř", "r"), ("š", "s"), ("ž", "z")],
-    "ring": [("å", "a"), ("Å", "A")],
-}
+def unicode_cmap(tt):
+    cmap = {}
+    for table in tt["cmap"].tables:
+        if table.isUnicode():
+            cmap.update(table.cmap)
+    return cmap
 
-def best_cmap(path: Path):
-    tt = TTFont(str(path), fontNumber=0)
-    return tt.getBestCmap() or {}
+def glyph_advance(tt, glyph_name):
+    return tt["hmtx"].metrics[glyph_name][0]
 
-def validate_charset(cmap):
-    missing = []
-    synthesized = []
-    for ch in CHARS:
-        if ord(ch) in cmap:
+def center_dx(tt, base_name, mark_name):
+    return round((glyph_advance(tt, base_name) - glyph_advance(tt, mark_name)) / 2)
+
+def add_composite(tt, target_char, base_char, mark_kind, y_shift):
+    cmap = unicode_cmap(tt)
+    base_name = cmap[ord(base_char)]
+    glyph_set = tt.getGlyphSet()
+
+    if mark_kind == "caron":
+        mark_name = cmap[0x02C7]  # spacing caron
+        dx = center_dx(tt, base_name, mark_name)
+        transform = Transform(1, 0, 0, 1, dx, y_shift)
+    elif mark_kind == "ring":
+        mark_name = cmap[0x02DA]  # spacing ring
+        dx = center_dx(tt, base_name, mark_name)
+        transform = Transform(1, 0, 0, 1, dx, y_shift)
+    elif mark_kind == "apostrophe":
+        # Quantico's own quotesingle outline, reduced to a Czech d/t caron.
+        # Keep it close to the base rather than looking like a separate quote.
+        mark_name = cmap[0x0027]
+        base_adv = glyph_advance(tt, base_name)
+        # 70% retains Quantico's stroke character but shortens the mark.
+        scale = 0.70
+        mark_adv = glyph_advance(tt, mark_name) * scale
+        dx = round(base_adv - mark_adv * 0.55)
+        dy = 70
+        transform = Transform(scale, 0, 0, scale, dx, dy)
+    else:
+        raise ValueError(mark_kind)
+
+    target_name = f"uni{ord(target_char):04X}"
+    pen = TTGlyphPen(glyph_set)
+    pen.addComponent(base_name, Transform())
+    pen.addComponent(mark_name, transform)
+    glyph = pen.glyph()
+
+    if target_name not in tt.getGlyphOrder():
+        tt.setGlyphOrder(tt.getGlyphOrder() + [target_name])
+    tt["glyf"].glyphs[target_name] = glyph
+    tt["hmtx"].metrics[target_name] = tt["hmtx"].metrics[base_name]
+
+    for table in tt["cmap"].tables:
+        if table.isUnicode() and table.format in (4, 12, 13):
+            table.cmap[ord(target_char)] = target_name
+
+def rename_derived_font(tt):
+    # Reserved Font Name "Quantico" must not be used for the modified font.
+    replacements = {
+        1: "Dashboard KPI",
+        2: "Bold",
+        4: "Dashboard KPI Bold",
+        6: "DashboardKPI-Bold",
+    }
+    for rec in tt["name"].names:
+        if rec.nameID not in replacements:
             continue
-        spec = SYNTH.get(ch)
-        if spec and ord(spec[0]) in cmap:
-            synthesized.append(ch)
-            continue
-        missing.append(ch)
+        value = replacements[rec.nameID]
+        if rec.isUnicode():
+            rec.string = value.encode("utf-16-be")
+        else:
+            try:
+                rec.string = value.encode("mac_roman")
+            except UnicodeEncodeError:
+                rec.string = value.encode("ascii", errors="ignore")
 
+def build_derived_font(out_path: Path):
+    tt = TTFont(str(SOURCE_FONT))
+    initial = unicode_cmap(tt)
+
+    needed = [ch for ch in SPECS if ord(ch) not in initial]
+    for ch in needed:
+        base, mark, y_shift = SPECS[ch]
+        add_composite(tt, ch, base, mark, y_shift)
+
+    rename_derived_font(tt)
+    tt.save(str(out_path))
+
+    check = TTFont(str(out_path))
+    cmap = unicode_cmap(check)
+    missing = [ch for ch in CHARS if ord(ch) not in cmap]
     if missing:
         raise SystemExit(
-            "Quantico-Bold.ttf cannot provide required glyphs: " +
+            "Dashboard KPI derived font still misses: " +
             " ".join(f"{ch}(U+{ord(ch):04X})" for ch in missing)
         )
 
-    print(f"Dashboard KPI charset OK: {len(CHARS)} glyphs")
-    print("Synthesized Czech glyphs: " + " ".join(synthesized))
+    print("Dashboard KPI derived TTF OK")
+    print("Added Czech glyphs: " + " ".join(needed))
 
 def choose_size(path: Path, target_height: int):
-    probe = "H0123456789FVEWŘŠŽÁÉÍÓÚÝ"
+    probe = "H0123456789FVEWÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ"
     best = None
     for size in range(10, 96):
         font = ImageFont.truetype(str(path), size=size)
@@ -85,203 +165,39 @@ def pack_bitmap(img):
                 data[y * stride + x // 8] |= 0x80 >> (x & 7)
     return bytes(data)
 
-def render_on_common_canvas(font, text, bounds):
-    left, top, right, bottom = bounds
-    w = max(1, right - left)
-    h = max(1, bottom - top)
-    img = Image.new("L", (w, h), 0)
-    draw = ImageDraw.Draw(img)
-    draw.text((-left, -top), text, font=font, fill=255, anchor="ls")
-    return img.point(lambda p: 255 if p >= 128 else 0)
-
-def extract_accent(font, accented, base):
-    ab = font.getbbox(accented, anchor="ls")
-    bb = font.getbbox(base, anchor="ls")
-    bounds = (
-        min(ab[0], bb[0]),
-        min(ab[1], bb[1]),
-        max(ab[2], bb[2]),
-        max(ab[3], bb[3]),
-    )
-
-    ai = render_on_common_canvas(font, accented, bounds)
-    bi = render_on_common_canvas(font, base, bounds)
-
-    diff = Image.new("L", ai.size, 0)
-    ap = ai.load()
-    bp = bi.load()
-    dp = diff.load()
-
-    for y in range(ai.height):
-        for x in range(ai.width):
-            if ap[x, y] and not bp[x, y]:
-                dp[x, y] = 255
-
-    bbox = diff.getbbox()
-    if not bbox:
-        raise RuntimeError(f"Could not extract accent from {accented}/{base}")
-
-    accent = diff.crop(bbox)
-    # Position in baseline font coordinates.
-    accent_left = bounds[0] + bbox[0]
-    accent_top = bounds[1] + bbox[1]
-    return accent, accent_left, accent_top
-
-def build_accent_templates(font, cmap):
-    templates = {}
-
-    for accent_name, donors in ACCENT_DONORS.items():
-        for accented, base in donors:
-            if ord(accented) in cmap and ord(base) in cmap:
-                accent, left, top = extract_accent(font, accented, base)
-                base_box = font.getbbox(base, anchor="ls")
-                donor_center = (base_box[0] + base_box[2]) / 2.0
-                accent_center = left + accent.width / 2.0
-                templates[accent_name] = {
-                    "img": accent,
-                    "top": top,
-                    "center_delta": accent_center - donor_center,
-                    "base_top": base_box[1],
-                }
-                break
-
-    # Czech ď/ť use the apostrophe-shaped caron. Quantico does not contain
-    # those precomposed glyphs, so use Quantico's own apostrophe artwork rather
-    # than drawing a synthetic slash.
-    if ord("'") in cmap:
-        box = font.getbbox("'", anchor="ls")
-        img = render_on_common_canvas(font, "'", box)
-        templates["apostrophe"] = {
-            "img": img,
-            "top": box[1],
-            "left": box[0],
-        }
-
-    return templates
-
-def render_synth(font, base, accent, target_height, templates):
-    left, top, right, bottom = font.getbbox(base, anchor="ls")
-
-    if accent not in templates:
-        raise RuntimeError(f"No Quantico accent template available for {accent}")
-
-    base_img = render_on_common_canvas(font, base, (left, top, right, bottom))
-    tpl = templates[accent]
-    accent_img = tpl["img"]
-
-    if accent in ("caron", "ring"):
-        base_center = (left + right) / 2.0
-        accent_left = round(
-            base_center + tpl.get("center_delta", 0.0) - accent_img.width / 2.0
-        )
-
-        # Preserve the vertical relationship of the donor accent to its donor
-        # base top. This keeps the accent visually native to Quantico.
-        accent_top = round(
-            top + (tpl["top"] - tpl["base_top"])
-        )
-    else:
-        # Apostrophe-like Czech caron: place Quantico's own apostrophe just
-        # outside the upper-right of d/t, aligned to the cap/x-height area.
-        gap = max(1, round(target_height * 0.04))
-        accent_left = right + gap
-        accent_top = top + max(0, round(target_height * 0.01))
-
-    canvas_left = min(left, accent_left)
-    canvas_top = min(top, accent_top)
-    canvas_right = max(right, accent_left + accent_img.width)
-    canvas_bottom = max(bottom, accent_top + accent_img.height)
-
-    out = Image.new(
-        "L",
-        (max(1, canvas_right - canvas_left),
-         max(1, canvas_bottom - canvas_top)),
-        0,
-    )
-    out.paste(base_img, (left - canvas_left, top - canvas_top))
-    out.paste(
-        accent_img,
-        (accent_left - canvas_left, accent_top - canvas_top),
-        accent_img,
-    )
-    out = out.point(lambda p: 255 if p >= 128 else 0)
-
-    adv = max(1, round(font.getlength(base)))
-    if accent == "apostrophe":
-        adv = max(adv, canvas_right - left)
-
-    return {
-        "img": out,
-        "left": canvas_left,
-        "top": canvas_top,
-        "advance": adv,
-    }
-
-def render_direct(font, ch):
-    left, top, right, bottom = font.getbbox(ch, anchor="ls")
-    w = max(1, right - left)
-    h = max(1, bottom - top)
-    img = Image.new("L", (w, h), 0)
-    draw = ImageDraw.Draw(img)
-    draw.text((-left, -top), ch, font=font, fill=255, anchor="ls")
-    img = img.point(lambda p: 255 if p >= 128 else 0)
-    return {
-        "img": img,
-        "left": left,
-        "top": top,
-        "advance": max(1, round(font.getlength(ch))),
-    }
-
-def make_face(target_height: int, cmap):
+def make_face(font_path: Path, target_height: int):
     name = f"Quantico{target_height}"
-    font = choose_size(FONT, target_height)
-    templates = build_accent_templates(font, cmap)
+    font = choose_size(font_path, target_height)
 
-    needed_accents = {accent for _, accent in SYNTH.values()}
-    missing_templates = sorted(needed_accents - set(templates.keys()))
-    if missing_templates:
-        raise RuntimeError(
-            "Missing Quantico accent donor templates: " +
-            ", ".join(missing_templates)
-        )
-
-    rendered = []
-    common_top = 32767
-
-    for ch in CHARS:
-        if ch == " ":
-            rec = {
-                "code": ord(ch), "img": None, "left": 0, "top": 0,
-                "advance": max(1, round(font.getlength(ch)))
-            }
-        elif ord(ch) in cmap:
-            rec = render_direct(font, ch)
-            rec["code"] = ord(ch)
-        else:
-            base, accent = SYNTH[ch]
-            rec = render_synth(font, base, accent, target_height, templates)
-            rec["code"] = ord(ch)
-
-        if rec["img"] is not None:
-            common_top = min(common_top, rec["top"])
-        rendered.append(rec)
+    # Common visual top includes all Czech caps, so diacritics never clip.
+    reference = "H0123456789FVEWÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ"
+    rb = font.getbbox(reference, anchor="ls")
+    ref_top = rb[1]
 
     glyphs = []
     all_bytes = bytearray()
 
-    for rec in rendered:
-        offset = len(all_bytes)
-        if rec["img"] is None:
-            glyphs.append((rec["code"], 0, 0, rec["advance"], 0, 0, offset))
+    for ch in CHARS:
+        code = ord(ch)
+        if ch == " ":
+            adv = max(1, round(font.getlength(ch)))
+            glyphs.append((code, 0, 0, adv, 0, 0, len(all_bytes)))
             continue
 
-        img = rec["img"]
-        w, h = img.size
+        box = font.getbbox(ch, anchor="ls")
+        left, top, right, bottom = box
+        w = max(1, right - left)
+        h = max(1, bottom - top)
+        adv = max(1, round(font.getlength(ch)))
+
+        img = Image.new("L", (w, h), 0)
+        draw = ImageDraw.Draw(img)
+        draw.text((-left, -top), ch, font=font, fill=255, anchor="ls")
+        img = img.point(lambda p: 255 if p >= 128 else 0)
+
+        offset = len(all_bytes)
         all_bytes.extend(pack_bitmap(img))
-        glyphs.append((
-            rec["code"], w, h, rec["advance"],
-            rec["left"], rec["top"] - common_top, offset
-        ))
+        glyphs.append((code, w, h, adv, left, top - ref_top, offset))
 
     encoded = base64.b64encode(bytes(all_bytes)).decode("ascii")
     line_height = target_height + max(8, round(target_height * 0.25))
@@ -301,23 +217,24 @@ def make_face(target_height: int, cmap):
     )
     return "\n".join(lines)
 
-cmap = best_cmap(FONT)
-validate_charset(cmap)
+with tempfile.TemporaryDirectory() as tmp:
+    derived = Path(tmp) / "DashboardKPI-Bold.ttf"
+    build_derived_font(derived)
 
-parts = [
-    "#pragma once",
-    '#include "../DashboardSansV2Types.h"',
-    "",
-    "namespace KpiFontCandidates {",
-    "using DashboardSansV2::Glyph;",
-    "using DashboardSansV2::Face;",
-    "",
-]
-for size in SIZES:
-    parts.append(make_face(size, cmap))
+    parts = [
+        "#pragma once",
+        '#include "../DashboardSansV2Types.h"',
+        "",
+        "namespace KpiFontCandidates {",
+        "using DashboardSansV2::Glyph;",
+        "using DashboardSansV2::Face;",
+        "",
+    ]
+    for size in SIZES:
+        parts.append(make_face(derived, size))
+        parts.append("")
+    parts.append("} // namespace KpiFontCandidates")
     parts.append("")
-parts.append("} // namespace KpiFontCandidates")
-parts.append("")
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
 OUT.write_text("\n".join(parts), encoding="utf-8")
