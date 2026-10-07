@@ -21,3 +21,10 @@ The weather bitmap set used here follows the Weather Icons artwork distributed b
 - Use in PVDashboard: monochrome sidebar icons (home, solar, pool, weather, settings), rasterized to 1-bit bitmaps for the e-paper UI.
 
 This notice is informational and does not change the licensing terms of the respective upstream projects.
+
+## KPI display font candidates
+
+- Chakra Petch Bold, Quantico Bold and Aldrich
+- Source: Google Fonts (https://github.com/google/fonts)
+- License: SIL Open Font License 1.1
+- Use in PVDashboard: temporary 1-bit diagnostic rasterization for selecting a KPI display typeface. The source TTF files live under tools/ and are not linked into firmware.
