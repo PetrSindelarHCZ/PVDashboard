@@ -12,7 +12,7 @@ OUT_API = ROOT / "src/display/DashboardSansV2.h"
 SIZES = (8, 10, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36)
 ASCII = "".join(chr(i) for i in range(32, 127))
 CZECH = "ÁČĎÉĚÍŇÓŘŠŤÚŮÝŽáčďéěíňóřšťúůýž"
-EXTRA = "°"
+EXTRA = "°−×±←→↑↓"
 CHARS = "".join(dict.fromkeys(ASCII + CZECH + EXTRA))
 
 DEFAULT_REGULAR = "/usr/share/fonts/opentype/inter/InterDisplay-Regular.otf"

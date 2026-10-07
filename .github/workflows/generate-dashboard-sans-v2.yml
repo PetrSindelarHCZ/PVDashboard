@@ -3,7 +3,7 @@ name: Generate Dashboard Sans V2 full charset
 on:
   push:
     branches:
-      - feature/dashboard-sans-v2-rebuild
+      - feature/dashboard-sans-v2-symbols
     paths:
       - tools/generate-dashboard-sans-v2.py
       - .github/workflows/generate-dashboard-sans-v2.yml
@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: feature/dashboard-sans-v2-rebuild
+          ref: feature/dashboard-sans-v2-symbols
 
       - uses: actions/setup-python@v5
         with:
