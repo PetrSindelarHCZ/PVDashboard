@@ -7,5 +7,5 @@ public:
     String getTitle() const override { return "Diagnostika"; }
     void render(IDisplay& display, const DataModel& dataModel) override;
     void buildNavigationLayout(const DataModel& dataModel, NavigationLayout& layout) const override;
-    uint8_t getNavigationSubpageCount(const DataModel&) const override { return 4; }
+    uint8_t getNavigationSubpageCount(const DataModel&) const override { return 5; }
 };
