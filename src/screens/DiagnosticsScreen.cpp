@@ -8,60 +8,81 @@ namespace {
 
 constexpr int16_t V2GridX = 88;
 constexpr int16_t V2GridY = 66;
-constexpr int16_t V2CardW = 335;
-constexpr int16_t V2CardH = 122;
-constexpr int16_t V2ColumnGap = 12;
-constexpr int16_t V2RowGap = 8;
+constexpr int16_t V2CardW = 684;
+constexpr int16_t V2CardH = 61;
+constexpr int16_t V2RowGap = 5;
+constexpr int16_t V2LabelW = 66;
+constexpr int16_t V2ColumnW = 292;
 
-struct V2Sample {
-    uint8_t px;
-    DashboardSansV2::Weight weight;
-    const char* label;
-    const char* text;
-};
+const uint8_t V2SmallSizes[] = {8, 10, 12, 14, 16, 18};
+const uint8_t V2LargeSizes[] = {20, 22, 24, 28, 32, 36};
 
-const V2Sample V2Samples[] = {
-    {12, DashboardSansV2::Weight::Regular, "12 REGULAR", "Dnes 23.4 kWh"},
-    {16, DashboardSansV2::Weight::Regular, "16 REGULAR", "Dnes 23.4 kWh"},
-    {16, DashboardSansV2::Weight::Bold,    "16 BOLD",    "FVE 5.4 kW"},
-    {22, DashboardSansV2::Weight::Bold,    "22 BOLD",    "FVE 5.4 kW"},
-    {28, DashboardSansV2::Weight::Bold,    "28 BOLD",    "23.4 kWh"},
-    {36, DashboardSansV2::Weight::Bold,    "36 BOLD",    "5.4 kW"},
-};
+const char* sampleForSize(uint8_t px) {
+    if (px <= 18) return "Dnes 23.4 kWh";
+    if (px <= 24) return "FVE 5.4 kW";
+    return "5.4 kW";
+}
 
-void renderFontTest(IDisplay& display) {
+void renderFontMatrixPage(
+    IDisplay& display,
+    const uint8_t* sizes,
+    const char* title) {
+
     ScreenStyle::useStrongBody(display);
     display.setCursor(92, 58);
-    display.print("DASHBOARD SANS V2 - FAZE A");
+    display.print(title);
 
     for (uint8_t i = 0; i < 6; ++i) {
-        const uint8_t column = i % 2;
-        const uint8_t row = i / 2;
-        const int16_t x =
-            V2GridX + static_cast<int16_t>(column) *
-            (V2CardW + V2ColumnGap);
+        const uint8_t px = sizes[i];
         const int16_t y =
-            V2GridY + static_cast<int16_t>(row) *
-            (V2CardH + V2RowGap);
+            V2GridY + static_cast<int16_t>(i) * (V2CardH + V2RowGap);
 
-        display.drawRoundRect(x, y, V2CardW, V2CardH, 4, 0);
+        display.drawRoundRect(
+            V2GridX, y,
+            V2CardW, V2CardH,
+            4, 0);
+
+        ScreenStyle::useStrongBody(display);
+        display.setCursor(V2GridX + 8, y + 23);
+        display.printf("%u px", static_cast<unsigned>(px));
 
         ScreenStyle::useBody(display);
-        display.setCursor(x + 10, y + 25);
-        display.print(V2Samples[i].label);
+        display.setCursor(V2GridX + 8, y + 48);
+        display.print("R / B");
 
         display.drawLine(
-            x + 8, y + 34,
-            x + V2CardW - 8, y + 34,
+            V2GridX + V2LabelW, y + 5,
+            V2GridX + V2LabelW, y + V2CardH - 5,
             0);
+
+        display.drawLine(
+            V2GridX + V2LabelW + V2ColumnW, y + 5,
+            V2GridX + V2LabelW + V2ColumnW, y + V2CardH - 5,
+            0);
+
+        const char* sample = sampleForSize(px);
+        const int16_t regularX = V2GridX + V2LabelW + 10;
+        const int16_t boldX =
+            V2GridX + V2LabelW + V2ColumnW + 10;
+
+        const int16_t top =
+            y + max<int16_t>(5, (V2CardH - px) / 2);
 
         DashboardSansV2::drawText(
             display,
-            x + 14,
-            y + 46,
-            V2Samples[i].text,
-            V2Samples[i].px,
-            V2Samples[i].weight);
+            regularX,
+            top,
+            sample,
+            px,
+            DashboardSansV2::Weight::Regular);
+
+        DashboardSansV2::drawText(
+            display,
+            boldX,
+            top,
+            sample,
+            px,
+            DashboardSansV2::Weight::Bold);
     }
 }
 
@@ -190,11 +211,11 @@ void renderDiagnosticsOverview(IDisplay& display, const DataModel& dm) {
 
 void DiagnosticsScreen::render(IDisplay& display, const DataModel& dm) {
     const uint8_t subpage =
-        dm.system.navigationSubpageIndex < 3
+        dm.system.navigationSubpageIndex < 4
             ? dm.system.navigationSubpageIndex
             : 0;
 
-    if (subpage == 2) {
+    if (subpage == 3) {
         // Exact 800x480 / 1-bit V2 reference. Do not draw dashboard chrome
         // over it; this page is intended for direct panel evaluation.
         renderDashboardSansV2Reference(display);
@@ -205,11 +226,19 @@ void DiagnosticsScreen::render(IDisplay& display, const DataModel& dm) {
 
     if (subpage == 0) {
         renderDiagnosticsOverview(display, dm);
+    } else if (subpage == 1) {
+        renderFontMatrixPage(
+            display,
+            V2SmallSizes,
+            "DASHBOARD SANS V2 - 8..18");
     } else {
-        renderFontTest(display);
+        renderFontMatrixPage(
+            display,
+            V2LargeSizes,
+            "DASHBOARD SANS V2 - 20..36");
     }
 
-    ScreenStyle::drawSubpageDots(display, subpage, 3);
+    ScreenStyle::drawSubpageDots(display, subpage, 4);
 
     NavigationLayout navigationLayout;
     buildNavigationLayout(dm, navigationLayout);
@@ -223,7 +252,7 @@ void DiagnosticsScreen::buildNavigationLayout(
     layout.clear();
 
     const uint8_t subpage =
-        dm.system.navigationSubpageIndex < 3
+        dm.system.navigationSubpageIndex < 4
             ? dm.system.navigationSubpageIndex
             : 0;
 
@@ -233,19 +262,19 @@ void DiagnosticsScreen::buildNavigationLayout(
         return;
     }
 
-    if (subpage == 2) {
+    if (subpage == 3) {
         // Exact reference page is visual-only; keep page focus empty.
         return;
     }
 
+    const uint8_t* sizes =
+        subpage == 1 ? V2SmallSizes : V2LargeSizes;
+
     for (uint8_t i = 0; i < 6; ++i) {
-        const uint8_t column = i % 2;
-        const uint8_t row = i / 2;
         layout.add(
-            "font-v2-" + String(V2Samples[i].px) + "-" + String(i),
-            V2GridX + static_cast<int16_t>(column) *
-                (V2CardW + V2ColumnGap),
-            V2GridY + static_cast<int16_t>(row) *
+            "font-v2-" + String(sizes[i]),
+            V2GridX,
+            V2GridY + static_cast<int16_t>(i) *
                 (V2CardH + V2RowGap),
             V2CardW,
             V2CardH);
