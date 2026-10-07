@@ -65,13 +65,34 @@ void renderFontMatrixPage(
         const int16_t boldX =
             V2GridX + V2LabelW + V2ColumnW + 10;
 
-        const int16_t top =
+        // Regular and Bold of the same nominal size share one visual
+        // metrics box. The guides make cap-height/baseline mismatches obvious
+        // on both WebUI preview and the real e-paper panel.
+        const int16_t capTop =
             y + max<int16_t>(5, (V2CardH - px) / 2);
+        const int16_t baseline = capTop + px;
+
+        display.drawLine(
+            regularX, capTop,
+            regularX + V2ColumnW - 20, capTop,
+            0);
+        display.drawLine(
+            boldX, capTop,
+            boldX + V2ColumnW - 20, capTop,
+            0);
+        display.drawLine(
+            regularX, baseline,
+            regularX + V2ColumnW - 20, baseline,
+            0);
+        display.drawLine(
+            boldX, baseline,
+            boldX + V2ColumnW - 20, baseline,
+            0);
 
         DashboardSansV2::drawText(
             display,
             regularX,
-            top,
+            capTop,
             sample,
             px,
             DashboardSansV2::Weight::Regular);
@@ -79,7 +100,7 @@ void renderFontMatrixPage(
         DashboardSansV2::drawText(
             display,
             boldX,
-            top,
+            capTop,
             sample,
             px,
             DashboardSansV2::Weight::Bold);
