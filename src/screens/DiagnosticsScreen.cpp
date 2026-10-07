@@ -2,6 +2,7 @@
 #include "ScreenStyle.h"
 #include "../../include/Version.h"
 #include "../display/DashboardSans.h"
+#include "../display/assets/DashboardSansV2Reference.h"
 
 namespace {
 
@@ -62,6 +63,73 @@ void drawDashboardSansSample(
             display, sampleX, y + 12,
             "5.4 kW",
             px, DashboardSans::Weight::Bold);
+    }
+}
+
+class ReferenceBase64Reader {
+public:
+    uint8_t readByte() {
+        while (_bits < 8) {
+            const char ch = DashboardSansV2Reference::Data[_charIndex++];
+            if (ch == '\0') return 0;
+            const int8_t value = decode(ch);
+            if (value < 0) continue;
+            _accumulator = (_accumulator << 6) | static_cast<uint8_t>(value);
+            _bits += 6;
+        }
+        _bits -= 8;
+        return static_cast<uint8_t>((_accumulator >> _bits) & 0xFFu);
+    }
+
+    uint32_t readVarint() {
+        uint32_t value = 0;
+        uint8_t shift = 0;
+        while (true) {
+            const uint8_t byte = readByte();
+            value |= static_cast<uint32_t>(byte & 0x7Fu) << shift;
+            if ((byte & 0x80u) == 0) return value;
+            shift += 7;
+        }
+    }
+
+private:
+    static int8_t decode(char ch) {
+        if (ch >= 'A' && ch <= 'Z') return ch - 'A';
+        if (ch >= 'a' && ch <= 'z') return ch - 'a' + 26;
+        if (ch >= '0' && ch <= '9') return ch - '0' + 52;
+        if (ch == '+') return 62;
+        if (ch == '/') return 63;
+        return -1;
+    }
+
+    size_t _charIndex = 0;
+    uint32_t _accumulator = 0;
+    uint8_t _bits = 0;
+};
+
+void renderDashboardSansV2Reference(IDisplay& display) {
+    display.fillRect(
+        0, 0,
+        DashboardSansV2Reference::Width,
+        DashboardSansV2Reference::Height,
+        1);
+
+    ReferenceBase64Reader reader;
+    uint16_t x = 0;
+    uint16_t y = 0;
+
+    for (uint16_t i = 0; i < DashboardSansV2Reference::RectCount; ++i) {
+        const uint16_t dy = static_cast<uint16_t>(reader.readVarint());
+        const uint16_t dx = static_cast<uint16_t>(reader.readVarint());
+        const uint16_t w = static_cast<uint16_t>(reader.readVarint());
+        const uint16_t h = static_cast<uint16_t>(reader.readVarint());
+
+        if (dy != 0) {
+            y += dy;
+            x = 0;
+        }
+        x += dx;
+        display.fillRect(x, y, w, h, 0);
     }
 }
 
@@ -139,12 +207,19 @@ void renderFontTest(IDisplay& display) {
 } // namespace
 
 void DiagnosticsScreen::render(IDisplay& display, const DataModel& dm) {
-    ScreenStyle::drawChrome(display, dm);
-
     const uint8_t subpage =
-        dm.system.navigationSubpageIndex < 2
+        dm.system.navigationSubpageIndex < 3
             ? dm.system.navigationSubpageIndex
             : 0;
+
+    if (subpage == 2) {
+        // Exact 800x480 / 1-bit V2 reference. Do not draw dashboard chrome
+        // over it; this page is intended for direct panel evaluation.
+        renderDashboardSansV2Reference(display);
+        return;
+    }
+
+    ScreenStyle::drawChrome(display, dm);
 
     if (subpage == 0) {
         renderDiagnosticsOverview(display, dm);
@@ -152,7 +227,7 @@ void DiagnosticsScreen::render(IDisplay& display, const DataModel& dm) {
         renderFontTest(display);
     }
 
-    ScreenStyle::drawSubpageDots(display, subpage, 2);
+    ScreenStyle::drawSubpageDots(display, subpage, 3);
 
     NavigationLayout navigationLayout;
     buildNavigationLayout(dm, navigationLayout);
@@ -166,7 +241,7 @@ void DiagnosticsScreen::buildNavigationLayout(
     layout.clear();
 
     const uint8_t subpage =
-        dm.system.navigationSubpageIndex < 2
+        dm.system.navigationSubpageIndex < 3
             ? dm.system.navigationSubpageIndex
             : 0;
 
