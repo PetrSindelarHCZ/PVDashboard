@@ -263,7 +263,6 @@ inline void drawMenuItem(IDisplay& d, int16_t y, const char* id,
 inline void drawSidebar(IDisplay& d, const DataModel& dm) {
     d.fillRect(0, HeaderHeight, SidebarWidth, Height - HeaderHeight, 0);
     d.drawLine(0, HeaderHeight, SidebarWidth - 1, HeaderHeight, 1);
-    d.drawLine(SidebarWidth, HeaderHeight, SidebarWidth, Height - 1, 0);
 
     // První 48px dlaždice začíná 1 px pod bílou dělicí linkou.
     // Linka je na y=HeaderHeight, následuje 1 px mezera a pak dlaždice.
