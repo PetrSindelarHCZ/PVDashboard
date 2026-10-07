@@ -78,7 +78,7 @@ def add_composite(tt, target_char, base_char, mark_kind, y_shift):
 
         # Lift the smaller ring slightly so it remains clearly detached from
         # the U/u at 24..36 px.
-        dy = y_shift + (25 if target_char == "ů" else 20)
+        dy = y_shift + (40 if target_char == "ů" else 20)
         transform = Transform(scale, 0, 0, scale, dx, dy)
     elif mark_kind == "apostrophe":
         # Quantico's own quotesingle outline, reduced to a Czech d/t caron.
@@ -96,7 +96,7 @@ def add_composite(tt, target_char, base_char, mark_kind, y_shift):
         # stick to the top-right of the t at 24..36 px.
         if target_char == "ť":
             dx += 35
-            dy += 35
+            dy += 55
 
         transform = Transform(scale, 0, 0, scale, dx, dy)
     else:
