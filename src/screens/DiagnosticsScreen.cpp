@@ -1,59 +1,51 @@
 #include "DiagnosticsScreen.h"
 #include "ScreenStyle.h"
 #include "../../include/Version.h"
-#include <U8g2_for_Adafruit_GFX.h>
+#include "../display/DashboardSans.h"
 
 namespace {
 
-struct FontCandidate {
-    const char* label;
-    const char* note;
-    const uint8_t* regular;
-    const uint8_t* bold;
+constexpr uint8_t DashboardSansSizes[] = {
+    8, 10, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36
 };
 
-const FontCandidate FontCandidates[] = {
-    {"A  T0", "současný", u8g2_font_t0_18_te, u8g2_font_t0_18b_te},
-    {"B  Helvetica", "sans-serif", u8g2_font_helvR18_te, u8g2_font_helvB18_te},
-    {"C  New Century", "serif", u8g2_font_ncenR18_te, u8g2_font_ncenB18_te},
-    {"D  Lucida Sans", "sans-serif", u8g2_font_luRS18_te, u8g2_font_luBS18_te}
-};
+constexpr int16_t FontGridX = 88;
+constexpr int16_t FontGridY = 63;
+constexpr int16_t FontColumnW = 337;
+constexpr int16_t FontRowH = 62;
+constexpr int16_t FontColumnGap = 12;
+constexpr int16_t FontRowGap = 4;
 
-constexpr int16_t FontCardX = 88;
-constexpr int16_t FontCardW = 684;
-constexpr int16_t FontCardH = 88;
-constexpr int16_t FontFirstY = 63;
-constexpr int16_t FontGap = 9;
-
-void drawFontCandidate(
+void drawDashboardSansSample(
     IDisplay& display,
+    int16_t x,
     int16_t y,
-    const FontCandidate& candidate) {
+    uint8_t px) {
 
-    display.drawRoundRect(FontCardX, y, FontCardW, FontCardH, 5, 0);
+    display.drawRoundRect(x, y, FontColumnW, FontRowH, 4, 0);
 
-    // Labels remain in the current dashboard font; only the sample changes.
     ScreenStyle::useStrongBody(display);
-    display.setCursor(FontCardX + 12, y + 27);
-    display.print(candidate.label);
+    display.setCursor(x + 8, y + 24);
+    display.printf("%u", static_cast<unsigned>(px));
 
-    ScreenStyle::useBody(display);
-    display.setCursor(FontCardX + 12, y + 57);
-    display.print(candidate.note);
+    const int16_t sampleX = x + 47;
 
-    display.drawLine(
-        FontCardX + 170, y + 8,
-        FontCardX + 170, y + FontCardH - 8,
-        0);
+    if (px <= 24) {
+        DashboardSans::drawText(
+            display, sampleX, y + 5,
+            "Příliš žluťoučký kůň",
+            px, DashboardSans::Weight::Regular);
 
-    display.setTextColor(0);
-    display.setUnicodeFont(candidate.regular);
-    display.setCursor(FontCardX + 185, y + 30);
-    display.print("Příliš žluťoučký kůň");
-
-    display.setUnicodeFont(candidate.bold);
-    display.setCursor(FontCardX + 185, y + 66);
-    display.print("FVE 5.4 kW   Dnes 23.4 kWh");
+        DashboardSans::drawText(
+            display, sampleX, y + 31,
+            "FVE 5.4 kW  Dnes 23.4 kWh",
+            px, DashboardSans::Weight::Bold);
+    } else {
+        DashboardSans::drawText(
+            display, sampleX, y + 12,
+            "FVE 5.4 kW",
+            px, DashboardSans::Weight::Bold);
+    }
 }
 
 void renderDiagnosticsOverview(IDisplay& display, const DataModel& dm) {
@@ -110,11 +102,20 @@ void renderDiagnosticsOverview(IDisplay& display, const DataModel& dm) {
 }
 
 void renderFontTest(IDisplay& display) {
-    for (uint8_t i = 0; i < 4; ++i) {
-        drawFontCandidate(
-            display,
-            FontFirstY + static_cast<int16_t>(i) * (FontCardH + FontGap),
-            FontCandidates[i]);
+    ScreenStyle::useStrongBody(display);
+    display.setCursor(92, 58);
+    display.print("DASHBOARD SANS v1");
+
+    for (uint8_t i = 0; i < 12; ++i) {
+        const uint8_t column = i / 6;
+        const uint8_t row = i % 6;
+        const int16_t x =
+            FontGridX + static_cast<int16_t>(column) *
+            (FontColumnW + FontColumnGap);
+        const int16_t y =
+            FontGridY + static_cast<int16_t>(row) *
+            (FontRowH + FontRowGap);
+        drawDashboardSansSample(display, x, y, DashboardSansSizes[i]);
     }
 }
 
@@ -158,12 +159,16 @@ void DiagnosticsScreen::buildNavigationLayout(
         return;
     }
 
-    for (uint8_t i = 0; i < 4; ++i) {
+    for (uint8_t i = 0; i < 12; ++i) {
+        const uint8_t column = i / 6;
+        const uint8_t row = i % 6;
         layout.add(
-            "font-" + String(static_cast<char>('a' + i)),
-            FontCardX,
-            FontFirstY + static_cast<int16_t>(i) * (FontCardH + FontGap),
-            FontCardW,
-            FontCardH);
+            "font-" + String(DashboardSansSizes[i]),
+            FontGridX + static_cast<int16_t>(column) *
+                (FontColumnW + FontColumnGap),
+            FontGridY + static_cast<int16_t>(row) *
+                (FontRowH + FontRowGap),
+            FontColumnW,
+            FontRowH);
     }
 }
