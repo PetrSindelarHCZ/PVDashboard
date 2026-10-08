@@ -6,7 +6,7 @@
 namespace {
 
 void drawUnavailableCard(IDisplay& display, const char* title, const char* text) {
-    ScreenStyle::drawCard(display, 50, 80, 750, 400, title);
+    ScreenStyle::drawCard(display, 53, 80, 744, 395, title);
     ScreenStyle::useMetric(display);
     display.setCursor(105, 180);
     display.print("Nedostupné");
@@ -21,7 +21,7 @@ void renderSolar(IDisplay& display, const DataModel& dm) {
         return;
     }
 
-    ScreenStyle::drawCard(display, 50, 80, 225, 165, "SOLÁRNÍ VÝROBA");
+    ScreenStyle::drawCard(display, 53, 80, 222, 165, "SOLÁRNÍ VÝROBA");
     ScreenStyle::useMetric(display);
     display.setCursor(90, 170);
     if (dm.solar.status.available) display.printf("%.0f W", dm.solar.productionPowerW);
@@ -54,7 +54,7 @@ void renderSolar(IDisplay& display, const DataModel& dm) {
         display.print("Nedostupné");
     }
 
-    ScreenStyle::drawCard(display, 530, 80, 270, 165, "DISTRIBUCE");
+    ScreenStyle::drawCard(display, 530, 80, 267, 165, "DISTRIBUCE");
     ScreenStyle::useMetric(display);
     display.setCursor(570, 170);
     if (dm.solar.status.available) display.printf("%+.0f W", dm.solar.gridPowerW);
@@ -69,7 +69,7 @@ void renderSolar(IDisplay& display, const DataModel& dm) {
     if (dm.solar.status.available) display.printf("Dům: %.0f W", dm.solar.houseConsumptionW);
     else display.print("Dům: -- W");
 
-    ScreenStyle::drawCard(display, 50, 260, 750, 220, "DNEŠNÍ PRŮBĚH FVE");
+    ScreenStyle::drawCard(display, 53, 260, 744, 215, "DNEŠNÍ PRŮBĚH FVE");
 
     if (!dm.solar.status.available || dm.solar.historyCount == 0) {
         ScreenStyle::useBody(display);
@@ -136,8 +136,8 @@ void SolarScreen::render(IDisplay& display, const DataModel& dm) {
 
 void SolarScreen::buildNavigationLayout(const DataModel&, NavigationLayout& layout) const {
     layout.clear();
-    layout.add("goodwe-production", 50, 80, 225, 165);
+    layout.add("goodwe-production", 53, 80, 222, 165);
     layout.add("goodwe-battery", 290, 80, 225, 165);
-    layout.add("goodwe-grid", 530, 80, 270, 165);
-    layout.add("goodwe-history", 50, 260, 750, 220);
+    layout.add("goodwe-grid", 530, 80, 267, 165);
+    layout.add("goodwe-history", 53, 260, 744, 215);
 }
