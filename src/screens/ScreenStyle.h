@@ -2,12 +2,12 @@
 
 #include "../display/IDisplay.h"
 #include "../display/DisplayFonts.h"
+#include "../display/DashboardSansV2.h"
 #include "../display/assets/Icons.h"
 #include "../display/assets/LmarzenWeatherIcons.h"
 #include "../display/assets/SidebarIcons.h"
 #include "../data/DataModel.h"
 #include "../navigation/NavigationTypes.h"
-#include <Fonts/FreeSansBold18pt7b.h>
 
 
 namespace ScreenStyle {
@@ -180,28 +180,42 @@ inline void drawHeader(IDisplay& d, const DataModel& dm) {
     // The header was cleared above, so invalid time also erases old e-ink text.
     if (!dm.system.ntpSynced) return;
 
-    d.setTextColor(1);
-    d.setFont(&FreeSansBold18pt7b);
-    const int16_t timeX = Width - 12 - d.textWidth(dm.system.timeStr);
-    d.setCursor(timeX, 33);
-    d.print(dm.system.timeStr);
+    constexpr uint8_t timeFontPx = 28;
+    constexpr uint8_t dateFontPx = 16;
+    constexpr DashboardSansV2::Weight headerWeight = DashboardSansV2::Weight::Bold;
 
-    d.setUnicodeFont(DisplayFonts::strongBody());
+    const int16_t timeWidth =
+        DashboardSansV2::textWidth(dm.system.timeStr, timeFontPx, headerWeight);
+    const int16_t timeX = Width - 12 - timeWidth;
+    DashboardSansV2::drawText(
+        d, timeX, 5,
+        dm.system.timeStr,
+        timeFontPx,
+        headerWeight,
+        1);
+
     String date = dm.system.dateStr;
     const int16_t dateLeft = sourceX > 160 ? sourceX : 160;
     const int16_t dateRight = timeX - 20;
     const int16_t availableWidth = dateRight - dateLeft;
     // Truncate only complete UTF-8 code points if a future label is too long.
-    if (d.textWidth(date) > availableWidth) {
-        while (date.length() && d.textWidth(date + "...") > availableWidth) {
+    if (DashboardSansV2::textWidth(date, dateFontPx, headerWeight) > availableWidth) {
+        while (date.length() &&
+               DashboardSansV2::textWidth(date + "...", dateFontPx, headerWeight) > availableWidth) {
             unsigned int end = date.length() - 1;
             while (end > 0 && (static_cast<uint8_t>(date[end]) & 0xC0) == 0x80) --end;
             date.remove(end);
         }
         date += "...";
     }
-    d.setCursor(dateRight - d.textWidth(date), 30);
-    d.print(date);
+    const int16_t dateWidth =
+        DashboardSansV2::textWidth(date, dateFontPx, headerWeight);
+    DashboardSansV2::drawText(
+        d, dateRight - dateWidth, 12,
+        date,
+        dateFontPx,
+        headerWeight,
+        1);
 }
 
 inline void drawBoldLine(IDisplay& d, int16_t x0, int16_t y0, int16_t x1, int16_t y1,
