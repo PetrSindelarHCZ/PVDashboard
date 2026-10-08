@@ -578,7 +578,23 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
                 throw new Error(result.message || ('HTTP ' + response.status));
             }
 
-            await refreshFromStatus(true, false);
+            if (Array.isArray(result.locations) && result.locations.length) {
+                locations = cloneLocations(result.locations);
+            }
+            if (result.activeLocationId) {
+                activeLocationId = String(result.activeLocationId);
+            }
+            baseline = stateKey({
+                ...stateFromUi(),
+                activeLocationId,
+                locations: cloneLocations(locations)
+            });
+            renderLocationPicker();
+            updateDirtyState();
+
+            // Status telemetry may lag the just-saved configuration by one
+            // request cycle. Do not overwrite the confirmed location response
+            // with an older /api/status snapshot here.
             if (successMessage) showToast(successMessage);
             return true;
         } catch (error) {
@@ -597,16 +613,11 @@ static const char WEATHER_SETTINGS_UI_PATCH[] PROGMEM = R"weatherpatch(
             return;
         }
 
-        activeLocationId = id;
-        renderLocationPicker();
-        closeLocationMenu();
-        updateDirtyState();
-
-        // Aktivní lokalita je součást hlavní konfigurace počasí.
-        // Ulož ji stejnou cestou jako provider/interval, aby se změna
-        // okamžitě propsala do ConfigManageru, workeru i displeje.
-        await applyWeatherConfig(false);
-        showToast('Aktivní místo: ' + displayName(selected));
+        const ok = await locationAction(
+            {action:'select', id},
+            'Aktivní místo: ' + displayName(selected)
+        );
+        if (ok) closeLocationMenu();
     }
 
     async function moveLocation(id, direction) {
