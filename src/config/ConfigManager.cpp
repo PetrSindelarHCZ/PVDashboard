@@ -690,16 +690,20 @@ bool ConfigManager::setRfSensors(const RfSensorsConfig& rfSensors) {
 }
 
 void ConfigManager::setWeather(const WeatherConfig& weather) {
-    WeatherConfig normalized = weather;
-    normalized.syncActiveCoordinates();
-    _config.weather = normalized;
-    Preferences preferences; preferences.begin("dashboard", false);
-    preferences.putBool("wx_enabled", normalized.enabled);
-    preferences.putString("wx_provider", normalized.provider);
-    preferences.putDouble("wx_lat", normalized.latitude);
-    preferences.putDouble("wx_lon", normalized.longitude);
-    preferences.putUInt("wx_interval", normalized.pollIntervalSeconds);
-    saveWeatherLocations(preferences, normalized);
+    // WeatherConfig contains the complete location table. Do not create an
+    // additional local copy on Arduino loopTask: WebUI weather mutations
+    // already arrive with another WeatherConfig higher in the call stack.
+    _config.weather = weather;
+    _config.weather.syncActiveCoordinates();
+
+    Preferences preferences;
+    preferences.begin("dashboard", false);
+    preferences.putBool("wx_enabled", _config.weather.enabled);
+    preferences.putString("wx_provider", _config.weather.provider);
+    preferences.putDouble("wx_lat", _config.weather.latitude);
+    preferences.putDouble("wx_lon", _config.weather.longitude);
+    preferences.putUInt("wx_interval", _config.weather.pollIntervalSeconds);
+    saveWeatherLocations(preferences, _config.weather);
     preferences.end();
 }
 
