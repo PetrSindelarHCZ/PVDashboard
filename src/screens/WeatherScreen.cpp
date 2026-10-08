@@ -101,7 +101,7 @@ void WeatherScreen::render(IDisplay& display, const DataModel& dm) {
         }
     }
 
-    ScreenStyle::drawCard(display, 53, 50, 279, 425, currentCardTitle.c_str());
+    ScreenStyle::drawCard(display, 65, 60, 275, 405, currentCardTitle.c_str());
     if (!dm.weather.status.available) {
         ScreenStyle::useValue(display);
         display.setCursor(95, 150);
@@ -143,7 +143,7 @@ void WeatherScreen::render(IDisplay& display, const DataModel& dm) {
         display.printf("Zdroj: %s", dm.weather.provider.c_str());
     }
 
-    ScreenStyle::drawCard(display, 342, 50, 455, 425, "PŘEDPOVĚĎ NA 4 DNY");
+    ScreenStyle::drawCard(display, 355, 60, 430, 405, "PŘEDPOVĚĎ NA 4 DNY");
     if (!dm.weather.status.available || dm.weather.dailyCount == 0) {
         ScreenStyle::useBody(display);
         display.setCursor(387, 145);
@@ -195,8 +195,8 @@ void WeatherScreen::buildNavigationLayout(const DataModel&, NavigationLayout& la
         layout.add("hourly-panel", 60, 120, 730, 345);
         return;
     }
-    layout.add("current-card", 53, 50, 279, 425);
-    layout.add("forecast-card", 342, 50, 455, 425);
+    layout.add("current-card", 65, 60, 275, 405);
+    layout.add("forecast-card", 355, 60, 430, 405);
 }
 
 void WeatherScreen::renderHourly(IDisplay& display, const DataModel& dm) {
