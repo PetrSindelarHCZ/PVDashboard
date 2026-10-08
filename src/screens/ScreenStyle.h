@@ -79,56 +79,34 @@ inline void drawWifi(IDisplay& d, int16_t x, int16_t y, bool connected, uint8_t 
     }
 }
 
-inline void drawSolarStatus(IDisplay& d, int16_t x, int16_t y, bool available) {
-    // Same visual language as the sidebar: inverter enclosure + AC sine wave.
-    d.drawRoundRect(x + 2, y + 3, 28, 26, 3, 1);
-    d.drawRoundRect(x + 3, y + 4, 26, 24, 2, 1);
+inline void drawHeaderSourceIcon(
+    IDisplay& d,
+    int16_t x,
+    int16_t y,
+    SidebarIcons::Icon iconId,
+    bool available) {
 
-    // Compact sine wave, intentionally built from line segments so it remains
-    // crisp on the monochrome e-paper header.
-    const int16_t sx = x + 6;
-    const int16_t sy = y + 16;
-    d.drawLine(sx + 0,  sy + 0, sx + 3,  sy - 4, 1);
-    d.drawLine(sx + 3,  sy - 4, sx + 6,  sy - 6, 1);
-    d.drawLine(sx + 6,  sy - 6, sx + 9,  sy - 4, 1);
-    d.drawLine(sx + 9,  sy - 4, sx + 12, sy + 0, 1);
-    d.drawLine(sx + 12, sy + 0, sx + 15, sy + 4, 1);
-    d.drawLine(sx + 15, sy + 4, sx + 18, sy + 6, 1);
-    d.drawLine(sx + 18, sy + 6, sx + 21, sy + 4, 1);
+    const SidebarIcons::Bitmap icon = SidebarIcons::get(iconId);
+    if (icon.data == nullptr) return;
 
-    // Thicken the waveform by one pixel for readability at 32 px.
-    d.drawLine(sx + 0,  sy + 1, sx + 3,  sy - 3, 1);
-    d.drawLine(sx + 3,  sy - 3, sx + 6,  sy - 5, 1);
-    d.drawLine(sx + 6,  sy - 5, sx + 9,  sy - 3, 1);
-    d.drawLine(sx + 9,  sy - 3, sx + 12, sy + 1, 1);
-    d.drawLine(sx + 12, sy + 1, sx + 15, sy + 5, 1);
-    d.drawLine(sx + 15, sy + 5, sx + 18, sy + 7, 1);
-    d.drawLine(sx + 18, sy + 7, sx + 21, sy + 5, 1);
+    // Reuse the exact sidebar artwork in the header so the source identity is
+    // visually identical in both places. Header background is black, so draw
+    // the white sidebar bitmap directly.
+    d.drawBitmap(
+        x,
+        y,
+        icon.data,
+        icon.width,
+        icon.height,
+        1);
 
-    if (!available) drawDisconnected(d, x, y);
-}
-
-inline void drawRouterStatus(IDisplay& d, int16_t x, int16_t y, bool available) {
-    // Same visual language as the sidebar: AZ lettering inside the device.
-    d.drawRoundRect(x + 2, y + 3, 28, 26, 3, 1);
-    d.drawRoundRect(x + 3, y + 4, 26, 24, 2, 1);
-
-    // A
-    d.drawLine(x + 6,  y + 23, x + 10, y + 9, 1);
-    d.drawLine(x + 10, y + 9,  x + 14, y + 23, 1);
-    d.drawLine(x + 8,  y + 17, x + 12, y + 17, 1);
-    d.drawLine(x + 7,  y + 23, x + 11, y + 9, 1);
-    d.drawLine(x + 11, y + 9,  x + 15, y + 23, 1);
-
-    // Z
-    d.drawLine(x + 16, y + 10, x + 25, y + 10, 1);
-    d.drawLine(x + 16, y + 11, x + 25, y + 11, 1);
-    d.drawLine(x + 25, y + 10, x + 16, y + 22, 1);
-    d.drawLine(x + 25, y + 11, x + 16, y + 23, 1);
-    d.drawLine(x + 16, y + 22, x + 25, y + 22, 1);
-    d.drawLine(x + 16, y + 23, x + 25, y + 23, 1);
-
-    if (!available) drawDisconnected(d, x, y);
+    if (!available) {
+        // Keep the same disconnected treatment used elsewhere in the header.
+        drawDisconnected(
+            d,
+            x + (icon.width - 32) / 2,
+            y + (icon.height - 32) / 2);
+    }
 }
 
 inline void drawDeviceBatteryStatus(
@@ -173,11 +151,21 @@ inline void drawHeader(IDisplay& d, const DataModel& dm) {
 
     int16_t sourceX = 56;
     if (dm.solar.enabled) {
-        drawSolarStatus(d, sourceX, 6, online && dm.solar.status.available);
+        drawHeaderSourceIcon(
+            d,
+            sourceX,
+            2,
+            SidebarIcons::Icon::Solar,
+            online && dm.solar.status.available);
         sourceX += 48;
     }
     if (dm.azrouter.enabled) {
-        drawRouterStatus(d, sourceX, 6, online && dm.azrouter.status.available);
+        drawHeaderSourceIcon(
+            d,
+            sourceX,
+            2,
+            SidebarIcons::Icon::AZRouter,
+            online && dm.azrouter.status.available);
         sourceX += 48;
     }
     if (dm.battery.status.available || dm.battery.version != 0) {
