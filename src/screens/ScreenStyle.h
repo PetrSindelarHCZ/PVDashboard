@@ -210,8 +210,10 @@ inline void drawHeader(IDisplay& d, const DataModel& dm) {
     }
     const int16_t dateWidth =
         DashboardSansV2::textWidth(date, dateFontPx, headerWeight);
+    constexpr int16_t dateLineHeight = 20;
+    const int16_t dateTop = (HeaderHeight - dateLineHeight) / 2;
     DashboardSansV2::drawText(
-        d, dateRight - dateWidth, 12,
+        d, dateRight - dateWidth, dateTop,
         date,
         dateFontPx,
         headerWeight,
