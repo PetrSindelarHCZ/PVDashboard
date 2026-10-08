@@ -4,7 +4,7 @@
 void PoolScreen::render(IDisplay& display, const DataModel& dm) {
     ScreenStyle::drawChrome(display, dm);
 
-    ScreenStyle::drawCard(display, 50, 45, 166, 150, "TEPLOTA VODY");
+    ScreenStyle::drawCard(display, 53, 50, 163, 145, "TEPLOTA VODY");
     ScreenStyle::useMetric(display);
     display.setCursor(85, 135);
     display.printf("%.1f °C", dm.pool.waterTempC);
@@ -12,7 +12,7 @@ void PoolScreen::render(IDisplay& display, const DataModel& dm) {
     display.setCursor(85, 165);
     display.printf("Cíl: %.1f °C", dm.pool.targetTempC);
 
-    ScreenStyle::drawCard(display, 226, 45, 166, 150, "PH VODY");
+    ScreenStyle::drawCard(display, 226, 50, 166, 145, "PH VODY");
     ScreenStyle::useMetric(display);
     display.setCursor(261, 135);
     display.printf("%.1f", dm.pool.ph);
@@ -20,7 +20,7 @@ void PoolScreen::render(IDisplay& display, const DataModel& dm) {
     display.setCursor(261, 165);
     display.print("Ideál: 7.0-7.4");
 
-    ScreenStyle::drawCard(display, 402, 45, 166, 150, "VOLNÝ CHLÓR");
+    ScreenStyle::drawCard(display, 402, 50, 166, 145, "VOLNÝ CHLÓR");
     ScreenStyle::useMetric(display);
     display.setCursor(437, 135);
     display.printf("%.1f", dm.pool.freeChlorineMgL);
@@ -28,7 +28,7 @@ void PoolScreen::render(IDisplay& display, const DataModel& dm) {
     display.setCursor(437, 165);
     display.print("mg/l | Ideál 0.3-1.0");
 
-    ScreenStyle::drawCard(display, 578, 45, 222, 150, "VZDUCH");
+    ScreenStyle::drawCard(display, 578, 50, 219, 145, "VZDUCH");
     ScreenStyle::useMetric(display);
     display.setCursor(613, 135);
     display.printf("%.1f °C", dm.pool.airTempC);
@@ -36,7 +36,7 @@ void PoolScreen::render(IDisplay& display, const DataModel& dm) {
     display.setCursor(613, 165);
     display.printf("Vlhkost: %d %%", dm.pool.airHumidityPercent);
 
-    ScreenStyle::drawCard(display, 50, 195, 450, 285, "STAV TECHNOLOGIE");
+    ScreenStyle::drawCard(display, 53, 195, 447, 280, "STAV TECHNOLOGIE");
     ScreenStyle::useBody(display);
     display.setCursor(90, 290);
     display.print("Filtrace:");
@@ -55,7 +55,7 @@ void PoolScreen::render(IDisplay& display, const DataModel& dm) {
     display.setCursor(260, 425);
     display.print("Vypnuto");
 
-    ScreenStyle::drawCard(display, 510, 195, 290, 285, "INFORMACE - DEMO");
+    ScreenStyle::drawCard(display, 510, 195, 287, 280, "INFORMACE - DEMO");
     ScreenStyle::useBody(display);
     display.setCursor(550, 290);
     display.print("Objem: 32 m3");
@@ -71,10 +71,10 @@ void PoolScreen::render(IDisplay& display, const DataModel& dm) {
 
 void PoolScreen::buildNavigationLayout(const DataModel&, NavigationLayout& layout) const {
     layout.clear();
-    layout.add("water-card", 50, 45, 166, 150);
-    layout.add("ph-card", 226, 45, 166, 150);
-    layout.add("chlorine-card", 402, 45, 166, 150);
-    layout.add("air-card", 578, 45, 222, 150);
-    layout.add("technology-card", 50, 195, 450, 285);
-    layout.add("info-card", 510, 195, 290, 285);
+    layout.add("water-card", 53, 50, 163, 145);
+    layout.add("ph-card", 226, 50, 166, 145);
+    layout.add("chlorine-card", 402, 50, 166, 145);
+    layout.add("air-card", 578, 50, 219, 145);
+    layout.add("technology-card", 53, 195, 447, 280);
+    layout.add("info-card", 510, 195, 287, 280);
 }
