@@ -486,20 +486,32 @@ void WeatherWorker::publishCachedActiveLocked(
         active->longitude);
 
     if (index < 0 || _cache[index].data == nullptr) {
-        _latest = WeatherData();
+        // Avoid constructing a full temporary WeatherData on loopTask.
         _hasLatest = false;
+        _latest.status.available = false;
+        _latest.status.lastSuccessMs = 0;
+        _latest.status.lastAttemptMs = millis();
+        _latest.status.lastError = "Weather cache miss";
+        _latest.enabled = config.enabled;
+        _latest.provider = config.provider;
+        _latest.locationId = active->id;
+        _latest.locationName = active->name;
+        _latest.dailyCount = 0;
+        _latest.hourlyCount = 0;
+        _latest.lastUpdateMs = 0;
+
         Serial.printf(
             "[WEATHER] Cache MISS aktivni lokalita: %s\n",
             active->name.c_str());
         return;
     }
 
-    WeatherData cached = *_cache[index].data;
-    cached.enabled = true;
-    cached.locationId = active->id;
-    cached.locationName = active->name;
-
-    _latest = cached;
+    // Copy directly into the long-lived member. A local WeatherData here can
+    // overflow Arduino loopTask when reconfiguration originates in WebServer.
+    _latest = *_cache[index].data;
+    _latest.enabled = true;
+    _latest.locationId = active->id;
+    _latest.locationName = active->name;
     _hasLatest = true;
 
     const uint32_t ageSeconds =
