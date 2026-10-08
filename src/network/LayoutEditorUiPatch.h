@@ -2434,8 +2434,11 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             return;
         }
 
+        draft.forEach(widget => normalizeWidget(widget));
+
         const payload = {
             customized: true,
+            geometryVersion: Number(apiState.geometryVersion || 1),
             widgets: clone(draft)
         };
 

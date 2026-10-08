@@ -116,6 +116,7 @@ String homeLayoutResponseJson(
     JsonDocument doc;
     doc["screen"] = "home";
     doc["customized"] = config.customized;
+    doc["geometryVersion"] = HomeLayout::GeometryVersion;
 
     JsonObject bounds = doc["bounds"].to<JsonObject>();
     bounds["x"] = HomeLayout::ContentLeft;

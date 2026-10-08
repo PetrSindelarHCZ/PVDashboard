@@ -2,24 +2,24 @@
 
 #include "../display/IDisplay.h"
 #include "../display/DisplayFonts.h"
+#include "../display/DashboardSansV2.h"
 #include "../display/assets/Icons.h"
 #include "../display/assets/LmarzenWeatherIcons.h"
 #include "../display/assets/SidebarIcons.h"
 #include "../data/DataModel.h"
 #include "../navigation/NavigationTypes.h"
-#include <Fonts/FreeSansBold18pt7b.h>
 
 
 namespace ScreenStyle {
 
 constexpr int16_t Width = 800;
 constexpr int16_t Height = 480;
-constexpr int16_t HeaderHeight = 48;
-constexpr int16_t SidebarWidth = 60;
-constexpr int16_t ContentLeft = 75;
-constexpr int16_t ContentRight = 785;
-constexpr int16_t ContentTop = 63;
-constexpr int16_t ContentBottom = 465;
+constexpr int16_t HeaderHeight = 45;
+constexpr int16_t SidebarWidth = 50;
+constexpr int16_t ContentLeft = 50;
+constexpr int16_t ContentRight = 800;
+constexpr int16_t ContentTop = 45;
+constexpr int16_t ContentBottom = 480;
 constexpr int16_t CardRadius = 6;
 
 inline void useTitle(IDisplay& d, uint16_t color = 0) { d.setTextColor(color); d.setUnicodeFont(DisplayFonts::title()); }
@@ -161,47 +161,63 @@ inline void drawDeviceBatteryStatus(
 inline void drawHeader(IDisplay& d, const DataModel& dm) {
     d.fillRect(0, 0, Width, HeaderHeight, 0);
     const bool online = dm.system.wifiConnected;
-    drawWifi(d, 8, 8, online, dm.system.wifiSignalLevel, dm.system.wifiAccessPoint);
+    drawWifi(d, 8, 6, online, dm.system.wifiSignalLevel, dm.system.wifiAccessPoint);
 
     int16_t sourceX = 56;
     if (dm.solar.enabled) {
-        drawSolarStatus(d, sourceX, 8, online && dm.solar.status.available);
+        drawSolarStatus(d, sourceX, 6, online && dm.solar.status.available);
         sourceX += 48;
     }
     if (dm.azrouter.enabled) {
-        drawRouterStatus(d, sourceX, 8, online && dm.azrouter.status.available);
+        drawRouterStatus(d, sourceX, 6, online && dm.azrouter.status.available);
         sourceX += 48;
     }
     if (dm.battery.status.available || dm.battery.version != 0) {
-        drawDeviceBatteryStatus(d, sourceX, 8, dm.battery);
+        drawDeviceBatteryStatus(d, sourceX, 6, dm.battery);
         sourceX += 48;
     }
 
     // The header was cleared above, so invalid time also erases old e-ink text.
     if (!dm.system.ntpSynced) return;
 
-    d.setTextColor(1);
-    d.setFont(&FreeSansBold18pt7b);
-    const int16_t timeX = Width - 12 - d.textWidth(dm.system.timeStr);
-    d.setCursor(timeX, 35);
-    d.print(dm.system.timeStr);
+    constexpr uint8_t timeFontPx = 28;
+    constexpr uint8_t dateFontPx = 16;
+    constexpr DashboardSansV2::Weight headerWeight = DashboardSansV2::Weight::Bold;
 
-    d.setUnicodeFont(DisplayFonts::strongBody());
+    const int16_t timeWidth =
+        DashboardSansV2::textWidth(dm.system.timeStr, timeFontPx, headerWeight);
+    const int16_t timeX = Width - 12 - timeWidth;
+    const int16_t timeTop = (HeaderHeight - timeFontPx) / 2;
+    DashboardSansV2::drawText(
+        d, timeX, timeTop,
+        dm.system.timeStr,
+        timeFontPx,
+        headerWeight,
+        1);
+
     String date = dm.system.dateStr;
     const int16_t dateLeft = sourceX > 160 ? sourceX : 160;
     const int16_t dateRight = timeX - 20;
     const int16_t availableWidth = dateRight - dateLeft;
     // Truncate only complete UTF-8 code points if a future label is too long.
-    if (d.textWidth(date) > availableWidth) {
-        while (date.length() && d.textWidth(date + "...") > availableWidth) {
+    if (DashboardSansV2::textWidth(date, dateFontPx, headerWeight) > availableWidth) {
+        while (date.length() &&
+               DashboardSansV2::textWidth(date + "...", dateFontPx, headerWeight) > availableWidth) {
             unsigned int end = date.length() - 1;
             while (end > 0 && (static_cast<uint8_t>(date[end]) & 0xC0) == 0x80) --end;
             date.remove(end);
         }
         date += "...";
     }
-    d.setCursor(dateRight - d.textWidth(date), 31);
-    d.print(date);
+    const int16_t dateWidth =
+        DashboardSansV2::textWidth(date, dateFontPx, headerWeight);
+    const int16_t dateTop = (HeaderHeight - dateFontPx) / 2;
+    DashboardSansV2::drawText(
+        d, dateRight - dateWidth, dateTop,
+        date,
+        dateFontPx,
+        headerWeight,
+        1);
 }
 
 inline void drawBoldLine(IDisplay& d, int16_t x0, int16_t y0, int16_t x1, int16_t y1,
@@ -234,40 +250,40 @@ inline void drawMenuItem(IDisplay& d, int16_t y, const char* id,
     const bool focused =
         dm.system.navigationSidebarScreenId.equalsIgnoreCase(id);
 
-    constexpr int16_t tileX = 4;
-    constexpr int16_t tileW = 52;
-    constexpr int16_t tileH = 58;
-    constexpr int16_t tileRadius = 8;
+    constexpr int16_t tileX = 0;
+    constexpr int16_t tileW = SidebarWidth;
+    constexpr int16_t tileH = 50;
     const int16_t tileY = y - tileH / 2;
 
-    if (active) d.fillRoundRect(tileX, tileY, tileW, tileH, tileRadius, 0);
+    if (active) d.fillRect(tileX, tileY, tileW, tileH, 1);
 
-    // Active screen and navigation cursor are intentionally separate states.
-    // A black tile means "currently displayed"; the extra ring means "cursor".
+    // Inverted sidebar: black background, white active tile.
+    // Active screen and navigation cursor remain separate states.
     if (focused) {
-        const uint16_t focusColor = active ? 1 : 0;
-        d.drawRoundRect(tileX + 2, tileY + 2, tileW - 4, tileH - 4, tileRadius - 2, focusColor);
-        d.drawRoundRect(tileX + 3, tileY + 3, tileW - 6, tileH - 6, tileRadius - 3, focusColor);
+        const uint16_t focusColor = active ? 0 : 1;
+        d.drawRect(tileX + 2, tileY + 2, tileW - 4, tileH - 4, focusColor);
+        d.drawRect(tileX + 3, tileY + 3, tileW - 6, tileH - 6, focusColor);
     }
 
     const SidebarIcons::Bitmap icon = SidebarIcons::get(iconId);
     if (icon.data != nullptr) {
-        d.drawBitmap(30 - icon.width / 2,
+        d.drawBitmap(25 - icon.width / 2,
                      y - icon.height / 2,
                      icon.data,
                      icon.width,
                      icon.height,
-                     active ? 1 : 0);
+                     active ? 0 : 1);
     }
 }
 
 inline void drawSidebar(IDisplay& d, const DataModel& dm) {
-    d.drawLine(SidebarWidth, HeaderHeight, SidebarWidth, Height - 1, 0);
+    d.fillRect(0, HeaderHeight, SidebarWidth, Height - HeaderHeight, 0);
+    d.drawLine(0, HeaderHeight, SidebarWidth - 1, HeaderHeight, 1);
 
-    // Horní položky skládáme těsně pod sebe od horního okraje sidebaru.
-    // Dlaždice mají výšku 58 px; 2 px mezera dává krok 60 px.
-    constexpr int16_t firstCenterY = HeaderHeight + 6 + 29;
-    constexpr int16_t itemStep = 60;
+    // První 48px dlaždice začíná 1 px pod bílou dělicí linkou.
+    // Linka je na y=HeaderHeight, následuje 1 px mezera a pak dlaždice.
+    constexpr int16_t firstCenterY = HeaderHeight + 1 + 24;
+    constexpr int16_t itemStep = 50;
     int16_t y = firstCenterY;
 
     drawMenuItem(d, y, "home", dm, SidebarIcons::Icon::Home);
@@ -293,7 +309,7 @@ inline void drawSidebar(IDisplay& d, const DataModel& dm) {
     }
 
     // Nastavení / diagnostika zůstává vždy zarovnané ke spodnímu okraji.
-    constexpr int16_t settingsCenterY = Height - 1 - 29;
+    constexpr int16_t settingsCenterY = Height - 1 - 25;
     drawMenuItem(d, settingsCenterY, "diagnostics", dm, SidebarIcons::Icon::Settings);
 }
 
