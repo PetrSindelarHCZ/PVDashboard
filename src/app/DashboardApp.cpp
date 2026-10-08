@@ -1148,18 +1148,53 @@ void DashboardApp::setup() {
                 activeLocationChanged ||
                 fabs(previous.latitude - weather.latitude) > 0.00001 ||
                 fabs(previous.longitude - weather.longitude) > 0.00001;
+            const bool intervalChanged =
+                previous.pollIntervalSeconds != weather.pollIntervalSeconds;
+            const bool listChanged =
+                previous.locationCount != weather.locationCount ||
+                [&previous, &weather]() {
+                    const uint8_t count =
+                        min<uint8_t>(
+                            min<uint8_t>(previous.locationCount, weather.locationCount),
+                            MaxWeatherLocations);
+                    for (uint8_t i = 0; i < count; ++i) {
+                        const auto& a = previous.locations[i];
+                        const auto& b = weather.locations[i];
+                        if (a.id != b.id ||
+                            a.name != b.name ||
+                            a.country != b.country ||
+                            fabs(a.latitude - b.latitude) > 0.00001 ||
+                            fabs(a.longitude - b.longitude) > 0.00001) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }();
+
+            // Reordering alone changes list order but not the worker's actual
+            // provider/active target/coordinates/interval. Avoid a full worker
+            // reconfigure on loopTask for that case.
+            const bool workerConfigChanged =
+                enabledChanged ||
+                providerChanged ||
+                locationChanged ||
+                intervalChanged ||
+                (listChanged && previous.locationCount != weather.locationCount);
 
             _configManager.setWeather(weather);
             const WeatherConfig& applied = _configManager.get().weather;
 
             Serial.printf(
-                "[CONFIG] Pocasi ulozeno: provider=%s active=%s%s\n",
+                "[CONFIG] Pocasi ulozeno: provider=%s active=%s%s%s\n",
                 applied.provider.c_str(),
                 applied.activeLocationId.c_str(),
-                activeLocationChanged ? " active-change" : "");
+                activeLocationChanged ? " active-change" : "",
+                workerConfigChanged ? "" : " order-only");
 
-            if (!_weatherWorker.reconfigure(applied)) {
-                Serial.println("[CONFIG] Nepodarilo se aplikovat konfiguraci pocasi za behu.");
+            if (workerConfigChanged) {
+                if (!_weatherWorker.reconfigure(applied)) {
+                    Serial.println("[CONFIG] Nepodarilo se aplikovat konfiguraci pocasi za behu.");
+                }
             }
 
             const WeatherLocation* activeLocation = applied.activeLocation();
