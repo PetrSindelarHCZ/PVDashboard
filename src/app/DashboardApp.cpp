@@ -217,16 +217,6 @@ const RfSensorConfig* rfSensorBySlot(
     return nullptr;
 }
 
-bool weatherDisplayDataChanged(const WeatherData& a, const WeatherData& b) {
-    return a.status.available != b.status.available ||
-           a.status.lastError != b.status.lastError ||
-           a.lastUpdateMs != b.lastUpdateMs ||
-           a.provider != b.provider ||
-           a.locationId != b.locationId ||
-           a.locationName != b.locationName ||
-           a.dailyCount != b.dailyCount ||
-           a.hourlyCount != b.hourlyCount;
-}
 
 DisplayRegion navigationFocusMarkerRegion(const NavigationRect& bounds) {
     DisplayRegion region;
@@ -1914,25 +1904,31 @@ void DashboardApp::selectWeatherDisplayLocation(
     _weatherDisplayLocationIndex = index;
     _weatherDisplayLocationId = location.id;
 
-    WeatherData selected;
-    if (_weatherWorker.copyCached(location.id, selected)) {
-        selected.locationId = location.id;
-        selected.locationName = location.name;
-        selected.locationIndex = index;
-        selected.locationCount = count;
-        _dataModel.weather = selected;
+    // WeatherData contains the complete daily + hourly forecast and is too
+    // large for loopTask's shallow stack while navigation is active. Copy the
+    // cached value directly into the long-lived DataModel instead of creating
+    // a temporary WeatherData on the stack.
+    if (_weatherWorker.copyCached(location.id, _dataModel.weather)) {
+        _dataModel.weather.locationId = location.id;
+        _dataModel.weather.locationName = location.name;
+        _dataModel.weather.locationIndex = index;
+        _dataModel.weather.locationCount = count;
     } else {
-        WeatherData pending;
-        pending.enabled = weather.enabled;
-        pending.provider = weatherProviderLabel(weather.provider);
-        pending.locationId = location.id;
-        pending.locationName = location.name;
-        pending.locationIndex = index;
-        pending.locationCount = count;
-        pending.status.available = false;
-        pending.status.lastAttemptMs = millis();
-        pending.status.lastError = "Nacitam data lokality";
-        _dataModel.weather = pending;
+        // Invalidate/update the existing object in place for the same reason:
+        // never construct a full pending WeatherData on loopTask's stack.
+        _dataModel.weather.enabled = weather.enabled;
+        _dataModel.weather.provider = weatherProviderLabel(weather.provider);
+        _dataModel.weather.locationId = location.id;
+        _dataModel.weather.locationName = location.name;
+        _dataModel.weather.locationIndex = index;
+        _dataModel.weather.locationCount = count;
+        _dataModel.weather.dailyCount = 0;
+        _dataModel.weather.hourlyCount = 0;
+        _dataModel.weather.lastUpdateMs = 0;
+        _dataModel.weather.status.available = false;
+        _dataModel.weather.status.lastSuccessMs = 0;
+        _dataModel.weather.status.lastAttemptMs = millis();
+        _dataModel.weather.status.lastError = "Nacitam data lokality";
         _weatherWorker.requestLocation(location.id);
     }
 
@@ -2004,10 +2000,21 @@ void DashboardApp::refreshWeatherDisplayFromCache(
     const WeatherConfig& weather = _configManager.get().weather;
     if (!weather.enabled || _weatherDisplayLocationId.isEmpty()) return;
 
-    WeatherData cached;
+    // Keep only the small fields needed for change detection before copying
+    // the large cached forecast directly into DataModel. A local WeatherData
+    // here can also overflow loopTask depending on the caller's stack depth.
+    const bool previousAvailable = _dataModel.weather.status.available;
+    const String previousError = _dataModel.weather.status.lastError;
+    const uint32_t previousLastUpdateMs = _dataModel.weather.lastUpdateMs;
+    const String previousProvider = _dataModel.weather.provider;
+    const String previousLocationId = _dataModel.weather.locationId;
+    const String previousLocationName = _dataModel.weather.locationName;
+    const uint8_t previousDailyCount = _dataModel.weather.dailyCount;
+    const uint8_t previousHourlyCount = _dataModel.weather.hourlyCount;
+
     if (!_weatherWorker.copyCached(
             _weatherDisplayLocationId,
-            cached)) {
+            _dataModel.weather)) {
         return;
     }
 
@@ -2016,15 +2023,20 @@ void DashboardApp::refreshWeatherDisplayFromCache(
         _weatherDisplayLocationId);
     if (index < 0) return;
 
-    cached.locationIndex = static_cast<uint8_t>(index);
-    cached.locationCount =
+    _dataModel.weather.locationIndex = static_cast<uint8_t>(index);
+    _dataModel.weather.locationCount =
         min<uint8_t>(weather.locationCount, MaxWeatherLocations);
 
     const bool changed =
-        weatherDisplayDataChanged(cached, _dataModel.weather);
+        previousAvailable != _dataModel.weather.status.available ||
+        previousError != _dataModel.weather.status.lastError ||
+        previousLastUpdateMs != _dataModel.weather.lastUpdateMs ||
+        previousProvider != _dataModel.weather.provider ||
+        previousLocationId != _dataModel.weather.locationId ||
+        previousLocationName != _dataModel.weather.locationName ||
+        previousDailyCount != _dataModel.weather.dailyCount ||
+        previousHourlyCount != _dataModel.weather.hourlyCount;
     if (!changed) return;
-
-    _dataModel.weather = cached;
     if (requestRefresh) {
         const String activeScreenId =
             _screenManager.getActiveScreenId();
