@@ -905,6 +905,11 @@ void DashboardWebServer::enableTimezoneUiExtension() {
         }
 
         weather.syncActiveCoordinates();
+        Serial.printf(
+            "[WEB][WEATHER-LOC] action=%s active=%s count=%u\n",
+            action.c_str(),
+            weather.activeLocationId.c_str(),
+            static_cast<unsigned>(weather.locationCount));
         _weatherConfigCallback(weather);
 
         JsonDocument doc;
