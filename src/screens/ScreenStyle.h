@@ -21,14 +21,13 @@ constexpr int16_t ContentRight = 800;
 constexpr int16_t ContentTop = 45;
 constexpr int16_t ContentBottom = 480;
 
-// Fixed screens keep a small breathing space inside the content area.
-// Editable/layout-driven screens retain their own configured geometry.
-constexpr int16_t FixedInsetX = 3;
-constexpr int16_t FixedInsetY = 5;
-constexpr int16_t FixedContentLeft = ContentLeft + FixedInsetX;
-constexpr int16_t FixedContentRight = ContentRight - FixedInsetX;
-constexpr int16_t FixedContentTop = ContentTop + FixedInsetY;
-constexpr int16_t FixedContentBottom = ContentBottom - FixedInsetY;
+// Fixed screens use one consistent gutter from the content-area edges
+// and between neighbouring cards. Layout coordinates are in display pixels.
+constexpr int16_t FixedGap = 15;
+constexpr int16_t FixedContentLeft = ContentLeft + FixedGap;
+constexpr int16_t FixedContentRight = ContentRight - FixedGap;
+constexpr int16_t FixedContentTop = ContentTop + FixedGap;
+constexpr int16_t FixedContentBottom = ContentBottom - FixedGap;
 constexpr int16_t CardRadius = 6;
 
 inline void useTitle(IDisplay& d, uint16_t color = 0) { d.setTextColor(color); d.setUnicodeFont(DisplayFonts::title()); }
