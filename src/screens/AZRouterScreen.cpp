@@ -25,7 +25,7 @@ const char* modeText(const AZRouterData& az) {
 
 
 void drawUnavailableCard(IDisplay& display, const char* title, const char* text) {
-    ScreenStyle::drawCard(display, 53, 80, 744, 395, title);
+    ScreenStyle::drawCard(display, 65, 60, 720, 405, title);
     ScreenStyle::useMetric(display);
     display.setCursor(105, 180);
     display.print("Nedostupné");
@@ -74,7 +74,7 @@ void renderAZRouter(IDisplay& display, const DataModel& dm) {
 
     const AZRouterData& az = dm.azrouter;
 
-    ScreenStyle::drawCard(display, 53, 80, 744, 105, "AZ ROUTER MASTER");
+    ScreenStyle::drawCard(display, 65, 60, 720, 105, "AZ ROUTER MASTER");
     ScreenStyle::useMetric(display);
     display.setCursor(95, 170);
     if (az.status.available && az.hasRoutedPower)
@@ -101,11 +101,11 @@ void renderAZRouter(IDisplay& display, const DataModel& dm) {
     display.setCursor(625, 174);
     display.printf("Auth: %s", az.authMode.c_str());
 
-    renderAZPhase(display, az, 0, 75, 225);
-    renderAZPhase(display, az, 1, 315, 225);
+    renderAZPhase(display, az, 0, 65, 230);
+    renderAZPhase(display, az, 1, 310, 230);
     renderAZPhase(display, az, 2, 555, 230);
 
-    ScreenStyle::drawCard(display, 53, 365, 744, 110, "ULOŽENÁ ENERGIE");
+    ScreenStyle::drawCard(display, 65, 370, 720, 95, "ULOŽENÁ ENERGIE");
     ScreenStyle::useBody(display);
     display.setCursor(95, 431);
     if (az.hasRoutedEnergyTotal) display.printf("Celkem %.0f kWh", az.routedEnergyTotalKWh);
@@ -140,9 +140,9 @@ void AZRouterScreen::render(IDisplay& display, const DataModel& dm) {
 
 void AZRouterScreen::buildNavigationLayout(const DataModel&, NavigationLayout& layout) const {
     layout.clear();
-    layout.add("az-master", 53, 80, 744, 105);
-    layout.add("az-l1", 50, 195, 225, 160);
-    layout.add("az-l2", 290, 195, 225, 160);
-    layout.add("az-l3", 530, 195, 270, 160);
-    layout.add("az-energy", 53, 365, 744, 110);
+    layout.add("az-master", 65, 60, 720, 105);
+    layout.add("az-l1", 65, 210, 230, 145);
+    layout.add("az-l2", 310, 210, 230, 145);
+    layout.add("az-l3", 555, 210, 230, 145);
+    layout.add("az-energy", 65, 370, 720, 95);
 }
