@@ -2792,10 +2792,8 @@ static const char LAYOUT_EDITOR_UI_PATCH[] PROGMEM = R"rawliteral(
             if (!apiState) return;
             const b = apiState.bounds;
             const bounds = document.getElementById('layoutEditorBounds');
-            const grid = document.getElementById('layoutEditorGrid');
             const contentRect = {x:b.x, y:b.y, width:b.width, height:b.height};
             cssRect(bounds, contentRect);
-            cssRect(grid, contentRect);
         });
 
         setInterval(() => {
