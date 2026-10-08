@@ -308,7 +308,7 @@ void renderDashboardSansV2Reference(IDisplay& display) {
 }
 
 void renderDiagnosticsOverview(IDisplay& display, const DataModel& dm) {
-    ScreenStyle::drawCard(display, 53, 50, 339, 425, "ESP32 A SÍŤ");
+    ScreenStyle::drawCard(display, 65, 60, 345, 405, "ESP32 A SÍŤ");
     ScreenStyle::useBody(display);
     display.setCursor(90, 135);
     display.printf("Firmware: %s", FIRMWARE_NAME);
@@ -327,7 +327,7 @@ void renderDiagnosticsOverview(IDisplay& display, const DataModel& dm) {
     display.setCursor(90, 380);
     display.printf("NTP: %s", dm.system.ntpSynced ? "Synchronizováno" : "Čeká na sync");
 
-    ScreenStyle::drawCard(display, 402, 50, 395, 425, "INTEGRACE A SLUŽBY");
+    ScreenStyle::drawCard(display, 425, 60, 360, 405, "INTEGRACE A SLUŽBY");
     ScreenStyle::useStrongBody(display);
     display.setCursor(442, 135);
     display.print("GOODWE | UDP 8899");
@@ -415,8 +415,8 @@ void DiagnosticsScreen::buildNavigationLayout(
             : 0;
 
     if (subpage == 0) {
-        layout.add("system-card", 53, 50, 339, 425);
-        layout.add("services-card", 402, 50, 395, 425);
+        layout.add("system-card", 65, 60, 345, 405);
+        layout.add("services-card", 425, 60, 360, 405);
         return;
     }
 
