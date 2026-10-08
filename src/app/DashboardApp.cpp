@@ -208,6 +208,17 @@ String rfSensorMetricLabel(const RfSensorConfig& sensor, bool humidity) {
     return label;
 }
 
+bool weatherDisplayDataChanged(const WeatherData& a, const WeatherData& b) {
+    return a.status.available != b.status.available ||
+           a.status.lastError != b.status.lastError ||
+           a.lastUpdateMs != b.lastUpdateMs ||
+           a.provider != b.provider ||
+           a.locationId != b.locationId ||
+           a.locationName != b.locationName ||
+           a.dailyCount != b.dailyCount ||
+           a.hourlyCount != b.hourlyCount;
+}
+
 const RfSensorConfig* rfSensorBySlot(
     const RfSensorsConfig& config,
     const String& slotId) {
