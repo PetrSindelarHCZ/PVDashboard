@@ -187,8 +187,9 @@ inline void drawHeader(IDisplay& d, const DataModel& dm) {
     const int16_t timeWidth =
         DashboardSansV2::textWidth(dm.system.timeStr, timeFontPx, headerWeight);
     const int16_t timeX = Width - 12 - timeWidth;
+    const int16_t timeTop = (HeaderHeight - timeFontPx) / 2;
     DashboardSansV2::drawText(
-        d, timeX, 5,
+        d, timeX, timeTop,
         dm.system.timeStr,
         timeFontPx,
         headerWeight,
@@ -210,8 +211,7 @@ inline void drawHeader(IDisplay& d, const DataModel& dm) {
     }
     const int16_t dateWidth =
         DashboardSansV2::textWidth(date, dateFontPx, headerWeight);
-    constexpr int16_t dateLineHeight = 20;
-    const int16_t dateTop = (HeaderHeight - dateLineHeight) / 2;
+    const int16_t dateTop = (HeaderHeight - dateFontPx) / 2;
     DashboardSansV2::drawText(
         d, dateRight - dateWidth, dateTop,
         date,
